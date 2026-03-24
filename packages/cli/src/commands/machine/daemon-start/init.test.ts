@@ -456,7 +456,7 @@ describe('initDaemon', () => {
     await initDaemon();
 
     // In the new flow, machines.register is always called (no null-config guard)
-    // First mutation = machines.register, second = updateDaemonStatus
-    expect(mockClient.mutation).toHaveBeenCalledTimes(2);
+    // First mutation = machines.register, second = updateDaemonStatus, third = clearAllSpawnedPids
+    expect(mockClient.mutation).toHaveBeenCalledTimes(3);
   });
 });

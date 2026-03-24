@@ -324,8 +324,18 @@ export const getMachineAgentConfigs = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Filter to only configs for machines the user owns
-    const userConfigs = allConfigs.filter((c) => c.machineId && userMachineMap.has(c.machineId));
+    // Filter to only configs for the CURRENT team and machines the user owns.
+    // Stale configs from old teams (after a team switch) must be excluded to
+    // prevent the UI from seeing spawnedAgentPid on old-team configs.
+    const currentTeamId = chatroom.teamId;
+    const userConfigs = allConfigs.filter((c) => {
+      if (!c.machineId || !userMachineMap.has(c.machineId)) return false;
+      // Only include configs for the current team
+      if (currentTeamId && c.teamRoleKey) {
+        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+      }
+      return true;
+    });
 
     const configsWithMachine = userConfigs.map((config) => {
       const machine = userMachineMap.get(config.machineId!);
@@ -1597,5 +1607,52 @@ export const emitRestartLimitReached = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Clears spawnedAgentPid on ALL teamAgentConfigs for a machine.
+ * Called by the daemon on startup — since the daemon just started fresh,
+ * no agents are running on this machine. Stale PIDs from before the restart
+ * must be cleared to prevent the UI from showing dead agents as "running".
+ *
+ * Also updates participant lastStatus to 'agent.exited' for any configs
+ * that had a PID, so the UI status label is correct.
+ */
+export const clearAllSpawnedPids = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    // Find all configs for this machine that have a spawnedAgentPid
+    const allConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    const now = Date.now();
+    let clearedCount = 0;
+
+    for (const config of allConfigs) {
+      if (config.spawnedAgentPid != null) {
+        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+          spawnedAgentPid: undefined,
+          spawnedAt: undefined,
+          updatedAt: now,
+        });
+
+        // Update participant status so the UI doesn't show "STARTING" or "WORKING"
+        await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
+
+        clearedCount++;
+      }
+    }
+
+    return { clearedCount };
   },
 });
