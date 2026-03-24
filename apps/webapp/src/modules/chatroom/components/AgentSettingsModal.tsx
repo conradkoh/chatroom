@@ -7,10 +7,11 @@ import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } fro
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { WorkspaceDropdown, ALL_WORKSPACES } from './WorkspaceDropdown';
+import { WorkspaceDropdown } from './WorkspaceDropdown';
 
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import { useWorkspaceSelection } from '../hooks/useWorkspaceSelection';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import type { WorkspaceGroup } from '../types/workspace';
 import { buildWorkspaceGroups } from '../utils/buildWorkspaceGroups';
@@ -493,8 +494,6 @@ const WorkspacesContent = memo(function WorkspacesContent({
 }: {
   chatroomId: string;
 }) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES);
-
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -518,34 +517,12 @@ const WorkspacesContent = memo(function WorkspacesContent({
     [allWorkspaces, agentStatusList]
   );
 
-  // Flat workspace list for selection lookup
-  const flatWorkspaces = useMemo(
-    () => workspaceGroups.flatMap((g) => g.workspaces),
-    [workspaceGroups]
-  );
-
-  // Filter workspace groups based on selection
-  const filteredGroups = useMemo((): WorkspaceGroup[] => {
-    if (selectedWorkspaceId === ALL_WORKSPACES) return workspaceGroups;
-    // Find the selected workspace and return only its group
-    for (const group of workspaceGroups) {
-      const ws = group.workspaces.find((w) => w.id === selectedWorkspaceId);
-      if (ws) {
-        return [{ ...group, workspaces: [ws] }];
-      }
-    }
-    return workspaceGroups; // fallback to all if selection is stale
-  }, [workspaceGroups, selectedWorkspaceId]);
-
-  // Reset selection to "all" if current selection becomes stale
-  useEffect(() => {
-    if (
-      selectedWorkspaceId !== ALL_WORKSPACES &&
-      !flatWorkspaces.find((w) => w.id === selectedWorkspaceId)
-    ) {
-      setSelectedWorkspaceId(ALL_WORKSPACES);
-    }
-  }, [flatWorkspaces, selectedWorkspaceId]);
+  // Workspace selection (shared hook — eliminates duplicated selection logic)
+  const {
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    filteredGroups,
+  } = useWorkspaceSelection(workspaceGroups);
 
   // Build a status lookup map
   const statusMap = useMemo(() => {

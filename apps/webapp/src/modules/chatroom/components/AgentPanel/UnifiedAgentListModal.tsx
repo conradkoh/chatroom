@@ -1,15 +1,17 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import { memo, useEffect, useMemo, useCallback, useContext } from 'react';
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
+import { useWorkspaceSelection } from '../../hooks/useWorkspaceSelection';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 import type { WorkspaceGroup } from '../../types/workspace';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { buildWorkspaceGroups } from '../../utils/buildWorkspaceGroups';
-import { WorkspaceDropdown, ALL_WORKSPACES } from '../WorkspaceDropdown';
+import { WorkspaceDropdown } from '../WorkspaceDropdown';
+import { ALL_WORKSPACES } from '../../hooks/useWorkspaceSelection';
 
 import {
   FixedModal,
@@ -43,8 +45,6 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES);
-
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -91,37 +91,20 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     [allWorkspaces, agents]
   );
 
-  // Flat list for selection lookup (includes unassigned)
-  const flatWorkspaces = useMemo(
-    () => workspaceGroups.flatMap((g) => g.workspaces),
-    [workspaceGroups]
-  );
-
-  // Reset selection to "all" if current selection becomes stale
-  useEffect(() => {
-    if (
-      selectedWorkspaceId !== ALL_WORKSPACES &&
-      !flatWorkspaces.find((w) => w.id === selectedWorkspaceId)
-    ) {
-      setSelectedWorkspaceId(ALL_WORKSPACES);
-    }
-  }, [flatWorkspaces, selectedWorkspaceId]);
+  // Workspace selection (shared hook — eliminates duplicated selection logic)
+  const {
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    selectedWorkspace,
+    flatWorkspaces,
+  } = useWorkspaceSelection(workspaceGroups);
 
   // Reset selection when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedWorkspaceId(ALL_WORKSPACES);
     }
-  }, [isOpen]);
-
-  // Resolve the selected workspace (null when "All" is selected)
-  const selectedWorkspace = useMemo(
-    () =>
-      selectedWorkspaceId === ALL_WORKSPACES
-        ? null
-        : (flatWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null),
-    [flatWorkspaces, selectedWorkspaceId]
-  );
+  }, [isOpen, setSelectedWorkspaceId]);
 
   // When a specific workspace is selected, pass it to WorkspaceAgentList.
   // When "All" is selected, we render one WorkspaceAgentList per workspace.

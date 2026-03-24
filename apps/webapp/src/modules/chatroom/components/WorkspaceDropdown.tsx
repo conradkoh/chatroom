@@ -3,6 +3,9 @@
 import { memo } from 'react';
 
 import type { WorkspaceGroup } from '../types/workspace';
+import { ALL_WORKSPACES } from '../hooks/useWorkspaceSelection';
+
+export { ALL_WORKSPACES };
 
 import {
   Select,
@@ -13,11 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-// ─── Constants ──────────────────────────────────────────────────────────
-
-/** Sentinel value for the "All Workspaces" option. */
-export const ALL_WORKSPACES = '__all__';
 
 // ─── Component ──────────────────────────────────────────────────────────
 
