@@ -236,6 +236,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'workspaces' | undefined>(undefined);
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
@@ -370,11 +371,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Open settings modal
   const handleOpenSettings = useCallback(() => {
+    setSettingsInitialTab(undefined);
+    setSettingsModalOpen(true);
+  }, []);
+
+  // Open settings modal directly to workspaces tab
+  const handleOpenWorkspaces = useCallback(() => {
+    setSettingsInitialTab('workspaces');
     setSettingsModalOpen(true);
   }, []);
 
   const handleCloseSettings = useCallback(() => {
     setSettingsModalOpen(false);
+    setSettingsInitialTab(undefined);
   }, []);
 
   // Open/close setup modal
@@ -675,6 +684,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
                   onConfigure={handleOpenSettings}
+                  onOpenWorkspaces={handleOpenWorkspaces}
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
                 <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
@@ -694,6 +704,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             chatroomId={chatroomId}
             currentTeamId={chatroom?.teamId}
             currentTeamRoles={teamRoles}
+            initialTab={settingsInitialTab}
           />
 
           {/* Setup modal - only shown during setup mode */}
