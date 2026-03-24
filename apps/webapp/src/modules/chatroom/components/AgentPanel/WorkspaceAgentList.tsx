@@ -11,6 +11,7 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
+import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { InlineAgentCard } from './InlineAgentCard';
 import type { AgentWithStatus } from './UnifiedAgentListModal';
@@ -112,7 +113,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
                 Machine
               </span>
               <span className="text-[11px] font-bold text-chatroom-text-secondary uppercase tracking-wide">
-                {workspace.hostname}
+                {getWorkspaceDisplayHostname(workspace)}
               </span>
             </div>
           )}

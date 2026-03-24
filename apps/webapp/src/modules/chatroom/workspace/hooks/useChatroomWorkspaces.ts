@@ -44,6 +44,7 @@ export function useChatroomWorkspaces(
           id: `${ws.machineId}::${ws.workingDir}`,
           machineId: ws.machineId,
           hostname: ws.hostname,
+          machineAlias: ws.machineAlias,
           workingDir: ws.workingDir,
           agentRoles,
           _registryId: ws._id,

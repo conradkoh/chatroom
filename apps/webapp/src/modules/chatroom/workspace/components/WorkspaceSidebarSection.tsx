@@ -6,6 +6,7 @@ import { memo, useState, useCallback } from 'react';
 import { InlineDiffStat } from './shared';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
+import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import {
   FixedModal,
@@ -64,7 +65,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
       {/* Hostname */}
       <span className="text-[11px] text-chatroom-text-muted">·</span>
       <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">
-        {workspace.hostname}
+        {getWorkspaceDisplayHostname(workspace)}
       </span>
 
       {/* Branch name (when available) — links to first PR if one exists */}
@@ -174,7 +175,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
           {getWorkspaceName(workspace.workingDir)}
         </span>
         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-          <span className="text-[10px] text-chatroom-text-muted">{workspace.hostname}</span>
+          <span className="text-[10px] text-chatroom-text-muted">{getWorkspaceDisplayHostname(workspace)}</span>
           {statContent && (
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
@@ -341,7 +342,7 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
                 </span>
                 {selectedWorkspace && (
                   <span className="text-[11px] text-chatroom-text-muted">
-                    {selectedWorkspace.hostname}
+                    {getWorkspaceDisplayHostname(selectedWorkspace)}
                   </span>
                 )}
               </div>
