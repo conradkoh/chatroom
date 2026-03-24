@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, MoreHorizontal, Settings } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -9,13 +9,6 @@ import { usePresenceTick } from '../hooks/usePresenceTick';
 import type { TeamLifecycle } from '../types/readiness';
 import { formatLastSeen } from './AgentPanel/AgentStatusRow';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -207,28 +200,21 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with settings menu */}
+      {/* Header with settings button */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        {/* Settings Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
-              <MoreHorizontal size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="chatroom-root">
-            <DropdownMenuItem
-              onClick={onConfigure}
-              className="flex items-center gap-2 text-xs cursor-pointer"
-            >
-              <Settings size={12} />
-              Configure
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Settings button — opens settings panel directly */}
+        <button
+          type="button"
+          onClick={onConfigure}
+          className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          title="Configure agents"
+          aria-label="Configure agents"
+        >
+          <Settings size={14} />
+        </button>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
