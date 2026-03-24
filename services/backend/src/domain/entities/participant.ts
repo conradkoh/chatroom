@@ -29,6 +29,10 @@ export function isActiveParticipant(participant: { lastSeenAction?: string | nul
 /**
  * Patches the participant's lastStatus (and optionally lastDesiredState).
  * No-op if no participant exists for the chatroom+role yet.
+ *
+ * @deprecated Use `transitionAgentStatus()` from `src/domain/usecase/agent/transition-agent-status.ts`
+ * for new code. This function only updates participant.lastStatus (one of two status sources).
+ * `transitionAgentStatus()` updates all status sources atomically to prevent state divergence.
  */
 export async function patchParticipantStatus(
   ctx: MutationCtx,

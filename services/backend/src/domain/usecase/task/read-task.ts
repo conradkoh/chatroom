@@ -25,7 +25,7 @@
 import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { patchParticipantStatus } from '../../entities/participant';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 // ============================================================================
 // TYPES
@@ -107,7 +107,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
       taskId,
       timestamp: now,
     });
-    await patchParticipantStatus(ctx, chatroomId, role, 'task.inProgress');
+    await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
     const context = await fetchCurrentContext(ctx, chatroomId);
     return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
@@ -123,7 +123,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   await transitionTask(ctx, taskId, 'in_progress', 'readTask');
 
   // 7. Update participant status
-  await patchParticipantStatus(ctx, chatroomId, role, 'task.inProgress');
+  await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
   // 8. Fetch current context for inclusion in result
   const context = await fetchCurrentContext(ctx, chatroomId);

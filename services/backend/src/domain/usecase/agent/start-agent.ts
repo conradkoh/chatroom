@@ -23,7 +23,7 @@ import {
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { patchParticipantStatus } from '../../entities/participant';
+import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,7 +152,7 @@ export async function startAgent(
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
-  await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
+  await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   return {
     agentHarness,

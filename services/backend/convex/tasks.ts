@@ -15,7 +15,7 @@ import {
   validateSession,
 } from './auth/cliSessionAuth';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
-import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
@@ -174,7 +174,7 @@ export const claimTask = mutation({
       taskId: pendingTask._id,
       timestamp: now,
     });
-    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 
     return { taskId: pendingTask._id, content: pendingTask.content };
   },
@@ -224,7 +224,7 @@ export const startTask = mutation({
           taskId: acknowledgedTask._id,
           timestamp: now,
         });
-        await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
       }
 
@@ -259,7 +259,7 @@ export const startTask = mutation({
     await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
 
     // Patch participant status after transition
-    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
   },

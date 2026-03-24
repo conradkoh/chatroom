@@ -346,12 +346,15 @@ export default defineSchema({
     // spawnedAgentPid to determine if an agent is running, not token timestamps.
     // Kept for backward compatibility with existing documents.
     lastSeenTokenAt: v.optional(v.number()),
-    // Denormalized mirror of the latest event stream event type for this participant.
+    // @deprecated Denormalized mirror of the latest event stream event type for this participant.
     // Written alongside every event stream insert so the frontend can derive agent status
     // from the participant record alone (without querying the event stream).
+    // Prefer reading agent status from chatroom_teamAgentConfigs (via AgentRoleView.state)
+    // which is the authoritative source for agent lifecycle state.
     lastStatus: v.optional(v.string()),
-    // Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
+    // @deprecated Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
     // Written when start-agent or stop-agent use cases change desiredState.
+    // Prefer reading desiredState directly from chatroom_teamAgentConfigs.
     lastDesiredState: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
