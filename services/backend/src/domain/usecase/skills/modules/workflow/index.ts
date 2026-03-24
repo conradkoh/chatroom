@@ -18,7 +18,16 @@ Workflows are DAG-based execution plans where each step has dependencies, an ass
 \`\`\`
 ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=<key>
 \`\`\`
-Reads JSON from stdin:
+Reads JSON from stdin. **Each step MUST have exactly these 4 fields — no more, no less:**
+
+| Field         | Type       | Required | Description                              |
+|---------------|------------|----------|------------------------------------------|
+| \`stepKey\`     | string     | YES      | Unique identifier within the workflow    |
+| \`description\` | string     | YES      | What this step accomplishes              |
+| \`dependsOn\`   | string[]   | YES      | Step keys this depends on ([] for root)  |
+| \`order\`       | number     | YES      | Execution order (1-based integer)        |
+
+**Example:**
 \`\`\`json
 {
   "steps": [
@@ -29,7 +38,12 @@ Reads JSON from stdin:
 }
 \`\`\`
 
-**Note:** \`assigneeRole\` is not set at create time. Use the \`specify\` command to assign a role and add goal/requirements to each step.
+**⚠️ Common Mistakes — DO NOT:**
+- ❌ Add \`role\`, \`label\`, \`assignee\`, \`name\`, or ANY extra fields — the backend rejects unknown fields
+- ❌ Omit \`stepKey\` or \`order\` — all 4 fields are mandatory for every step
+- ❌ Assume a workflow exists after a failed creation — check with \`workflow status\` first
+
+**✅ Role assignment happens later** in the \`specify\` step, NOT at creation time.
 
 ### Specify Step
 \`\`\`
@@ -87,6 +101,7 @@ Cancels the entire workflow.
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 - Specify clear requirements so step completion can be objectively verified
 - Use the status command to monitor progress
+- If creation fails, fix the error and retry — do NOT assume the workflow exists
 - Exit the workflow with a reason if the plan needs to change
 `,
 };
