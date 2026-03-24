@@ -44,23 +44,11 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
   onSavePreference,
 }: WorkspaceAgentListProps) {
   const [gitExpanded, setGitExpanded] = useState(false);
-  if (!workspace) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <p className="text-xs text-chatroom-text-muted uppercase tracking-wide">
-          Select a workspace
-        </p>
-      </div>
-    );
-  }
 
-  // Filter agents to only those in the selected workspace
-  const workspaceAgents = agents.filter((a) => workspace.agentRoles.includes(a.role));
-
-  // Batch query all restart summaries for workspace roles in a single subscription
+  // All hooks must be called before any early returns to maintain consistent hook order
   const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    roles: workspace.agentRoles,
+    roles: workspace?.agentRoles ?? [],
   });
 
   // Build a map of role -> restart summary for efficient lookup
@@ -76,6 +64,19 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
     }
     return map;
   }, [restartSummaries]);
+
+  if (!workspace) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-xs text-chatroom-text-muted uppercase tracking-wide">
+          Select a workspace
+        </p>
+      </div>
+    );
+  }
+
+  // Filter agents to only those in the selected workspace
+  const workspaceAgents = agents.filter((a) => workspace.agentRoles.includes(a.role));
 
   const dirLabel = workspace.workingDir
     ? (workspace.workingDir.split('/').filter(Boolean).pop() ?? workspace.workingDir)
