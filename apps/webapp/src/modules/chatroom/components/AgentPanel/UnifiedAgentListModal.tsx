@@ -7,8 +7,9 @@ import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
-import type { Workspace, WorkspaceGroup } from '../../types/workspace';
+import type { WorkspaceGroup } from '../../types/workspace';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
+import { buildWorkspaceGroups } from '../../utils/buildWorkspaceGroups';
 
 import {
   FixedModal,
@@ -94,40 +95,10 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   });
 
   // Derive workspace groups from flat list (group by hostname)
-  const workspaceGroups = useMemo((): WorkspaceGroup[] => {
-    const groupMap = new Map<string, WorkspaceGroup>();
-    for (const ws of allWorkspaces) {
-      const key = ws.hostname;
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          machineId: ws.machineId,
-          hostname: ws.hostname,
-          workspaces: [],
-        });
-      }
-      groupMap.get(key)!.workspaces.push(ws);
-    }
-
-    // Add unassigned workspace for agents not in any workspace
-    const assignedRoles = new Set(allWorkspaces.flatMap((w) => w.agentRoles));
-    const unassignedAgents = agents.filter((a) => !assignedRoles.has(a.role));
-    if (unassignedAgents.length > 0) {
-      const unassignedWs: Workspace = {
-        id: '__unassigned__',
-        machineId: null,
-        hostname: 'Unassigned',
-        workingDir: '',
-        agentRoles: unassignedAgents.map((a) => a.role),
-      };
-      groupMap.set('__unassigned__', {
-        machineId: null,
-        hostname: 'Unassigned',
-        workspaces: [unassignedWs],
-      });
-    }
-
-    return Array.from(groupMap.values());
-  }, [allWorkspaces, agents]);
+  const workspaceGroups = useMemo(
+    (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agents),
+    [allWorkspaces, agents]
+  );
 
   // Flat list for selection lookup (includes unassigned)
   const flatWorkspaces = useMemo(

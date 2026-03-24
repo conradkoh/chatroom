@@ -11,7 +11,10 @@ import { CopyButton } from './CopyButton';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-import type { Workspace, WorkspaceGroup } from '../types/workspace';
+import type { WorkspaceGroup } from '../types/workspace';
+import type { StatusVariant } from '../utils/agentStatusLabel';
+import { buildWorkspaceGroups } from '../utils/buildWorkspaceGroups';
+import { formatRelativeTime } from './WorkQueue/utils';
 
 import {
   FixedModal,
@@ -479,34 +482,19 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
 // ─── Workspaces Content ─────────────────────────────────────────────────
 
 /**
- * Helper: relative time label (e.g. "2m ago", "1h ago")
- */
-function formatRelativeTime(timestamp: number | null | undefined): string {
-  if (!timestamp) return 'never';
-  const diff = Date.now() - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-/**
  * Status dot color based on agent status variant
  */
-function getStatusDotClass(variant: string): string {
+function getStatusDotClass(variant: StatusVariant): string {
   switch (variant) {
-    case 'success':
+    case 'ready':
       return 'bg-chatroom-status-success';
     case 'working':
       return 'bg-chatroom-status-info';
-    case 'warning':
+    case 'transitioning':
       return 'bg-chatroom-status-warning';
     case 'error':
       return 'bg-chatroom-status-error';
+    case 'offline':
     default:
       return 'bg-chatroom-text-muted';
   }
@@ -533,43 +521,10 @@ const WorkspacesContent = memo(function WorkspacesContent({
     agentViews: agentRoleViews,
   });
 
-  const workspaceGroups = useMemo((): WorkspaceGroup[] => {
-    const groupMap = new Map<string, WorkspaceGroup>();
-    for (const ws of allWorkspaces) {
-      const key = ws.hostname;
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          machineId: ws.machineId,
-          hostname: ws.hostname,
-          workspaces: [],
-        });
-      }
-      groupMap.get(key)!.workspaces.push(ws);
-    }
-
-    // Unassigned agents
-    const assignedRoles = new Set(allWorkspaces.flatMap((w) => w.agentRoles));
-    const unassignedRoles = agentStatusList
-      .filter((a) => !assignedRoles.has(a.role))
-      .map((a) => a.role);
-
-    if (unassignedRoles.length > 0) {
-      const unassignedWs: Workspace = {
-        id: '__unassigned__',
-        machineId: null,
-        hostname: 'Unassigned',
-        workingDir: '',
-        agentRoles: unassignedRoles,
-      };
-      groupMap.set('__unassigned__', {
-        machineId: null,
-        hostname: 'Unassigned',
-        workspaces: [unassignedWs],
-      });
-    }
-
-    return Array.from(groupMap.values());
-  }, [allWorkspaces, agentStatusList]);
+  const workspaceGroups = useMemo(
+    (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agentStatusList),
+    [allWorkspaces, agentStatusList]
+  );
 
   // Build a status lookup map
   const statusMap = useMemo(() => {
@@ -642,7 +597,7 @@ const WorkspacesContent = memo(function WorkspacesContent({
                       <div className="divide-y divide-chatroom-border">
                         {ws.agentRoles.map((role) => {
                           const status = statusMap.get(role.toLowerCase());
-                          const variant = status?.statusVariant ?? 'default';
+                          const variant: StatusVariant = status?.statusVariant ?? 'offline';
                           const label = status?.statusLabel ?? 'Unknown';
                           const lastSeen = status?.lastSeenAt ?? null;
 
@@ -668,7 +623,7 @@ const WorkspacesContent = memo(function WorkspacesContent({
 
                               {/* Last seen */}
                               <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-                                {formatRelativeTime(lastSeen)}
+                                {lastSeen != null ? formatRelativeTime(lastSeen) : 'never'}
                               </div>
                             </div>
                           );
