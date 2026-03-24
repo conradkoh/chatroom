@@ -143,8 +143,8 @@ describe('classify', () => {
       await classify(TEST_CHATROOM_ID, defaultOptions({ role: 'planner' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
     });
 
     it('exits with code 1 when role is not the entry point', async () => {
@@ -204,8 +204,8 @@ describe('classify', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Two mutations: startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // One mutation: taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task acknowledged and classified');
@@ -227,8 +227,8 @@ describe('classify', () => {
       );
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
       expect(output).toContain('Classification: follow_up');
@@ -254,7 +254,7 @@ describe('classify', () => {
       );
 
       expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
     });
 
     it('exits when new_feature classification has no stdin', async () => {
@@ -317,28 +317,6 @@ describe('classify', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Start task failure
-  // -----------------------------------------------------------------------
-  describe('start task failure', () => {
-    it('exits with code 1 when startTask mutation fails', async () => {
-      const deps = createMockDeps();
-      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
-        teamEntryPoint: 'planner',
-        teamRoles: ['planner', 'builder'],
-      });
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Task must be acknowledged to start')
-      );
-
-      await classify(TEST_CHATROOM_ID, defaultOptions(), deps);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(getAllErrorOutput()).toContain('Failed to start task');
-      expect(getAllErrorOutput()).toContain('Task must be acknowledged to start');
-    });
-  });
-
-  // -----------------------------------------------------------------------
   // Classification failure
   // -----------------------------------------------------------------------
   describe('classification failure', () => {
@@ -348,9 +326,8 @@ describe('classify', () => {
         teamEntryPoint: 'planner',
         teamRoles: ['planner', 'builder'],
       });
-      // First: startTask succeeds, second: classify fails
+      // Classification fails
       (deps.backend.mutation as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(undefined) // startTask
         .mockRejectedValueOnce(new Error('Classification failed'));
 
       await classify(TEST_CHATROOM_ID, defaultOptions(), deps);

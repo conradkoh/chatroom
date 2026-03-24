@@ -1,7 +1,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import type {
@@ -119,38 +119,34 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     }
   }, [checklistState, serverItems]);
 
-  // Clean up deleting set when server items change (remove IDs that no longer exist)
-  useEffect(() => {
+  const prevServerItemsRef = useRef(serverItems);
+  if (prevServerItemsRef.current !== serverItems) {
+    prevServerItemsRef.current = serverItems;
     if (serverItems && deletingItemIds.size > 0) {
       const serverItemIds = new Set(serverItems.map((item) => item._id));
-      setDeletingItemIds((prev) => {
-        const newSet = new Set<Id<'checklistItems'>>();
-        for (const id of prev) {
-          if (serverItemIds.has(id)) {
-            newSet.add(id);
-          }
+      const newSet = new Set<Id<'checklistItems'>>();
+      for (const id of deletingItemIds) {
+        if (serverItemIds.has(id)) {
+          newSet.add(id);
         }
-        return newSet.size !== prev.size ? newSet : prev;
-      });
+      }
+      if (newSet.size !== deletingItemIds.size) {
+        setDeletingItemIds(newSet);
+      }
     }
-  }, [serverItems, deletingItemIds.size]);
-
-  // Clean up optimistic toggles when server data changes (remove IDs that no longer exist or match server state)
-  useEffect(() => {
     if (serverItems && optimisticToggles.size > 0) {
-      setOptimisticToggles((prev) => {
-        const newMap = new Map<Id<'checklistItems'>, boolean>();
-        for (const [id, optimisticState] of prev) {
-          const serverItem = serverItems.find((item) => item._id === id);
-          // Keep optimistic toggle only if item exists and server state differs from optimistic state
-          if (serverItem && serverItem.isCompleted !== optimisticState) {
-            newMap.set(id, optimisticState);
-          }
+      const newMap = new Map<Id<'checklistItems'>, boolean>();
+      for (const [id, optimisticState] of optimisticToggles) {
+        const serverItem = serverItems.find((item) => item._id === id);
+        if (serverItem && serverItem.isCompleted !== optimisticState) {
+          newMap.set(id, optimisticState);
         }
-        return newMap.size !== prev.size ? newMap : prev;
-      });
+      }
+      if (newMap.size !== optimisticToggles.size) {
+        setOptimisticToggles(newMap);
+      }
     }
-  }, [serverItems, optimisticToggles.size]);
+  }
 
   /**
    * Initializes a new checklist if one doesn't exist for the given key.

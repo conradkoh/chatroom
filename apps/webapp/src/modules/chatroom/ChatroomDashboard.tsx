@@ -236,6 +236,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'workspaces' | undefined>(undefined);
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
@@ -370,11 +371,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Open settings modal
   const handleOpenSettings = useCallback(() => {
+    setSettingsInitialTab(undefined);
+    setSettingsModalOpen(true);
+  }, []);
+
+  // Open settings modal directly to workspaces tab
+  const handleOpenWorkspaces = useCallback(() => {
+    setSettingsInitialTab('workspaces');
     setSettingsModalOpen(true);
   }, []);
 
   const handleCloseSettings = useCallback(() => {
     setSettingsModalOpen(false);
+    setSettingsInitialTab(undefined);
   }, []);
 
   // Open/close setup modal
@@ -664,7 +673,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
-                flex flex-col border-l-2 border-chatroom-border-strong
+                grid grid-rows-[auto_1fr_auto] border-l-2 border-chatroom-border-strong
                 ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
@@ -675,6 +684,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
                   onConfigure={handleOpenSettings}
+                  onOpenWorkspaces={handleOpenWorkspaces}
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
                 <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
@@ -693,9 +703,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onClose={handleCloseSettings}
             chatroomId={chatroomId}
             currentTeamId={chatroom?.teamId}
-            currentTeamName={chatroom?.teamName}
             currentTeamRoles={teamRoles}
-            currentTeamEntryPoint={chatroom?.teamEntryPoint}
+            initialTab={settingsInitialTab}
           />
 
           {/* Setup modal - only shown during setup mode */}

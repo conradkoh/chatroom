@@ -1,7 +1,7 @@
 /**
  * complete-backlog-item usecase
  *
- * User confirms agent's work is done. Item must be in pending_user_review.
+ * User confirms work is done. Item can be in backlog or pending_user_review.
  * Delegates to FSM trigger 'completeBacklogItem'.
  */
 import type { Id } from '../../../../convex/_generated/dataModel';

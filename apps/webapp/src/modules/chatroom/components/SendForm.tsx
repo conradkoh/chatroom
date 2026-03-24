@@ -24,9 +24,14 @@ function useIsTouchDevice(): boolean | undefined {
   const [isTouch, setIsTouch] = useState(false);
 
   useEffect(() => {
-    // Mark as mounted and check for touch capability
+    // Mark as mounted and check for touch capability.
+    // Use pointer: coarse media query instead of maxTouchPoints.
+    // Chrome on macOS reports maxTouchPoints > 0 for trackpads,
+    // falsely detecting desktop as a touch device.
+    // pointer: coarse matches actual touch screens (finger input),
+    // while trackpads/mice report pointer: fine.
     setMounted(true);
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     setIsTouch(isTouchDevice);
   }, []);
 

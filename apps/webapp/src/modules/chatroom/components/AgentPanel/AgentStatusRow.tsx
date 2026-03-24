@@ -83,7 +83,12 @@ export const AgentStatusRow = memo(function AgentStatusRow({
   const statusColorClass = getLabelColorClass(statusVariant, online);
 
   return (
-    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+    <div
+      className="flex items-center gap-2 min-w-0 overflow-hidden"
+      /* Force WebKit compositing layer to prevent Safari ghost rendering artifacts.
+         See: https://bugs.webkit.org/show_bug.cgi?id=256725 */
+      style={{ transform: 'translateZ(0)' }}
+    >
       <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
       <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary truncate flex-shrink-0">
         {role}

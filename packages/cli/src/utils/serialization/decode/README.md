@@ -62,7 +62,7 @@ decode(input, {
 - Parses delimited structure
 - Validates parameter names
 - Checks for required parameters
-- Perfect for complex commands like `task-started`
+- Perfect for complex commands like `classify`
 
 ### 3. Content Preservation
 
@@ -104,9 +104,9 @@ All errors include:
 - When neither provided, read from stdin
 - Update prompts to use new format
 
-### Phase 3: Integrate with task-started command
+### Phase 3: Integrate with classify command
 
-- Update `task-started` to accept stdin for multi-param mode
+- Update `classify` to accept stdin for multi-param mode
 - Support both file-based and stdin-based input
 - Update prompts to use structured format
 
@@ -130,10 +130,10 @@ All tests pass
 EOF
 ```
 
-### Task Started (Structured)
+### Classify (Structured)
 
 ```bash
-chatroom task-started abc123 --role=builder --task-id=xyz --classification=new_feature << 'PARAMS'
+chatroom classify --chatroom-id=abc123 --role=builder --task-id=xyz --origin-message-classification=new_feature << 'PARAMS'
 ---TITLE---
 User Authentication
 ---DESCRIPTION---

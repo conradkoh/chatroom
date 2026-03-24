@@ -130,6 +130,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -372,7 +378,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
     // Reviewer is NOT the entry point — should have Start Working, not Classify Task
     expect(rolePrompt).toContain('### Start Working');
-    expect(rolePrompt).toContain('--no-classify');
+    expect(rolePrompt).not.toContain('--no-classify');
+    expect(rolePrompt).not.toContain('task-started');
     expect(rolePrompt).not.toContain('### Classify Task');
     expect(rolePrompt).not.toContain('--origin-message-classification');
 
@@ -403,6 +410,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
       # Skills
 
@@ -460,12 +473,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       ### Start Working
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
-
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10007;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
 
 
        **Pair Team Context:**

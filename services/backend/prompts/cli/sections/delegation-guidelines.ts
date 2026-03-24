@@ -30,6 +30,12 @@ For clean architecture layer order, SOLID principles, and phase design standards
 ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
 \`\`\`
 
+**For complex, multi-step tasks** (3+ phases, multiple skills, or cross-cutting concerns):
+\`\`\`bash
+${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=<id> --role=<role>
+\`\`\`
+Use workflows to define a DAG of steps with dependencies, assign each step to a role, and track progress. In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
+
 **Review loop:**
 - After each phase, review the completed work before delegating the next
 - If it doesn't meet requirements, send it back with specific feedback before moving on

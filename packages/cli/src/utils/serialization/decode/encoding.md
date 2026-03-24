@@ -26,10 +26,10 @@ EOF
 
 ### Multiple Parameters (Structured)
 
-For commands with multiple text parameters (e.g., `task-started` with title, description, techSpecs):
+For commands with multiple text parameters (e.g., `classify` with title, description, techSpecs):
 
 ```bash
-chatroom task-started <chatroomId> --role=<role> --task-id=<id> --classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=<chatroomId> --role=<role> --task-id=<id> --origin-message-classification=new_feature << 'PARAMS_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -71,7 +71,7 @@ PARAMS_END
 3. **If collision detected**, use a **prefixed delimiter format**:
 
 ```bash
-chatroom task-started ... << 'PARAMS_END'
+chatroom classify ... << 'PARAMS_END'
 ---(UUID:a1b2c3d4)TITLE---
 Content here that might contain ---TITLE---
 ---(UUID:a1b2c3d4)DESCRIPTION---
@@ -147,10 +147,10 @@ EOF
 }
 ```
 
-### Example 2: Task Started with Multiple Parameters
+### Example 2: Classify with Multiple Parameters
 
 ```bash
-chatroom task-started j123abc456def --role=builder --task-id=k789xyz --classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=j123abc456def --role=builder --task-id=k789xyz --origin-message-classification=new_feature << 'PARAMS_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -211,7 +211,7 @@ EOF
 
 ```bash
 # This WILL cause a parse error because TITLE appears in content
-chatroom task-started ... << 'PARAMS_END'
+chatroom classify ... << 'PARAMS_END'
 ---TITLE---
 Fix delimiter handling
 ---DESCRIPTION---

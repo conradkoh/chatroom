@@ -339,7 +339,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     });
     expect(queuedBefore.length).toBe(1);
 
-    // Mark the active task as having a sourceMessageId (simulate task-started)
+    // Mark the active task as having a sourceMessageId (simulate classify)
     await t.run(async (ctx) => {
       const msg = await ctx.db
         .query('chatroom_messages')
@@ -397,7 +397,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       });
     });
 
-    // Mark the active task as having a sourceMessageId (simulate task-started)
+    // Mark the active task as having a sourceMessageId (simulate classify)
     await t.run(async (ctx) => {
       const msg = await ctx.db
         .query('chatroom_messages')
@@ -458,7 +458,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     });
     expect(queuedBefore.length).toBe(1);
 
-    // Mark the active task as having a sourceMessageId (simulate task-started)
+    // Mark the active task as having a sourceMessageId (simulate classify)
     await t.run(async (ctx) => {
       const msg = await ctx.db
         .query('chatroom_messages')

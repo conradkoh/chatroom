@@ -42,7 +42,9 @@ function LoginPageContent() {
   const router = useRouter();
   const authState = useAuthState();
   const googleAuthAvailable = useGoogleAuthAvailable();
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null
+  );
   const isLoading = authState === undefined;
 
   /**
@@ -51,11 +53,6 @@ function LoginPageContent() {
   const redirectAuthenticated = useCallback(() => {
     router.push('/app');
   }, [router]);
-
-  // Get session ID for anonymous login - moved to useEffect to avoid hydration mismatch
-  useEffect(() => {
-    setSessionId(localStorage.getItem('sessionId'));
-  }, []);
 
   // Redirect authenticated users to app
   useEffect(() => {

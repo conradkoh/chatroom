@@ -171,21 +171,6 @@ export async function classify(
     process.exit(1);
   }
 
-  // First, start the task (transition: acknowledged → in_progress)
-  try {
-    await d.backend.mutation(api.tasks.startTask, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      taskId: taskId as Id<'chatroom_tasks'>,
-    });
-  } catch (error) {
-    const err = error as Error;
-    console.error(`❌ Failed to start task`);
-    console.error(`   Error: ${err.message}`);
-    process.exit(1);
-  }
-
   // Classify the message (requires task to be in_progress)
   // This is only for entry point roles receiving user messages
   try {

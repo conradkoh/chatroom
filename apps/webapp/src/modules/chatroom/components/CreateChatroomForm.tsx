@@ -11,46 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-interface TeamsConfig {
-  defaultTeam: string;
-  teams: Record<string, TeamDefinition>;
-}
+import { TEAMS_CONFIG } from '../config/teams';
 
 interface CreateChatroomFormProps {
   onCreated: (chatroomId: string) => void;
   onCancel: () => void;
 }
 
-// Default teams configuration (matching the CLI defaults)
-const DEFAULT_TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'duo',
-  teams: {
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair, planner as coordinator',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
-
 export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormProps) {
-  const [config] = useState<TeamsConfig>(DEFAULT_TEAMS_CONFIG);
-  const [selectedTeam, setSelectedTeam] = useState<string>(DEFAULT_TEAMS_CONFIG.defaultTeam);
+  const [config] = useState(TEAMS_CONFIG);
+  const [selectedTeam, setSelectedTeam] = useState<string>(TEAMS_CONFIG.defaultTeam);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

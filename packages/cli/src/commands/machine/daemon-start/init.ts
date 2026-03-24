@@ -200,7 +200,7 @@ async function registerCapabilities(
 
 /**
  * Connect the daemon to the backend by updating daemon status.
- * Exits the process on failure.
+ * Throws on failure (caller handles retry).
  */
 async function connectDaemon(
   client: ConvexHttpClient,
@@ -217,11 +217,12 @@ async function connectDaemon(
   } catch (error) {
     if (isNetworkError(error)) {
       formatConnectivityError(error, convexUrl);
+      throw error; // Re-throw for caller retry logic
     } else {
       console.error(`❌ Failed to update daemon status: ${(error as Error).message}`);
+      releaseLock();
+      process.exit(1);
     }
-    releaseLock();
-    process.exit(1);
   }
 }
 
@@ -254,11 +255,17 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   }
 }
 
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
+const CONNECTION_RETRY_INTERVAL_MS = 1000;
+
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 /**
  * Initialize the daemon: validate auth, connect to Convex, recover state.
- * Returns the DaemonContext if successful, or exits the process on failure.
+ * Retries with a fixed 1-second interval on network errors.
+ * Returns the DaemonContext if successful, or exits the process on fatal failure.
  */
 export async function initDaemon(): Promise<DaemonContext> {
   // Acquire lock (prevents multiple daemons)
@@ -274,56 +281,79 @@ export async function initDaemon(): Promise<DaemonContext> {
   // between our storage format and Convex's branded type system.
   const typedSessionId: SessionId = sessionId;
 
-  await validateSession(client, typedSessionId, convexUrl);
+  // Retry loop for network errors — waits 1s between attempts
+  while (true) {
+    try {
+      await validateSession(client, typedSessionId, convexUrl);
 
-  const config = setupMachine();
-  const { machineId } = config;
+      const config = setupMachine();
+      const { machineId } = config;
 
-  // Populate harness registry and build service map from it
-  initHarnessRegistry();
-  const agentServices = new Map<string, RemoteAgentService>(
-    getAllHarnesses().map((s) => [s.id, s])
-  );
+      // Populate harness registry and build service map from it
+      initHarnessRegistry();
+      const agentServices = new Map<string, RemoteAgentService>(
+        getAllHarnesses().map((s) => [s.id, s])
+      );
 
-  const availableModels = await registerCapabilities(client, typedSessionId, config, agentServices);
-  await connectDaemon(client, typedSessionId, machineId, convexUrl);
+      const availableModels = await registerCapabilities(
+        client,
+        typedSessionId,
+        config,
+        agentServices
+      );
+      await connectDaemon(client, typedSessionId, machineId, convexUrl);
 
-  // Create default dependencies and bind the real Convex client
-  const deps = createDefaultDeps();
-  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
-  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+      // Create default dependencies and bind the real Convex client
+      const deps = createDefaultDeps();
+      deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+      deps.backend.query = (endpoint, args) => client.query(endpoint, args);
 
-  // Create the AgentProcessManager with all required dependencies
-  deps.agentProcessManager = new AgentProcessManager({
-    agentServices,
-    backend: deps.backend,
-    sessionId: typedSessionId,
-    machineId,
-    processes: deps.processes,
-    clock: deps.clock,
-    fs: deps.fs,
-    persistence: deps.machine,
-    spawning: deps.spawning,
-    crashLoop: new CrashLoopTracker(),
-    convexUrl,
-  });
+      // Create the AgentProcessManager with all required dependencies
+      deps.agentProcessManager = new AgentProcessManager({
+        agentServices,
+        backend: deps.backend,
+        sessionId: typedSessionId,
+        machineId,
+        processes: deps.processes,
+        clock: deps.clock,
+        fs: deps.fs,
+        persistence: deps.machine,
+        spawning: deps.spawning,
+        crashLoop: new CrashLoopTracker(),
+        convexUrl,
+      });
 
-  const events = new DaemonEventBus();
-  const ctx: DaemonContext = {
-    client,
-    sessionId: typedSessionId,
-    machineId,
-    config,
-    deps,
-    events,
-    agentServices,
-    lastPushedGitState: new Map(),
-  };
+      const events = new DaemonEventBus();
+      const ctx: DaemonContext = {
+        client,
+        sessionId: typedSessionId,
+        machineId,
+        config,
+        deps,
+        events,
+        agentServices,
+        lastPushedGitState: new Map(),
+      };
 
-  registerEventListeners(ctx);
+      registerEventListeners(ctx);
 
-  logStartup(ctx, availableModels);
-  await recoverState(ctx);
+      logStartup(ctx, availableModels);
+      await recoverState(ctx);
 
-  return ctx;
+      return ctx;
+    } catch (error) {
+      if (isNetworkError(error)) {
+        console.log(
+          `\n   Retrying in ${CONNECTION_RETRY_INTERVAL_MS / 1000}s...\n`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS)
+        );
+        // Continue the loop to retry
+      } else {
+        // Non-network error — propagate (will crash the process)
+        throw error;
+      }
+    }
+  }
 }

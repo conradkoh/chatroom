@@ -3,10 +3,20 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Check, AlertTriangle } from 'lucide-react';
-import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
+import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } from 'lucide-react';
+import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { WorkspaceDropdown } from './WorkspaceDropdown';
+
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import { useWorkspaceSelection } from '../hooks/useWorkspaceSelection';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import type { WorkspaceGroup } from '../types/workspace';
+import { buildWorkspaceGroups } from '../utils/buildWorkspaceGroups';
+import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -16,59 +26,36 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { getDaemonStartCommand } from '@/lib/environment';
+import { TEAMS_CONFIG } from '../config/teams';
 
 // ─── Types ──────────────────────────────────────────────────────────────
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-interface TeamsConfig {
-  defaultTeam: string;
-  teams: Record<string, TeamDefinition>;
-}
 
 interface AgentSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
   currentTeamId?: string;
-  currentTeamName?: string;
   currentTeamRoles?: string[];
-  currentTeamEntryPoint?: string;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'setup' | 'team' | 'machine';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'workspaces';
 
 // ─── Constants ──────────────────────────────────────────────────────────
-
-// Available teams (matching CreateChatroomForm and CLI defaults)
-const TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'duo',
-  teams: {
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair, planner as coordinator',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
 
 const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'setup', label: 'Setup', icon: <Settings size={16} /> },
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
+  { id: 'workspaces', label: 'Workspaces', icon: <Monitor size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -290,97 +277,8 @@ const TeamConfigContent = memo(function TeamConfigContent({
   );
 });
 
-// ─── Ping State Management ──────────────────────────────────────────────
-
-type PingState = 'idle' | 'pinging' | 'success' | 'failed';
-
-interface PingInfo {
-  state: PingState;
-  pingEventId: Id<'chatroom_eventStream'> | null;
-  startedAt: number | null;
-}
-
 /**
- * Hook to manage ping state for a single machine.
- * Sends a ping event and reactively watches for a daemon.pong response event.
- */
-function useMachinePing(machineId: string) {
-  const [pingInfo, setPingInfo] = useState<PingInfo>({
-    state: 'idle',
-    pingEventId: null,
-    startedAt: null,
-  });
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  // Reactively watch for a daemon.pong event after the ping was sent
-  const pongEvent = useSessionQuery(
-    api.machines.getDaemonPongEvent,
-    pingInfo.pingEventId ? { machineId, afterEventId: pingInfo.pingEventId } : 'skip'
-  );
-
-  // React to pong event arrival
-  useEffect(() => {
-    if (!pongEvent || pingInfo.state !== 'pinging') return;
-
-    setPingInfo((prev) => ({ ...prev, state: 'success' }));
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [pongEvent, pingInfo.state]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const sendPing = useCallback(async () => {
-    // Reset any previous state
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    setPingInfo({ state: 'pinging', pingEventId: null, startedAt: Date.now() });
-
-    try {
-      const result = await sendCommand({
-        machineId,
-        type: 'ping',
-      });
-      const eventId = result?.eventId as Id<'chatroom_eventStream'> | undefined;
-
-      if (eventId) {
-        setPingInfo({ state: 'pinging', pingEventId: eventId, startedAt: Date.now() });
-
-        // Auto-timeout after 10 seconds
-        timeoutRef.current = setTimeout(() => {
-          setPingInfo((prev) => {
-            if (prev.state === 'pinging') {
-              return { ...prev, state: 'failed' };
-            }
-            return prev;
-          });
-        }, 10000);
-      } else {
-        setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-      }
-    } catch {
-      setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-    }
-  }, [machineId, sendCommand]);
-
-  return { pingState: pingInfo.state, sendPing };
-}
-
-/**
- * Individual machine row with integrated ping button
+ * Individual machine row with inline alias editing
  */
 const MachineRow = memo(function MachineRow({
   machine,
@@ -388,58 +286,121 @@ const MachineRow = memo(function MachineRow({
   machine: {
     machineId: string;
     hostname: string;
+    alias?: string;
     os: string;
     daemonConnected: boolean;
     lastSeenAt: number;
     registeredAt: number;
   };
 }) {
-  const { pingState, sendPing } = useMachinePing(machine.machineId);
+  const [isEditing, setIsEditing] = useState(false);
+  const [aliasValue, setAliasValue] = useState(machine.alias || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const pingLabel = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'Pinging...';
-      case 'success':
-        return 'Online';
-      case 'failed':
-        return 'No Response';
-      default:
-        return 'Ping';
-    }
-  })();
+  const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
 
-  const pingClasses = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'text-chatroom-text-muted border-chatroom-border cursor-wait';
-      case 'success':
-        return 'text-chatroom-status-success border-chatroom-status-success/30 bg-chatroom-status-success/10';
-      case 'failed':
-        return 'text-chatroom-status-error border-chatroom-status-error/30 bg-chatroom-status-error/10';
-      default:
-        return 'text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover';
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
     }
-  })();
+  }, [isEditing]);
+
+  const handleStartEdit = useCallback(() => {
+    setAliasValue(machine.alias || '');
+    setIsEditing(true);
+  }, [machine.alias]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setAliasValue(machine.alias || '');
+  }, [machine.alias]);
+
+  const handleSaveAlias = useCallback(async () => {
+    const trimmed = aliasValue.trim();
+    // No change — just close
+    if (trimmed === (machine.alias || '')) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await setMachineAlias({
+        machineId: machine.machineId,
+        alias: trimmed || undefined, // empty string clears alias
+      });
+      setIsEditing(false);
+    } catch {
+      // Keep editing on error
+    } finally {
+      setIsSaving(false);
+    }
+  }, [aliasValue, machine.alias, machine.machineId, setMachineAlias]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveAlias();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancelEdit();
+      }
+    },
+    [handleSaveAlias, handleCancelEdit]
+  );
+
+  const displayName = machine.alias || machine.hostname;
 
   return (
     <div className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface">
       <div
-        className={`w-2.5 h-2.5 flex-shrink-0 ${
-          pingState === 'success'
-            ? 'bg-chatroom-status-success'
-            : pingState === 'failed'
-              ? 'bg-chatroom-status-error'
-              : machine.daemonConnected
-                ? 'bg-chatroom-status-success'
-                : 'bg-chatroom-text-muted'
-        }`}
+        className={`w-2.5 h-2.5 flex-shrink-0 ${machine.daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-chatroom-text-primary truncate">
-          {machine.hostname}
-        </div>
+        {isEditing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={inputRef}
+              type="text"
+              value={aliasValue}
+              onChange={(e) => setAliasValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSaveAlias}
+              maxLength={64}
+              placeholder={machine.hostname}
+              disabled={isSaving}
+              className="flex-1 min-w-0 text-xs font-bold text-chatroom-text-primary bg-chatroom-bg-tertiary border border-chatroom-accent px-1.5 py-0.5 outline-none disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCancelEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary"
+              title="Cancel"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <div className="group flex items-center gap-1.5">
+            <div className="text-xs font-bold text-chatroom-text-primary truncate">
+              {displayName}
+            </div>
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted opacity-0 group-hover:opacity-100 hover:text-chatroom-text-primary transition-opacity"
+              title="Edit alias"
+            >
+              <Pencil size={10} />
+            </button>
+          </div>
+        )}
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+          {machine.alias ? `${machine.hostname} · ` : ''}
           {machine.daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
@@ -448,36 +409,15 @@ const MachineRow = memo(function MachineRow({
           {new Date(machine.lastSeenAt).toLocaleTimeString()}
         </div>
       )}
-      <button
-        onClick={sendPing}
-        disabled={pingState === 'pinging'}
-        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border transition-colors flex-shrink-0 ${pingClasses}`}
-      >
-        {pingState === 'pinging' && (
-          <span className="inline-block w-3 h-3 border border-current border-t-transparent animate-spin mr-1.5 align-middle" />
-        )}
-        {pingLabel}
-      </button>
     </div>
   );
 });
 
 /**
- * Machine tab — shows connected machines with ping/health-check and daemon start command
+ * Machine tab — shows connected machines and daemon start command
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | {
-        machines: {
-          machineId: string;
-          hostname: string;
-          os: string;
-          daemonConnected: boolean;
-          lastSeenAt: number;
-          registeredAt: number;
-        }[];
-      }
-    | undefined;
+  const machinesResult = useSessionQuery(api.machines.listMachines, {});
   const machines = machinesResult?.machines;
 
   // Daemon start command
@@ -490,8 +430,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
           Machine Integration
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          View connected machines and their status. Use the ping button to verify if a daemon is
-          responsive.
+          View connected machines and their status.
         </p>
       </div>
 
@@ -538,12 +477,200 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         </div>
       </div>
 
-      {/* Future Feature Note */}
-      <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-chatroom-text-muted">
-        <strong className="text-chatroom-text-secondary">Coming soon:</strong> Automatic agent
-        startup — machines will automatically start offline agents when new messages are received in
-        this chatroom.
+    </div>
+  );
+});
+
+// ─── Workspaces Content ─────────────────────────────────────────────────
+
+/**
+ * Workspaces tab — shows agents grouped by machine/workspace.
+ * Uses InlineAgentCard for each agent to show full configuration details
+ * (status, controls, machine, model, restart stats).
+ * Includes a dropdown workspace selector to filter by workspace.
+ */
+const WorkspacesContent = memo(function WorkspacesContent({
+  chatroomId,
+}: {
+  chatroomId: string;
+}) {
+  const {
+    agents: agentRoleViews,
+    teamRoles,
+    connectedMachines,
+    machineConfigs: agentConfigs,
+    sendCommand,
+    agentPreferenceMap,
+    savePreference,
+    isLoading: isPanelLoading,
+  } = useAgentPanelData(chatroomId);
+
+  const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Build workspace groups
+  const { workspaces: allWorkspaces } = useChatroomWorkspaces(chatroomId, {
+    agentViews: agentRoleViews,
+  });
+
+  const workspaceGroups = useMemo(
+    (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agentStatusList),
+    [allWorkspaces, agentStatusList]
+  );
+
+  // Workspace selection (shared hook — eliminates duplicated selection logic)
+  const {
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    filteredGroups,
+  } = useWorkspaceSelection(workspaceGroups);
+
+  // Build a status lookup map
+  const statusMap = useMemo(() => {
+    const map = new Map<string, (typeof agentStatusList)[number]>();
+    for (const agent of agentStatusList) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentStatusList]);
+
+  // Build a role → AgentRoleView map for InlineAgentCard
+  const agentRoleViewMap = useMemo(() => {
+    const map = new Map<string, (typeof agentRoleViews)[number]>();
+    for (const agent of agentRoleViews) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentRoleViews]);
+
+  // Safe prompt generation — works inside and outside PromptsProvider
+  const promptsContext = useContext(PromptsContext);
+  const generatePrompt = useCallback(
+    (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
+    [promptsContext]
+  );
+
+  // Batch restart summaries for all roles
+  const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: allRoles,
+  });
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count1h: number; count24h: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count1h: summary.count1h,
+          count24h: summary.count24h,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
+
+  const totalAgents = agentStatusList.length;
+  const onlineAgents = agentStatusList.filter((a) => a.online).length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
+          Workspaces
+        </h3>
+        <p className="text-xs text-chatroom-text-muted">
+          Agents grouped by machine and workspace. {onlineAgents}/{totalAgents} agents online.
+        </p>
       </div>
+
+      {workspaceGroups.length === 0 ? (
+        <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
+          No workspaces or agents configured
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Workspace selector */}
+          <WorkspaceDropdown
+            workspaceGroups={workspaceGroups}
+            selectedWorkspaceId={selectedWorkspaceId}
+            onSelectWorkspace={setSelectedWorkspaceId}
+            showAllOption={true}
+            totalAgents={totalAgents}
+          />
+
+          {filteredGroups.map((group, groupIdx) => (
+            <div key={group.machineId ?? `__group_${groupIdx}`} className="space-y-2">
+              {/* Machine header */}
+              <div className="flex items-center gap-2">
+                <Server size={14} className="text-chatroom-text-muted flex-shrink-0" />
+                <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                  {group.hostname}
+                </label>
+              </div>
+
+              {/* Workspaces under this machine */}
+              {group.workspaces.map((ws) => {
+                const dirLabel = ws.workingDir
+                  ? (ws.workingDir.split('/').filter(Boolean).pop() ?? ws.workingDir)
+                  : 'Unassigned';
+
+                return (
+                  <div
+                    key={ws.id}
+                    className="border border-chatroom-border bg-chatroom-bg-surface"
+                  >
+                    {/* Workspace header */}
+                    <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary">
+                      <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wide">
+                        {dirLabel}
+                      </div>
+                      {ws.workingDir && (
+                        <div className="text-[10px] font-mono text-chatroom-text-muted mt-0.5 truncate">
+                          {ws.workingDir}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Agent cards */}
+                    {ws.agentRoles.length === 0 ? (
+                      <div className="px-3 py-2 text-[10px] text-chatroom-text-muted">
+                        No agents
+                      </div>
+                    ) : (
+                      <div>
+                        {ws.agentRoles.map((role) => {
+                          const status = statusMap.get(role.toLowerCase());
+
+                          return (
+                            <InlineAgentCard
+                              key={role}
+                              role={role}
+                              allRoles={ws.agentRoles}
+                              online={status?.online ?? false}
+                              lastSeenAt={status?.lastSeenAt}
+                              latestEventType={status?.latestEventType}
+                              statusVariant={status?.statusVariant ?? 'offline'}
+                              prompt={generatePrompt(role)}
+                              chatroomId={chatroomId}
+                              connectedMachines={connectedMachines}
+                              isLoadingMachines={isPanelLoading}
+                              agentConfigs={agentConfigs}
+                              sendCommand={sendCommand}
+                              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
+                              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                              onSavePreference={savePreference}
+                              restartSummary={restartSummaryMap.get(role.toLowerCase())}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -556,13 +683,19 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
   chatroomId,
   currentTeamId,
   currentTeamRoles,
+  initialTab,
 }: AgentSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('setup');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? 'setup');
+
+  // Sync activeTab when initialTab changes (e.g. opening to a different tab)
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
-      {/* Side Navigation */}
-      <FixedModalSidebar className="w-48">
+      {/* Side Navigation — hidden on mobile */}
+      <FixedModalSidebar className="w-48 hidden sm:flex">
         {/* Sidebar Title — uses FixedModalHeader for consistent height alignment */}
         <FixedModalHeader>
           <FixedModalTitle>Settings</FixedModalTitle>
@@ -594,6 +727,22 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           <FixedModalTitle>{TAB_CONFIG.find((t) => t.id === activeTab)?.label}</FixedModalTitle>
         </FixedModalHeader>
 
+        {/* Mobile tab selector — visible only on small screens */}
+        <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
+          <Select value={activeTab} onValueChange={(val) => setActiveTab(val as SettingsTab)}>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TAB_CONFIG.map((tab) => (
+                <SelectItem key={tab.id} value={tab.id}>
+                  {tab.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FixedModalBody className="p-6">
           {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
           {activeTab === 'team' && (
@@ -604,6 +753,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             />
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
+          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

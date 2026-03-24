@@ -1,7 +1,7 @@
 'use client';
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 
 import type { Theme } from './theme-utils';
 
@@ -88,23 +88,15 @@ const themeScript = `
 export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) {
   // Custom attribute to use for theme application
   const attribute = targetSelector ? 'data-theme' : 'class';
-  // Only render the provider client-side to avoid hydration mismatch
-  const [mounted, setMounted] = useState(false);
-  const [theme, _setTheme] = useState<Theme | null>(null);
+  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [theme, _setTheme] = useState<Theme | null>(() =>
+    typeof window !== 'undefined' ? window.__theme.value : null
+  );
   const setTheme = useCallback((theme: Theme) => {
     _setTheme(theme);
     window.__theme.setTheme(theme);
   }, []);
 
-  useEffect(() => {
-    setMounted(true);
-    _setTheme(window.__theme.value);
-  }, []);
-
-  const themeContextValue = useMemo<ThemeContextData>(
-    () => ({ theme, setTheme }),
-    [theme, setTheme]
-  );
 
   // We need to use this component pattern for hydration safety
   return (
@@ -114,7 +106,7 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
       <script dangerouslySetInnerHTML={{ __html: themeScript }} suppressHydrationWarning />
 
       {mounted ? (
-        <ThemeContext.Provider value={themeContextValue}>
+        <ThemeContext.Provider value={{ theme, setTheme }}>
           <NextThemesProvider
             attribute={attribute}
             defaultTheme="system"

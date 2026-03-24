@@ -26,7 +26,11 @@ export type EventTypeName =
   | 'daemon.ping'
   | 'daemon.pong'
   | 'daemon.gitRefresh'
-  | 'config.requestRemoval';
+  | 'config.requestRemoval'
+  | 'workflow.started'
+  | 'workflow.stepCompleted'
+  | 'workflow.stepCancelled'
+  | 'workflow.completed';
 
 // ─── Base Event Interface ─────────────────────────────────────────────────────
 
@@ -211,6 +215,53 @@ export interface DaemonGitRefreshEvent extends EventStreamEventBase {
  * Union of all event types. Use this as the canonical event type
  * for event stream entries.
  */
+// ─── Workflow Event Types ──────────────────────────────────────────────────────
+
+export interface WorkflowStartedEvent extends EventStreamEventBase {
+  type: 'workflow.started';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  createdBy: string;
+  stepCount: number;
+  steps?: {
+    stepKey: string;
+    description: string;
+    assigneeRole?: string;
+    dependsOn: string[];
+    order: number;
+  }[];
+}
+
+export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
+  type: 'workflow.stepCompleted';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  completedBy?: string;
+}
+
+export interface WorkflowStepCancelledEvent extends EventStreamEventBase {
+  type: 'workflow.stepCancelled';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  cancelledBy?: string;
+  reason: string;
+}
+
+export interface WorkflowCompletedEvent extends EventStreamEventBase {
+  type: 'workflow.completed';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  finalStatus: 'completed' | 'cancelled';
+}
+
+// ─── Combined Event Union ─────────────────────────────────────────────────────
+
 export type EventStreamEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -229,7 +280,11 @@ export type EventStreamEvent =
   | ConfigRequestRemovalEvent
   | DaemonPingEvent
   | DaemonPongEvent
-  | DaemonGitRefreshEvent;
+  | DaemonGitRefreshEvent
+  | WorkflowStartedEvent
+  | WorkflowStepCompletedEvent
+  | WorkflowStepCancelledEvent
+  | WorkflowCompletedEvent;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -254,6 +309,10 @@ export function formatEventType(type: string): string {
     'daemon.pong': 'Daemon Pong',
     'daemon.gitRefresh': 'Git Refresh',
     'config.requestRemoval': 'Config Request Removal',
+    'workflow.started': 'Workflow Started',
+    'workflow.stepCompleted': 'Workflow Step Completed',
+    'workflow.stepCancelled': 'Workflow Step Cancelled',
+    'workflow.completed': 'Workflow Completed',
   };
   return labels[type] ?? type;
 }

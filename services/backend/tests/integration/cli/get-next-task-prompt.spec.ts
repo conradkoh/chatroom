@@ -180,6 +180,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -606,7 +612,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.classification).toBeDefined();
   });
 
-  test('includes classification info for task-started command', async () => {
+  test('includes classification info for classify command', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classification-info');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -921,6 +927,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -977,12 +989,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       ### Start Working
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
-
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10036;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
 
 
        **Pair Team Context:**
@@ -1217,10 +1223,11 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
-    // CRITICAL: Should have task-started instruction for reviewer (without classification)
+    // CRITICAL: Should have Start Working instruction for reviewer (without task-started references)
     // Reviewer receives handoffs, not user messages, so no classification needed
     expect(initPrompt?.prompt).toContain('### Start Working');
-    expect(initPrompt?.prompt).toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('task-started');
 
     // Should NOT have classification section (that's only for entry point roles)
     expect(initPrompt?.prompt).not.toContain('### Classify Task');

@@ -7,6 +7,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentControlsSection } from './AgentControlsSection';
@@ -21,14 +22,14 @@ export { formatLastSeen } from './AgentStatusRow';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
-/** Resolves machine hostname from connected machines by machineId. */
+/** Resolves machine display name (alias or hostname) from connected machines by machineId. */
 export function resolveMachineHostname(
   machineId: string | undefined,
   connectedMachines: MachineInfo[]
 ): string | undefined {
   if (!machineId) return undefined;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
-  return machine?.hostname;
+  return machine ? getMachineDisplayName(machine) : undefined;
 }
 
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
@@ -127,7 +128,11 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const restartSummary = restartSummaryProp ?? ownRestartSummary;
 
   return (
-    <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
+    <div
+      className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3"
+      /* Force WebKit compositing layer flush to prevent Safari ghost rendering */
+      style={{ backfaceVisibility: 'hidden' }}
+    >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
         {/* Status row at top — extra breathing room below */}

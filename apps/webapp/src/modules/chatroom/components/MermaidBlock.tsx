@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState, memo } from 'react';
+import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * MermaidBlock renders a mermaid diagram from a chart definition string.
@@ -10,27 +12,451 @@ import React, { useEffect, useRef, useState, memo } from 'react';
  * - Dark/light mode detection via document class
  * - Graceful fallback to raw code on parse errors
  * - Unique IDs for concurrent rendering
+ * - Fullscreen modal with SVG viewBox-based zoom (crisp text at all zoom levels)
  */
 
 interface MermaidBlockProps {
   chart: string;
 }
 
+// ─── Zoom Constants ──────────────────────────────────────────────────────────
+
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.05;
+
+// ─── ViewBox type ────────────────────────────────────────────────────────────
+
+interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// ─── Post-Render Text Re-Centering (Screen-Space) ────────────────────────────
+
+/**
+ * Post-process rendered Mermaid SVG to fix text vertical centering in Safari.
+ *
+ * Mermaid computes label positions using getBBox() during its internal render
+ * pass, but Safari's font metrics differ from Chrome's, causing the label
+ * group's translate offset to be slightly wrong — text appears shifted up.
+ *
+ * This function uses getBoundingClientRect() (screen-space coordinates) to
+ * measure the actual rendered positions of rects and labels, then adjusts the
+ * label transform to center text within its node rect. Screen-space avoids
+ * the coordinate space mismatches that getBBox() has with nested transforms.
+ *
+ * A 1px threshold prevents unnecessary corrections on browsers where Mermaid's
+ * positioning is already accurate (e.g., Chrome).
+ */
+function recenterNodeLabels(containerEl: HTMLElement): void {
+  const svgEl = containerEl.querySelector('svg');
+  if (!svgEl) return;
+
+  const nodeGroups = svgEl.querySelectorAll('g.node');
+
+  for (const nodeGroup of nodeGroups) {
+    const labelGroup = nodeGroup.querySelector('g.label');
+    if (!labelGroup) continue;
+
+    // Use the full node group as the container reference.
+    // This works for all shape types: rect, path (stadium), circle, polygon, etc.
+    const nodeBounds = nodeGroup.getBoundingClientRect();
+    const labelBounds = labelGroup.getBoundingClientRect();
+
+    const rectCenterY = nodeBounds.top + nodeBounds.height / 2;
+    const labelCenterY = labelBounds.top + labelBounds.height / 2;
+
+    // Screen-space delta (pixels on screen)
+    const screenDeltaY = rectCenterY - labelCenterY;
+
+    // Only correct if the offset is noticeable (> 1px)
+    if (Math.abs(screenDeltaY) <= 1.0) continue;
+
+    // Convert screen pixels to SVG units using the CTM (Current Transform Matrix)
+    // getScreenCTM() maps SVG units → screen pixels. We need the inverse scale factor.
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) continue;
+    const svgDeltaY = screenDeltaY / ctm.d; // ctm.d is the vertical scale factor
+
+    // Parse existing transform to preserve the x component
+    const existingTransform = labelGroup.getAttribute('transform') || '';
+    const translateMatch = existingTransform.match(
+      /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/
+    );
+
+    if (translateMatch) {
+      const currentX = parseFloat(translateMatch[1]);
+      const currentY = parseFloat(translateMatch[2]);
+      labelGroup.setAttribute('transform', `translate(${currentX}, ${currentY + svgDeltaY})`);
+    } else {
+      labelGroup.setAttribute('transform', `translate(0, ${svgDeltaY})`);
+    }
+  }
+}
+
+// ─── Fullscreen Modal ────────────────────────────────────────────────────────
+
+interface MermaidFullscreenModalProps {
+  svg: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Fullscreen mermaid diagram viewer with SVG viewBox-based zoom and pan.
+ *
+ * Performance: Uses SVG viewBox manipulation instead of CSS transforms.
+ * Text renders crisp at any zoom level since the browser re-rasterizes
+ * the SVG natively. Transform state is stored in refs and applied via
+ * requestAnimationFrame to bypass React's render cycle.
+ */
+const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
+  svg,
+  isOpen,
+  onClose,
+}: MermaidFullscreenModalProps) {
+  // Zoom/pan state in refs — no React re-renders on interaction
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 }); // Pan in SVG coordinate space
+  const baseViewBoxRef = useRef<ViewBox | null>(null);
+  const lastPanRef = useRef({ x: 0, y: 0 });
+  const lastTouchDistRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // DOM refs
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
+  const zoomLabelRef = useRef<HTMLSpanElement>(null);
+
+  // Update zoom label via direct DOM mutation — zero React re-renders
+  const updateZoomLabel = useCallback(() => {
+    if (zoomLabelRef.current) {
+      zoomLabelRef.current.textContent = `${Math.round(zoomRef.current * 100)}%`;
+    }
+  }, []);
+
+  // Apply viewBox to the SVG element — crisp rendering at any zoom
+  const applyViewBox = useCallback(() => {
+    const svgEl = svgContainerRef.current?.querySelector('svg');
+    const base = baseViewBoxRef.current;
+    if (!svgEl || !base) return;
+
+    const vbWidth = base.width / zoomRef.current;
+    const vbHeight = base.height / zoomRef.current;
+    // Center the zoom, then apply pan offset (pan is in SVG units)
+    const vbX = base.x + (base.width - vbWidth) / 2 - panRef.current.x;
+    const vbY = base.y + (base.height - vbHeight) / 2 - panRef.current.y;
+
+    svgEl.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
+  }, []);
+
+  // Schedule viewBox update via rAF
+  const scheduleUpdate = useCallback(() => {
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      applyViewBox();
+    });
+  }, [applyViewBox]);
+
+  // Initialize SVG for viewBox-based zoom when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Use rAF to wait for the browser to paint the SVG from dangerouslySetInnerHTML.
+    // More robust than setTimeout — fires after layout/paint cycle completes.
+    const rafId = requestAnimationFrame(() => {
+      const svgEl = svgContainerRef.current?.querySelector('svg');
+      if (!svgEl) return;
+
+      // Read the original viewBox (mermaid usually sets one)
+      const vb = svgEl.viewBox?.baseVal;
+      if (vb && vb.width > 0 && vb.height > 0) {
+        baseViewBoxRef.current = { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+      } else {
+        // Fallback: use getBBox for the natural bounds
+        const bbox = svgEl.getBBox();
+        baseViewBoxRef.current = { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height };
+        svgEl.setAttribute(
+          'viewBox',
+          `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`
+        );
+      }
+
+      // Make SVG fill the container — remove mermaid's inline max-width constraint
+      svgEl.style.maxWidth = 'none';
+      svgEl.setAttribute('width', '100%');
+      svgEl.setAttribute('height', '100%');
+      svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      // Reset zoom/pan
+      zoomRef.current = 1;
+      panRef.current = { x: 0, y: 0 };
+      updateZoomLabel();
+
+      // Fix vertical centering of text labels for Safari.
+      // Uses screen-space measurements to correct Mermaid's positioning.
+      if (svgContainerRef.current) {
+        recenterNodeLabels(svgContainerRef.current);
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  // Native event listeners for smooth interaction
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Convert pixel delta to SVG coordinate delta
+    const pixelToSvg = (pixelDelta: number): number => {
+      const base = baseViewBoxRef.current;
+      if (!base) return 0;
+      const containerWidth = container.clientWidth;
+      const currentVbWidth = base.width / zoomRef.current;
+      return pixelDelta * (currentVbWidth / containerWidth);
+    };
+
+    // Wheel zoom
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+      zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
+      scheduleUpdate();
+      updateZoomLabel();
+    };
+
+    // Mouse pan
+    let isPanning = false;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      isPanning = true;
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+      container.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isPanning) return;
+      const dx = e.clientX - lastPanRef.current.x;
+      const dy = e.clientY - lastPanRef.current.y;
+      // Convert pixel movement to SVG units and apply (negative because viewBox moves opposite)
+      panRef.current = {
+        x: panRef.current.x + pixelToSvg(dx),
+        y: panRef.current.y + pixelToSvg(dy),
+      };
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+      scheduleUpdate();
+    };
+
+    const handleMouseUp = () => {
+      isPanning = false;
+      container.style.cursor = 'grab';
+    };
+
+    // Touch events
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        lastPanRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      lastTouchDistRef.current = null;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (lastTouchDistRef.current !== null) {
+          const delta = (dist - lastTouchDistRef.current) * 0.005;
+          zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
+          updateZoomLabel();
+        }
+        lastTouchDistRef.current = dist;
+        scheduleUpdate();
+      } else if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - lastPanRef.current.x;
+        const dy = touch.clientY - lastPanRef.current.y;
+        panRef.current = {
+          x: panRef.current.x + pixelToSvg(dx),
+          y: panRef.current.y + pixelToSvg(dy),
+        };
+        lastPanRef.current = { x: touch.clientX, y: touch.clientY };
+        scheduleUpdate();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchDistRef.current = null;
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isOpen, scheduleUpdate, updateZoomLabel]);
+
+  // Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  const resetView = useCallback(() => {
+    zoomRef.current = 1;
+    panRef.current = { x: 0, y: 0 };
+    applyViewBox();
+    updateZoomLabel();
+  }, [applyViewBox]);
+
+  const zoomIn = useCallback(() => {
+    zoomRef.current = Math.min(MAX_ZOOM, zoomRef.current + ZOOM_STEP * 2);
+    applyViewBox();
+    updateZoomLabel();
+  }, [applyViewBox, updateZoomLabel]);
+
+  const zoomOut = useCallback(() => {
+    zoomRef.current = Math.max(MIN_ZOOM, zoomRef.current - ZOOM_STEP * 2);
+    applyViewBox();
+    updateZoomLabel();
+  }, [applyViewBox, updateZoomLabel]);
+
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) onClose();
+    },
+    [onClose]
+  );
+
+  if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={handleBackdropClick}
+    >
+      {/* Modal panel — landscape-oriented, near-full viewport */}
+      <div className="chatroom-root relative w-[95vw] h-[85vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong flex flex-col overflow-hidden">
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+          <span className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted">
+            Mermaid Diagram
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={zoomOut}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Zoom out"
+            >
+              <Minus size={14} />
+            </button>
+            <span ref={zoomLabelRef} className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center">
+              100%
+            </span>
+            <button
+              onClick={zoomIn}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Zoom in"
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              onClick={resetView}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Reset view"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <div className="w-px h-4 bg-chatroom-border mx-1" />
+            <button
+              onClick={onClose}
+              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Diagram area — SVG viewBox zoom */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden cursor-grab select-none"
+          style={{ touchAction: 'none' }}
+        >
+          <div
+            ref={svgContainerRef}
+            className="w-full h-full [&_svg]:w-full [&_svg]:h-full"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+});
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
 export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Post-render: fix vertical centering of text in node rects (Safari).
+  // Uses screen-space measurements (getBoundingClientRect) to avoid the
+  // coordinate space mismatches that getBBox() has with nested transforms.
+  // A 1px threshold skips correction on browsers where it's not needed.
+  useEffect(() => {
+    if (!svg || !containerRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        recenterNodeLabels(containerRef.current);
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [svg]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function renderChart() {
       try {
-        // Dynamic import to avoid SSR issues
         const mermaid = (await import('mermaid')).default;
-
-        // Detect dark mode from document class (Next.js dark mode adds 'dark' to html)
         const isDark =
           typeof document !== 'undefined' &&
           (document.documentElement.classList.contains('dark') ||
@@ -40,13 +466,115 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
+          // IMPORTANT: htmlLabels must be at the top level.
+          // In Mermaid 11.x, flowchart.htmlLabels is deprecated and ignored.
+          // The global htmlLabels controls whether node labels use SVG
+          // foreignObject (true) or native SVG text (false).
+          //
+          // foreignObject has a fixed height that Mermaid calculates from
+          // estimated text metrics. Safari's text measurements differ from
+          // Chrome's, so multi-line labels (e.g., "stepKey\nDescription\n[role]")
+          // overflow the foreignObject boundary and get clipped. Native SVG
+          // text nodes auto-size to content, eliminating this entirely.
+          htmlLabels: false,
+          flowchart: {
+            curve: 'basis',
+            nodeSpacing: 30,
+            rankSpacing: 50,
+            // useMaxWidth:false renders at natural size instead of constraining
+            // to container width. Safari clips SVG content that extends beyond
+            // the calculated viewBox when the diagram is scaled down to fit.
+            // With useMaxWidth:false the SVG is rendered at full size and the
+            // container scrolls horizontally if needed.
+            useMaxWidth: false,
+            // Remove the 200px wrapping cap — let the layout engine size nodes
+            // naturally based on their content length.
+            wrappingWidth: 500,
+          },
+          themeVariables: {
+            fontSize: '12px',
+          },
         });
 
         const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
         const { svg: renderedSvg } = await mermaid.render(id, chart);
 
+        // Post-process the rendered SVG for cross-browser compatibility.
+        //
+        // Safari-specific issues:
+        // 1. Safari strictly clips SVG content at the viewBox boundary. When
+        //    Mermaid calculates the viewBox from text bounding boxes, Safari's
+        //    slightly different text metrics can cause labels to be cut off.
+        // 2. Safari respects overflow="hidden" on SVG elements (the SVG spec
+        //    default), whereas Chrome is more lenient.
+        // 3. Mermaid injects a max-width inline style that constrains the SVG.
+        //
+        // Fixes applied:
+        // a) Remove max-width from inline style
+        // b) Set overflow="visible" on the root SVG element
+        // c) Add padding to the viewBox so content near edges isn't clipped
+        let cleanedSvg = renderedSvg;
+
+        // (a) Remove max-width inline style
+        cleanedSvg = cleanedSvg.replace(
+          /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
+          (_m, open, before, after) => {
+            const cleanStyle = (before + after).replace(/;\s*;/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '');
+            return cleanStyle ? `${open} style="${cleanStyle}"` : open;
+          }
+        );
+
+        // (b) Force overflow="visible" on the root SVG — Safari clips at
+        // viewBox bounds by default (SVG spec says overflow:hidden).
+        // Replace existing overflow attribute or add it.
+        if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg[^>]*)\boverflow="[^"]*"/,
+            '$1overflow="visible"'
+          );
+        } else {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg\b)/,
+            '$1 overflow="visible"'
+          );
+        }
+
+        // (c) Pad the viewBox by 8px on each side to give text breathing room.
+        // Safari's text metrics differ from Chrome's, so the tight viewBox
+        // Mermaid computes can clip the last few pixels of text in Safari.
+        const VB_PAD = 8;
+        cleanedSvg = cleanedSvg.replace(
+          /(<svg[^>]*\bviewBox=")([^"]*)(")/,
+          (_m, pre, vb, post) => {
+            const parts = vb.trim().split(/\s+/).map(Number);
+            if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
+              const [x, y, w, h] = parts;
+              return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
+            }
+            return _m;
+          }
+        );
+
+        // (d) Defense-in-depth: if foreignObject elements are still present
+        // (htmlLabels may not take effect for all diagram types), ensure they
+        // have overflow:visible so Safari doesn't clip their content at the
+        // fixed height boundary. Also add a generous height to prevent clipping.
+        cleanedSvg = cleanedSvg.replace(
+          /<foreignObject([^>]*)>/g,
+          (_m, attrs) => {
+            // Add overflow="visible" to the foreignObject
+            let newAttrs = attrs;
+            if (/overflow=/.test(newAttrs)) {
+              newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
+            } else {
+              newAttrs += ' overflow="visible"';
+            }
+            return `<foreignObject${newAttrs}>`;
+          }
+        );
+
         if (!cancelled) {
-          setSvg(renderedSvg);
+          setSvg(cleanedSvg);
           setLoading(false);
         }
       } catch (err) {
@@ -59,13 +587,9 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     }
 
     renderChart();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [chart]);
 
-  // Loading state
   if (loading && !error) {
     return (
       <div className="my-3 flex justify-center p-4 bg-chatroom-bg-tertiary border-2 border-chatroom-border">
@@ -74,7 +598,6 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     );
   }
 
-  // Error fallback: show raw code
   if (error) {
     return (
       <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 overflow-x-auto text-sm text-chatroom-text-primary">
@@ -83,15 +606,28 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     );
   }
 
-  // Rendered SVG
   return (
-    <div
-      ref={containerRef}
-      className="my-3 flex justify-center overflow-x-auto [&_svg]:max-w-full"
-      /* SECURITY: SVG is rendered by mermaid with securityLevel: 'strict', which
-         sanitizes the output. The chart content originates from agent messages
-         (not untrusted external input). See: https://mermaid.js.org/config/security.html */
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <>
+      <div className="relative my-3 group">
+        <div
+          ref={containerRef}
+          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible"
+          style={{ maxWidth: '100%' }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="absolute top-2 right-2 p-1.5 bg-chatroom-bg-primary/80 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all opacity-0 group-hover:opacity-100"
+          title="View fullscreen"
+        >
+          <Maximize2 size={14} />
+        </button>
+      </div>
+      <MermaidFullscreenModal
+        svg={svg}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
+    </>
   );
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, MoreHorizontal, Settings } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -10,19 +10,14 @@ import type { TeamLifecycle } from '../types/readiness';
 import { formatLastSeen } from './AgentPanel/AgentStatusRow';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
+  /** Called when user clicks an agent row — opens settings to workspaces tab */
+  onOpenWorkspaces?: () => void;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -142,6 +137,7 @@ export const AgentPanel = memo(function AgentPanel({
   teamRoles = [],
   lifecycle,
   onConfigure,
+  onOpenWorkspaces,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -161,10 +157,15 @@ export const AgentPanel = memo(function AgentPanel({
     rolesToShow
   );
 
-  // Open unified agent list modal
+  // Open agent list — if onOpenWorkspaces is provided, open settings to workspaces tab;
+  // otherwise fall back to the standalone UnifiedAgentListModal
   const openAgentListModal = useCallback(() => {
-    setIsAgentListModalOpen(true);
-  }, []);
+    if (onOpenWorkspaces) {
+      onOpenWorkspaces();
+    } else {
+      setIsAgentListModalOpen(true);
+    }
+  }, [onOpenWorkspaces]);
 
   // Close unified agent list modal
   const closeAgentListModal = useCallback(() => {
@@ -174,7 +175,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Loading state
   if (lifecycle === undefined) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
@@ -188,7 +189,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Legacy chatroom without team
   if (lifecycle === null) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
@@ -199,28 +200,21 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with settings menu */}
+      {/* Header with settings button */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        {/* Settings Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
-              <MoreHorizontal size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="chatroom-root">
-            <DropdownMenuItem
-              onClick={onConfigure}
-              className="flex items-center gap-2 text-xs cursor-pointer"
-            >
-              <Settings size={12} />
-              Configure
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Settings button — opens settings panel directly */}
+        <button
+          type="button"
+          onClick={onConfigure}
+          className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          title="Configure agents"
+          aria-label="Configure agents"
+        >
+          <Settings size={14} />
+        </button>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">

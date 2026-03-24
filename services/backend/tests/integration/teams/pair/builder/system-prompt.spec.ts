@@ -90,6 +90,12 @@ describe('Pair Team > Builder > System Prompt', () => {
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.

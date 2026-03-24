@@ -314,8 +314,14 @@ export const createLoginCode = mutation({
   },
 });
 
+// Rate limiting constants for brute force protection
+const MAX_LOGIN_ATTEMPTS = 5; // Maximum failed attempts before lockout
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes lockout
+const ATTEMPT_WINDOW_MS = 5 * 60 * 1000; // 5 minute window for counting attempts
+
 /**
  * Verifies and consumes a login code to authenticate a session.
+ * Includes rate limiting to prevent brute force attacks.
  */
 export const verifyLoginCode = mutation({
   args: {
@@ -332,6 +338,25 @@ export const verifyLoginCode = mutation({
       };
     }
 
+    const now = Date.now();
+
+    // Check for rate limiting
+    const attemptRecord = await ctx.db
+      .query('loginAttempts')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))
+      .first();
+
+    // Check if currently locked out
+    if (attemptRecord?.lockedUntil && attemptRecord.lockedUntil > now) {
+      const remainingSeconds = Math.ceil((attemptRecord.lockedUntil - now) / 1000);
+      return {
+        success: false,
+        reason: 'rate_limited',
+        message: `Too many failed attempts. Please try again in ${remainingSeconds} seconds.`,
+        retryAfter: remainingSeconds,
+      };
+    }
+
     // Clean up the code (removing dashes if any)
     const cleanCode = args.code.replace(/-/g, '').toUpperCase();
 
@@ -341,7 +366,31 @@ export const verifyLoginCode = mutation({
       .withIndex('by_code', (q) => q.eq('code', cleanCode))
       .first();
 
+    // Helper function to record a failed attempt
+    const recordFailedAttempt = async () => {
+      if (attemptRecord) {
+        // Check if we should reset the counter (window expired)
+        const windowExpired = now - attemptRecord.lastAttemptAt > ATTEMPT_WINDOW_MS;
+        const newCount = windowExpired ? 1 : attemptRecord.attemptCount + 1;
+        const shouldLock = newCount >= MAX_LOGIN_ATTEMPTS;
+
+        await ctx.db.patch('loginAttempts', attemptRecord._id, {
+          attemptCount: newCount,
+          lastAttemptAt: now,
+          lockedUntil: shouldLock ? now + LOCKOUT_DURATION_MS : undefined,
+        });
+      } else {
+        // Create new attempt record
+        await ctx.db.insert('loginAttempts', {
+          sessionId: args.sessionId,
+          attemptCount: 1,
+          lastAttemptAt: now,
+        });
+      }
+    };
+
     if (!loginCode) {
+      await recordFailedAttempt();
       return {
         success: false,
         reason: 'invalid_code',
@@ -353,6 +402,7 @@ export const verifyLoginCode = mutation({
     if (isCodeExpired(loginCode.expiresAt)) {
       // Delete the expired code
       await ctx.db.delete('loginCodes', loginCode._id);
+      await recordFailedAttempt();
       return {
         success: false,
         reason: 'code_expired',
@@ -363,6 +413,7 @@ export const verifyLoginCode = mutation({
     // Get the user associated with the code
     const user = await ctx.db.get('users', loginCode.userId);
     if (!user) {
+      await recordFailedAttempt();
       return {
         success: false,
         reason: 'user_not_found',
@@ -373,6 +424,11 @@ export const verifyLoginCode = mutation({
     // Delete the code once used
     await ctx.db.delete('loginCodes', loginCode._id);
 
+    // Clear rate limiting on successful login
+    if (attemptRecord) {
+      await ctx.db.delete('loginAttempts', attemptRecord._id);
+    }
+
     // Check if the session exists
     const existingSession = await ctx.db
       .query('sessions')
@@ -380,8 +436,6 @@ export const verifyLoginCode = mutation({
       .first();
 
     // Create or update session
-    const now = Date.now();
-
     if (existingSession) {
       // Update existing session to point to the user
       await ctx.db.patch('sessions', existingSession._id, {

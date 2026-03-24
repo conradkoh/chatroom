@@ -1,14 +1,17 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import { memo, useEffect, useMemo, useCallback, useContext } from 'react';
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
+import { useWorkspaceSelection } from '../../hooks/useWorkspaceSelection';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
-import type { Workspace, WorkspaceGroup } from '../../types/workspace';
+import type { WorkspaceGroup } from '../../types/workspace';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
+import { buildWorkspaceGroups } from '../../utils/buildWorkspaceGroups';
+import { WorkspaceDropdown } from '../WorkspaceDropdown';
+import { ALL_WORKSPACES } from '../../hooks/useWorkspaceSelection';
 
 import {
   FixedModal,
@@ -34,7 +37,7 @@ interface UnifiedAgentListModalProps {
   chatroomId: string;
 }
 
-/** All Agents modal with workspace sidebar + filtered agent list.
+/** All Agents modal with dropdown workspace selector + filtered agent list.
  *  Self-sufficient: fetches agents and prompt data internally.
  *  Works correctly when rendered outside PromptsProvider (prompt defaults to ''). */
 export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
@@ -42,8 +45,6 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -85,68 +86,32 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   });
 
   // Derive workspace groups from flat list (group by hostname)
-  const workspaceGroups = useMemo((): WorkspaceGroup[] => {
-    const groupMap = new Map<string, WorkspaceGroup>();
-    for (const ws of allWorkspaces) {
-      const key = ws.hostname;
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          machineId: ws.machineId,
-          hostname: ws.hostname,
-          workspaces: [],
-        });
-      }
-      groupMap.get(key)!.workspaces.push(ws);
-    }
-
-    // Add unassigned workspace for agents not in any workspace
-    const assignedRoles = new Set(allWorkspaces.flatMap((w) => w.agentRoles));
-    const unassignedAgents = agents.filter((a) => !assignedRoles.has(a.role));
-    if (unassignedAgents.length > 0) {
-      const unassignedWs: Workspace = {
-        id: '__unassigned__',
-        machineId: null,
-        hostname: 'Unassigned',
-        workingDir: '',
-        agentRoles: unassignedAgents.map((a) => a.role),
-      };
-      groupMap.set('__unassigned__', {
-        machineId: null,
-        hostname: 'Unassigned',
-        workspaces: [unassignedWs],
-      });
-    }
-
-    return Array.from(groupMap.values());
-  }, [allWorkspaces, agents]);
-
-  // Flat list for selection lookup (includes unassigned)
-  const flatWorkspaces = useMemo(
-    () => workspaceGroups.flatMap((g) => g.workspaces),
-    [workspaceGroups]
+  const workspaceGroups = useMemo(
+    (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agents),
+    [allWorkspaces, agents]
   );
 
-  // Auto-select first workspace whenever workspaces load or current selection is stale
-  useEffect(() => {
-    if (
-      flatWorkspaces.length > 0 &&
-      (selectedWorkspaceId === null || !flatWorkspaces.find((w) => w.id === selectedWorkspaceId))
-    ) {
-      setSelectedWorkspaceId(flatWorkspaces[0].id);
-    }
-  }, [flatWorkspaces, selectedWorkspaceId]);
+  // Workspace selection (shared hook — eliminates duplicated selection logic)
+  const {
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    selectedWorkspace,
+    flatWorkspaces,
+  } = useWorkspaceSelection(workspaceGroups);
 
   // Reset selection when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSelectedWorkspaceId(null);
+      setSelectedWorkspaceId(ALL_WORKSPACES);
     }
-  }, [isOpen]);
+  }, [isOpen, setSelectedWorkspaceId]);
 
-  const selectedWorkspace = useMemo(
-    () => flatWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
-    [flatWorkspaces, selectedWorkspaceId]
-  );
+  // When a specific workspace is selected, pass it to WorkspaceAgentList.
+  // When "All" is selected, we render one WorkspaceAgentList per workspace.
+  const visibleWorkspaces = useMemo(() => {
+    if (selectedWorkspace) return [selectedWorkspace];
+    return flatWorkspaces;
+  }, [selectedWorkspace, flatWorkspaces]);
 
   // Build a map from role → AgentRoleView for passing to WorkspaceAgentList
   const agentRoleViewMap = useMemo(
@@ -160,25 +125,45 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="flex flex-row p-0 overflow-hidden">
-          <WorkspaceSidebar
-            workspaceGroups={workspaceGroups}
-            selectedWorkspaceId={selectedWorkspaceId}
-            onSelectWorkspace={setSelectedWorkspaceId}
-          />
-          <WorkspaceAgentList
-            workspace={selectedWorkspace}
-            agents={agents}
-            generatePrompt={generatePrompt}
-            chatroomId={chatroomId}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoading}
-            agentConfigs={machineConfigs}
-            sendCommand={sendCommand}
-            agentRoleViewMap={agentRoleViewMap}
-            agentPreferenceMap={agentPreferenceMap}
-            onSavePreference={savePreference}
-          />
+        <FixedModalBody className="flex flex-col p-0 overflow-hidden">
+          {/* Workspace selector */}
+          <div className="border-b border-chatroom-border px-3 py-2 flex-shrink-0">
+            <WorkspaceDropdown
+              workspaceGroups={workspaceGroups}
+              selectedWorkspaceId={selectedWorkspaceId}
+              onSelectWorkspace={setSelectedWorkspaceId}
+              showAllOption={true}
+              totalAgents={agents.length}
+            />
+          </div>
+
+          {/* Agent list — scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            {visibleWorkspaces.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p className="text-xs text-chatroom-text-muted uppercase tracking-wide">
+                  No workspaces or agents configured
+                </p>
+              </div>
+            ) : (
+              visibleWorkspaces.map((ws) => (
+                <WorkspaceAgentList
+                  key={ws.id}
+                  workspace={ws}
+                  agents={agents}
+                  generatePrompt={generatePrompt}
+                  chatroomId={chatroomId}
+                  connectedMachines={connectedMachines}
+                  isLoadingMachines={isLoading}
+                  agentConfigs={machineConfigs}
+                  sendCommand={sendCommand}
+                  agentRoleViewMap={agentRoleViewMap}
+                  agentPreferenceMap={agentPreferenceMap}
+                  onSavePreference={savePreference}
+                />
+              ))
+            )}
+          </div>
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

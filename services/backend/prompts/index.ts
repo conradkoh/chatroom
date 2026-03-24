@@ -28,8 +28,6 @@ export {
   getCliExamples,
   getCliValidation,
   getTaskStartedPrompt,
-  getTaskStartedExamples,
-  getTaskStartedValidation,
   getClassificationGuidance,
 } from './cli/index';
 

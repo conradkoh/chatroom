@@ -11,8 +11,6 @@ import * as taskStarted from './task-started/index';
 export const {
   getTaskStartedPrompt,
   getTaskStartedPromptForHandoffRecipient,
-  getTaskStartedExamples,
-  getTaskStartedValidation,
   getClassificationGuidance,
 } = taskStarted;
 
@@ -59,10 +57,8 @@ export function getCliPrompt(command: string, ctx: CliCommandContext): string {
 /**
  * Get CLI examples by command name
  */
-export function getCliExamples(command: string, ctx: CliCommandContext): string {
+export function getCliExamples(command: string, _ctx: CliCommandContext): string {
   switch (command) {
-    case 'task-started':
-      return getTaskStartedExamples(ctx);
     case 'handoff':
       // TODO: Implement handoff CLI examples
       return '';
@@ -76,8 +72,6 @@ export function getCliExamples(command: string, ctx: CliCommandContext): string 
  */
 export function getCliValidation(command: string): string {
   switch (command) {
-    case 'task-started':
-      return getTaskStartedValidation();
     case 'handoff':
       // TODO: Implement handoff CLI validation
       return '';

@@ -21,7 +21,7 @@ export async function onDaemonShutdown(ctx: DaemonContext): Promise<void> {
           await ctx.deps.agentProcessManager.stop({
             chatroomId,
             role,
-            reason: 'user.stop',
+            reason: 'daemon.shutdown',
           });
           console.log(`   Stopped ${role} (PID ${slot.pid})`);
         } catch (e) {

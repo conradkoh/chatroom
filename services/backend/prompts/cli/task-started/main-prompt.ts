@@ -82,26 +82,14 @@ ${contextNewCmd}
 
 /**
  * Generate task-started prompt for non-entry point roles (handoff recipients)
- * These roles don't classify messages - they just acknowledge state transition
+ * These roles don't classify messages - they just run task read to acknowledge
  */
-export function getTaskStartedPromptForHandoffRecipient(ctx: {
+export function getTaskStartedPromptForHandoffRecipient(_ctx: {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
 }): string {
-  const cliEnvPrefix = ctx.cliEnvPrefix;
-
-  // Non-entry roles acknowledge by running task read (which transitions to in_progress)
-  // Then use task-started --no-classify for backward compatibility
-  const taskStartedCmd = `${cliEnvPrefix}chatroom task-started --chatroom-id="${ctx.chatroomId}" --role="${ctx.role}" --task-id=<task-id> --no-classify`;
-
   return `### Start Working
 
-After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
-
-Then acknowledge the handoff (classification was already done):
-
-\`\`\`bash
-${taskStartedCmd}
-\`\`\``;
+After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.`;
 }

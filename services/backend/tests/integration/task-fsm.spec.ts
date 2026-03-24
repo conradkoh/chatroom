@@ -111,7 +111,7 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       expect(acknowledgedTask?.acknowledgedAt).toBeDefined();
       expect(acknowledgedTask?.startedAt).toBeUndefined(); // Not started yet
 
-      // Step 3: Agent starts work via task-started (acknowledged → in_progress)
+      // Step 3: Agent starts work via task read (acknowledged → in_progress)
       const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,

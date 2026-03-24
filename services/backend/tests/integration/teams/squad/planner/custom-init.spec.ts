@@ -46,6 +46,12 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+      - \`code-review\` (1 skill available)
+          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -156,6 +162,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       - You coordinate a team of builder and reviewer
       - You are the ONLY role that communicates directly with the user
       - You are ultimately accountable for all work quality
+      - For complex tasks (3+ phases), use the workflow skill to plan and track execution
       - Builder is available for implementation tasks
       - Reviewer is available for code review
 
@@ -200,6 +207,12 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
       \`\`\`
+
+      **For complex, multi-step tasks** (3+ phases, multiple skills, or cross-cutting concerns):
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role=<role>
+      \`\`\`
+      Use workflows to define a DAG of steps with dependencies, assign each step to a role, and track progress. In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
 
       **Review loop:**
       - After each phase, review the completed work before delegating the next

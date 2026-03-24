@@ -1,5 +1,5 @@
 /**
- * Task-Started CLI Flag Parsing Tests
+ * Classify CLI Flag Parsing Tests
  *
  * Tests specifically for the --no-classify flag to ensure Commander.js
  * flag parsing is handled correctly.
@@ -54,7 +54,7 @@ async function joinParticipants(
   }
 }
 
-describe('task-started --no-classify flag', () => {
+describe('classify command flag parsing', () => {
   test('entry point role can classify with --origin-message-classification', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classify-entry');

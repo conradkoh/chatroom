@@ -150,6 +150,12 @@ Test technical specifications`,
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+        - \`code-review\` (1 skill available)
+            - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
         # Skills
 
         Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -347,6 +353,12 @@ Test technical specifications`,
 
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        - \`code-review\` (1 skill available)
+            - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
         # Skills
 
@@ -666,6 +678,12 @@ Test technical specifications`,
 
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        - \`code-review\` (1 skill available)
+            - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
         # Skills
 
@@ -1150,7 +1168,7 @@ Test technical specifications`,
     });
   });
 
-  describe('task-started reminders', () => {
+  describe('classify reminders', () => {
     test('taskStarted returns focused reminder for builder + new_feature', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-reminder-new-feature');
