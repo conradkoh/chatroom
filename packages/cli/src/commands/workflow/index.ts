@@ -233,35 +233,60 @@ export async function createWorkflow(
   }
 
   // Validate each step has required fields
-  for (const step of stepsData.steps) {
+  const ALLOWED_STEP_FIELDS = new Set(['stepKey', 'description', 'dependsOn', 'order']);
+
+  for (let i = 0; i < stepsData.steps.length; i++) {
+    const step = stepsData.steps[i]!;
+    const stepLabel = step.stepKey ? `"${step.stepKey}"` : `at index ${i}`;
+
     if (!step.stepKey || typeof step.stepKey !== 'string') {
-      console.error('❌ Each step must have a "stepKey" (string)');
+      console.error(`❌ Step ${stepLabel} must have a "stepKey" (string)`);
+      console.error('   All steps require: stepKey, description, dependsOn, order');
       process.exit(1);
       return;
     }
     if (!step.description || typeof step.description !== 'string') {
-      console.error(`❌ Step "${step.stepKey}" must have a "description" (string)`);
+      console.error(`❌ Step ${stepLabel} must have a "description" (string)`);
+      console.error('   All steps require: stepKey, description, dependsOn, order');
       process.exit(1);
       return;
     }
     if (!Array.isArray(step.dependsOn)) {
-      console.error(`❌ Step "${step.stepKey}" must have a "dependsOn" (array of strings)`);
+      console.error(`❌ Step ${stepLabel} must have a "dependsOn" (array of strings)`);
+      console.error('   All steps require: stepKey, description, dependsOn, order');
       process.exit(1);
       return;
     }
     if (typeof step.order !== 'number') {
-      console.error(`❌ Step "${step.stepKey}" must have an "order" (number)`);
+      console.error(`❌ Step ${stepLabel} must have an "order" (number)`);
+      console.error('   All steps require: stepKey, description, dependsOn, order');
       process.exit(1);
       return;
     }
+
+    // Warn about extra fields (they will be stripped)
+    const extraFields = Object.keys(step).filter((k) => !ALLOWED_STEP_FIELDS.has(k));
+    if (extraFields.length > 0) {
+      console.error(
+        `⚠️  Stripped unknown fields from step "${step.stepKey}": ${extraFields.join(', ')}`
+      );
+    }
   }
+
+  // Strip to only allowed fields (defense-in-depth: prevents backend rejection for extra fields)
+  const cleanSteps = stepsData.steps.map((step) => ({
+    stepKey: step.stepKey,
+    description: step.description,
+    dependsOn: step.dependsOn,
+    order: step.order,
+  }));
 
   try {
     const result = await d.backend.mutation(api.workflows.createWorkflow, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       workflowKey: options.workflowKey,
-      steps: stepsData.steps,
+      steps: cleanSteps,
       createdBy: options.role,
     });
 
@@ -269,7 +294,7 @@ export async function createWorkflow(
     console.log('✅ Workflow created');
     console.log(`   Key: ${options.workflowKey}`);
     console.log(`   Workflow ID: ${result.workflowId}`);
-    console.log(`   Steps: ${stepsData.steps.length}`);
+    console.log(`   Steps: ${cleanSteps.length}`);
     console.log(`   Status: draft`);
     console.log('');
   } catch (error) {
