@@ -25,7 +25,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
         {/* Gutter spanning both columns */}
         <div className="w-[70px] shrink-0 px-1 text-right border-r border-chatroom-border" />
         {/* Hunk content */}
-        <div className="px-3 py-0.5 whitespace-pre">{line.content}</div>
+        <div className="px-3 py-0.5 whitespace-pre-wrap break-words min-w-0">{line.content}</div>
       </div>
     );
   }
@@ -40,7 +40,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
           {line.newLineNum}
         </div>
         {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">
+        <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
           {line.intraSegments ? (
             <>
               <span>{line.content[0]}</span>
@@ -71,7 +71,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
         {/* New line number — empty */}
         <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none" />
         {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">
+        <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
           {line.intraSegments ? (
             <>
               <span>{line.content[0]}</span>
@@ -104,7 +104,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
         {line.newLineNum}
       </div>
       {/* Content */}
-      <div className="font-mono text-[11px] whitespace-pre px-3 py-px">{line.content}</div>
+      <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">{line.content}</div>
     </div>
   );
 });
@@ -118,7 +118,7 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
       </div>
 
       {/* Diff lines */}
-      <div className="overflow-x-auto">
+      <div className="overflow-hidden">
         {section.lines.map((line, idx) => (
           <DiffLineRow key={idx} line={line} />
         ))}
