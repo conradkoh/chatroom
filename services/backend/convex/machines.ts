@@ -8,6 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { agentHarnessValidator } from './schema';
+import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -622,6 +623,8 @@ export const sendCommand = mutation({
         // For first-time starts when no agent config exists:
         agentHarness: v.optional(agentHarnessValidator),
         workingDir: v.optional(v.string()),
+        // For stop-agent: optional reason (defaults to 'user.stop')
+        reason: v.optional(agentStopReasonValidator),
       })
     ),
   },
@@ -696,7 +699,7 @@ export const sendCommand = mutation({
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
         userId: user._id,
-        reason: 'user.stop',
+        reason: args.payload.reason ?? 'user.stop',
       });
       return {};
     }
