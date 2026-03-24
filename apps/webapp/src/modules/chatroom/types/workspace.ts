@@ -12,12 +12,21 @@ export interface Workspace {
   machineId: string | null;
   /** Human-readable hostname resolved from connected machines, or "Unassigned" */
   hostname: string;
+  /** Machine alias set by the user (if any). Prefer displaying this over hostname. */
+  machineAlias?: string;
   /** Absolute working directory path, or "" for unassigned agents */
   workingDir: string;
   /** Roles of agents that belong to this workspace */
   agentRoles: string[];
   /** ID from workspace registry, used for manual removal */
   _registryId?: string;
+}
+
+/**
+ * Returns the display name for a workspace's machine: alias if set, otherwise hostname.
+ */
+export function getWorkspaceDisplayHostname(ws: { hostname: string; machineAlias?: string }): string {
+  return ws.machineAlias || ws.hostname;
 }
 
 /** Workspaces grouped under a single machine — for sidebar rendering. */

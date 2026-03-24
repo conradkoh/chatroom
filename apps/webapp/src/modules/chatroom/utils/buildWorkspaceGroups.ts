@@ -1,12 +1,13 @@
 import type { Workspace, WorkspaceGroup } from '../types/workspace';
+import { getWorkspaceDisplayHostname } from '../types/workspace';
 
 interface AgentRole {
   role: string;
 }
 
 /**
- * Groups workspaces by hostname and appends an `__unassigned__` group
- * for agents that don't belong to any workspace.
+ * Groups workspaces by display hostname (alias if set, otherwise hostname)
+ * and appends an `__unassigned__` group for agents that don't belong to any workspace.
  *
  * Shared between AgentSettingsModal (WorkspacesContent) and UnifiedAgentListModal.
  */
@@ -17,11 +18,11 @@ export function buildWorkspaceGroups(
   const groupMap = new Map<string, WorkspaceGroup>();
 
   for (const ws of allWorkspaces) {
-    const key = ws.hostname;
+    const key = getWorkspaceDisplayHostname(ws);
     if (!groupMap.has(key)) {
       groupMap.set(key, {
         machineId: ws.machineId,
-        hostname: ws.hostname,
+        hostname: getWorkspaceDisplayHostname(ws),
         workspaces: [],
       });
     }
