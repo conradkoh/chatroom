@@ -324,8 +324,18 @@ export const getMachineAgentConfigs = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Filter to only configs for machines the user owns
-    const userConfigs = allConfigs.filter((c) => c.machineId && userMachineMap.has(c.machineId));
+    // Filter to only configs for the CURRENT team and machines the user owns.
+    // Stale configs from old teams (after a team switch) must be excluded to
+    // prevent the UI from seeing spawnedAgentPid on old-team configs.
+    const currentTeamId = chatroom.teamId;
+    const userConfigs = allConfigs.filter((c) => {
+      if (!c.machineId || !userMachineMap.has(c.machineId)) return false;
+      // Only include configs for the current team
+      if (currentTeamId && c.teamRoleKey) {
+        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+      }
+      return true;
+    });
 
     const configsWithMachine = userConfigs.map((config) => {
       const machine = userMachineMap.get(config.machineId!);

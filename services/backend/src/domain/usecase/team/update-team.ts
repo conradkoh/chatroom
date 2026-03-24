@@ -75,6 +75,17 @@ export async function updateTeam(
         timestamp: now,
       });
       stoppedAgentCount++;
+
+      // Immediately clear the spawned PID and set desiredState to stopped.
+      // This prevents stale configs from appearing as "running" in the UI
+      // if the daemon doesn't process the stop event in time (deadline expiry,
+      // daemon disconnected, etc.).
+      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+        desiredState: 'stopped',
+        updatedAt: now,
+      });
     }
 
     if (config.machineId) {
@@ -87,11 +98,11 @@ export async function updateTeam(
         reason: 'team_switch',
       });
 
-      // If no process is running, safe to delete immediately
-      if (config.spawnedAgentPid == null) {
-        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-        deletedTeamConfigCount++;
-      }
+      // Since we cleared spawnedAgentPid above (or it was never set),
+      // the config can be deleted immediately. The daemon will still
+      // receive the stop event to kill the actual process.
+      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+      deletedTeamConfigCount++;
     } else {
       // No machine — safe to delete (custom config or orphan)
       await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
