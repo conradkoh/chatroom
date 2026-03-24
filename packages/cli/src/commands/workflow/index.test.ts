@@ -140,3 +140,109 @@ My warnings`;
     expect(result.get('WARNINGS')).toBe('My warnings');
   });
 });
+
+// ---------------------------------------------------------------------------
+// createWorkflow field stripping tests
+// ---------------------------------------------------------------------------
+
+describe('createWorkflow', () => {
+  it('strips unknown fields from step JSON before sending to backend', async () => {
+    const { createWorkflow } = await import('./index.js');
+
+    const mutationSpy = vi.fn().mockResolvedValue({ workflowId: 'test-workflow-id' });
+
+    const deps = {
+      backend: {
+        mutation: mutationSpy,
+        query: vi.fn(),
+      },
+      session: {
+        getSessionId: () => 'test-session',
+        getConvexUrl: () => 'http://test:3210',
+        getOtherSessionUrls: () => [],
+      },
+    };
+
+    const stdinContent = JSON.stringify({
+      steps: [
+        {
+          stepKey: 'step1',
+          description: 'First step',
+          dependsOn: [],
+          order: 1,
+          label: 'Backend',
+          role: 'builder',
+          name: 'Extra Name',
+        },
+      ],
+    });
+
+    await createWorkflow(
+      // Use a valid-looking chatroom ID (20-40 chars)
+      'test-chatroom-id-1234567890' as string,
+      { role: 'planner', workflowKey: 'test-wf', stdinContent },
+      deps as any
+    );
+
+    // Verify mutation was called with clean steps (no extra fields)
+    expect(mutationSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        steps: [
+          {
+            stepKey: 'step1',
+            description: 'First step',
+            dependsOn: [],
+            order: 1,
+          },
+        ],
+      })
+    );
+
+    // Verify extra fields were NOT passed
+    const passedSteps = mutationSpy.mock.calls[0][1].steps;
+    expect(passedSteps[0]).not.toHaveProperty('label');
+    expect(passedSteps[0]).not.toHaveProperty('role');
+    expect(passedSteps[0]).not.toHaveProperty('name');
+  });
+
+  it('warns when extra fields are detected in step JSON', async () => {
+    const { createWorkflow } = await import('./index.js');
+
+    const mutationSpy = vi.fn().mockResolvedValue({ workflowId: 'test-workflow-id' });
+
+    const deps = {
+      backend: {
+        mutation: mutationSpy,
+        query: vi.fn(),
+      },
+      session: {
+        getSessionId: () => 'test-session',
+        getConvexUrl: () => 'http://test:3210',
+        getOtherSessionUrls: () => [],
+      },
+    };
+
+    const stdinContent = JSON.stringify({
+      steps: [
+        {
+          stepKey: 'step1',
+          description: 'First step',
+          dependsOn: [],
+          order: 1,
+          label: 'Backend',
+        },
+      ],
+    });
+
+    await createWorkflow(
+      'test-chatroom-id-1234567890' as string,
+      { role: 'planner', workflowKey: 'test-wf-2', stdinContent },
+      deps as any
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Stripped unknown fields from step "step1": label')
+    );
+  });
+});
