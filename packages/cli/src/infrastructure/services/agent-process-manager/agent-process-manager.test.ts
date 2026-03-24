@@ -306,7 +306,7 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('already idle: no-op, returns success', async () => {
+    test('already idle: returns success and notifies backend for cleanup', async () => {
       const result = await manager.stop({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -314,6 +314,19 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
+
+      // Verify that recordAgentExited was called for idle cleanup
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(), // api.machines.recordAgentExited
+        expect.objectContaining({
+          sessionId: 'test-session',
+          machineId: 'test-machine',
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          pid: 0,
+          stopReason: 'user.stop',
+        })
+      );
     });
 
     test('concurrent stop calls: second awaits first', async () => {
