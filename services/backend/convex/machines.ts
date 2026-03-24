@@ -9,7 +9,7 @@ import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
-import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
@@ -763,7 +763,7 @@ export const updateSpawnedAgent = mutation({
         timestamp: now,
       });
 
-      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.started');
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.started');
 
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
@@ -891,7 +891,7 @@ export const recordAgentRegistered = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
-    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered');
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered');
 
     return { success: true };
   },
@@ -1043,7 +1043,7 @@ export const saveTeamAgentConfig = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
-    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
   },
@@ -1543,6 +1543,29 @@ export const emitAgentStartFailed = mutation({
       error: args.error,
       timestamp: Date.now(),
     });
+
+    // Update participant status so the UI reflects the failure
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.startFailed', 'stopped');
+
+    // Reset desiredState to 'stopped' so AgentRoleView.state doesn't stay stuck at 'starting'
+    const failedChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (failedChatroom?.teamId) {
+      const failedTeamRoleKey = buildTeamRoleKey(
+        failedChatroom._id,
+        failedChatroom.teamId,
+        args.role
+      );
+      const failedConfig = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', failedTeamRoleKey))
+        .first();
+      if (failedConfig) {
+        await ctx.db.patch('chatroom_teamAgentConfigs', failedConfig._id, {
+          desiredState: 'stopped',
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     return { success: true };
   },

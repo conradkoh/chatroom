@@ -9,8 +9,8 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
-  patchParticipantStatus,
 } from '../src/domain/entities/participant';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
@@ -124,7 +124,7 @@ export const join = mutation({
         role: args.role,
         timestamp: now,
       });
-      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
     }
 
     return participantId;

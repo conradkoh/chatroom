@@ -33,7 +33,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { patchParticipantStatus } from '../../entities/participant';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 // ============================================================================
@@ -46,7 +46,7 @@ import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '.
 export interface TransitionTaskOptions {
   /**
    * When true, skips writing the agent status event to chatroom_eventStream
-   * and skips updating the participant's lastStatus via patchParticipantStatus.
+   * and skips updating the participant's lastStatus via transitionAgentStatus.
    *
    * Use this when the task is being externally force-completed (e.g. from the UI)
    * and the actual agent process may still be running. Emitting status events in
@@ -150,12 +150,12 @@ export async function transitionTask(
       });
 
       // Only update participant lastStatus when NOT skipping agent status.
-      // patchParticipantStatus writes to the participant record which drives the UI.
+      // transitionAgentStatus writes to the participant record which drives the UI.
       // For force-complete, we skip this so the UI reflects the real agent state
       // rather than the externally-forced completion.
       if (!options?.skipAgentStatusUpdate) {
         if (eventTask.assignedTo) {
-          await patchParticipantStatus(
+          await transitionAgentStatus(
             ctx,
             eventTask.chatroomId,
             eventTask.assignedTo,

@@ -52,6 +52,20 @@ export async function onRequestStartAgent(
     console.log(
       `[daemon] Agent start rejected for role=${event.role}: ${result.error ?? 'unknown'}`
     );
+
+    // Notify the backend so participant status and desiredState are updated.
+    // Without this, the agent stays stuck in "STARTING" state in the UI.
+    ctx.deps.backend
+      .mutation(api.machines.emitAgentStartFailed, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        chatroomId: event.chatroomId,
+        role: event.role,
+        error: result.error ?? 'unknown',
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to emit startFailed event: ${err.message}`);
+      });
   } else {
     // Register workspace (fire-and-forget — don't block agent start)
     ctx.deps.backend

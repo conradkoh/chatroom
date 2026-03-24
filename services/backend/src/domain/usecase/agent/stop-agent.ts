@@ -16,7 +16,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentStopReason } from '../../entities/agent';
-import { patchParticipantStatus } from '../../entities/participant';
+import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
-  await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStop', 'stopped');
+  await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStop', 'stopped');
 
   // Mark the agent config as desired-stopped so the daemon won't auto-restart it.
   const stopChatroom = await ctx.db.get('chatroom_rooms', chatroomId);

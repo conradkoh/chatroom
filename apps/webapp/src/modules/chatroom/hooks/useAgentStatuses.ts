@@ -11,7 +11,7 @@ import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabe
 // ─── Offline event types ────────────────────────────────────────────────────
 // Agent is considered offline when their lastStatus is one of these.
 // null/undefined means the agent has never registered.
-const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
+const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', 'agent.startFailed', null, undefined]);
 
 // ─── Not-working event types ─────────────────────────────────────────────────
 // Agent is online but NOT actively processing a task.
@@ -43,7 +43,14 @@ export interface UseAgentStatusesResult {
   isLoading: boolean;
 }
 
-/** Centralizes agent status derivation from lastStatus on participant records. */
+/**
+ * @deprecated Agent status derivation from participant.lastStatus.
+ * The authoritative source for agent status is chatroom_teamAgentConfigs (via AgentRoleView.state).
+ * This hook reads from participant.lastStatus which is a denormalized mirror and can diverge.
+ * Prefer using AgentRoleView from useAgentPanelData for status derivation.
+ *
+ * Centralizes agent status derivation from lastStatus on participant records.
+ */
 export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentStatusesResult {
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
