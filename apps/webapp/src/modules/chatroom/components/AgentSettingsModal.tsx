@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } from 'lucide-react';
-import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
 
@@ -12,9 +12,9 @@ import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import type { WorkspaceGroup } from '../types/workspace';
-import type { StatusVariant } from '../utils/agentStatusLabel';
 import { buildWorkspaceGroups } from '../utils/buildWorkspaceGroups';
-import { formatRelativeTime } from './WorkQueue/utils';
+import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -482,27 +482,9 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
 // ─── Workspaces Content ─────────────────────────────────────────────────
 
 /**
- * Status dot color based on agent status variant
- */
-function getStatusDotClass(variant: StatusVariant): string {
-  switch (variant) {
-    case 'ready':
-      return 'bg-chatroom-status-success';
-    case 'working':
-      return 'bg-chatroom-status-info';
-    case 'transitioning':
-      return 'bg-chatroom-status-warning';
-    case 'error':
-      return 'bg-chatroom-status-error';
-    case 'offline':
-    default:
-      return 'bg-chatroom-text-muted';
-  }
-}
-
-/**
  * Workspaces tab — shows agents grouped by machine/workspace.
- * Mirrors the data from the "All Agents" modal in a settings-style layout.
+ * Uses InlineAgentCard for each agent to show full configuration details
+ * (status, controls, machine, model, restart stats).
  */
 const WorkspacesContent = memo(function WorkspacesContent({
   chatroomId,
@@ -512,6 +494,12 @@ const WorkspacesContent = memo(function WorkspacesContent({
   const {
     agents: agentRoleViews,
     teamRoles,
+    connectedMachines,
+    machineConfigs: agentConfigs,
+    sendCommand,
+    agentPreferenceMap,
+    savePreference,
+    isLoading: isPanelLoading,
   } = useAgentPanelData(chatroomId);
 
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
@@ -534,6 +522,41 @@ const WorkspacesContent = memo(function WorkspacesContent({
     }
     return map;
   }, [agentStatusList]);
+
+  // Build a role → AgentRoleView map for InlineAgentCard
+  const agentRoleViewMap = useMemo(() => {
+    const map = new Map<string, (typeof agentRoleViews)[number]>();
+    for (const agent of agentRoleViews) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentRoleViews]);
+
+  // Safe prompt generation — works inside and outside PromptsProvider
+  const promptsContext = useContext(PromptsContext);
+  const generatePrompt = useCallback(
+    (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
+    [promptsContext]
+  );
+
+  // Batch restart summaries for all roles
+  const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: allRoles,
+  });
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count1h: number; count24h: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count1h: summary.count1h,
+          count24h: summary.count24h,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
 
   const totalAgents = agentStatusList.length;
   const onlineAgents = agentStatusList.filter((a) => a.online).length;
@@ -588,44 +611,36 @@ const WorkspacesContent = memo(function WorkspacesContent({
                       )}
                     </div>
 
-                    {/* Agent rows */}
+                    {/* Agent cards */}
                     {ws.agentRoles.length === 0 ? (
                       <div className="px-3 py-2 text-[10px] text-chatroom-text-muted">
                         No agents
                       </div>
                     ) : (
-                      <div className="divide-y divide-chatroom-border">
+                      <div>
                         {ws.agentRoles.map((role) => {
                           const status = statusMap.get(role.toLowerCase());
-                          const variant: StatusVariant = status?.statusVariant ?? 'offline';
-                          const label = status?.statusLabel ?? 'Unknown';
-                          const lastSeen = status?.lastSeenAt ?? null;
 
                           return (
-                            <div
+                            <InlineAgentCard
                               key={role}
-                              className="flex items-center gap-3 px-3 py-2.5 hover:bg-chatroom-bg-hover transition-colors"
-                            >
-                              {/* Status dot */}
-                              <div
-                                className={`w-2 h-2 flex-shrink-0 rounded-full ${getStatusDotClass(variant)}`}
-                              />
-
-                              {/* Role name */}
-                              <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wide">
-                                  {role}
-                                </div>
-                                <div className="text-[10px] text-chatroom-text-muted uppercase tracking-wide">
-                                  {label}
-                                </div>
-                              </div>
-
-                              {/* Last seen */}
-                              <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-                                {lastSeen != null ? formatRelativeTime(lastSeen) : 'never'}
-                              </div>
-                            </div>
+                              role={role}
+                              allRoles={ws.agentRoles}
+                              online={status?.online ?? false}
+                              lastSeenAt={status?.lastSeenAt}
+                              latestEventType={status?.latestEventType}
+                              statusVariant={status?.statusVariant ?? 'offline'}
+                              prompt={generatePrompt(role)}
+                              chatroomId={chatroomId}
+                              connectedMachines={connectedMachines}
+                              isLoadingMachines={isPanelLoading}
+                              agentConfigs={agentConfigs}
+                              sendCommand={sendCommand}
+                              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
+                              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                              onSavePreference={savePreference}
+                              restartSummary={restartSummaryMap.get(role.toLowerCase())}
+                            />
                           );
                         })}
                       </div>
