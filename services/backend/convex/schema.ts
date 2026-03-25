@@ -970,6 +970,7 @@ export default defineSchema({
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),
+        pid: v.optional(v.number()),
       }),
       // Agent declared its type for a chatroom role (custom or remote)
       v.object({

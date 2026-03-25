@@ -19,6 +19,7 @@ export interface ParticipantInfo {
   lastSeenAction?: string | null;
   lastStatus?: string | null;
   lastDesiredState?: string | null;
+  isAlive?: boolean;
 }
 
 /**

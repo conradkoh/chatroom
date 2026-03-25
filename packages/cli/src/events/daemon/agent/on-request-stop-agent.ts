@@ -16,6 +16,7 @@ export interface AgentRequestStopEventPayload {
   role: string;
   reason: string;
   deadline: number;
+  pid?: number;
 }
 
 export async function onRequestStopAgent(
@@ -32,5 +33,6 @@ export async function onRequestStopAgent(
     chatroomId: event.chatroomId,
     role: event.role,
     reason: event.reason as StopAgentReason,
+    pid: event.pid,
   });
 }

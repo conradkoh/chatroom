@@ -43,7 +43,7 @@ export interface ResolvedAgentStatus {
  *
  * @param eventType    Latest event type from `chatroom_eventStream` (null if no events)
  * @param desiredState From `chatroom_teamAgentConfigs.desiredState` (null if not set)
- * @param online       Whether the agent is considered online (derived from OFFLINE_EVENT_TYPES)
+ * @param online       Whether the agent is considered online (derived from isAlive / spawnedAgentPid)
  */
 export function resolveAgentStatus(
   eventType: string | null | undefined,

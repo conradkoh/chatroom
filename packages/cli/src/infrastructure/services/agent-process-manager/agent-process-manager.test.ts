@@ -329,6 +329,48 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('already idle with event PID: attempts to kill the process and reports exit with that PID', async () => {
+      const result = await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+        pid: 12345,
+      });
+
+      expect(result).toEqual({ success: true });
+
+      // Should attempt to kill the event PID
+      expect(deps.processes.kill).toHaveBeenCalledWith(12345, 'SIGTERM');
+
+      // Should report exit with the event PID, not 0
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          pid: 12345,
+          stopReason: 'user.stop',
+        })
+      );
+    });
+
+    test('already idle without event PID: reports exit with pid 0 (backward compat)', async () => {
+      const result = await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(result).toEqual({ success: true });
+
+      // Should report exit with pid 0 (no PID available)
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          pid: 0,
+          stopReason: 'user.stop',
+        })
+      );
+    });
+
     test('concurrent stop calls: second awaits first', async () => {
       await manager.ensureRunning(createOpts());
 

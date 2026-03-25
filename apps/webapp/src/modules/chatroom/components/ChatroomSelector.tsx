@@ -8,7 +8,6 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { usePresenceTick, isAgentPresent } from '../hooks/usePresenceTick';
 
 import {
   DropdownMenu,
@@ -24,10 +23,10 @@ interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-// Agent status indicator — pure helper, accepts `now` so it stays fresh with tick
-function getAgentIndicatorClasses(lastSeenAt: number | null, now: number): string {
+// Agent status indicator — uses isAlive from spawnedAgentPid (authoritative source)
+function getAgentIndicatorClasses(isAlive: boolean): string {
   const base = 'w-1.5 h-1.5 flex-shrink-0';
-  return isAgentPresent(lastSeenAt, now)
+  return isAlive
     ? `${base} bg-chatroom-status-success`
     : `${base} bg-chatroom-text-muted opacity-40`;
 }
@@ -315,10 +314,6 @@ const ChatroomCard = memo(function ChatroomCard({
   onSelect,
   activeTab,
 }: ChatroomCardProps) {
-  // Tick every 30s so agent dot colors stay fresh
-  usePresenceTick();
-  const now = Date.now();
-
   const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
@@ -450,7 +445,7 @@ const ChatroomCard = memo(function ChatroomCard({
             const agent = agentMap.get(role.toLowerCase());
             return (
               <div key={role} className="flex items-center gap-1.5">
-                <span className={getAgentIndicatorClasses(agent?.lastSeenAt ?? null, now)} />
+                <span className={getAgentIndicatorClasses(agent?.isAlive ?? false)} />
                 <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                   {role}
                 </span>
@@ -479,10 +474,6 @@ const ChatroomTable = memo(function ChatroomTable({
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
-  // Tick every 30s so agent dot colors stay fresh
-  usePresenceTick();
-  const now = Date.now();
-
   const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
@@ -608,7 +599,7 @@ const ChatroomTable = memo(function ChatroomTable({
                 const agent = agentMap.get(role.toLowerCase());
                 return (
                   <div key={role} className="flex items-center gap-1">
-                    <span className={getAgentIndicatorClasses(agent?.lastSeenAt ?? null, now)} />
+                    <span className={getAgentIndicatorClasses(agent?.isAlive ?? false)} />
                     <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                       {role}
                     </span>
