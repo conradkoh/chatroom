@@ -413,6 +413,10 @@ export default defineSchema({
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
 
+    // Attached workflows for context
+    // Agents can attach workflow IDs to messages for visualizer display
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -452,6 +456,8 @@ export default defineSchema({
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Attached chatroom messages for context
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    // Attached workflows for context
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
   })
@@ -1112,6 +1118,44 @@ export default defineSchema({
         workflowKey: v.string(),
         workflowId: v.id('chatroom_workflows'),
         finalStatus: v.union(v.literal('completed'), v.literal('cancelled')),
+        timestamp: v.number(),
+      }),
+      // Workflow created (new draft workflow)
+      v.object({
+        type: v.literal('workflow.created'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        createdBy: v.string(),
+        stepCount: v.number(),
+        steps: v.optional(v.array(
+          v.object({
+            stepKey: v.string(),
+            description: v.string(),
+            assigneeRole: v.optional(v.string()),
+            dependsOn: v.array(v.string()),
+            order: v.number(),
+          })
+        )),
+        timestamp: v.number(),
+      }),
+      // Workflow step specified
+      v.object({
+        type: v.literal('workflow.specified'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        timestamp: v.number(),
+      }),
+      // Workflow step started (transitioned to in_progress)
+      v.object({
+        type: v.literal('workflow.stepStarted'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        assigneeRole: v.optional(v.string()),
         timestamp: v.number(),
       })
     )
