@@ -84,8 +84,10 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    */
   protected checkVersion(command: string): VersionInfo | null {
     try {
+      // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
+      // write version info to stderr (e.g. Pi) are also captured.
       const output = this.deps
-        .execSync(`${command} --version`, {
+        .execSync(`${command} --version 2>&1`, {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 5000,
         })
