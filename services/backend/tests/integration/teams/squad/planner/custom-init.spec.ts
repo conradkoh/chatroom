@@ -209,7 +209,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       \`\`\`
 
       **When to use a workflow vs direct delegation:**
-      If the task has a single clear deliverable that fits in one handoff message, delegate directly. If you need multiple sequential steps or deliverables, use a workflow.
+      If the task has a single clear deliverable that fits in one handoff message, delegate directly. If you need multiple sequential steps or deliverables, use a workflow. Each workflow step should represent one logical unit of work that can be delegated, reviewed, and verified independently. Aim for 3–7 steps per workflow.
 
       **For complex tasks (3+ phases):** You MUST use the workflow skill to plan and track execution. Follow this process:
 
@@ -231,6 +231,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
          [Things to avoid — optional]
          EOF
          \`\`\`
+         In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
       4. **Execute the workflow** using \`workflow execute\`
       5. **Delegate the current step** using this handoff template:
          \`\`\`
@@ -243,9 +244,11 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       7. **Check next steps:** Run \`workflow status\` to see what's next:
          - If a step is assigned to you, do it yourself and run \`report-progress\`
          - If assigned to another agent, go to step 5
-         - If no steps remain, the workflow completes automatically — deliver to user. Do NOT run \`workflow exit\` (that cancels the workflow).
+         - If no steps remain, the workflow completes automatically — deliver to user
 
-      In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
+      ⚠️ NEVER run \`workflow exit\` to finish a workflow — that CANCELS it. Workflows complete automatically when all steps are done.
+
+      **If a step is blocked:** If a step fails after 2 rework attempts, cancel it with \`workflow step-cancel\` and a reason. Restructure the remaining steps or deliver partial results to the user.
 
       **Review loop:**
       - After each phase, review the completed work before delegating the next
