@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-import { usePresenceTick, isAgentPresent } from '../hooks/usePresenceTick';
+import { usePresenceTick } from '../hooks/usePresenceTick';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,7 @@ export interface Agent {
   lastSeenAction: string | null;
   lastStatus: string | null;
   lastDesiredState: string | null;
+  isAlive: boolean;
 }
 
 export interface ChatroomWithStatus {
@@ -99,6 +100,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     // Group presence by chatroomId
     const presenceByRoom = new Map<string, Agent[]>();
     for (const p of presenceData) {
+      const runningRoles = remoteAgentStatusMap.get(p.chatroomId)?.runningRoles ?? [];
       const existing = presenceByRoom.get(p.chatroomId) ?? [];
       existing.push({
         role: p.role,
@@ -106,11 +108,11 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         lastSeenAction: p.lastSeenAction,
         lastStatus: p.lastStatus ?? null,
         lastDesiredState: p.lastDesiredState ?? null,
+        isAlive: runningRoles.some((r) => r.toLowerCase() === p.role.toLowerCase()),
       });
       presenceByRoom.set(p.chatroomId, existing);
     }
 
-    const now = Date.now();
 
     return baseChatrooms.map((chatroom) => {
       const agents = presenceByRoom.get(chatroom._id) ?? [];
@@ -122,7 +124,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus = 'completed';
       } else {
         const onlineAgents = agents.filter(
-          (a) => a.lastSeenAction !== 'exited' && isAgentPresent(a.lastSeenAt, now)
+          (a) => a.lastSeenAction !== 'exited' && a.isAlive
         );
         if (onlineAgents.length === 0) {
           chatStatus = 'idle';

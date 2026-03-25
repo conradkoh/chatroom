@@ -8,11 +8,6 @@ import { useMemo } from 'react';
 import type { TeamLifecycle } from '../types/readiness';
 import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabel';
 
-// ─── Offline event types ────────────────────────────────────────────────────
-// Agent is considered offline when their lastStatus is one of these.
-// null/undefined means the agent has never registered.
-const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', 'agent.startFailed', null, undefined]);
-
 // ─── Not-working event types ─────────────────────────────────────────────────
 // Agent is online but NOT actively processing a task.
 // Used to compute isWorking: if lastStatus is in this set, isWorking = false.
@@ -68,7 +63,7 @@ export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentS
       const lastSeenAt = participant?.lastSeenAt ?? null;
       const latestEventType = participant?.lastStatus ?? null;
       const desiredState = participant?.lastDesiredState ?? null;
-      const online = !OFFLINE_EVENT_TYPES.has(latestEventType as string);
+      const online = participant?.isAlive ?? false;
       const isWorking = online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
       const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
         latestEventType,
