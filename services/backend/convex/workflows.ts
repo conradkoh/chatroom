@@ -769,3 +769,19 @@ export const getWorkflowDetail = query({
     };
   },
 });
+
+/**
+ * Resolve a workflow key to its ID (lightweight lookup for CLI attachment resolution).
+ */
+export const resolveWorkflowId = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workflow = await getWorkflowByKey(ctx, args.chatroomId, args.workflowKey);
+    return { workflowId: workflow._id };
+  },
+});
