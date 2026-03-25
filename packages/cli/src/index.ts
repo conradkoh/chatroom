@@ -694,6 +694,30 @@ workflowCommand
     }
   );
 
+workflowCommand
+  .command('step-view')
+  .description('View the full details and specification of a single workflow step')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .requiredOption('--step-key <stepKey>', 'Step key to view')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      workflowKey: string;
+      stepKey: string;
+    }) => {
+      await maybeRequireAuth();
+      const { viewStep } = await import('./commands/workflow/index.js');
+      await viewStep(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+      });
+    }
+  );
+
 // ============================================================================
 // TASK COMMANDS (auth required)
 // ============================================================================

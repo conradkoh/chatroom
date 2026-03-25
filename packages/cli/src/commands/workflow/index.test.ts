@@ -246,3 +246,125 @@ describe('createWorkflow', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// viewStep tests
+// ---------------------------------------------------------------------------
+
+describe('viewStep', () => {
+  it('calls getStepView query with correct args and prints formatted output', async () => {
+    const { viewStep } = await import('./index.js');
+
+    const querySpy = vi.fn().mockResolvedValue({
+      workflowKey: 'deploy-v1',
+      workflowStatus: 'active',
+      step: {
+        stepKey: 'backend',
+        description: 'Build backend API',
+        status: 'in_progress',
+        assigneeRole: 'builder',
+        dependsOn: ['schema'],
+        order: 2,
+        specification: {
+          goal: 'Implement REST endpoints',
+          requirements: 'Must handle errors',
+          warnings: 'Do not break existing clients',
+        },
+        completedAt: undefined,
+        cancelledAt: undefined,
+        cancelReason: undefined,
+      },
+    });
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const deps = {
+      backend: {
+        mutation: vi.fn(),
+        query: querySpy,
+      },
+      session: {
+        getSessionId: () => 'test-session',
+        getConvexUrl: () => 'http://test:3210',
+        getOtherSessionUrls: () => [],
+      },
+    };
+
+    await viewStep(
+      'test-chatroom-id-1234567890' as string,
+      { role: 'builder', workflowKey: 'deploy-v1', stepKey: 'backend' },
+      deps as any
+    );
+
+    // Verify query was called with correct args
+    expect(querySpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: 'test-session',
+        chatroomId: 'test-chatroom-id-1234567890',
+        workflowKey: 'deploy-v1',
+        stepKey: 'backend',
+      })
+    );
+
+    // Verify output contains key details
+    const allOutput = logSpy.mock.calls.map((c) => c[0]).join('\n');
+    expect(allOutput).toContain('backend');
+    expect(allOutput).toContain('Build backend API');
+    expect(allOutput).toContain('IN_PROGRESS');
+    expect(allOutput).toContain('builder');
+    expect(allOutput).toContain('schema');
+    expect(allOutput).toContain('Implement REST endpoints');
+    expect(allOutput).toContain('Must handle errors');
+    expect(allOutput).toContain('Do not break existing clients');
+
+    logSpy.mockRestore();
+  });
+
+  it('handles step without specification', async () => {
+    const { viewStep } = await import('./index.js');
+
+    const querySpy = vi.fn().mockResolvedValue({
+      workflowKey: 'deploy-v1',
+      workflowStatus: 'draft',
+      step: {
+        stepKey: 'schema',
+        description: 'Create schema',
+        status: 'pending',
+        assigneeRole: undefined,
+        dependsOn: [],
+        order: 1,
+        specification: undefined,
+        completedAt: undefined,
+        cancelledAt: undefined,
+        cancelReason: undefined,
+      },
+    });
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const deps = {
+      backend: {
+        mutation: vi.fn(),
+        query: querySpy,
+      },
+      session: {
+        getSessionId: () => 'test-session',
+        getConvexUrl: () => 'http://test:3210',
+        getOtherSessionUrls: () => [],
+      },
+    };
+
+    await viewStep(
+      'test-chatroom-id-1234567890' as string,
+      { role: 'planner', workflowKey: 'deploy-v1', stepKey: 'schema' },
+      deps as any
+    );
+
+    const allOutput = logSpy.mock.calls.map((c) => c[0]).join('\n');
+    expect(allOutput).toContain('schema');
+    expect(allOutput).toContain('No specification set');
+
+    logSpy.mockRestore();
+  });
+});

@@ -575,6 +575,39 @@ export const exitWorkflow = mutation({
 // ─── Queries ────────────────────────────────────────────────────────
 
 /**
+ * Get the full details of a single workflow step, including its specification.
+ */
+export const getStepView = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(),
+    stepKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workflow = await getWorkflowByKey(ctx, args.chatroomId, args.workflowKey);
+    const step = await getStepByKey(ctx, workflow._id, args.stepKey);
+    return {
+      workflowKey: workflow.workflowKey,
+      workflowStatus: workflow.status,
+      step: {
+        stepKey: step.stepKey,
+        description: step.description,
+        status: step.status,
+        assigneeRole: step.assigneeRole,
+        dependsOn: step.dependsOn,
+        order: step.order,
+        specification: step.specification,
+        completedAt: step.completedAt,
+        cancelledAt: step.cancelledAt,
+        cancelReason: step.cancelReason,
+      },
+    };
+  },
+});
+
+/**
  * Get the full status of a workflow including all steps and available next steps.
  */
 export const getWorkflowStatus = query({
