@@ -4,8 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-import { usePresenceTick } from '../hooks/usePresenceTick';
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Agent {
@@ -74,9 +72,6 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
 
   // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
   const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
-
-  // Tick every 30s to keep time-based `chatStatus` fresh without DB writes
-  const tick = usePresenceTick();
 
   // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
@@ -151,7 +146,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
       } as ChatroomWithStatus;
     });
-  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData, tick]);
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData]);
 
   const value = useMemo(
     () => ({
