@@ -209,6 +209,42 @@ describe('workflows.specifyStep', () => {
     expect(stepA?.specification?.requirements).toBe('- Create schema\n- Add indexes');
     expect(stepA?.specification?.warnings).toBe('Do not modify existing tables');
   });
+
+  test('stores skills field in specification', async () => {
+    const { sessionId } = await createTestSession('test-wf-spec-skills-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    await t.mutation(api.workflows.specifyStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+      stepKey: 'a',
+      assigneeRole: 'builder',
+      goal: 'Build the feature',
+      requirements: '- Implement changes',
+      skills: 'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder',
+    });
+
+    const status = await t.query(api.workflows.getWorkflowStatus, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+    });
+
+    const stepA = status.steps.find((s) => s.stepKey === 'a');
+    expect(stepA?.specification?.goal).toBe('Build the feature');
+    expect(stepA?.specification?.skills).toBe(
+      'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder'
+    );
+  });
 });
 
 // ============================================================================

@@ -139,6 +139,41 @@ My warnings`;
     expect(result.get('REQUIREMENTS')).toBe('My requirements');
     expect(result.get('WARNINGS')).toBe('My warnings');
   });
+
+  it('parses optional SKILLS section', () => {
+    const input = `---GOAL---
+Build the feature
+---SKILLS---
+chatroom skill activate software-engineering --chatroom-id=<id> --role=builder
+chatroom skill activate code-review --chatroom-id=<id> --role=builder
+---REQUIREMENTS---
+1. Implement changes
+2. Add tests
+---WARNINGS---
+Do not break existing tests`;
+
+    const result = parseSections(input, ['GOAL', 'REQUIREMENTS'], ['WARNINGS', 'SKILLS']);
+
+    expect(result.get('GOAL')).toBe('Build the feature');
+    expect(result.get('SKILLS')).toBe(
+      'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder\nchatroom skill activate code-review --chatroom-id=<id> --role=builder'
+    );
+    expect(result.get('REQUIREMENTS')).toBe('1. Implement changes\n2. Add tests');
+    expect(result.get('WARNINGS')).toBe('Do not break existing tests');
+  });
+
+  it('handles missing optional SKILLS section', () => {
+    const input = `---GOAL---
+Build the feature
+---REQUIREMENTS---
+1. Implement changes`;
+
+    const result = parseSections(input, ['GOAL', 'REQUIREMENTS'], ['WARNINGS', 'SKILLS']);
+
+    expect(result.get('GOAL')).toBe('Build the feature');
+    expect(result.get('SKILLS')).toBeUndefined();
+    expect(result.get('REQUIREMENTS')).toBe('1. Implement changes');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -269,6 +304,7 @@ describe('viewStep', () => {
           goal: 'Implement REST endpoints',
           requirements: 'Must handle errors',
           warnings: 'Do not break existing clients',
+          skills: 'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder',
         },
         completedAt: undefined,
         cancelledAt: undefined,
@@ -317,6 +353,7 @@ describe('viewStep', () => {
     expect(allOutput).toContain('Implement REST endpoints');
     expect(allOutput).toContain('Must handle errors');
     expect(allOutput).toContain('Do not break existing clients');
+    expect(allOutput).toContain('chatroom skill activate software-engineering --chatroom-id=<id> --role=builder');
 
     logSpy.mockRestore();
   });
