@@ -1,5 +1,5 @@
 /**
- * Workspace types for the All Agents panel.
+ * Workspace types for the workspace sidebar and git panel.
  *
  * A workspace is a unique combination of machine + working directory.
  * Agents are grouped into workspaces based on their registered machineId + workingDir.
@@ -27,11 +27,4 @@ export interface Workspace {
  */
 export function getWorkspaceDisplayHostname(ws: { hostname: string; machineAlias?: string }): string {
   return ws.machineAlias || ws.hostname;
-}
-
-/** Workspaces grouped under a single machine — for sidebar rendering. */
-export interface WorkspaceGroup {
-  machineId: string | null;
-  hostname: string;
-  workspaces: Workspace[];
 }
