@@ -48,6 +48,7 @@ async function enrichMessageAttachments(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Resolve attached tasks
@@ -108,11 +109,23 @@ async function enrichMessageAttachments(
       }));
   }
 
+  // Resolve attached workflows
+  let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
+  if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
+    const workflows = await Promise.all(
+      msg.attachedWorkflowIds.map((wfId) => ctx.db.get(wfId))
+    );
+    attachedWorkflows = workflows
+      .filter((w): w is NonNullable<typeof w> => w !== null)
+      .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
+  }
+
   return {
     ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
     ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+    ...(attachedWorkflows && attachedWorkflows.length > 0 && { attachedWorkflows }),
   };
 }
 
