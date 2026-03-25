@@ -5,9 +5,8 @@ import { useState, useMemo, useCallback, memo } from 'react';
 
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
-import { usePresenceTick } from '../hooks/usePresenceTick';
+import { useRelativeTime } from '../hooks/useRelativeTime';
 import type { TeamLifecycle } from '../types/readiness';
-import { formatLastSeen } from './AgentPanel/AgentStatusRow';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 interface AgentPanelProps {
@@ -43,6 +42,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
   const statusVariant = agentStatus?.statusVariant;
+  const lastSeenLabel = useRelativeTime(lastSeenAt);
 
   // Map statusVariant to indicator dot color
   const indicatorClass = (() => {
@@ -118,7 +118,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
             {isLoadingStatuses ? '...' : statusLabel}
           </div>
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-            {formatLastSeen(lastSeenAt)}
+            {lastSeenLabel}
           </div>
         </div>
         {/* View Indicator */}
@@ -140,10 +140,6 @@ export const AgentPanel = memo(function AgentPanel({
   onOpenWorkspaces,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
-
-  // Tick every 30s so presence checks (isOnline, formatLastSeen) stay current
-  // without needing a DB write to trigger a Convex query re-run.
-  usePresenceTick();
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(

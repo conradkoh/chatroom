@@ -17,9 +17,10 @@ export async function executeStopAgent(
     chatroomId: string;
     role: string;
     reason: StopAgentReason;
+    pid?: number;
   }
 ): Promise<CommandResult> {
-  const { chatroomId, role, reason } = args;
+  const { chatroomId, role, reason, pid } = args;
   console.log(`   ↪ stop-agent command received`);
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
@@ -29,6 +30,7 @@ export async function executeStopAgent(
     chatroomId,
     role,
     reason: reason as StopReason,
+    pid,
   });
 
   const msg = result.success ? `Agent stopped (${role})` : `Failed to stop agent (${role})`;
