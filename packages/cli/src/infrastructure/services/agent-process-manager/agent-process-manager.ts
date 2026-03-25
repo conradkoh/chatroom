@@ -160,7 +160,7 @@ export class AgentProcessManager {
       const eventPid = opts.pid;
       if (eventPid && eventPid > 0) {
         try {
-          process.kill(eventPid, 'SIGTERM');
+          this.deps.processes.kill(eventPid, 'SIGTERM');
         } catch {
           // Process may already be dead — that's fine.
         }
