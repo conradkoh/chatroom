@@ -57,6 +57,21 @@ describe('PiAgentService', () => {
       expect(service.getVersion()).toBeNull();
     });
 
+    it('captures version from stderr (Pi CLI writes to stderr)', () => {
+      // Pi CLI may write version info to stderr, so checkVersion uses 2>&1
+      const deps = createMockDeps({
+        execSync: vi.fn().mockReturnValue(Buffer.from('0.55.0')),
+      });
+      const service = new PiAgentService(deps);
+      expect(service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
+
+      // Verify execSync was called with the 2>&1 redirect
+      expect(deps.execSync).toHaveBeenCalledWith(
+        'pi --version 2>&1',
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 })
+      );
+    });
+
     it('returns null when command fails', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
@@ -121,6 +136,29 @@ describe('PiAgentService', () => {
       });
       const service = new PiAgentService(deps);
       expect(await service.listModels()).toEqual([]);
+    });
+
+    it('captures output from stderr (Pi CLI writes to stderr)', async () => {
+      // When Pi CLI writes output to stderr, listModels() should still capture it
+      // The 2>&1 shell redirect in the command ensures stderr is merged into stdout
+      const tableOutput = [
+        'provider  model              context  max-out  thinking  images',
+        'anthropic claude-3-5-sonnet  200000   8192     false     true',
+        'openai    gpt-4o             128000   4096     false     true',
+      ].join('\n');
+
+      const deps = createMockDeps({
+        execSync: vi.fn().mockReturnValue(Buffer.from(tableOutput)),
+      });
+      const service = new PiAgentService(deps);
+      const models = await service.listModels();
+
+      // Verify execSync was called with the 2>&1 redirect
+      expect(deps.execSync).toHaveBeenCalledWith(
+        'pi --list-models 2>&1',
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+      );
+      expect(models).toEqual(['anthropic/claude-3-5-sonnet', 'openai/gpt-4o']);
     });
 
     it('skips lines starting with # or -', async () => {
