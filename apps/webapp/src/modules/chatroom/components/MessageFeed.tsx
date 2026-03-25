@@ -46,6 +46,7 @@ import remarkGfm from 'remark-gfm';
 import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
+import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
@@ -105,6 +106,8 @@ interface Message {
   attachedArtifacts?: ArtifactMeta[];
   // Attached chatroom messages for context
   attachedMessages?: AttachedMessage[];
+  // Attached workflows for visualizer
+  attachedWorkflows?: { _id: string; workflowKey: string; status: string }[];
   // Latest progress message for inline display
   latestProgress?: {
     content: string;
@@ -642,6 +645,7 @@ function DeleteConfirmPopoverContent({
 
 interface QueuedMessageCardProps {
   message: Message;
+  chatroomId: string;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
   onEdit: (queuedMessageId: string, newContent: string) => Promise<void>;
@@ -649,6 +653,7 @@ interface QueuedMessageCardProps {
 
 const QueuedMessageCard = memo(function QueuedMessageCard({
   message,
+  chatroomId,
   onPromote,
   onDelete,
   onEdit,
@@ -803,7 +808,8 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
         {/* Attachment chips */}
         {((message.attachedTasks?.length ?? 0) > 0 ||
           (message.attachedBacklogItems?.length ?? 0) > 0 ||
-          (message.attachedMessages?.length ?? 0) > 0) && (
+          (message.attachedMessages?.length ?? 0) > 0 ||
+          (message.attachedWorkflows?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1 mt-1">
             {message.attachedTasks?.map((task) => {
               const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
@@ -840,6 +846,15 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 <MessageSquare size={ICON_SIZE} />
                 {msg.senderRole}
               </span>
+            ))}
+            {message.attachedWorkflows?.map((wf) => (
+              <AttachedWorkflowChip
+                key={wf._id}
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                workflowId={wf._id as Id<'chatroom_workflows'>}
+                workflowKey={wf.workflowKey}
+                status={wf.status}
+              />
             ))}
           </div>
         )}
@@ -885,7 +900,8 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             )}
             {/* Attached Backlog Tasks + Backlog Items */}
             {((message.attachedTasks && message.attachedTasks.length > 0) ||
-              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
+              (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
               <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
                   Attached Backlog (
@@ -943,6 +959,16 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                     </div>
                   );
                 })}
+                {message.attachedWorkflows?.map((wf) => (
+                  <div key={wf._id} className="mb-2 last:mb-0">
+                    <AttachedWorkflowChip
+                      chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                      workflowId={wf._id as Id<'chatroom_workflows'>}
+                      workflowKey={wf.workflowKey}
+                      status={wf.status}
+                    />
+                  </div>
+                ))}
               </div>
             )}
             {/* Attached Messages */}
@@ -1097,6 +1123,7 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 
 interface MessageItemProps {
   message: Message;
+  chatroomId: string;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
   onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
@@ -1184,6 +1211,7 @@ const MessageContent = memo(function MessageContent({ content }: { content: stri
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
+  chatroomId,
   onFeatureClick,
   onAttachedTaskClick,
   onAttachedBacklogItemClick,
@@ -1345,7 +1373,8 @@ const MessageItem = memo(function MessageItem({
       )}
       {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
       {((message.attachedTasks && message.attachedTasks.length > 0) ||
-        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
+        (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
             Attached Backlog (
@@ -1405,6 +1434,16 @@ const MessageItem = memo(function MessageItem({
               </button>
             );
           })}
+          {message.attachedWorkflows?.map((wf) => (
+            <div key={wf._id} className="mb-2 last:mb-0">
+              <AttachedWorkflowChip
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                workflowId={wf._id as Id<'chatroom_workflows'>}
+                workflowKey={wf.workflowKey}
+                status={wf.status}
+              />
+            </div>
+          ))}
         </div>
       )}
       {/* Attached Artifacts */}
@@ -1969,6 +2008,7 @@ export const MessageFeed = memo(function MessageFeed({
             <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
               message={message}
+              chatroomId={chatroomId}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
               onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
@@ -2013,6 +2053,7 @@ export const MessageFeed = memo(function MessageFeed({
               <QueuedMessageCard
                 key={displayQueuedMessages[0]._id}
                 message={displayQueuedMessages[0]}
+                chatroomId={chatroomId}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
                 onEdit={handleQueuedEdit}
@@ -2046,6 +2087,7 @@ export const MessageFeed = memo(function MessageFeed({
               <QueuedMessageCard
                 key={message._id}
                 message={message}
+                chatroomId={chatroomId}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
                 onEdit={handleQueuedEdit}
