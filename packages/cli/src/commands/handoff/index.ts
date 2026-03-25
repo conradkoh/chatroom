@@ -216,6 +216,55 @@ export async function handoff(
     });
   }
 
+  // Show attached workflow summaries
+  if (resolvedWorkflowIds.length > 0) {
+    for (const wfId of resolvedWorkflowIds) {
+      try {
+        const detail = await d.backend.query(api.workflows.getWorkflowDetail, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowId: wfId as Id<'chatroom_workflows'>,
+        });
+
+        const wf = detail.workflow;
+        console.log('');
+        console.log(
+          `📊 Attached Workflow: ${wf.workflowKey} (${wf.status}, ${detail.steps.length} steps)`
+        );
+
+        for (let i = 0; i < detail.steps.length; i++) {
+          const step = detail.steps[i];
+          const isLast = i === detail.steps.length - 1;
+          const prefix = isLast ? '└─' : '├─';
+          const statusEmoji =
+            step.status === 'completed'
+              ? '✅'
+              : step.status === 'in_progress'
+                ? '🔄'
+                : step.status === 'cancelled'
+                  ? '❌'
+                  : '⏳';
+          const roleLabel = step.assigneeRole ? ` [${step.assigneeRole}]` : '';
+          const deps =
+            step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
+          console.log(
+            `   ${prefix} ${step.stepKey}${roleLabel} ${statusEmoji} ${step.status}${deps}`
+          );
+        }
+
+        console.log('');
+        console.log(
+          `   Inspect: chatroom workflow status --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey}`
+        );
+        console.log(
+          `   View step: chatroom workflow step-view --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey} --step-key=<key>`
+        );
+      } catch {
+        // Non-fatal: just skip rendering if query fails
+      }
+    }
+  }
+
   const convexUrl = d.session.getConvexUrl();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   console.log(`\n⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
