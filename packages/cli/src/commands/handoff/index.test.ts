@@ -199,4 +199,58 @@ describe('handoff', () => {
       expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
+
+  describe('workflow attachment', () => {
+    it('resolves workflow keys and passes attachedWorkflowIds to mutation', async () => {
+      const deps = createMockDeps();
+      const mockWorkflowId = 'wf_resolved_123';
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (_endpoint: unknown, args: Record<string, unknown>) => {
+          // resolveWorkflowId query
+          if (args && 'workflowKey' in args) {
+            return Promise.resolve({ workflowId: mockWorkflowId });
+          }
+          // validateArtifactIds or other queries
+          return Promise.resolve(true);
+        }
+      );
+
+      await handoff(
+        TEST_CHATROOM_ID,
+        defaultOptions({ attachedWorkflowKeys: ['my-workflow'] }),
+        deps
+      );
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      // The mutation should be called with attachedWorkflowIds
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          attachedWorkflowIds: [mockWorkflowId],
+        })
+      );
+    });
+
+    it('exits with code 1 when workflow key not found', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (_endpoint: unknown, args: Record<string, unknown>) => {
+          if (args && 'workflowKey' in args) {
+            return Promise.reject(new Error('Workflow not found'));
+          }
+          return Promise.resolve(true);
+        }
+      );
+
+      await handoff(
+        TEST_CHATROOM_ID,
+        defaultOptions({ attachedWorkflowKeys: ['nonexistent'] }),
+        deps
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      const errOutput = getAllErrorOutput();
+      expect(errOutput).toContain('not found');
+    });
+  });
 });
