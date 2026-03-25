@@ -10,6 +10,7 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
+import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -296,9 +297,17 @@ export const getTeamLifecycle = query({
 
     const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
 
+    // Fetch agent configs to determine isAlive from spawnedAgentPid
+    const agentConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const configByRole = new Map(agentConfigs.map((c) => [c.role.toLowerCase(), c]));
+
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const participantRow = participantByRole.get(role.toLowerCase());
+      const config = configByRole.get(role.toLowerCase());
 
       return {
         role,
@@ -307,6 +316,7 @@ export const getTeamLifecycle = query({
         agentType: participantRow?.agentType ?? ('remote' as const),
         lastStatus: participantRow?.lastStatus ?? null,
         lastDesiredState: participantRow?.lastDesiredState ?? null,
+        isAlive: isAgentAlive(config?.spawnedAgentPid),
       };
     });
 
