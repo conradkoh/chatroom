@@ -53,6 +53,8 @@ export interface StopOpts {
   chatroomId: string;
   role: string;
   reason: StopReason;
+  /** PID from the backend event — used as fallback when the daemon has no slot PID (e.g. after restart). */
+  pid?: number;
 }
 
 export interface HandleExitOpts {
@@ -153,16 +155,25 @@ export class AgentProcessManager {
     const slot = this.slots.get(key);
 
     if (!slot || slot.state === 'idle') {
-      // Slot is already idle — no process to kill. But we still need to notify
-      // the backend so participant status is cleaned up. Without this, a failed
-      // spawn leaves the agent stuck in "STARTING" or "STOPPING" state in the UI.
+      // Slot is already idle — no process to kill. But if the backend provided a
+      // PID (e.g. after daemon restart), attempt to kill that process directly.
+      const eventPid = opts.pid;
+      if (eventPid && eventPid > 0) {
+        try {
+          process.kill(eventPid, 'SIGTERM');
+        } catch {
+          // Process may already be dead — that's fine.
+        }
+      }
+
+      // Still notify the backend so participant status is cleaned up.
       this.deps.backend
         .mutation(api.machines.recordAgentExited, {
           sessionId: this.deps.sessionId,
           machineId: this.deps.machineId,
           chatroomId: opts.chatroomId,
           role: opts.role,
-          pid: 0, // No real PID — agent was never running
+          pid: eventPid ?? 0, // Use backend PID if available, else 0
           stopReason: opts.reason,
           exitCode: undefined,
           signal: undefined,
