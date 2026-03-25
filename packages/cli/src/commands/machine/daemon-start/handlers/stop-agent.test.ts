@@ -34,7 +34,7 @@ vi.mock('../../../../api.js', () => ({
 // Import the function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
 
-const { handleStopAgent } = await import('./stop-agent.js');
+const { handleStopAgent, executeStopAgent } = await import('./stop-agent.js');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,6 +126,37 @@ describe('handleStopAgent', () => {
       chatroomId: CHATROOM_ID,
       role: 'reviewer',
       reason: 'user.stop',
+    });
+  });
+
+  it('passes through pid from executeStopAgent to agentProcessManager.stop', async () => {
+    await executeStopAgent(ctx, {
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      reason: 'user.stop',
+      pid: 12345,
+    });
+
+    expect(deps.agentProcessManager.stop).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      reason: 'user.stop',
+      pid: 12345,
+    });
+  });
+
+  it('does not include pid when not provided to executeStopAgent', async () => {
+    await executeStopAgent(ctx, {
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      reason: 'user.stop',
+    });
+
+    expect(deps.agentProcessManager.stop).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      reason: 'user.stop',
+      pid: undefined,
     });
   });
 });

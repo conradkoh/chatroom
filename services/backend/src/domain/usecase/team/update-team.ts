@@ -73,6 +73,7 @@ export async function updateTeam(
         reason: 'platform.team_switch',
         deadline: now + AGENT_REQUEST_DEADLINE_MS,
         timestamp: now,
+        pid: config.spawnedAgentPid ?? undefined,
       });
       stoppedAgentCount++;
 

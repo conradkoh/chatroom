@@ -57,19 +57,8 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
 
   const now = Date.now();
 
-  // Dispatch stop via event stream (daemon reads agent.requestStop events)
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.requestStop',
-    chatroomId,
-    machineId,
-    role,
-    reason,
-    deadline: now + AGENT_REQUEST_DEADLINE_MS,
-    timestamp: now,
-  });
-  await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStop', 'stopped');
-
-  // Mark the agent config as desired-stopped so the daemon won't auto-restart it.
+  // Look up the agent config first so we can include PID in the event and
+  // eagerly clear spawn state in a single pass (no duplicate DB read).
   const stopChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   let teamConfig = null;
   if (stopChatroom?.teamId) {
@@ -80,13 +69,30 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
       .first();
   }
 
-  // We patch whichever config holds the teamRoleKey for this role, not
-  // specifically the machineId passed in. This is safe because uniqueness is
-  // enforced at write time (one row per teamRoleKey), so there can only be
-  // one config to patch.
+  // Dispatch stop via event stream (daemon reads agent.requestStop events).
+  // Include the PID so the daemon can target the exact process even after a restart.
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'agent.requestStop',
+    chatroomId,
+    machineId,
+    role,
+    reason,
+    deadline: now + AGENT_REQUEST_DEADLINE_MS,
+    timestamp: now,
+    pid: teamConfig?.spawnedAgentPid ?? undefined,
+  });
+
+  // Transition participant status to 'agent.exited' so the UI shows OFFLINE
+  // immediately rather than waiting for the daemon to confirm the exit.
+  await transitionAgentStatus(ctx, chatroomId, role, 'agent.exited', 'stopped');
+
+  // Mark the agent config as desired-stopped and eagerly clear spawn state
+  // so that subsequent queries (e.g. isAlive) reflect the stop immediately.
   if (teamConfig) {
     await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
       desiredState: 'stopped',
+      spawnedAgentPid: undefined,
+      spawnedAt: undefined,
     });
   }
 
