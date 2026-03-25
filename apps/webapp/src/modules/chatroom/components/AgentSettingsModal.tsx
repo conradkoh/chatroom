@@ -7,14 +7,9 @@ import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } fro
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { WorkspaceDropdown } from './WorkspaceDropdown';
 
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
-import { useWorkspaceSelection } from '../hooks/useWorkspaceSelection';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-import type { WorkspaceGroup } from '../types/workspace';
-import { buildWorkspaceGroups } from '../utils/buildWorkspaceGroups';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import { PromptsContext } from '@/contexts/PromptsContext';
 
@@ -47,7 +42,7 @@ interface AgentSettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'workspaces';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -55,7 +50,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'setup', label: 'Setup', icon: <Settings size={16} /> },
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
-  { id: 'workspaces', label: 'Workspaces', icon: <Monitor size={16} /> },
+  { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -481,15 +476,14 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
   );
 });
 
-// ─── Workspaces Content ─────────────────────────────────────────────────
+// ─── Agents Content ─────────────────────────────────────────────────
 
 /**
- * Workspaces tab — shows agents grouped by machine/workspace.
+ * Agents tab — shows a flat list of all agents for the team.
  * Uses InlineAgentCard for each agent to show full configuration details
  * (status, controls, machine, model, restart stats).
- * Includes a dropdown workspace selector to filter by workspace.
  */
-const WorkspacesContent = memo(function WorkspacesContent({
+const AgentsContent = memo(function AgentsContent({
   chatroomId,
 }: {
   chatroomId: string;
@@ -506,23 +500,6 @@ const WorkspacesContent = memo(function WorkspacesContent({
   } = useAgentPanelData(chatroomId);
 
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
-
-  // Build workspace groups
-  const { workspaces: allWorkspaces } = useChatroomWorkspaces(chatroomId, {
-    agentViews: agentRoleViews,
-  });
-
-  const workspaceGroups = useMemo(
-    (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agentStatusList),
-    [allWorkspaces, agentStatusList]
-  );
-
-  // Workspace selection (shared hook — eliminates duplicated selection logic)
-  const {
-    selectedWorkspaceId,
-    setSelectedWorkspaceId,
-    filteredGroups,
-  } = useWorkspaceSelection(workspaceGroups);
 
   // Build a status lookup map
   const statusMap = useMemo(() => {
@@ -575,100 +552,44 @@ const WorkspacesContent = memo(function WorkspacesContent({
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
-          Workspaces
+          Agents
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          Agents grouped by machine and workspace. {onlineAgents}/{totalAgents} agents online.
+          {onlineAgents}/{totalAgents} agents online.
         </p>
       </div>
 
-      {workspaceGroups.length === 0 ? (
+      {agentStatusList.length === 0 ? (
         <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
-          No workspaces or agents configured
+          No agents configured
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Workspace selector */}
-          <WorkspaceDropdown
-            workspaceGroups={workspaceGroups}
-            selectedWorkspaceId={selectedWorkspaceId}
-            onSelectWorkspace={setSelectedWorkspaceId}
-            showAllOption={true}
-            totalAgents={totalAgents}
-          />
+        <div className="border border-chatroom-border bg-chatroom-bg-surface">
+          {agentStatusList.map((agent) => {
+            const status = statusMap.get(agent.role.toLowerCase());
 
-          {filteredGroups.map((group, groupIdx) => (
-            <div key={group.machineId ?? `__group_${groupIdx}`} className="space-y-2">
-              {/* Machine header */}
-              <div className="flex items-center gap-2">
-                <Server size={14} className="text-chatroom-text-muted flex-shrink-0" />
-                <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                  {group.hostname}
-                </label>
-              </div>
-
-              {/* Workspaces under this machine */}
-              {group.workspaces.map((ws) => {
-                const dirLabel = ws.workingDir
-                  ? (ws.workingDir.split('/').filter(Boolean).pop() ?? ws.workingDir)
-                  : 'Unassigned';
-
-                return (
-                  <div
-                    key={ws.id}
-                    className="border border-chatroom-border bg-chatroom-bg-surface"
-                  >
-                    {/* Workspace header */}
-                    <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary">
-                      <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wide">
-                        {dirLabel}
-                      </div>
-                      {ws.workingDir && (
-                        <div className="text-[10px] font-mono text-chatroom-text-muted mt-0.5 truncate">
-                          {ws.workingDir}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Agent cards */}
-                    {ws.agentRoles.length === 0 ? (
-                      <div className="px-3 py-2 text-[10px] text-chatroom-text-muted">
-                        No agents
-                      </div>
-                    ) : (
-                      <div>
-                        {ws.agentRoles.map((role) => {
-                          const status = statusMap.get(role.toLowerCase());
-
-                          return (
-                            <InlineAgentCard
-                              key={role}
-                              role={role}
-                              allRoles={ws.agentRoles}
-                              online={status?.online ?? false}
-                              lastSeenAt={status?.lastSeenAt}
-                              latestEventType={status?.latestEventType}
-                              statusVariant={status?.statusVariant ?? 'offline'}
-                              prompt={generatePrompt(role)}
-                              chatroomId={chatroomId}
-                              connectedMachines={connectedMachines}
-                              isLoadingMachines={isPanelLoading}
-                              agentConfigs={agentConfigs}
-                              sendCommand={sendCommand}
-                              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
-                              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
-                              onSavePreference={savePreference}
-                              restartSummary={restartSummaryMap.get(role.toLowerCase())}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+            return (
+              <InlineAgentCard
+                key={agent.role}
+                role={agent.role}
+                allRoles={teamRoles}
+                online={status?.online ?? false}
+                lastSeenAt={status?.lastSeenAt}
+                latestEventType={status?.latestEventType}
+                statusVariant={status?.statusVariant ?? 'offline'}
+                prompt={generatePrompt(agent.role)}
+                chatroomId={chatroomId}
+                connectedMachines={connectedMachines}
+                isLoadingMachines={isPanelLoading}
+                agentConfigs={agentConfigs}
+                sendCommand={sendCommand}
+                agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
+                agentPreference={agentPreferenceMap.get(agent.role.toLowerCase())}
+                onSavePreference={savePreference}
+                restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -753,7 +674,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             />
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
-          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
+          {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

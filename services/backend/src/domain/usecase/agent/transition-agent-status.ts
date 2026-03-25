@@ -10,18 +10,15 @@
  *
  * Future: When a new `status` field is added to chatroom_teamAgentConfigs (schema change),
  * this function will also write to that field, making teamAgentConfigs the single source of truth.
- *
- * @see patchParticipantStatus — deprecated in favor of this function for new code
  */
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { patchParticipantStatus } from '../../entities/participant';
 
 /**
  * Transition the agent's status across all state sources.
  *
- * Call this instead of bare `patchParticipantStatus()` to ensure all
+ * Call this instead of directly patching participant records to ensure all
  * status-related fields stay in sync.
  *
  * @param ctx - Convex mutation context
@@ -38,7 +35,17 @@ export async function transitionAgentStatus(
   lastDesiredState?: string
 ): Promise<void> {
   // 1. Update participant record (denormalized — deprecated as primary source)
-  await patchParticipantStatus(ctx, chatroomId, role, lastStatus, lastDesiredState);
+  const participant = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .unique();
+  if (participant) {
+    const patch: Record<string, string> = { lastStatus };
+    if (lastDesiredState !== undefined) {
+      patch.lastDesiredState = lastDesiredState;
+    }
+    await ctx.db.patch('chatroom_participants', participant._id, patch);
+  }
 
   // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
   // This would make teamAgentConfigs the single source of truth for agent status.
