@@ -319,12 +319,13 @@ export async function specifyWorkflowStep(
   const sections = parseSections(
     options.stdinContent,
     ['GOAL', 'REQUIREMENTS'],
-    ['WARNINGS']
+    ['WARNINGS', 'SKILLS']
   );
 
   const goal = sections.get('GOAL')!;
   const requirements = sections.get('REQUIREMENTS')!;
   const warnings = sections.get('WARNINGS') || undefined;
+  const skills = sections.get('SKILLS') || undefined;
 
   try {
     await d.backend.mutation(api.workflows.specifyStep, {
@@ -336,6 +337,7 @@ export async function specifyWorkflowStep(
       goal,
       requirements,
       warnings,
+      skills,
     });
 
     console.log('');
