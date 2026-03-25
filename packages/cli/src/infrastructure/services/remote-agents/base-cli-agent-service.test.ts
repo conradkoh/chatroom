@@ -145,13 +145,13 @@ describe('BaseCLIAgentService', () => {
       expect(service.getVersion()).toBeNull();
     });
 
-    it('calls execSync with correct --version command', () => {
+    it('calls execSync with correct --version command (including stderr redirect)', () => {
       const execSync = vi.fn().mockReturnValue(Buffer.from('1.0.0'));
       const deps = createMockDeps({ execSync });
       const service = new TestAgentService('mytool', deps);
       service.getVersion();
       expect(execSync).toHaveBeenCalledWith(
-        'mytool --version',
+        'mytool --version 2>&1',
         expect.objectContaining({ timeout: 5000 })
       );
     });

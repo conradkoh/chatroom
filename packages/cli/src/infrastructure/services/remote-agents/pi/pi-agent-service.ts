@@ -63,8 +63,10 @@ export class PiAgentService extends BaseCLIAgentService {
 
   async listModels(): Promise<string[]> {
     try {
+      // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
+      // write output to stderr (e.g. Pi) are also captured.
       const output = this.deps
-        .execSync(`${PI_COMMAND} --list-models`, {
+        .execSync(`${PI_COMMAND} --list-models 2>&1`, {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 10000,
         })
