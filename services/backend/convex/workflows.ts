@@ -180,13 +180,32 @@ async function advanceWorkflow(
     }
   }
 
+  // Emit workflow.stepStarted events for promoted steps
+  const workflow = await ctx.db.get(workflowId);
+  if (workflow) {
+    for (const step of steps) {
+      if (step.status !== 'pending') continue;
+      const allDepsCompleted = step.dependsOn.every((dep) => statusByKey.get(dep) === 'completed');
+      if (allDepsCompleted) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'workflow.stepStarted',
+          chatroomId: workflow.chatroomId,
+          workflowKey: workflow.workflowKey,
+          workflowId: workflow._id,
+          stepKey: step.stepKey,
+          assigneeRole: step.assigneeRole ?? undefined,
+          timestamp: now,
+        });
+      }
+    }
+  }
+
   // Check if all steps are terminal (completed or cancelled)
   const allTerminal = steps.every(
     (s) => s.status === 'completed' || s.status === 'cancelled'
   );
 
   if (allTerminal) {
-    const workflow = await ctx.db.get(workflowId);
     await ctx.db.patch('chatroom_workflows', workflowId, {
       status: 'completed',
       completedAt: now,
@@ -278,6 +297,23 @@ export const createWorkflow = mutation({
       });
     }
 
+    // Emit workflow.created event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.created',
+      chatroomId: args.chatroomId,
+      workflowKey: args.workflowKey,
+      workflowId: workflowId,
+      createdBy: args.createdBy,
+      stepCount: args.steps.length,
+      steps: args.steps.map((s, i) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        dependsOn: s.dependsOn,
+        order: i,
+      })),
+      timestamp: now,
+    });
+
     return { workflowId };
   },
 });
@@ -324,6 +360,16 @@ export const specifyStep = mutation({
       updatedAt: now,
     });
 
+    // Emit workflow.specified event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.specified',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      stepKey: args.stepKey,
+      timestamp: now,
+    });
+
     return { success: true };
   },
 });
@@ -365,6 +411,16 @@ export const executeWorkflow = mutation({
         await ctx.db.patch('chatroom_workflow_steps', step._id, {
           status: 'in_progress',
           updatedAt: now,
+        });
+        // Emit workflow.stepStarted event for each root step
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'workflow.stepStarted',
+          chatroomId: workflow.chatroomId,
+          workflowKey: workflow.workflowKey,
+          workflowId: workflow._id,
+          stepKey: step.stepKey,
+          assigneeRole: step.assigneeRole ?? undefined,
+          timestamp: now,
         });
       }
     }
