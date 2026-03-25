@@ -228,7 +228,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.exited');
   });
 
-  test('agent.requestStop + lastDesiredState=stopped via stop-agent use case', async () => {
+  test('agent.exited + lastDesiredState=stopped via stop-agent use case (eager stop)', async () => {
     const { sessionId } = await createTestSession('test-pst-stop');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-pst-stop';
@@ -248,7 +248,8 @@ describe('Participant Status Tracking', () => {
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
-    expect(status.lastStatus).toBe('agent.requestStop');
+    // stopAgent now transitions to 'agent.exited' eagerly (not 'agent.requestStop')
+    expect(status.lastStatus).toBe('agent.exited');
     expect(status.lastDesiredState).toBe('stopped');
   });
 
@@ -381,7 +382,8 @@ describe('Participant Status Tracking', () => {
       });
     });
     status = await getParticipantStatus(chatroomId, 'builder');
-    expect(status.lastStatus).toBe('agent.requestStop');
+    // stopAgent now transitions to 'agent.exited' eagerly (not 'agent.requestStop')
+    expect(status.lastStatus).toBe('agent.exited');
     expect(status.lastDesiredState).toBe('stopped');
   });
 });
