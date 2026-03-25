@@ -975,3 +975,101 @@ describe('workflows.getWorkflowStatus', () => {
     ).rejects.toThrow('not found');
   });
 });
+
+// ============================================================================
+// getStepView
+// ============================================================================
+
+describe('workflows.getStepView', () => {
+  test('returns step details including specification', async () => {
+    const { sessionId } = await createTestSession('test-step-view-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    // Specify step A with full details
+    await t.mutation(api.workflows.specifyStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      stepKey: 'a',
+      assigneeRole: 'builder',
+      goal: 'Build the schema',
+      requirements: 'Must include all tables',
+      warnings: 'Do not drop existing data',
+    });
+
+    const result = await t.query(api.workflows.getStepView, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      stepKey: 'a',
+    });
+
+    expect(result.workflowKey).toBe('view-wf');
+    expect(result.workflowStatus).toBe('draft');
+    expect(result.step.stepKey).toBe('a');
+    expect(result.step.description).toBe('Step A');
+    expect(result.step.status).toBe('pending');
+    expect(result.step.assigneeRole).toBe('builder');
+    expect(result.step.dependsOn).toEqual([]);
+    expect(result.step.order).toBe(1);
+    expect(result.step.specification).toEqual({
+      goal: 'Build the schema',
+      requirements: 'Must include all tables',
+      warnings: 'Do not drop existing data',
+    });
+  });
+
+  test('returns step without specification when not yet specified', async () => {
+    const { sessionId } = await createTestSession('test-step-view-2');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-nospec',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'x', description: 'Unspecified step', dependsOn: [] as string[], order: 1 }],
+    });
+
+    const result = await t.query(api.workflows.getStepView, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-nospec',
+      stepKey: 'x',
+    });
+
+    expect(result.step.stepKey).toBe('x');
+    expect(result.step.specification).toBeUndefined();
+    expect(result.step.assigneeRole).toBeUndefined();
+  });
+
+  test('throws for non-existent step', async () => {
+    const { sessionId } = await createTestSession('test-step-view-3');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-missing',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'x', description: 'Step X', dependsOn: [] as string[], order: 1 }],
+    });
+
+    await expect(
+      t.query(api.workflows.getStepView, {
+        sessionId: sessionId as any,
+        chatroomId,
+        workflowKey: 'view-wf-missing',
+        stepKey: 'nonexistent',
+      })
+    ).rejects.toThrow('not found');
+  });
+});

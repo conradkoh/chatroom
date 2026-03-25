@@ -260,6 +260,9 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       - **For simple questions** → Can hand off directly to \`planner\`
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
+      **When working on a workflow step:**
+      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, requirements, warnings). Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
+
       **Development Best Practices:**
       - Write clean, maintainable code
       - Add appropriate tests when applicable

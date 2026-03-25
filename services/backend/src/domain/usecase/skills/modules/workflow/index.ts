@@ -71,6 +71,12 @@ ${cliEnvPrefix}chatroom workflow status --chatroom-id=<id> --role=<role> --workf
 \`\`\`
 Shows all steps with status (⏳ pending, 🔵 in_progress, ✅ completed, ❌ cancelled) and available next steps.
 
+### View Step Details
+\`\`\`
+${cliEnvPrefix}chatroom workflow step-view --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
+\`\`\`
+Shows the full specification (goal, requirements, warnings) and status of a single step.
+
 ### Complete Step
 \`\`\`
 ${cliEnvPrefix}chatroom workflow step-complete --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>

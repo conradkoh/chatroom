@@ -253,11 +253,44 @@ describe('Squad Team > Planner > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
       \`\`\`
 
-      **For complex, multi-step tasks** (3+ phases, multiple skills, or cross-cutting concerns):
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role=<role>
-      \`\`\`
-      Use workflows to define a DAG of steps with dependencies, assign each step to a role, and track progress. In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
+      **When to use a workflow vs direct delegation:**
+      If the task has a single clear deliverable that fits in one handoff message, delegate directly. If you need multiple sequential steps or deliverables, use a workflow.
+
+      **For complex tasks (3+ phases):** You MUST use the workflow skill to plan and track execution. Follow this process:
+
+      1. **Activate the workflow skill:**
+         \`\`\`bash
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role=<role>
+         \`\`\`
+      2. **Create the workflow DAG** with all steps using \`workflow create\`
+      3. **Specify each step** using \`workflow specify\`. Each step needs:
+         \`\`\`
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
+         ---GOAL---
+         [What this step should accomplish]
+         ---REQUIREMENTS---
+         1. Activate skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate <skill> --chatroom-id=<id> --role=<assignee-role>\`
+         2. [Specific deliverables]
+         3. [Verification criteria]
+         ---WARNINGS---
+         [Things to avoid — optional]
+         EOF
+         \`\`\`
+      4. **Execute the workflow** using \`workflow execute\`
+      5. **Delegate the current step** using this handoff template:
+         \`\`\`
+         ## Workflow Step: <stepKey>
+         Run this command to see your task:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-view --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
+         Complete the work, then hand off back to planner.
+         \`\`\`
+      6. **On handback:** Review the work. If acceptable, run \`workflow step-complete\`. If not, hand back with specific feedback.
+      7. **Check next steps:** Run \`workflow status\` to see what's next:
+         - If a step is assigned to you, do it yourself and run \`report-progress\`
+         - If assigned to another agent, go to step 5
+         - If no steps remain, the workflow completes automatically — deliver to user. Do NOT run \`workflow exit\` (that cancels the workflow).
+
+      In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
 
       **Review loop:**
       - After each phase, review the completed work before delegating the next
