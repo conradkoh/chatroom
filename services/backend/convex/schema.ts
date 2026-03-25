@@ -1377,6 +1377,7 @@ export default defineSchema({
         goal: v.string(),
         requirements: v.string(),
         warnings: v.optional(v.string()),
+        skills: v.optional(v.string()),
       })
     ),
   })

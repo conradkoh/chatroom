@@ -296,6 +296,7 @@ export const specifyStep = mutation({
     goal: v.string(),
     requirements: v.string(),
     warnings: v.optional(v.string()),
+    skills: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -318,6 +319,7 @@ export const specifyStep = mutation({
         goal: args.goal,
         requirements: args.requirements,
         warnings: args.warnings,
+        skills: args.skills,
       },
       updatedAt: now,
     });
