@@ -82,11 +82,6 @@ Shows the full specification (goal, requirements, warnings) and status of a sing
 ${cliEnvPrefix}chatroom workflow step-complete --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
 \`\`\`
 
-### Cancel Step
-\`\`\`
-${cliEnvPrefix}chatroom workflow step-cancel --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --reason=<text>
-\`\`\`
-
 ### Exit Workflow
 \`\`\`
 ${cliEnvPrefix}chatroom workflow exit --chatroom-id=<id> --role=<role> --workflow-key=<key> --reason=<text>

@@ -635,40 +635,6 @@ workflowCommand
   );
 
 workflowCommand
-  .command('step-cancel')
-  .description('Cancel a workflow step with a reason')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--workflow-key <key>', 'Workflow key')
-  .requiredOption('--step-key <stepKey>', 'Step key to cancel')
-  .requiredOption('--reason <text>', 'Reason for cancellation (required)')
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      workflowKey: string;
-      stepKey: string;
-      reason: string;
-    }) => {
-      await maybeRequireAuth();
-
-      // Validate reason is non-empty (belt-and-suspenders with requiredOption)
-      if (!options.reason || options.reason.trim().length === 0) {
-        console.error('❌ --reason is required and cannot be empty');
-        process.exit(1);
-      }
-
-      const { cancelStep } = await import('./commands/workflow/index.js');
-      await cancelStep(options.chatroomId, {
-        role: options.role,
-        workflowKey: options.workflowKey,
-        stepKey: options.stepKey,
-        reason: options.reason,
-      });
-    }
-  );
-
-workflowCommand
   .command('exit')
   .description('Exit (cancel) an entire workflow with a reason')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')

@@ -46,13 +46,6 @@ export interface StepCompleteOptions {
   stepKey: string;
 }
 
-export interface StepCancelOptions {
-  role: string;
-  workflowKey: string;
-  stepKey: string;
-  reason: string;
-}
-
 export interface ExitWorkflowOptions {
   role: string;
   workflowKey: string;
@@ -544,47 +537,6 @@ export async function completeStep(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to complete step: ${(error as Error).message}`);
-    process.exit(1);
-    return;
-  }
-}
-
-/**
- * Cancel a workflow step with a required reason.
- */
-export async function cancelStep(
-  chatroomId: string,
-  options: StepCancelOptions,
-  deps?: WorkflowDeps
-): Promise<void> {
-  const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
-  validateChatroomId(chatroomId);
-
-  // Validate reason is non-empty
-  if (!options.reason || options.reason.trim().length === 0) {
-    console.error('❌ Reason is required when cancelling a step');
-    process.exit(1);
-    return;
-  }
-
-  try {
-    await d.backend.mutation(api.workflows.cancelStep, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-      reason: options.reason.trim(),
-    });
-
-    console.log('');
-    console.log('❌ Step cancelled');
-    console.log(`   Workflow: ${options.workflowKey}`);
-    console.log(`   Step: ${options.stepKey}`);
-    console.log(`   Reason: ${options.reason.trim()}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to cancel step: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
