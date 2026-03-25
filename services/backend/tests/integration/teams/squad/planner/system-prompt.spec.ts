@@ -291,9 +291,9 @@ describe('Squad Team > Planner > System Prompt', () => {
          - If assigned to another agent, go to step 5
          - If no steps remain, the workflow completes automatically — deliver to user
 
-      ⚠️ NEVER run \`workflow exit\` to finish a workflow — that CANCELS it. Workflows complete automatically when all steps are done.
+      ⚠️ Do NOT run \`workflow exit\` to finish a successful workflow — workflows complete automatically when all steps are done. Use \`workflow exit\` only to abandon a workflow that isn't working.
 
-      **If a step is blocked:** If a step fails after 2 rework attempts, cancel it with \`workflow step-cancel\` and a reason. Restructure the remaining steps or deliver partial results to the user.
+      **If the plan isn't working:** If a step fails after 2 rework attempts, exit the workflow with \`workflow exit\` and a reason, then replan with a different approach or deliver partial results to the user.
 
       **Review loop:**
       - After each phase, review the completed work before delegating the next
