@@ -720,3 +720,52 @@ export const getWorkflowStatus = query({
     };
   },
 });
+
+/**
+ * Get workflow details by workflow ID (for the UI visualizer).
+ * Unlike getWorkflowStatus which uses workflowKey, this accepts workflowId directly.
+ */
+export const getWorkflowDetail = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowId: v.id('chatroom_workflows'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const workflow = await ctx.db.get(args.workflowId);
+    if (!workflow || workflow.chatroomId !== args.chatroomId) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Workflow not found' });
+    }
+
+    const steps = await getAllSteps(ctx, workflow._id);
+    steps.sort((a, b) => a.order - b.order);
+
+    return {
+      workflow: {
+        _id: workflow._id,
+        workflowKey: workflow.workflowKey,
+        status: workflow.status,
+        createdBy: workflow.createdBy,
+        createdAt: workflow.createdAt,
+        updatedAt: workflow.updatedAt,
+        completedAt: workflow.completedAt,
+        cancelledAt: workflow.cancelledAt,
+        cancelReason: workflow.cancelReason,
+      },
+      steps: steps.map((s) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        status: s.status,
+        assigneeRole: s.assigneeRole,
+        dependsOn: s.dependsOn,
+        order: s.order,
+        specification: s.specification,
+        completedAt: s.completedAt,
+        cancelledAt: s.cancelledAt,
+        cancelReason: s.cancelReason,
+      })),
+    };
+  },
+});
