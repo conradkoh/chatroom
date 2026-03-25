@@ -206,12 +206,21 @@ program
     },
     []
   )
+  .option(
+    '--attachment <type:value>',
+    'Attach a resource (can be used multiple times). Format: type:value. Supported: workflow-key:<key>',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
   .action(
     async (options: {
       chatroomId: string;
       role: string;
       nextRole: string;
       attachArtifact?: string[];
+      attachment?: string[];
     }) => {
       await maybeRequireAuth();
 
@@ -234,12 +243,34 @@ program
         process.exit(1);
       }
 
+      // Parse --attachment values
+      const attachedWorkflowKeys: string[] = [];
+      for (const att of options.attachment || []) {
+        const colonIndex = att.indexOf(':');
+        if (colonIndex === -1) {
+          console.error(
+            `❌ Invalid attachment format: "${att}". Expected type:value (e.g., workflow-key:my-workflow)`
+          );
+          process.exit(1);
+        }
+        const type = att.substring(0, colonIndex);
+        const value = att.substring(colonIndex + 1);
+
+        if (type === 'workflow-key') {
+          attachedWorkflowKeys.push(value);
+        } else {
+          console.error(`❌ Unknown attachment type: "${type}". Supported: workflow-key`);
+          process.exit(1);
+        }
+      }
+
       const { handoff } = await import('./commands/handoff/index.js');
       await handoff(options.chatroomId, {
         role: options.role,
         message,
         nextRole: options.nextRole,
         attachedArtifactIds: options.attachArtifact || [],
+        attachedWorkflowKeys,
       });
     }
   );

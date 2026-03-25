@@ -38,6 +38,7 @@ export interface HandoffOptions {
   message: string;
   nextRole: string;
   attachedArtifactIds?: string[];
+  attachedWorkflowKeys?: string[];
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -65,7 +66,7 @@ export async function handoff(
   deps?: HandoffDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, message, nextRole, attachedArtifactIds = [] } = options;
+  const { role, message, nextRole, attachedArtifactIds = [], attachedWorkflowKeys = [] } = options;
 
   // Get session ID for authentication
   const sessionId = d.session.getSessionId();
@@ -108,6 +109,24 @@ export async function handoff(
     }
   }
 
+  // Resolve workflow keys to IDs
+  const resolvedWorkflowIds: string[] = [];
+  if (attachedWorkflowKeys.length > 0) {
+    for (const key of attachedWorkflowKeys) {
+      try {
+        const result = await d.backend.query(api.workflows.resolveWorkflowId, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowKey: key,
+        });
+        resolvedWorkflowIds.push(result.workflowId);
+      } catch {
+        formatError(`Workflow "${key}" not found`, ['Check the workflow key and try again']);
+        process.exit(1);
+      }
+    }
+  }
+
   let result;
   try {
     result = await d.backend.mutation(api.messages.handoff, {
@@ -118,6 +137,9 @@ export async function handoff(
       targetRole: nextRole,
       ...(attachedArtifactIds.length > 0 && {
         attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
+      }),
+      ...(resolvedWorkflowIds.length > 0 && {
+        attachedWorkflowIds: resolvedWorkflowIds as Id<'chatroom_workflows'>[],
       }),
     });
   } catch (error) {
