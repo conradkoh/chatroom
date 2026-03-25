@@ -45,15 +45,16 @@ If the task has a single clear deliverable that fits in one handoff message, del
    ${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
    ---GOAL---
    [What this step should accomplish]
+   ---SKILLS---
+   ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<assignee-role>
+   [List each skill activation command, one per line]
    ---REQUIREMENTS---
-   1. Activate skill: \`${cliEnvPrefix}chatroom skill activate <skill> --chatroom-id=<id> --role=<assignee-role>\`
-   2. [Specific deliverables]
-   3. [Verification criteria]
+   1. [Specific deliverables]
+   2. [Verification criteria]
    ---WARNINGS---
    [Things to avoid — optional]
    EOF
    \`\`\`
-   In the step specification, explicitly list any skills that should be activated (e.g., \`software-engineering\`, \`code-review\`) with their full activation commands.
 4. **Execute the workflow** using \`workflow execute\`
 5. **Delegate the current step** using this handoff template:
    \`\`\`
