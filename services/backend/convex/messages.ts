@@ -397,6 +397,7 @@ async function _handoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -548,6 +549,8 @@ async function _handoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
+    ...(args.attachedWorkflowIds &&
+      args.attachedWorkflowIds.length > 0 && { attachedWorkflowIds: args.attachedWorkflowIds }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -701,6 +704,7 @@ export const handoff = mutation({
     content: v.string(),
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);
