@@ -469,9 +469,12 @@ export async function getWorkflowStatus(
 
         // Show specification details if present
         if (step.specification) {
-          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
           if (spec.goal) {
             console.log(`   📎 Goal: ${spec.goal}`);
+          }
+          if (spec.skills) {
+            console.log(`   🔧 Skills: ${spec.skills}`);
           }
           if (spec.requirements) {
             console.log(`   📎 Requirements: ${spec.requirements}`);
@@ -648,7 +651,7 @@ export async function viewStep(
 
     // Show specification
     if (step.specification) {
-      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
       console.log('');
       console.log('──────────────────────────────────────────────────');
       console.log('📋 SPECIFICATION');
@@ -657,6 +660,11 @@ export async function viewStep(
         console.log('');
         console.log('Goal:');
         console.log(spec.goal);
+      }
+      if (spec.skills) {
+        console.log('');
+        console.log('Skills:');
+        console.log(spec.skills);
       }
       if (spec.requirements) {
         console.log('');
