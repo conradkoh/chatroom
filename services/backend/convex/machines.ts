@@ -16,7 +16,7 @@ import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chat
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
-import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
+import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -838,28 +838,20 @@ export const recordAgentExited = mutation({
     if (!auth.isAuthenticated) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
-    // 2. Emit agent.exited event to the event stream
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.exited',
+    // 2. Delegate to the agentExited use case (event insert + PID-gated cleanup + participant update)
+    await agentExitedUseCase(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       machineId: args.machineId,
       pid: args.pid,
+      stopReason: args.stopReason,
       exitCode: args.exitCode,
       signal: args.signal,
-      stopReason: args.stopReason,
       stopSignal: args.stopSignal,
-      timestamp: Date.now(),
+      agentHarness: args.agentHarness,
     });
 
-    // 3. Clear PID, process config removal, update participant
-    await cleanupMachineAgent(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-    });
-
-    // 4. Trigger crash recovery
+    // 3. Trigger crash recovery (no-op hook for future observability)
     await onAgentExited(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,

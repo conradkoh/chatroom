@@ -1,8 +1,11 @@
 /**
+ * @deprecated Use `agentExited` from `../agent/agent-exited.ts` instead.
+ * This module is kept for backward compatibility but should not be used by new code.
+ *
  * Shared cleanup for agents running on a machine.
  *
- * Used by:
- * - `recordAgentExited` (machines.ts) — single-agent exit reported by the daemon
+ * Previously used by:
+ * - `recordAgentExited` (machines.ts) — now uses `agentExited` use case
  *
  * This helper handles cleanup responsibilities for a single agent exit:
  *   1. Clear spawnedAgentPid / spawnedAt on the agent config
@@ -42,6 +45,8 @@ export async function clearAgentSpawnState(
 }
 
 /**
+ * @deprecated Use `agentExited` from `../agent/agent-exited.ts` instead.
+ *
  * Run the agent-cleanup pipeline for a single chatroom+role on a machine.
  *
  * Steps:
