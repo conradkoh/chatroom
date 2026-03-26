@@ -15,12 +15,10 @@ Workflows are DAG-based execution plans where each step has dependencies, an ass
 ## Command Reference
 
 ### Create Workflow
-
-**CLI options:** \`--chatroom-id\`, \`--role\`, \`--workflow-key\` (these are the ONLY flags — NO \`--title\` flag)
 \`\`\`
 ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=<key>
 \`\`\`
-Reads JSON from stdin with a \`steps\` array. **Each step object MUST have exactly these 4 fields — no more, no less:**
+Reads JSON from stdin. The JSON body has a single \`steps\` array. Each step has exactly 4 fields:
 
 | Field         | Type       | Description                              |
 |---------------|------------|------------------------------------------|
@@ -29,7 +27,9 @@ Reads JSON from stdin with a \`steps\` array. **Each step object MUST have exact
 | \`dependsOn\`   | string[]   | Step keys this depends on (\`[]\` for root)  |
 | \`order\`       | number     | Execution order (1-based integer)        |
 
-**Complete copy-paste example:**
+Role assignment happens later in the \`specify\` step.
+
+**Complete example:**
 \`\`\`bash
 ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=my-workflow << 'JSONEOF'
 {
@@ -41,13 +41,6 @@ ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workf
 }
 JSONEOF
 \`\`\`
-
-**⚠️ STRICT RULES — violations cause errors:**
-- ❌ Do NOT add \`--title\` or any other CLI flags beyond \`--chatroom-id\`, \`--role\`, \`--workflow-key\`
-- ❌ Do NOT add \`role\`, \`assignee\`, \`name\`, \`title\`, \`label\`, or ANY extra fields to step objects — only \`stepKey\`, \`description\`, \`dependsOn\`, \`order\`
-- ❌ Do NOT omit \`stepKey\` or \`order\` — all 4 fields are mandatory for every step
-- ❌ Do NOT use \`key\` instead of \`stepKey\`
-- ✅ Role assignment happens in the \`specify\` step, NOT at creation time
 
 ### Specify Step
 \`\`\`
@@ -106,7 +99,7 @@ Cancels the entire workflow.
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 - Specify clear requirements so step completion can be objectively verified
 - Use the status command to monitor progress
-- If creation fails, fix the error and retry — do NOT assume the workflow exists
+- If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
 - Exit the workflow with a reason if the plan needs to change
 `,
 };

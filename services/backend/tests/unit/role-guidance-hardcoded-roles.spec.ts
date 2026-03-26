@@ -141,7 +141,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
-      'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
+      'Feed phases to the builder incrementally — one at a time, not all at once'
     );
     expect(guidance).not.toContain('tackle one layer at a time');
   });
@@ -155,7 +155,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner'],
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
@@ -167,7 +167,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner', 'reviewer'],
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   // ---------------------------------------------------------------------------

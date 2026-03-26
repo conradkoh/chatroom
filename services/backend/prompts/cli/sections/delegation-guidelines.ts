@@ -16,7 +16,7 @@ export function getDelegationGuidelinesSection(
   options?: { cliEnvPrefix?: string; chatroomId?: string; role?: string }
 ): string {
   const feedingNote = config.hasBuilder
-    ? 'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
+    ? 'Feed phases to the builder incrementally — one at a time, not all at once'
     : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
 
   const cliEnvPrefix = options?.cliEnvPrefix ?? '';
@@ -71,7 +71,7 @@ If the task is a single-step change (one clear deliverable, one handoff), do it 
    - If assigned to another agent, go to step 5
    - If no steps remain, the workflow completes automatically — deliver to user
 
-⚠️ Do NOT run \`workflow exit\` to finish a successful workflow — workflows complete automatically when all steps are done. Use \`workflow exit\` only to abandon a workflow that isn't working.
+⚠️ Successful workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon a workflow that isn't working.
 
 **If the plan isn't working:** If a step fails after 2 rework attempts, exit the workflow with \`workflow exit\` and a reason, then replan with a different approach or deliver partial results to the user.
 

@@ -247,14 +247,14 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
          - If assigned to another agent, go to step 5
          - If no steps remain, the workflow completes automatically — deliver to user
 
-      ⚠️ Do NOT run \`workflow exit\` to finish a successful workflow — workflows complete automatically when all steps are done. Use \`workflow exit\` only to abandon a workflow that isn't working.
+      ⚠️ Successful workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon a workflow that isn't working.
 
       **If the plan isn't working:** If a step fails after 2 rework attempts, exit the workflow with \`workflow exit\` and a reason, then replan with a different approach or deliver partial results to the user.
 
       **Review loop:**
       - After each phase, review the completed work before delegating the next
       - If it doesn't meet requirements, send it back with specific feedback before moving on
-      - Do NOT hand the builder a full implementation plan upfront — feed phases incrementally
+      - Feed phases to the builder incrementally — one at a time, not all at once
 
       **Handoff Rules:**
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
