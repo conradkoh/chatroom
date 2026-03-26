@@ -4,6 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { useState } from 'react';
 
 import { WorkflowVisualizer } from '../components/WorkflowVisualizer';
+import { buildWorkflowMermaid } from '../utils/workflowMermaid';
 import { registerEventType } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
 import type {
@@ -15,45 +16,6 @@ import type {
   WorkflowSpecifiedEvent,
   WorkflowStepStartedEvent,
 } from '../viewModels/eventStreamViewModel';
-
-// ─── Helpers ───────────────────────────────────────────────────────
-
-/**
- * Sanitize text for use in Mermaid node labels.
- * Escapes backslashes and replaces double quotes with single quotes
- * to prevent Mermaid parse errors.
- */
-function sanitizeMermaidLabel(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/"/g, "'");
-}
-
-/**
- * Generate a Mermaid flowchart string from workflow steps.
- * Each step is rendered as a node with its key, description, and optional assignee.
- * Dependency edges connect steps.
- */
-function buildWorkflowMermaid(
-  steps: NonNullable<WorkflowStartedEvent['steps']>
-): string {
-  const lines: string[] = ['flowchart TD'];
-
-  for (const step of steps) {
-    const desc = sanitizeMermaidLabel(step.description);
-    const role = step.assigneeRole ? sanitizeMermaidLabel(step.assigneeRole) : null;
-    const label = role
-      ? `${step.stepKey}\\n${desc}\\n[${role}]`
-      : `${step.stepKey}\\n${desc}`;
-    lines.push(`  ${step.stepKey}["${label}"]`);
-  }
-
-  for (const step of steps) {
-    for (const dep of step.dependsOn) {
-      lines.push(`  ${dep} --> ${step.stepKey}`);
-    }
-  }
-
-  return lines.join('\n');
-}
 
 // ─── View Workflow Button ──────────────────────────────────────────
 

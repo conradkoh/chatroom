@@ -7,6 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import { MermaidBlock } from './MermaidBlock';
+import { buildWorkflowChartWithStatus } from '../utils/workflowMermaid';
 import {
   FixedModal,
   FixedModalContent,
@@ -40,61 +41,6 @@ interface StepData {
   completedAt?: number | null;
   cancelledAt?: number | null;
   cancelReason?: string | null;
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────
-
-/**
- * Sanitize text for use in Mermaid node labels.
- * Escapes backslashes and replaces double quotes with single quotes
- * to prevent Mermaid parse errors.
- */
-function sanitizeMermaidLabel(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/"/g, "'");
-}
-
-/** Status → Mermaid node fill style */
-function getStatusStyle(status: string): string {
-  switch (status) {
-    case 'pending':
-      return 'fill:#6b7280,stroke:#4b5563,color:#fff';
-    case 'in_progress':
-      return 'fill:#3b82f6,stroke:#2563eb,color:#fff';
-    case 'completed':
-      return 'fill:#22c55e,stroke:#16a34a,color:#fff';
-    case 'cancelled':
-      return 'fill:#ef4444,stroke:#dc2626,color:#fff';
-    default:
-      return 'fill:#6b7280,stroke:#4b5563,color:#fff';
-  }
-}
-
-/** Build a Mermaid flowchart definition from steps data */
-function buildWorkflowChart(steps: StepData[]): string {
-  const lines: string[] = ['flowchart TD'];
-
-  for (const step of steps) {
-    const desc = sanitizeMermaidLabel(step.description);
-    const role = step.assigneeRole ? sanitizeMermaidLabel(step.assigneeRole) : null;
-    const label = role
-      ? `${step.stepKey}\\n${desc}\\n[${role}]`
-      : `${step.stepKey}\\n${desc}`;
-    lines.push(`  ${step.stepKey}["${label}"]`);
-  }
-
-  for (const step of steps) {
-    for (const dep of step.dependsOn) {
-      lines.push(`  ${dep} --> ${step.stepKey}`);
-    }
-  }
-
-  // Style nodes by status
-  for (const step of steps) {
-    const style = getStatusStyle(step.status);
-    lines.push(`  style ${step.stepKey} ${style}`);
-  }
-
-  return lines.join('\n');
 }
 
 /** Workflow status → badge styling */
@@ -322,7 +268,7 @@ export function WorkflowVisualizer({
 
   const mermaidChart = useMemo(() => {
     if (!data?.steps || data.steps.length === 0) return null;
-    return buildWorkflowChart(data.steps);
+    return buildWorkflowChartWithStatus(data.steps);
   }, [data?.steps]);
 
   const statusBadge = data ? getWorkflowStatusBadge(data.workflow.status) : null;
