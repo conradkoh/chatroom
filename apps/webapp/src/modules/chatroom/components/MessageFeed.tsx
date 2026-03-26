@@ -1921,6 +1921,11 @@ export const MessageFeed = memo(function MessageFeed({
     return () => clearInterval(interval);
   }, [isAtBottom, snapToBottom]);
 
+  // Track if user is actively scrolling (wheel/touch) to prevent
+  // the handleScroll snap-back from fighting user scroll
+  const userScrollingRef = useRef(false);
+  const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Immediate snap on layout changes (ResizeObserver) ─────────────────────
   // The interval handles steady-state, but layout changes (textarea resize)
   // cause a visible delay. ResizeObserver fires immediately when the container
@@ -1955,7 +1960,8 @@ export const MessageFeed = memo(function MessageFeed({
     }
 
     // If pinned and layout shifted us away, snap back immediately
-    if (pinnedToBottomRef.current && !atBottom) {
+    // BUT skip this if the user is actively scrolling (wheel/touch)
+    if (pinnedToBottomRef.current && !atBottom && !userScrollingRef.current) {
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
 
@@ -1974,6 +1980,16 @@ export const MessageFeed = memo(function MessageFeed({
     if (!el) return;
 
     const handleUserScroll = () => {
+      // Mark user as actively scrolling to prevent handleScroll snap-back
+      userScrollingRef.current = true;
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+      // Clear the flag after a short delay (scroll events have settled)
+      userScrollTimeoutRef.current = setTimeout(() => {
+        userScrollingRef.current = false;
+      }, 200);
+
       // Use requestAnimationFrame to check AFTER the scroll position updates
       requestAnimationFrame(() => {
         if (!el) return;
