@@ -207,7 +207,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       - You coordinate a team of builder and reviewer
       - You are the ONLY role that communicates directly with the user
       - You are ultimately accountable for all work quality
-      - For complex tasks (3+ phases), use the workflow skill to plan and track execution
+      - For any multi-step task (2+ steps), use the workflow skill to plan and track execution
       - Builder is available for implementation tasks
       - Reviewer is available for code review
 
@@ -253,10 +253,10 @@ describe('Squad Team > Planner > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
       \`\`\`
 
-      **When to use a workflow vs direct delegation:**
-      If the task has a single clear deliverable that fits in one handoff message, delegate directly. If you need multiple sequential steps or deliverables, use a workflow. Each workflow step should represent one logical unit of work that can be delegated, reviewed, and verified independently. Aim for 3–7 steps per workflow.
+      **When to use a workflow:**
+      If the task is a single-step change (one clear deliverable, one handoff), do it directly — no workflow needed. **For any task with 2 or more steps**, you MUST use a workflow. This applies whether you are delegating to a builder or implementing yourself. Workflows make the plan visible, trackable, and recoverable. Each workflow step should represent one logical unit of work that can be verified independently. Aim for 2–7 steps per workflow.
 
-      **For complex tasks (3+ phases):** You MUST use the workflow skill to plan and track execution. Follow this process:
+      **For any multi-step task (2+ steps):** You MUST use the workflow skill to plan and track execution. Follow this process:
 
       1. **Activate the workflow skill:**
          \`\`\`bash
