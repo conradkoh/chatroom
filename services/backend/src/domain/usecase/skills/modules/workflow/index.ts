@@ -18,32 +18,29 @@ Workflows are DAG-based execution plans where each step has dependencies, an ass
 \`\`\`
 ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=<key>
 \`\`\`
-Reads JSON from stdin. **Each step MUST have exactly these 4 fields — no more, no less:**
+Reads JSON from stdin. The JSON body has a single \`steps\` array. Each step has exactly 4 fields:
 
-| Field         | Type       | Required | Description                              |
-|---------------|------------|----------|------------------------------------------|
-| \`stepKey\`     | string     | YES      | Unique identifier within the workflow    |
-| \`description\` | string     | YES      | What this step accomplishes              |
-| \`dependsOn\`   | string[]   | YES      | Step keys this depends on ([] for root)  |
-| \`order\`       | number     | YES      | Execution order (1-based integer)        |
+| Field         | Type       | Description                              |
+|---------------|------------|------------------------------------------|
+| \`stepKey\`     | string     | Unique identifier within the workflow    |
+| \`description\` | string     | What this step accomplishes              |
+| \`dependsOn\`   | string[]   | Step keys this depends on (\`[]\` for root)  |
+| \`order\`       | number     | Execution order (1-based integer)        |
 
-**Example:**
-\`\`\`json
+Role assignment happens later in the \`specify\` step.
+
+**Complete example:**
+\`\`\`bash
+${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=my-workflow << 'JSONEOF'
 {
   "steps": [
     { "stepKey": "schema", "description": "Create database schema", "dependsOn": [], "order": 1 },
     { "stepKey": "backend", "description": "Build backend API", "dependsOn": ["schema"], "order": 2 },
-    { "stepKey": "cli", "description": "Build CLI commands", "dependsOn": ["backend"], "order": 3 }
+    { "stepKey": "tests", "description": "Write and run tests", "dependsOn": ["backend"], "order": 3 }
   ]
 }
+JSONEOF
 \`\`\`
-
-**⚠️ Common Mistakes — DO NOT:**
-- ❌ Add \`role\`, \`label\`, \`assignee\`, \`name\`, or ANY extra fields — the backend rejects unknown fields
-- ❌ Omit \`stepKey\` or \`order\` — all 4 fields are mandatory for every step
-- ❌ Assume a workflow exists after a failed creation — check with \`workflow status\` first
-
-**✅ Role assignment happens later** in the \`specify\` step, NOT at creation time.
 
 ### Specify Step
 \`\`\`
@@ -71,14 +68,15 @@ ${cliEnvPrefix}chatroom workflow status --chatroom-id=<id> --role=<role> --workf
 \`\`\`
 Shows all steps with status (⏳ pending, 🔵 in_progress, ✅ completed, ❌ cancelled) and available next steps.
 
+### View Step Details
+\`\`\`
+${cliEnvPrefix}chatroom workflow step-view --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
+\`\`\`
+Shows the full specification (goal, requirements, warnings) and status of a single step.
+
 ### Complete Step
 \`\`\`
 ${cliEnvPrefix}chatroom workflow step-complete --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
-\`\`\`
-
-### Cancel Step
-\`\`\`
-${cliEnvPrefix}chatroom workflow step-cancel --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --reason=<text>
 \`\`\`
 
 ### Exit Workflow
@@ -101,7 +99,7 @@ Cancels the entire workflow.
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 - Specify clear requirements so step completion can be objectively verified
 - Use the status command to monitor progress
-- If creation fails, fix the error and retry — do NOT assume the workflow exists
+- If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
 - Exit the workflow with a reason if the plan needs to change
 `,
 };

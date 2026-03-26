@@ -46,6 +46,7 @@ import remarkGfm from 'remark-gfm';
 import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
+import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
@@ -105,6 +106,8 @@ interface Message {
   attachedArtifacts?: ArtifactMeta[];
   // Attached chatroom messages for context
   attachedMessages?: AttachedMessage[];
+  // Attached workflows for visualizer
+  attachedWorkflows?: { _id: string; workflowKey: string; status: string }[];
   // Latest progress message for inline display
   latestProgress?: {
     content: string;
@@ -642,6 +645,7 @@ function DeleteConfirmPopoverContent({
 
 interface QueuedMessageCardProps {
   message: Message;
+  chatroomId: string;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
   onEdit: (queuedMessageId: string, newContent: string) => Promise<void>;
@@ -649,6 +653,7 @@ interface QueuedMessageCardProps {
 
 const QueuedMessageCard = memo(function QueuedMessageCard({
   message,
+  chatroomId,
   onPromote,
   onDelete,
   onEdit,
@@ -803,7 +808,8 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
         {/* Attachment chips */}
         {((message.attachedTasks?.length ?? 0) > 0 ||
           (message.attachedBacklogItems?.length ?? 0) > 0 ||
-          (message.attachedMessages?.length ?? 0) > 0) && (
+          (message.attachedMessages?.length ?? 0) > 0 ||
+          (message.attachedWorkflows?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1 mt-1">
             {message.attachedTasks?.map((task) => {
               const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
@@ -840,6 +846,15 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 <MessageSquare size={ICON_SIZE} />
                 {msg.senderRole}
               </span>
+            ))}
+            {message.attachedWorkflows?.map((wf) => (
+              <AttachedWorkflowChip
+                key={wf._id}
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                workflowId={wf._id as Id<'chatroom_workflows'>}
+                workflowKey={wf.workflowKey}
+                status={wf.status}
+              />
             ))}
           </div>
         )}
@@ -885,7 +900,8 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             )}
             {/* Attached Backlog Tasks + Backlog Items */}
             {((message.attachedTasks && message.attachedTasks.length > 0) ||
-              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
+              (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
               <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
                   Attached Backlog (
@@ -943,6 +959,16 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                     </div>
                   );
                 })}
+                {message.attachedWorkflows?.map((wf) => (
+                  <div key={wf._id} className="mb-2 last:mb-0">
+                    <AttachedWorkflowChip
+                      chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                      workflowId={wf._id as Id<'chatroom_workflows'>}
+                      workflowKey={wf.workflowKey}
+                      status={wf.status}
+                    />
+                  </div>
+                ))}
               </div>
             )}
             {/* Attached Messages */}
@@ -1097,6 +1123,7 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 
 interface MessageItemProps {
   message: Message;
+  chatroomId: string;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
   onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
@@ -1184,6 +1211,7 @@ const MessageContent = memo(function MessageContent({ content }: { content: stri
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
+  chatroomId,
   onFeatureClick,
   onAttachedTaskClick,
   onAttachedBacklogItemClick,
@@ -1345,7 +1373,8 @@ const MessageItem = memo(function MessageItem({
       )}
       {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
       {((message.attachedTasks && message.attachedTasks.length > 0) ||
-        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
+        (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
             Attached Backlog (
@@ -1405,6 +1434,16 @@ const MessageItem = memo(function MessageItem({
               </button>
             );
           })}
+          {message.attachedWorkflows?.map((wf) => (
+            <div key={wf._id} className="mb-2 last:mb-0">
+              <AttachedWorkflowChip
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                workflowId={wf._id as Id<'chatroom_workflows'>}
+                workflowKey={wf.workflowKey}
+                status={wf.status}
+              />
+            </div>
+          ))}
         </div>
       )}
       {/* Attached Artifacts */}
@@ -1773,28 +1812,29 @@ export const MessageFeed = memo(function MessageFeed({
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
-  // Track if user is at bottom of scroll for auto-scroll behavior and floating button
-  // Using state instead of ref so the floating button can react to changes
+  // Track if user is at bottom of scroll for floating "New messages" button
+  // and for the auto-scroll interval
   const [isAtBottom, setIsAtBottom] = useState(true);
-  // Also keep a ref for the auto-scroll useEffect (avoids stale closure issues)
-  const isAtBottomRef = useRef(true);
+  const pinnedToBottomRef = useRef(true);
 
   // Threshold for considering user "at bottom" (in pixels)
   const AT_BOTTOM_THRESHOLD = 50;
 
-  // Check if user is at bottom and update both state and ref
-  const updateIsAtBottom = useCallback(() => {
+  // Track last scroll position to detect user-initiated upward scroll
+  const lastScrollTopRef = useRef(0);
+
+  // Scroll to bottom (instant, for interval-based pinning)
+  const snapToBottom = useCallback(() => {
     if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      isAtBottomRef.current = atBottom;
-      setIsAtBottom(atBottom);
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
   }, []);
 
-  // Scroll to bottom smoothly
+  // Scroll to bottom smoothly (for button click)
   const scrollToBottom = useCallback(() => {
     if (feedRef.current) {
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
       feedRef.current.scrollTo({
         top: feedRef.current.scrollHeight,
         behavior: 'smooth',
@@ -1810,8 +1850,7 @@ export const MessageFeed = memo(function MessageFeed({
     wasLoadingMoreRef.current = status === 'LoadingMore';
   }, [status]);
 
-  // CRITICAL: Use useLayoutEffect to adjust scroll position BEFORE browser paint
-  // This prevents the visual "jump" when loading older messages
+  // Preserve scroll position when loading older messages at the top
   useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
@@ -1819,24 +1858,12 @@ export const MessageFeed = memo(function MessageFeed({
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
       if (messagesAdded && heightDiff > 0) {
-        // Check if this was from loading older messages (content added at top)
-        // We detect this by checking if prevScrollHeight was smaller (content was added)
-        // and the user was near the top (likely paginating up)
         const wasNearTop = feedRef.current.scrollTop < 200;
         const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
 
         if (contentAddedAtTop) {
-          // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll position IMMEDIATELY
-          // This happens synchronously before paint, so user sees no jump
           feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-        } else if (isAtBottomRef.current) {
-          // New message arrived and user was at bottom - scroll to bottom
-          feedRef.current.scrollTop = feedRef.current.scrollHeight;
-          // Ensure state is also updated
-          setIsAtBottom(true);
         }
-        // If user scrolled up (not at bottom), don't auto-scroll
       }
 
       prevScrollHeightRef.current = newScrollHeight;
@@ -1844,40 +1871,49 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
-  // Auto-load more messages when content doesn't fill the container.
-  // This handles the edge case where initial messages are too few to create a scrollbar,
-  // making it impossible for the user to scroll up to trigger loading.
-  //
-  // Loop safety: This progressively loads until either:
-  // 1. Content fills the viewport (scrollHeight > clientHeight), or
-  // 2. All data is loaded (status becomes 'Exhausted')
-  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
+  // Auto-load more messages when content doesn't fill the container
   useEffect(() => {
     if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
-      // If content doesn't overflow (no scrollbar), auto-load more
       if (scrollHeight <= clientHeight) {
         loadMore(LOAD_MORE_SIZE);
       }
     }
   }, [canLoadMore, loadMore, displayMessages.length]);
 
-  // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
-  // This ensures the last message stays visible when the queue section grows/shrinks
+  // ── Interval-based auto-scroll ──────────────────────────────────────────
+  // When pinned to bottom, a 500ms interval keeps scroll at maximum.
+  // This handles ALL cases uniformly: new messages, textarea resize, queue
+  // changes, etc. — without needing event-specific observers.
   useEffect(() => {
-    if (isAtBottom) {
-      scrollToBottom();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayQueuedMessages.length]);
+    if (!pinnedToBottomRef.current) return;
 
-  // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
-  // input growing/shrinking changes the available height for the message area)
+    const interval = setInterval(() => {
+      if (pinnedToBottomRef.current && feedRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+        const gap = scrollHeight - scrollTop - clientHeight;
+        // Only snap if not already at bottom (avoids unnecessary DOM writes)
+        // Use >= 1 to catch Safari's sub-pixel rounding (Safari reports gap=1 even at max scroll)
+        if (gap >= 1) {
+          snapToBottom();
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isAtBottom, snapToBottom]);
+
+  // ── Immediate snap on layout changes (ResizeObserver) ─────────────────────
+  // The interval handles steady-state, but layout changes (textarea resize)
+  // cause a visible delay. ResizeObserver fires immediately when the container
+  // dimensions change, giving instant correction. Uses pinnedToBottomRef which
+  // is now safe from false unpinning (large jump detection in scroll handler).
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
+
     const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
+      if (pinnedToBottomRef.current) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -1885,19 +1921,61 @@ export const MessageFeed = memo(function MessageFeed({
     return () => observer.disconnect();
   }, []);
 
-  // Handle scroll: load more when near top, track if at bottom
+  // Handle scroll: re-pin when at bottom, load more when near top
+  // NOTE: This handler does NOT unpin. Only wheel/touch events can unpin.
   const handleScroll = useCallback(() => {
-    // Track if user is at bottom for auto-scroll behavior
-    updateIsAtBottom();
+    if (!feedRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+
+    lastScrollTopRef.current = scrollTop;
+
+    if (atBottom && !pinnedToBottomRef.current) {
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
+    }
+
+    // If pinned and layout shifted us away, snap back immediately
+    if (pinnedToBottomRef.current && !atBottom) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
 
     // Load more when user scrolls within threshold of top
-    if (feedRef.current && canLoadMore) {
-      const { scrollTop } = feedRef.current;
-      if (scrollTop < SCROLL_THRESHOLD) {
-        loadMore(LOAD_MORE_SIZE);
-      }
+    if (canLoadMore && scrollTop < SCROLL_THRESHOLD) {
+      loadMore(LOAD_MORE_SIZE);
     }
-  }, [canLoadMore, loadMore, updateIsAtBottom]);
+  }, [canLoadMore, loadMore]);
+
+  // ── Unpin ONLY on user-initiated scroll (wheel/touch) ────────────────────
+  // The scroll event can't distinguish layout changes from user scroll.
+  // Wheel and touch events are ONLY from user interaction — these are the
+  // definitive signal that the user wants to scroll away from the bottom.
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+
+    const handleUserScroll = () => {
+      // Use requestAnimationFrame to check AFTER the scroll position updates
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+        if (!atBottom && pinnedToBottomRef.current) {
+          pinnedToBottomRef.current = false;
+          setIsAtBottom(false);
+        }
+      });
+    };
+
+    el.addEventListener('wheel', handleUserScroll, { passive: true });
+    el.addEventListener('touchmove', handleUserScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleUserScroll);
+      el.removeEventListener('touchmove', handleUserScroll);
+    };
+  }, []);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
@@ -1969,6 +2047,7 @@ export const MessageFeed = memo(function MessageFeed({
             <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
               message={message}
+              chatroomId={chatroomId}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
               onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
@@ -2013,6 +2092,7 @@ export const MessageFeed = memo(function MessageFeed({
               <QueuedMessageCard
                 key={displayQueuedMessages[0]._id}
                 message={displayQueuedMessages[0]}
+                chatroomId={chatroomId}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
                 onEdit={handleQueuedEdit}
@@ -2046,6 +2126,7 @@ export const MessageFeed = memo(function MessageFeed({
               <QueuedMessageCard
                 key={message._id}
                 message={message}
+                chatroomId={chatroomId}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
                 onEdit={handleQueuedEdit}

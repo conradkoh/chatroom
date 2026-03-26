@@ -209,6 +209,42 @@ describe('workflows.specifyStep', () => {
     expect(stepA?.specification?.requirements).toBe('- Create schema\n- Add indexes');
     expect(stepA?.specification?.warnings).toBe('Do not modify existing tables');
   });
+
+  test('stores skills field in specification', async () => {
+    const { sessionId } = await createTestSession('test-wf-spec-skills-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    await t.mutation(api.workflows.specifyStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+      stepKey: 'a',
+      assigneeRole: 'builder',
+      goal: 'Build the feature',
+      requirements: '- Implement changes',
+      skills: 'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder',
+    });
+
+    const status = await t.query(api.workflows.getWorkflowStatus, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'spec-skills-test',
+    });
+
+    const stepA = status.steps.find((s) => s.stepKey === 'a');
+    expect(stepA?.specification?.goal).toBe('Build the feature');
+    expect(stepA?.specification?.skills).toBe(
+      'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder'
+    );
+  });
 });
 
 // ============================================================================
@@ -973,5 +1009,354 @@ describe('workflows.getWorkflowStatus', () => {
         workflowKey: 'nope',
       })
     ).rejects.toThrow('not found');
+  });
+});
+
+// ============================================================================
+// getStepView
+// ============================================================================
+
+describe('workflows.getStepView', () => {
+  test('returns step details including specification', async () => {
+    const { sessionId } = await createTestSession('test-step-view-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    // Specify step A with full details
+    await t.mutation(api.workflows.specifyStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      stepKey: 'a',
+      assigneeRole: 'builder',
+      goal: 'Build the schema',
+      requirements: 'Must include all tables',
+      warnings: 'Do not drop existing data',
+    });
+
+    const result = await t.query(api.workflows.getStepView, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf',
+      stepKey: 'a',
+    });
+
+    expect(result.workflowKey).toBe('view-wf');
+    expect(result.workflowStatus).toBe('draft');
+    expect(result.step.stepKey).toBe('a');
+    expect(result.step.description).toBe('Step A');
+    expect(result.step.status).toBe('pending');
+    expect(result.step.assigneeRole).toBe('builder');
+    expect(result.step.dependsOn).toEqual([]);
+    expect(result.step.order).toBe(1);
+    expect(result.step.specification).toEqual({
+      goal: 'Build the schema',
+      requirements: 'Must include all tables',
+      warnings: 'Do not drop existing data',
+    });
+  });
+
+  test('returns step without specification when not yet specified', async () => {
+    const { sessionId } = await createTestSession('test-step-view-2');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-nospec',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'x', description: 'Unspecified step', dependsOn: [] as string[], order: 1 }],
+    });
+
+    const result = await t.query(api.workflows.getStepView, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-nospec',
+      stepKey: 'x',
+    });
+
+    expect(result.step.stepKey).toBe('x');
+    expect(result.step.specification).toBeUndefined();
+    expect(result.step.assigneeRole).toBeUndefined();
+  });
+
+  test('throws for non-existent step', async () => {
+    const { sessionId } = await createTestSession('test-step-view-3');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'view-wf-missing',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'x', description: 'Step X', dependsOn: [] as string[], order: 1 }],
+    });
+
+    await expect(
+      t.query(api.workflows.getStepView, {
+        sessionId: sessionId as any,
+        chatroomId,
+        workflowKey: 'view-wf-missing',
+        stepKey: 'nonexistent',
+      })
+    ).rejects.toThrow('not found');
+  });
+});
+
+// ============================================================================
+// New event emissions: workflow.created, workflow.specified, workflow.stepStarted
+// ============================================================================
+
+describe('workflows — new event stream emissions', () => {
+  test('createWorkflow emits workflow.created event', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-created-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-created-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const createdEvent = events.find((e) => e.type === 'workflow.created');
+    expect(createdEvent).toBeDefined();
+    if (createdEvent && createdEvent.type === 'workflow.created') {
+      expect(createdEvent.chatroomId).toBe(chatroomId);
+      expect(createdEvent.workflowKey).toBe('es-created-test');
+      expect(createdEvent.createdBy).toBe('planner');
+      expect(createdEvent.stepCount).toBe(3);
+      expect(typeof createdEvent.workflowId).toBe('string');
+      expect(typeof createdEvent.timestamp).toBe('number');
+      // Verify steps array is included
+      expect(Array.isArray(createdEvent.steps)).toBe(true);
+      expect(createdEvent.steps).toHaveLength(3);
+      expect(createdEvent.steps![0]).toMatchObject({
+        stepKey: 'a',
+        description: 'Step A',
+        dependsOn: [],
+        order: 0,
+      });
+    }
+  });
+
+  test('specifyStep emits workflow.specified event', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-specified-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-specified-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    await t.mutation(api.workflows.specifyStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-specified-test',
+      stepKey: 'a',
+      assigneeRole: 'builder',
+      goal: 'Complete step A',
+      requirements: 'Requirements for A',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const specifiedEvent = events.find((e) => e.type === 'workflow.specified');
+    expect(specifiedEvent).toBeDefined();
+    if (specifiedEvent && specifiedEvent.type === 'workflow.specified') {
+      expect(specifiedEvent.chatroomId).toBe(chatroomId);
+      expect(specifiedEvent.workflowKey).toBe('es-specified-test');
+      expect(specifiedEvent.stepKey).toBe('a');
+      expect(typeof specifiedEvent.workflowId).toBe('string');
+      expect(typeof specifiedEvent.timestamp).toBe('number');
+    }
+  });
+
+  test('executeWorkflow emits workflow.stepStarted events for root steps', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-stepstarted-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    // Two-root DAG: a and b are roots, c depends on both
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-stepstarted-test',
+      createdBy: 'planner',
+      steps: [
+        { stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 },
+        { stepKey: 'b', description: 'Step B', dependsOn: [] as string[], order: 2 },
+        { stepKey: 'c', description: 'Step C', dependsOn: ['a', 'b'], order: 3 },
+      ],
+    });
+
+    await specifyStepHelper(sessionId as string, chatroomId, 'es-stepstarted-test', 'a');
+    await specifyStepHelper(sessionId as string, chatroomId, 'es-stepstarted-test', 'b');
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-stepstarted-test',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const stepStartedEvents = events.filter((e) => e.type === 'workflow.stepStarted');
+    // Should have 2 stepStarted events (for root steps a and b)
+    expect(stepStartedEvents).toHaveLength(2);
+    const stepKeys = stepStartedEvents.map((e) =>
+      e.type === 'workflow.stepStarted' ? e.stepKey : ''
+    );
+    expect(stepKeys).toContain('a');
+    expect(stepKeys).toContain('b');
+    // c should not be started yet (depends on a and b)
+    expect(stepKeys).not.toContain('c');
+  });
+
+  test('completeStep emits workflow.stepStarted for promoted dependent steps', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-promote-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-promote-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    await specifyStepHelper(sessionId as string, chatroomId, 'es-promote-test', 'a');
+    await specifyStepHelper(sessionId as string, chatroomId, 'es-promote-test', 'b');
+    await specifyStepHelper(sessionId as string, chatroomId, 'es-promote-test', 'c');
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-promote-test',
+    });
+
+    // Complete step a — should promote step b
+    await t.mutation(api.workflows.completeStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-promote-test',
+      stepKey: 'a',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const stepStartedEvents = events.filter((e) => e.type === 'workflow.stepStarted');
+    const stepKeys = stepStartedEvents.map((e) =>
+      e.type === 'workflow.stepStarted' ? e.stepKey : ''
+    );
+    // a was started by executeWorkflow, b was promoted after a completed
+    expect(stepKeys).toContain('a');
+    expect(stepKeys).toContain('b');
+  });
+});
+
+// ============================================================================
+// resolveWorkflowId
+// ============================================================================
+
+describe('workflows.resolveWorkflowId', () => {
+  test('resolves workflow key to ID', async () => {
+    const { sessionId } = await createTestSession('test-resolve-wf-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    const { workflowId } = await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'resolve-test',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
+    });
+
+    const result = await t.query(api.workflows.resolveWorkflowId, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'resolve-test',
+    });
+
+    expect(result.workflowId).toBe(workflowId);
+  });
+
+  test('throws for non-existent workflow key', async () => {
+    const { sessionId } = await createTestSession('test-resolve-wf-2');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await expect(
+      t.query(api.workflows.resolveWorkflowId, {
+        sessionId: sessionId as any,
+        chatroomId,
+        workflowKey: 'nonexistent',
+      })
+    ).rejects.toThrow('not found');
+  });
+});
+
+// ============================================================================
+// getWorkflowDetail
+// ============================================================================
+
+describe('workflows.getWorkflowDetail', () => {
+  test('returns workflow details by ID', async () => {
+    const { sessionId } = await createTestSession('test-detail-wf-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    const { workflowId } = await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'detail-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    const result = await t.query(api.workflows.getWorkflowDetail, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowId,
+    });
+
+    expect(result.workflow._id).toBe(workflowId);
+    expect(result.workflow.workflowKey).toBe('detail-test');
+    expect(result.workflow.status).toBe('draft');
+    expect(result.workflow.createdBy).toBe('planner');
+    expect(result.steps).toHaveLength(3);
+    expect(result.steps[0].stepKey).toBe('a');
+    expect(result.steps[1].stepKey).toBe('b');
+    expect(result.steps[2].stepKey).toBe('c');
   });
 });

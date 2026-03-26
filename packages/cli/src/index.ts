@@ -206,12 +206,21 @@ program
     },
     []
   )
+  .option(
+    '--attachment <type:value>',
+    'Attach a resource (can be used multiple times). Format: type:value. Supported: workflow-key:<key>',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
   .action(
     async (options: {
       chatroomId: string;
       role: string;
       nextRole: string;
       attachArtifact?: string[];
+      attachment?: string[];
     }) => {
       await maybeRequireAuth();
 
@@ -234,12 +243,34 @@ program
         process.exit(1);
       }
 
+      // Parse --attachment values
+      const attachedWorkflowKeys: string[] = [];
+      for (const att of options.attachment || []) {
+        const colonIndex = att.indexOf(':');
+        if (colonIndex === -1) {
+          console.error(
+            `❌ Invalid attachment format: "${att}". Expected type:value (e.g., workflow-key:my-workflow)`
+          );
+          process.exit(1);
+        }
+        const type = att.substring(0, colonIndex);
+        const value = att.substring(colonIndex + 1);
+
+        if (type === 'workflow-key') {
+          attachedWorkflowKeys.push(value);
+        } else {
+          console.error(`❌ Unknown attachment type: "${type}". Supported: workflow-key`);
+          process.exit(1);
+        }
+      }
+
       const { handoff } = await import('./commands/handoff/index.js');
       await handoff(options.chatroomId, {
         role: options.role,
         message,
         nextRole: options.nextRole,
         attachedArtifactIds: options.attachArtifact || [],
+        attachedWorkflowKeys,
       });
     }
   );
@@ -635,40 +666,6 @@ workflowCommand
   );
 
 workflowCommand
-  .command('step-cancel')
-  .description('Cancel a workflow step with a reason')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--workflow-key <key>', 'Workflow key')
-  .requiredOption('--step-key <stepKey>', 'Step key to cancel')
-  .requiredOption('--reason <text>', 'Reason for cancellation (required)')
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      workflowKey: string;
-      stepKey: string;
-      reason: string;
-    }) => {
-      await maybeRequireAuth();
-
-      // Validate reason is non-empty (belt-and-suspenders with requiredOption)
-      if (!options.reason || options.reason.trim().length === 0) {
-        console.error('❌ --reason is required and cannot be empty');
-        process.exit(1);
-      }
-
-      const { cancelStep } = await import('./commands/workflow/index.js');
-      await cancelStep(options.chatroomId, {
-        role: options.role,
-        workflowKey: options.workflowKey,
-        stepKey: options.stepKey,
-        reason: options.reason,
-      });
-    }
-  );
-
-workflowCommand
   .command('exit')
   .description('Exit (cancel) an entire workflow with a reason')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
@@ -690,6 +687,30 @@ workflowCommand
         role: options.role,
         workflowKey: options.workflowKey,
         reason: options.reason,
+      });
+    }
+  );
+
+workflowCommand
+  .command('step-view')
+  .description('View the full details and specification of a single workflow step')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .requiredOption('--step-key <stepKey>', 'Step key to view')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      workflowKey: string;
+      stepKey: string;
+    }) => {
+      await maybeRequireAuth();
+      const { viewStep } = await import('./commands/workflow/index.js');
+      await viewStep(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
       });
     }
   );

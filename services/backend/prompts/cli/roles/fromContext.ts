@@ -62,6 +62,7 @@ export function toPlannerParams(ctx: SelectorContext): PlannerGuidanceParams {
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
     availableMembers: ctx.availableMembers,
+    chatroomId: ctx.chatroomId,
   };
 }
 

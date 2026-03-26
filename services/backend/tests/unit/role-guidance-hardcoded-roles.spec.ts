@@ -141,7 +141,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
-      'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
+      'Feed phases to the builder incrementally — one at a time, not all at once'
     );
     expect(guidance).not.toContain('tackle one layer at a time');
   });
@@ -155,7 +155,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner'],
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
@@ -167,7 +167,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner', 'reviewer'],
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   // ---------------------------------------------------------------------------
@@ -259,6 +259,9 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
+
+      **When working on a workflow step:**
+      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, requirements, warnings). Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
       **Development Best Practices:**
       - Write clean, maintainable code

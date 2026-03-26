@@ -46,17 +46,16 @@ export interface StepCompleteOptions {
   stepKey: string;
 }
 
-export interface StepCancelOptions {
-  role: string;
-  workflowKey: string;
-  stepKey: string;
-  reason: string;
-}
-
 export interface ExitWorkflowOptions {
   role: string;
   workflowKey: string;
   reason: string;
+}
+
+export interface ViewStepOptions {
+  role: string;
+  workflowKey: string;
+  stepKey: string;
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -320,12 +319,13 @@ export async function specifyWorkflowStep(
   const sections = parseSections(
     options.stdinContent,
     ['GOAL', 'REQUIREMENTS'],
-    ['WARNINGS']
+    ['WARNINGS', 'SKILLS']
   );
 
   const goal = sections.get('GOAL')!;
   const requirements = sections.get('REQUIREMENTS')!;
   const warnings = sections.get('WARNINGS') || undefined;
+  const skills = sections.get('SKILLS') || undefined;
 
   try {
     await d.backend.mutation(api.workflows.specifyStep, {
@@ -337,6 +337,7 @@ export async function specifyWorkflowStep(
       goal,
       requirements,
       warnings,
+      skills,
     });
 
     console.log('');
@@ -468,9 +469,12 @@ export async function getWorkflowStatus(
 
         // Show specification details if present
         if (step.specification) {
-          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
           if (spec.goal) {
             console.log(`   📎 Goal: ${spec.goal}`);
+          }
+          if (spec.skills) {
+            console.log(`   🔧 Skills: ${spec.skills}`);
           }
           if (spec.requirements) {
             console.log(`   📎 Requirements: ${spec.requirements}`);
@@ -544,47 +548,6 @@ export async function completeStep(
 }
 
 /**
- * Cancel a workflow step with a required reason.
- */
-export async function cancelStep(
-  chatroomId: string,
-  options: StepCancelOptions,
-  deps?: WorkflowDeps
-): Promise<void> {
-  const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
-  validateChatroomId(chatroomId);
-
-  // Validate reason is non-empty
-  if (!options.reason || options.reason.trim().length === 0) {
-    console.error('❌ Reason is required when cancelling a step');
-    process.exit(1);
-    return;
-  }
-
-  try {
-    await d.backend.mutation(api.workflows.cancelStep, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-      reason: options.reason.trim(),
-    });
-
-    console.log('');
-    console.log('❌ Step cancelled');
-    console.log(`   Workflow: ${options.workflowKey}`);
-    console.log(`   Step: ${options.stepKey}`);
-    console.log(`   Reason: ${options.reason.trim()}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to cancel step: ${(error as Error).message}`);
-    process.exit(1);
-    return;
-  }
-}
-
-/**
  * Exit (cancel) an entire workflow with a required reason.
  */
 export async function exitWorkflow(
@@ -618,6 +581,111 @@ export async function exitWorkflow(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to exit workflow: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * View the full details of a single workflow step.
+ */
+export async function viewStep(
+  chatroomId: string,
+  options: ViewStepOptions,
+  deps?: WorkflowDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  try {
+    const result = await d.backend.query(api.workflows.getStepView, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      workflowKey: options.workflowKey,
+      stepKey: options.stepKey,
+    });
+
+    const step = result.step;
+    const emoji = getStepStatusEmoji(step.status as StepStatus);
+
+    console.log('');
+    console.log('══════════════════════════════════════════════════');
+    console.log(`${emoji} STEP: ${step.stepKey}`);
+    console.log('══════════════════════════════════════════════════');
+    console.log(`Workflow: ${result.workflowKey} (${result.workflowStatus})`);
+    console.log(`Description: ${step.description}`);
+    console.log(`Status: ${step.status.toUpperCase()}`);
+    if (step.assigneeRole) {
+      console.log(`Assignee: ${step.assigneeRole}`);
+    }
+    if (step.dependsOn.length > 0) {
+      console.log(`Dependencies: ${step.dependsOn.join(', ')}`);
+    }
+    console.log(`Order: ${step.order}`);
+
+    if (step.completedAt) {
+      const completedDate = new Date(step.completedAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      console.log(`Completed: ${completedDate}`);
+    }
+
+    if (step.cancelledAt) {
+      const cancelledDate = new Date(step.cancelledAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      console.log(`Cancelled: ${cancelledDate}`);
+      if (step.cancelReason) {
+        console.log(`Cancel reason: ${step.cancelReason}`);
+      }
+    }
+
+    // Show specification
+    if (step.specification) {
+      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
+      console.log('');
+      console.log('──────────────────────────────────────────────────');
+      console.log('📋 SPECIFICATION');
+      console.log('──────────────────────────────────────────────────');
+      if (spec.goal) {
+        console.log('');
+        console.log('Goal:');
+        console.log(spec.goal);
+      }
+      if (spec.skills) {
+        console.log('');
+        console.log('Skills:');
+        console.log(spec.skills);
+      }
+      if (spec.requirements) {
+        console.log('');
+        console.log('Requirements:');
+        console.log(spec.requirements);
+      }
+      if (spec.warnings) {
+        console.log('');
+        console.log('⚠️  Warnings:');
+        console.log(spec.warnings);
+      }
+    } else {
+      console.log('');
+      console.log('⚠️  No specification set. Run `workflow specify` to add one.');
+    }
+
+    console.log('');
+    console.log('══════════════════════════════════════════════════');
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to view step: ${(error as Error).message}`);
     process.exit(1);
     return;
   }

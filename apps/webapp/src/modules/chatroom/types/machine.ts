@@ -14,10 +14,11 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type {
   AgentHarness,
+  AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
 
-export type { AgentHarness, HarnessVersionInfo };
+export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
 
 export interface MachineInfo {
   machineId: string;
@@ -65,6 +66,7 @@ export type SendCommandArgs =
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
         role: string;
+        reason?: AgentStopReason;
       };
     }
   | {

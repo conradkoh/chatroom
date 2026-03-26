@@ -180,13 +180,32 @@ async function advanceWorkflow(
     }
   }
 
+  // Emit workflow.stepStarted events for promoted steps
+  const workflow = await ctx.db.get(workflowId);
+  if (workflow) {
+    for (const step of steps) {
+      if (step.status !== 'pending') continue;
+      const allDepsCompleted = step.dependsOn.every((dep) => statusByKey.get(dep) === 'completed');
+      if (allDepsCompleted) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'workflow.stepStarted',
+          chatroomId: workflow.chatroomId,
+          workflowKey: workflow.workflowKey,
+          workflowId: workflow._id,
+          stepKey: step.stepKey,
+          assigneeRole: step.assigneeRole ?? undefined,
+          timestamp: now,
+        });
+      }
+    }
+  }
+
   // Check if all steps are terminal (completed or cancelled)
   const allTerminal = steps.every(
     (s) => s.status === 'completed' || s.status === 'cancelled'
   );
 
   if (allTerminal) {
-    const workflow = await ctx.db.get(workflowId);
     await ctx.db.patch('chatroom_workflows', workflowId, {
       status: 'completed',
       completedAt: now,
@@ -278,6 +297,23 @@ export const createWorkflow = mutation({
       });
     }
 
+    // Emit workflow.created event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.created',
+      chatroomId: args.chatroomId,
+      workflowKey: args.workflowKey,
+      workflowId: workflowId,
+      createdBy: args.createdBy,
+      stepCount: args.steps.length,
+      steps: args.steps.map((s, i) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        dependsOn: s.dependsOn,
+        order: i,
+      })),
+      timestamp: now,
+    });
+
     return { workflowId };
   },
 });
@@ -296,6 +332,7 @@ export const specifyStep = mutation({
     goal: v.string(),
     requirements: v.string(),
     warnings: v.optional(v.string()),
+    skills: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -318,8 +355,19 @@ export const specifyStep = mutation({
         goal: args.goal,
         requirements: args.requirements,
         warnings: args.warnings,
+        skills: args.skills,
       },
       updatedAt: now,
+    });
+
+    // Emit workflow.specified event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.specified',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      stepKey: args.stepKey,
+      timestamp: now,
     });
 
     return { success: true };
@@ -363,6 +411,16 @@ export const executeWorkflow = mutation({
         await ctx.db.patch('chatroom_workflow_steps', step._id, {
           status: 'in_progress',
           updatedAt: now,
+        });
+        // Emit workflow.stepStarted event for each root step
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'workflow.stepStarted',
+          chatroomId: workflow.chatroomId,
+          workflowKey: workflow.workflowKey,
+          workflowId: workflow._id,
+          stepKey: step.stepKey,
+          assigneeRole: step.assigneeRole ?? undefined,
+          timestamp: now,
         });
       }
     }
@@ -575,6 +633,39 @@ export const exitWorkflow = mutation({
 // ─── Queries ────────────────────────────────────────────────────────
 
 /**
+ * Get the full details of a single workflow step, including its specification.
+ */
+export const getStepView = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(),
+    stepKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workflow = await getWorkflowByKey(ctx, args.chatroomId, args.workflowKey);
+    const step = await getStepByKey(ctx, workflow._id, args.stepKey);
+    return {
+      workflowKey: workflow.workflowKey,
+      workflowStatus: workflow.status,
+      step: {
+        stepKey: step.stepKey,
+        description: step.description,
+        status: step.status,
+        assigneeRole: step.assigneeRole,
+        dependsOn: step.dependsOn,
+        order: step.order,
+        specification: step.specification,
+        completedAt: step.completedAt,
+        cancelledAt: step.cancelledAt,
+        cancelReason: step.cancelReason,
+      },
+    };
+  },
+});
+
+/**
  * Get the full status of a workflow including all steps and available next steps.
  */
 export const getWorkflowStatus = query({
@@ -627,5 +718,70 @@ export const getWorkflowStatus = query({
       })),
       availableNextSteps,
     };
+  },
+});
+
+/**
+ * Get workflow details by workflow ID (for the UI visualizer).
+ * Unlike getWorkflowStatus which uses workflowKey, this accepts workflowId directly.
+ */
+export const getWorkflowDetail = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowId: v.id('chatroom_workflows'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const workflow = await ctx.db.get(args.workflowId);
+    if (!workflow || workflow.chatroomId !== args.chatroomId) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Workflow not found' });
+    }
+
+    const steps = await getAllSteps(ctx, workflow._id);
+    steps.sort((a, b) => a.order - b.order);
+
+    return {
+      workflow: {
+        _id: workflow._id,
+        workflowKey: workflow.workflowKey,
+        status: workflow.status,
+        createdBy: workflow.createdBy,
+        createdAt: workflow.createdAt,
+        updatedAt: workflow.updatedAt,
+        completedAt: workflow.completedAt,
+        cancelledAt: workflow.cancelledAt,
+        cancelReason: workflow.cancelReason,
+      },
+      steps: steps.map((s) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        status: s.status,
+        assigneeRole: s.assigneeRole,
+        dependsOn: s.dependsOn,
+        order: s.order,
+        specification: s.specification,
+        completedAt: s.completedAt,
+        cancelledAt: s.cancelledAt,
+        cancelReason: s.cancelReason,
+      })),
+    };
+  },
+});
+
+/**
+ * Resolve a workflow key to its ID (lightweight lookup for CLI attachment resolution).
+ */
+export const resolveWorkflowId = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workflow = await getWorkflowByKey(ctx, args.chatroomId, args.workflowKey);
+    return { workflowId: workflow._id };
   },
 });
