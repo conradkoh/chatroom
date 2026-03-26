@@ -1812,26 +1812,21 @@ export const MessageFeed = memo(function MessageFeed({
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
-  // Track if user is at bottom of scroll for auto-scroll behavior and floating button
-  // Using state instead of ref so the floating button can react to changes
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  // Also keep a ref for the auto-scroll useEffect (avoids stale closure issues)
-  const isAtBottomRef = useRef(true);
+  // ── Auto-scroll system ────────────────────────────────────────────────────
+  // Simple model: track if user is at the bottom. If they are, keep them there
+  // whenever the layout changes (new messages, textarea resize, etc.).
+  //
+  // The only things that change scroll position:
+  // 1. User scrolls manually → we detect via onScroll and update isAtBottom
+  // 2. Content changes (new messages) → ResizeObserver fires
+  // 3. Container resizes (textarea grows) → ResizeObserver fires
+  // 4. "Load more" at top → we preserve scroll position in useLayoutEffect
 
-  // Threshold for considering user "at bottom" (in pixels)
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
   const AT_BOTTOM_THRESHOLD = 50;
 
-  // Check if user is at bottom and update both state and ref
-  const updateIsAtBottom = useCallback(() => {
-    if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      isAtBottomRef.current = atBottom;
-      setIsAtBottom(atBottom);
-    }
-  }, []);
-
-  // Scroll to bottom smoothly
+  // Scroll to bottom (smooth, for user-initiated actions like clicking the button)
   const scrollToBottom = useCallback(() => {
     if (feedRef.current) {
       feedRef.current.scrollTo({
@@ -1843,14 +1838,12 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Track if we're in a loading more state to handle scroll position
   const wasLoadingMoreRef = useRef(false);
-
-  // Update loading state ref when status changes
   useEffect(() => {
     wasLoadingMoreRef.current = status === 'LoadingMore';
   }, [status]);
 
-  // CRITICAL: Use useLayoutEffect to adjust scroll position BEFORE browser paint
-  // This prevents the visual "jump" when loading older messages
+  // Handle "load older messages" scroll preservation — when messages are added
+  // at the top (pagination), maintain the user's current scroll position.
   useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
@@ -1858,24 +1851,14 @@ export const MessageFeed = memo(function MessageFeed({
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
       if (messagesAdded && heightDiff > 0) {
-        // Check if this was from loading older messages (content added at top)
-        // We detect this by checking if prevScrollHeight was smaller (content was added)
-        // and the user was near the top (likely paginating up)
         const wasNearTop = feedRef.current.scrollTop < 200;
         const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
 
         if (contentAddedAtTop) {
-          // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll position IMMEDIATELY
-          // This happens synchronously before paint, so user sees no jump
+          // Loading older messages — shift scroll position to keep current view stable
           feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-        } else if (isAtBottomRef.current) {
-          // New message arrived and user was at bottom - scroll to bottom
-          feedRef.current.scrollTop = feedRef.current.scrollHeight;
-          // Ensure state is also updated
-          setIsAtBottom(true);
         }
-        // If user scrolled up (not at bottom), don't auto-scroll
+        // For new messages at the bottom: the ResizeObserver below handles this
       }
 
       prevScrollHeightRef.current = newScrollHeight;
@@ -1883,68 +1866,58 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
-  // Auto-load more messages when content doesn't fill the container.
-  // This handles the edge case where initial messages are too few to create a scrollbar,
-  // making it impossible for the user to scroll up to trigger loading.
-  //
-  // Loop safety: This progressively loads until either:
-  // 1. Content fills the viewport (scrollHeight > clientHeight), or
-  // 2. All data is loaded (status becomes 'Exhausted')
-  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
+  // Auto-load more messages when content doesn't fill the container
   useEffect(() => {
     if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
-      // If content doesn't overflow (no scrollbar), auto-load more
       if (scrollHeight <= clientHeight) {
         loadMore(LOAD_MORE_SIZE);
       }
     }
   }, [canLoadMore, loadMore, displayMessages.length]);
 
-  // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
-  // This ensures the last message stays visible when the queue section grows/shrinks
-  useEffect(() => {
-    if (isAtBottom) {
-      scrollToBottom();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayQueuedMessages.length]);
-
-  // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
-  // input growing/shrinking changes the available height for the message area).
-  //
-  // When the textarea grows, the feed container shrinks. This changes clientHeight
-  // which can shift scrollTop relative to the bottom. The scroll event handler may
-  // fire and set isAtBottomRef=false even though the user was at the bottom before
-  // the resize. To fix this, we check whether the user WAS at the bottom using the
-  // previous clientHeight, and if so, keep them pinned to the bottom.
+  // ── Single ResizeObserver: keeps scroll pinned to bottom ──────────────────
+  // Fires whenever the feed container's dimensions change (e.g. textarea resize
+  // shrinks the feed, or window resize). If the user was at the bottom, snap
+  // scroll to the new maximum.
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
-    let prevClientHeight = el.clientHeight;
-    const observer = new ResizeObserver(() => {
-      const { scrollTop, scrollHeight, clientHeight } = el;
-      // Check if user was at bottom using the PREVIOUS clientHeight
-      // (before the container resized), since the scroll position hasn't
-      // been adjusted for the new container size yet.
-      const wasAtBottom =
-        scrollHeight - scrollTop - prevClientHeight < AT_BOTTOM_THRESHOLD;
-      prevClientHeight = clientHeight;
 
-      if (wasAtBottom) {
-        el.scrollTop = scrollHeight;
-        isAtBottomRef.current = true;
-        setIsAtBottom(true);
+    const observer = new ResizeObserver(() => {
+      if (isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Handle scroll: load more when near top, track if at bottom
+  // ── MutationObserver: detect content changes (new messages) ───────────────
+  // ResizeObserver doesn't fire when scrollHeight changes (content added).
+  // MutationObserver watches for child list changes and scrolls to bottom.
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+
+    const observer = new MutationObserver(() => {
+      if (isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    observer.observe(el, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Scroll event handler ─────────────────────────────────────────────────
+  // Updates isAtBottom state on every scroll. Also triggers "load more" at top.
   const handleScroll = useCallback(() => {
-    // Track if user is at bottom for auto-scroll behavior
-    updateIsAtBottom();
+    if (feedRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+      isAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+    }
 
     // Load more when user scrolls within threshold of top
     if (feedRef.current && canLoadMore) {
@@ -1953,7 +1926,7 @@ export const MessageFeed = memo(function MessageFeed({
         loadMore(LOAD_MORE_SIZE);
       }
     }
-  }, [canLoadMore, loadMore, updateIsAtBottom]);
+  }, [canLoadMore, loadMore]);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
