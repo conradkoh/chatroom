@@ -1862,8 +1862,17 @@ export const MessageFeed = memo(function MessageFeed({
         const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
 
         if (contentAddedAtTop) {
+          // Loading older messages (paginating up) - maintain scroll position
+          // by adding the height difference to current scroll position IMMEDIATELY
+          // This happens synchronously before paint, so user sees no jump
           feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
+        } else if (pinnedToBottomRef.current) {
+          // New message arrived and user was pinned to bottom - scroll to bottom
+          // synchronously before paint for zero visual lag
+          feedRef.current.scrollTop = feedRef.current.scrollHeight;
+          setIsAtBottom(true);
         }
+        // If user scrolled up (not pinned), don't auto-scroll
       }
 
       prevScrollHeightRef.current = newScrollHeight;
