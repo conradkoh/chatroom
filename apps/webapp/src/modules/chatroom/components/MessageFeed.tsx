@@ -50,7 +50,6 @@ import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { useScrollController } from '../hooks/useScrollController';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -80,9 +79,14 @@ import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
+import type { ScrollController } from '../hooks/useScrollController';
+
 interface MessageFeedProps {
   chatroomId: string;
   activeTask?: { status: string; assignedTo?: string } | null;
+  controller: React.MutableRefObject<ScrollController>;
+  isPinned: boolean;
+  scrollToBottom: () => void;
 }
 
 interface Message {
@@ -1568,6 +1572,9 @@ const LatestEventTicker = memo(function LatestEventTicker({
 export const MessageFeed = memo(function MessageFeed({
   chatroomId,
   activeTask: _activeTask,
+  controller: scrollController,
+  isPinned,
+  scrollToBottom,
 }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
@@ -1813,10 +1820,8 @@ export const MessageFeed = memo(function MessageFeed({
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
-  // ─── Unified scroll controller ──────────────────────────────────────
-  const { controller: scrollController, isPinned, scrollToBottom } = useScrollController();
-
-  // Ref callback to attach/detach the controller to the DOM element
+  // ─── Scroll controller ref callback ──────────────────────────────────
+  // Attach/detach the external ScrollController to the DOM element
   const feedRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
       feedRef.current = node;

@@ -30,6 +30,7 @@ import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceSidebarSection } from './workspace/components/WorkspaceSidebarSection';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
@@ -229,6 +230,15 @@ function useIsSmallScreen(): boolean | undefined {
 }
 
 export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
+  // ─── Scroll controller (shared between MessageFeed and SendForm) ───
+  const {
+    controller: scrollController,
+    isPinned,
+    scrollToBottom,
+    beginResize,
+    endResize,
+  } = useScrollController();
+
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
@@ -653,8 +663,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative">
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed chatroomId={chatroomId} activeTask={activeTask} />
-                <SendForm chatroomId={chatroomId} />
+                <MessageFeed
+                  chatroomId={chatroomId}
+                  activeTask={activeTask}
+                  controller={scrollController}
+                  isPinned={isPinned}
+                  scrollToBottom={scrollToBottom}
+                />
+                <SendForm
+                  chatroomId={chatroomId}
+                  onBeforeResize={beginResize}
+                  onAfterResize={endResize}
+                />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}

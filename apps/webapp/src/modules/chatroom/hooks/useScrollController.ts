@@ -26,6 +26,7 @@ export class ScrollController {
   private pinned = true;
   private userScrolling = false;
   private userScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+  private resizing = false;
 
   // ─── DOM ────────────────────────────────────
   private el: HTMLElement | null = null;
@@ -60,8 +61,9 @@ export class ScrollController {
 
     // ResizeObserver — snap when pinned and the container resizes
     // (e.g., textarea height changes cause the feed container to shrink/grow)
+    // Skip during active textarea resize (beginResize/endResize bracket)
     this.resizeObserver = new ResizeObserver(() => {
-      if (this.pinned) {
+      if (this.pinned && !this.resizing) {
         this.enqueueSnap();
       }
     });
@@ -160,6 +162,25 @@ export class ScrollController {
     return { scrollTop: this.el.scrollTop };
   }
 
+  /**
+   * Called before the textarea begins resizing.
+   * Prevents the ResizeObserver from enqueuing snap-backs during the resize.
+   */
+  beginResize(): void {
+    this.resizing = true;
+  }
+
+  /**
+   * Called after the textarea finishes resizing.
+   * Clears the resizing flag and, if pinned, snaps to bottom synchronously.
+   */
+  endResize(): void {
+    this.resizing = false;
+    if (this.pinned) {
+      this.snapImmediate();
+    }
+  }
+
   // ─── Private ────────────────────────────────
 
   /** Enqueue a snap-to-bottom in the next animation frame */
@@ -242,11 +263,15 @@ export class ScrollController {
  * - `controller` — ref to the ScrollController (pass to attach/detach)
  * - `isPinned`   — React state for driving UI (floating button visibility)
  * - `scrollToBottom` — stable callback for the button's onClick
+ * - `beginResize` — call before textarea resize starts
+ * - `endResize`   — call after textarea resize completes
  */
 export function useScrollController(): {
   controller: React.MutableRefObject<ScrollController>;
   isPinned: boolean;
   scrollToBottom: () => void;
+  beginResize: () => void;
+  endResize: () => void;
 } {
   const [isPinned, setIsPinned] = useState(true);
   const controllerRef = useRef<ScrollController>(new ScrollController(setIsPinned));
@@ -260,5 +285,13 @@ export function useScrollController(): {
     controllerRef.current.scrollToBottom();
   }, []);
 
-  return { controller: controllerRef, isPinned, scrollToBottom };
+  const beginResize = useCallback(() => {
+    controllerRef.current.beginResize();
+  }, []);
+
+  const endResize = useCallback(() => {
+    controllerRef.current.endResize();
+  }, []);
+
+  return { controller: controllerRef, isPinned, scrollToBottom, beginResize, endResize };
 }
