@@ -1812,26 +1812,13 @@ export const MessageFeed = memo(function MessageFeed({
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
-  // Track if user is at bottom of scroll for auto-scroll behavior and floating button
-  // Using state instead of ref so the floating button can react to changes
+  // Track if user is at bottom of scroll for floating "New messages" button
   const [isAtBottom, setIsAtBottom] = useState(true);
-  // Also keep a ref for the auto-scroll useEffect (avoids stale closure issues)
-  const isAtBottomRef = useRef(true);
 
   // Threshold for considering user "at bottom" (in pixels)
   const AT_BOTTOM_THRESHOLD = 50;
 
-  // Check if user is at bottom and update both state and ref
-  const updateIsAtBottom = useCallback(() => {
-    if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      isAtBottomRef.current = atBottom;
-      setIsAtBottom(atBottom);
-    }
-  }, []);
-
-  // Scroll to bottom smoothly
+  // Scroll to bottom smoothly (for button click and programmatic use)
   const scrollToBottom = useCallback(() => {
     if (feedRef.current) {
       feedRef.current.scrollTo({
@@ -1849,8 +1836,7 @@ export const MessageFeed = memo(function MessageFeed({
     wasLoadingMoreRef.current = status === 'LoadingMore';
   }, [status]);
 
-  // CRITICAL: Use useLayoutEffect to adjust scroll position BEFORE browser paint
-  // This prevents the visual "jump" when loading older messages
+  // Preserve scroll position when loading older messages at the top
   useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
@@ -1858,24 +1844,12 @@ export const MessageFeed = memo(function MessageFeed({
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
       if (messagesAdded && heightDiff > 0) {
-        // Check if this was from loading older messages (content added at top)
-        // We detect this by checking if prevScrollHeight was smaller (content was added)
-        // and the user was near the top (likely paginating up)
         const wasNearTop = feedRef.current.scrollTop < 200;
         const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
 
         if (contentAddedAtTop) {
-          // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll position IMMEDIATELY
-          // This happens synchronously before paint, so user sees no jump
           feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-        } else if (isAtBottomRef.current) {
-          // New message arrived and user was at bottom - scroll to bottom
-          feedRef.current.scrollTop = feedRef.current.scrollHeight;
-          // Ensure state is also updated
-          setIsAtBottom(true);
         }
-        // If user scrolled up (not at bottom), don't auto-scroll
       }
 
       prevScrollHeightRef.current = newScrollHeight;
@@ -1883,51 +1857,27 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
-  // Auto-load more messages when content doesn't fill the container.
-  // This handles the edge case where initial messages are too few to create a scrollbar,
-  // making it impossible for the user to scroll up to trigger loading.
-  //
-  // Loop safety: This progressively loads until either:
-  // 1. Content fills the viewport (scrollHeight > clientHeight), or
-  // 2. All data is loaded (status becomes 'Exhausted')
-  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
+  // Auto-load more messages when content doesn't fill the container
   useEffect(() => {
     if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
-      // If content doesn't overflow (no scrollbar), auto-load more
       if (scrollHeight <= clientHeight) {
         loadMore(LOAD_MORE_SIZE);
       }
     }
   }, [canLoadMore, loadMore, displayMessages.length]);
 
-  // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
-  // This ensures the last message stays visible when the queue section grows/shrinks
-  useEffect(() => {
-    if (isAtBottom) {
-      scrollToBottom();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayQueuedMessages.length]);
-
-  // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
-  // input growing/shrinking changes the available height for the message area)
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  // NOTE: All auto-scroll code has been removed to establish a baseline.
+  // No ResizeObserver, no queue length observer, no auto-scroll on new messages.
+  // Only the "New messages" button and manual scroll-to-bottom remain.
 
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
-    // Track if user is at bottom for auto-scroll behavior
-    updateIsAtBottom();
+    if (feedRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+      setIsAtBottom(atBottom);
+    }
 
     // Load more when user scrolls within threshold of top
     if (feedRef.current && canLoadMore) {
@@ -1936,7 +1886,7 @@ export const MessageFeed = memo(function MessageFeed({
         loadMore(LOAD_MORE_SIZE);
       }
     }
-  }, [canLoadMore, loadMore, updateIsAtBottom]);
+  }, [canLoadMore, loadMore]);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
