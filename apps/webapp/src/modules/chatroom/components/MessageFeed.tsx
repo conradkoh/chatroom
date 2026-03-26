@@ -1911,13 +1911,30 @@ export const MessageFeed = memo(function MessageFeed({
   }, [displayQueuedMessages.length]);
 
   // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
-  // input growing/shrinking changes the available height for the message area)
+  // input growing/shrinking changes the available height for the message area).
+  //
+  // When the textarea grows, the feed container shrinks. This changes clientHeight
+  // which can shift scrollTop relative to the bottom. The scroll event handler may
+  // fire and set isAtBottomRef=false even though the user was at the bottom before
+  // the resize. To fix this, we check whether the user WAS at the bottom using the
+  // previous clientHeight, and if so, keep them pinned to the bottom.
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
+    let prevClientHeight = el.clientHeight;
     const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      // Check if user was at bottom using the PREVIOUS clientHeight
+      // (before the container resized), since the scroll position hasn't
+      // been adjusted for the new container size yet.
+      const wasAtBottom =
+        scrollHeight - scrollTop - prevClientHeight < AT_BOTTOM_THRESHOLD;
+      prevClientHeight = clientHeight;
+
+      if (wasAtBottom) {
+        el.scrollTop = scrollHeight;
+        isAtBottomRef.current = true;
+        setIsAtBottom(true);
       }
     });
     observer.observe(el);
