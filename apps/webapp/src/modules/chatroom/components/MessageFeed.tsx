@@ -1971,11 +1971,14 @@ export const MessageFeed = memo(function MessageFeed({
       pinnedToBottomRef.current = false;
       setIsAtBottom(false);
     } else if (scrolledUp && isLargeJump) {
-      console.log('[scroll-debug] scroll → IGNORED large jump (likely layout change)', {
+      // Large jump while pinned — this is a layout change (textarea resize).
+      // Immediately snap back to bottom to prevent visible flicker.
+      console.log('[scroll-debug] scroll → SNAP BACK (layout change while pinned)', {
         scrollTop: Math.round(scrollTop),
         prev: Math.round(prevScrollTop),
         delta: Math.round(scrollTop - prevScrollTop),
       });
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
 
     // Load more when user scrolls within threshold of top
