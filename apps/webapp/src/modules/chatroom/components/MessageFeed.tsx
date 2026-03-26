@@ -1921,6 +1921,24 @@ export const MessageFeed = memo(function MessageFeed({
     return () => clearInterval(interval);
   }, [isAtBottom, snapToBottom]);
 
+  // ── Immediate snap on layout changes (ResizeObserver) ─────────────────────
+  // The interval handles steady-state, but layout changes (textarea resize)
+  // cause a visible delay. ResizeObserver fires immediately when the container
+  // dimensions change, giving instant correction. Uses pinnedToBottomRef which
+  // is now safe from false unpinning (large jump detection in scroll handler).
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(() => {
+      if (pinnedToBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Handle scroll: detect user intent, load more when near top
   const handleScroll = useCallback(() => {
     if (!feedRef.current) return;
