@@ -1813,22 +1813,31 @@ export const MessageFeed = memo(function MessageFeed({
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
   // ── Auto-scroll system ────────────────────────────────────────────────────
-  // Simple model: track if user is at the bottom. If they are, keep them there
-  // whenever the layout changes (new messages, textarea resize, etc.).
+  // Two-concept model:
   //
-  // The only things that change scroll position:
-  // 1. User scrolls manually → we detect via onScroll and update isAtBottom
-  // 2. Content changes (new messages) → ResizeObserver fires
-  // 3. Container resizes (textarea grows) → ResizeObserver fires
-  // 4. "Load more" at top → we preserve scroll position in useLayoutEffect
+  // 1. `pinnedToBottom` (ref) — Whether the user INTENDS to be at the bottom.
+  //    Changed only by user actions: scrolling down pins, scrolling up unpins.
+  //    NOT changed by layout-triggered scroll events (resize, content changes).
+  //
+  // 2. `isAtBottom` (state) — Whether to show the "New messages" floating button.
+  //    Derived from pinnedToBottom for UI rendering.
+  //
+  // Observers (ResizeObserver, MutationObserver) check pinnedToBottom and
+  // snap scrollTop to max when pinned. The scroll handler only unpins when
+  // the user actively scrolls away from the bottom.
 
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const isAtBottomRef = useRef(true);
+  const pinnedToBottomRef = useRef(true);
   const AT_BOTTOM_THRESHOLD = 50;
+
+  // Track last known scroll position to detect scroll direction
+  const lastScrollTopRef = useRef(0);
 
   // Scroll to bottom (smooth, for user-initiated actions like clicking the button)
   const scrollToBottom = useCallback(() => {
     if (feedRef.current) {
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
       feedRef.current.scrollTo({
         top: feedRef.current.scrollHeight,
         behavior: 'smooth',
@@ -1878,14 +1887,13 @@ export const MessageFeed = memo(function MessageFeed({
 
   // ── Single ResizeObserver: keeps scroll pinned to bottom ──────────────────
   // Fires whenever the feed container's dimensions change (e.g. textarea resize
-  // shrinks the feed, or window resize). If the user was at the bottom, snap
-  // scroll to the new maximum.
+  // shrinks the feed, or window resize). If pinned to bottom, snap scroll.
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
 
     const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
+      if (pinnedToBottomRef.current) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -1901,7 +1909,7 @@ export const MessageFeed = memo(function MessageFeed({
     if (!el) return;
 
     const observer = new MutationObserver(() => {
-      if (isAtBottomRef.current) {
+      if (pinnedToBottomRef.current) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -1910,21 +1918,33 @@ export const MessageFeed = memo(function MessageFeed({
   }, []);
 
   // ── Scroll event handler ─────────────────────────────────────────────────
-  // Updates isAtBottom state on every scroll. Also triggers "load more" at top.
+  // Determines user intent by checking scroll direction and position.
+  // Only UNPINS when user scrolls away from the bottom.
+  // Re-pins when user scrolls back to the bottom.
   const handleScroll = useCallback(() => {
-    if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      isAtBottomRef.current = atBottom;
-      setIsAtBottom(atBottom);
+    if (!feedRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+
+    // Detect if this was a user-initiated upward scroll (not a layout-triggered one)
+    const scrolledUp = scrollTop < lastScrollTopRef.current;
+    lastScrollTopRef.current = scrollTop;
+
+    if (atBottom) {
+      // User reached the bottom — pin
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
+    } else if (scrolledUp) {
+      // User scrolled up — unpin (they want to read older messages)
+      pinnedToBottomRef.current = false;
+      setIsAtBottom(false);
     }
+    // If scrolled down but not yet at bottom, keep current pin state
 
     // Load more when user scrolls within threshold of top
-    if (feedRef.current && canLoadMore) {
-      const { scrollTop } = feedRef.current;
-      if (scrollTop < SCROLL_THRESHOLD) {
-        loadMore(LOAD_MORE_SIZE);
-      }
+    if (canLoadMore && scrollTop < SCROLL_THRESHOLD) {
+      loadMore(LOAD_MORE_SIZE);
     }
   }, [canLoadMore, loadMore]);
 
