@@ -32,7 +32,7 @@ import {
  * `../sections/` directly with their hardcoded team config.
  */
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = params;
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
@@ -63,7 +63,7 @@ ${getWorkflowSection(teamConfig)}
 
 ${getCoreResponsibilitiesSection(teamConfig)}
 
-${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix })}
+${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(teamConfig)}
 

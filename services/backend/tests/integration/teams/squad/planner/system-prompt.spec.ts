@@ -250,7 +250,7 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       For clean architecture layer order, SOLID principles, and phase design standards:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role="planner"
       \`\`\`
 
       **When to use a workflow:**
@@ -260,12 +260,12 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       1. **Activate the workflow skill:**
          \`\`\`bash
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role=<role>
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"
          \`\`\`
       2. **Create the workflow DAG** with all steps using \`workflow create\` (activate the workflow skill first for the full command reference and JSON schema)
       3. **Specify each step** using \`workflow specify\`. Each step needs:
          \`\`\`
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --chatroom-id=<id> --role="planner" --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
          ---GOAL---
          [What this step should accomplish]
          ---SKILLS---
@@ -283,7 +283,7 @@ describe('Squad Team > Planner > System Prompt', () => {
          \`\`\`
          ## Workflow Step: <stepKey>
          Run this command to see your task:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-view --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-view --chatroom-id=<id> --role="planner" --workflow-key=<key> --step-key=<stepKey>
          Complete the work, then hand off back to planner.
          \`\`\`
       6. **On handback:** Review the work. If acceptable, run \`workflow step-complete\`. If not, hand back with specific feedback.

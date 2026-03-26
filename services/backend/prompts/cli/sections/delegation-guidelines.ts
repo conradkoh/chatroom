@@ -13,13 +13,15 @@ import type { TeamCompositionConfig } from './team-composition';
  */
 export function getDelegationGuidelinesSection(
   config: Pick<TeamCompositionConfig, 'hasBuilder'>,
-  options?: { cliEnvPrefix?: string }
+  options?: { cliEnvPrefix?: string; chatroomId?: string; role?: string }
 ): string {
   const feedingNote = config.hasBuilder
     ? 'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
     : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
 
   const cliEnvPrefix = options?.cliEnvPrefix ?? '';
+  const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
+  const roleArg = options?.role ? `"${options.role}"` : '<role>';
 
   return `**Delegation Guidelines:**
 
@@ -27,7 +29,7 @@ Break complex features into small, focused phases — delegate **one phase at a 
 
 For clean architecture layer order, SOLID principles, and phase design standards:
 \`\`\`bash
-${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
+${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=${chatroomIdArg} --role=${roleArg}
 \`\`\`
 
 **When to use a workflow:**
@@ -37,16 +39,16 @@ If the task is a single-step change (one clear deliverable, one handoff), do it 
 
 1. **Activate the workflow skill:**
    \`\`\`bash
-   ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=<id> --role=<role>
+   ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}
    \`\`\`
 2. **Create the workflow DAG** with all steps using \`workflow create\` (activate the workflow skill first for the full command reference and JSON schema)
 3. **Specify each step** using \`workflow specify\`. Each step needs:
    \`\`\`
-   ${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
+   ${cliEnvPrefix}chatroom workflow specify --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
    ---GOAL---
    [What this step should accomplish]
    ---SKILLS---
-   ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<assignee-role>
+   ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=${chatroomIdArg} --role=<assignee-role>
    [List each skill activation command, one per line]
    ---REQUIREMENTS---
    1. [Specific deliverables]
@@ -60,7 +62,7 @@ If the task is a single-step change (one clear deliverable, one handoff), do it 
    \`\`\`
    ## Workflow Step: <stepKey>
    Run this command to see your task:
-   ${cliEnvPrefix}chatroom workflow step-view --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey>
+   ${cliEnvPrefix}chatroom workflow step-view --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key=<key> --step-key=<stepKey>
    Complete the work, then hand off back to planner.
    \`\`\`
 6. **On handback:** Review the work. If acceptable, run \`workflow step-complete\`. If not, hand back with specific feedback.

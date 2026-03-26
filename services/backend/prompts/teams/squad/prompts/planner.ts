@@ -30,7 +30,7 @@ import { getCliEnvPrefix } from '../../../utils/env';
 const SQUAD_TEAM_CONFIG = { hasBuilder: true, hasReviewer: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
@@ -81,7 +81,7 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix })}
+${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(SQUAD_TEAM_CONFIG)}
 
