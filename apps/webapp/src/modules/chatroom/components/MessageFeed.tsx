@@ -50,6 +50,7 @@ import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
+import { useScrollController } from '../hooks/useScrollController';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -1812,32 +1813,21 @@ export const MessageFeed = memo(function MessageFeed({
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
-  // Track if user is at bottom of scroll for floating "New messages" button
-  // and for the auto-scroll interval
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const pinnedToBottomRef = useRef(true);
+  // ─── Unified scroll controller ──────────────────────────────────────
+  const { controller: scrollController, isPinned, scrollToBottom } = useScrollController();
 
-  // Threshold for considering user "at bottom" (in pixels)
-  const AT_BOTTOM_THRESHOLD = 50;
-
-  // Scroll to bottom (instant, for interval-based pinning)
-  const snapToBottom = useCallback(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-  }, []);
-
-  // Scroll to bottom smoothly (for button click)
-  const scrollToBottom = useCallback(() => {
-    if (feedRef.current) {
-      pinnedToBottomRef.current = true;
-      setIsAtBottom(true);
-      feedRef.current.scrollTo({
-        top: feedRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, []);
+  // Ref callback to attach/detach the controller to the DOM element
+  const feedRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      feedRef.current = node;
+      if (node) {
+        scrollController.current.attach(node);
+      } else {
+        scrollController.current.detach();
+      }
+    },
+    [scrollController]
+  );
 
   // Track if we're in a loading more state to handle scroll position
   const wasLoadingMoreRef = useRef(false);
@@ -1856,26 +1846,13 @@ export const MessageFeed = memo(function MessageFeed({
 
       if (messagesAdded && heightDiff > 0) {
         const wasNearTop = feedRef.current.scrollTop < 200;
-        const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
-
-        if (contentAddedAtTop) {
-          // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll position IMMEDIATELY
-          // This happens synchronously before paint, so user sees no jump
-          feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-        } else if (pinnedToBottomRef.current) {
-          // New message arrived and user was pinned to bottom - scroll to bottom
-          // synchronously before paint for zero visual lag
-          feedRef.current.scrollTop = feedRef.current.scrollHeight;
-          setIsAtBottom(true);
-        }
-        // If user scrolled up (not pinned), don't auto-scroll
+        scrollController.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, wasNearTop);
       }
 
       prevScrollHeightRef.current = newScrollHeight;
     }
     prevMessageCountRef.current = displayMessages.length;
-  }, [displayMessages.length]);
+  }, [displayMessages.length, scrollController]);
 
   // Auto-load more messages when content doesn't fill the container
   useEffect(() => {
@@ -1890,121 +1867,17 @@ export const MessageFeed = memo(function MessageFeed({
   // Auto-scroll to bottom when queue section appears or disappears (only if pinned)
   // This ensures the last message stays visible when the queue section grows/shrinks
   useEffect(() => {
-    if (pinnedToBottomRef.current) {
-      snapToBottom();
-    }
+    scrollController.current.onQueueChange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayQueuedMessages.length]);
 
-  // ── Interval-based auto-scroll ──────────────────────────────────────────
-  // When pinned to bottom, a 500ms interval keeps scroll at maximum.
-  // This handles ALL cases uniformly: new messages, textarea resize, queue
-  // changes, etc. — without needing event-specific observers.
-  useEffect(() => {
-    if (!pinnedToBottomRef.current) return;
-
-    const interval = setInterval(() => {
-      if (pinnedToBottomRef.current && feedRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-        const gap = scrollHeight - scrollTop - clientHeight;
-        // Only snap if not already at bottom (avoids unnecessary DOM writes)
-        // Use >= 1 to catch Safari's sub-pixel rounding (Safari reports gap=1 even at max scroll)
-        if (gap >= 1) {
-          snapToBottom();
-        }
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [isAtBottom, snapToBottom]);
-
-  // Track if user is actively scrolling (wheel/touch) to prevent
-  // the handleScroll snap-back from fighting user scroll
-  const userScrollingRef = useRef(false);
-  const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Immediate snap on layout changes (ResizeObserver) ─────────────────────
-  // The interval handles steady-state, but layout changes (textarea resize)
-  // cause a visible delay. ResizeObserver fires immediately when the container
-  // dimensions change, giving instant correction. Uses pinnedToBottomRef which
-  // is now safe from false unpinning (large jump detection in scroll handler).
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver(() => {
-      if (pinnedToBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Handle scroll: re-pin when at bottom, load more when near top
-  // NOTE: This handler does NOT unpin. Only wheel/touch events can unpin.
+  // Handle scroll: load more when near top
   const handleScroll = useCallback(() => {
-    if (!feedRef.current) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-    const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-
-    if (atBottom && !pinnedToBottomRef.current) {
-      pinnedToBottomRef.current = true;
-      setIsAtBottom(true);
-    }
-
-    // If pinned and layout shifted us away, snap back immediately
-    // BUT skip this if the user is actively scrolling (wheel/touch)
-    if (pinnedToBottomRef.current && !atBottom && !userScrollingRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-
-    // Load more when user scrolls within threshold of top
-    if (canLoadMore && scrollTop < SCROLL_THRESHOLD) {
+    const pos = scrollController.current.getScrollPosition();
+    if (pos && canLoadMore && pos.scrollTop < SCROLL_THRESHOLD) {
       loadMore(LOAD_MORE_SIZE);
     }
-  }, [canLoadMore, loadMore]);
-
-  // ── Unpin ONLY on user-initiated scroll (wheel/touch) ────────────────────
-  // The scroll event can't distinguish layout changes from user scroll.
-  // Wheel and touch events are ONLY from user interaction — these are the
-  // definitive signal that the user wants to scroll away from the bottom.
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el) return;
-
-    const handleUserScroll = () => {
-      // Mark user as actively scrolling to prevent handleScroll snap-back
-      userScrollingRef.current = true;
-      if (userScrollTimeoutRef.current) {
-        clearTimeout(userScrollTimeoutRef.current);
-      }
-      // Clear the flag after a short delay (scroll events have settled)
-      userScrollTimeoutRef.current = setTimeout(() => {
-        userScrollingRef.current = false;
-      }, 200);
-
-      // Use requestAnimationFrame to check AFTER the scroll position updates
-      requestAnimationFrame(() => {
-        if (!el) return;
-        const { scrollTop, scrollHeight, clientHeight } = el;
-        const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-        if (!atBottom && pinnedToBottomRef.current) {
-          pinnedToBottomRef.current = false;
-          setIsAtBottom(false);
-        }
-      });
-    };
-
-    el.addEventListener('wheel', handleUserScroll, { passive: true });
-    el.addEventListener('touchmove', handleUserScroll, { passive: true });
-
-    return () => {
-      el.removeEventListener('wheel', handleUserScroll);
-      el.removeEventListener('touchmove', handleUserScroll);
-    };
-  }, []);
+  }, [canLoadMore, loadMore, scrollController]);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
@@ -2036,7 +1909,7 @@ export const MessageFeed = memo(function MessageFeed({
       {/* Note: px-2 for horizontal padding, no vertical padding so sticky headers flush to top */}
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
-        ref={feedRef}
+        ref={feedRefCallback}
         onScroll={handleScroll}
       >
         {/* Load More indicator at top - clickable to load older messages */}
@@ -2090,7 +1963,7 @@ export const MessageFeed = memo(function MessageFeed({
         ))}
       </div>
       {/* Scroll to bottom floating button - appears when user scrolls up */}
-      {!isAtBottom && (
+      {!isPinned && (
         <button
           onClick={scrollToBottom}
           className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
