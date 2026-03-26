@@ -1820,9 +1820,6 @@ export const MessageFeed = memo(function MessageFeed({
   // Threshold for considering user "at bottom" (in pixels)
   const AT_BOTTOM_THRESHOLD = 50;
 
-  // Track last scroll position to detect user-initiated upward scroll
-  const lastScrollTopRef = useRef(0);
-
   // Scroll to bottom (instant, for interval-based pinning)
   const snapToBottom = useCallback(() => {
     if (feedRef.current) {
@@ -1951,8 +1948,6 @@ export const MessageFeed = memo(function MessageFeed({
 
     const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
     const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-
-    lastScrollTopRef.current = scrollTop;
 
     if (atBottom && !pinnedToBottomRef.current) {
       pinnedToBottomRef.current = true;
