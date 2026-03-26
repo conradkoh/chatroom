@@ -1881,6 +1881,15 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [canLoadMore, loadMore, displayMessages.length]);
 
+  // Auto-scroll to bottom when queue section appears or disappears (only if pinned)
+  // This ensures the last message stays visible when the queue section grows/shrinks
+  useEffect(() => {
+    if (pinnedToBottomRef.current) {
+      snapToBottom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayQueuedMessages.length]);
+
   // ── Interval-based auto-scroll ──────────────────────────────────────────
   // When pinned to bottom, a 500ms interval keeps scroll at maximum.
   // This handles ALL cases uniformly: new messages, textarea resize, queue
