@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -12,6 +12,8 @@ import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAt
 
 interface SendFormProps {
   chatroomId: string;
+  onBeforeResize?: () => void;
+  onAfterResize?: () => void;
 }
 
 /**
@@ -89,7 +91,7 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
+export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,21 +132,25 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const sendMessage = useSessionMutation(api.messages.send);
 
   // Auto-resize textarea based on content
-  // Use a stable base height to prevent layout shift
-  useEffect(() => {
+  // Uses useLayoutEffect for synchronous DOM measurement before paint
+  // Uses height:0 technique for accurate scrollHeight in Safari
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      // Reset to auto to get accurate scrollHeight
-      textarea.style.height = 'auto';
-      // Get the actual scroll height needed for content
-      const scrollHeight = textarea.scrollHeight;
-      // Set to content height, capped at max (200px) with min of 40px (matches button height)
-      const newHeight = Math.max(40, Math.min(scrollHeight, 200));
-      textarea.style.height = `${newHeight}px`;
-      // Only show overflow when content exceeds max height
-      textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
-    }
-  }, [message]);
+    if (!textarea) return;
+
+    onBeforeResize?.();
+
+    // Set height to 0 to get accurate scrollHeight (Safari workaround)
+    textarea.style.height = '0px';
+    const scrollHeight = textarea.scrollHeight;
+    // Set to content height, capped at max (200px) with min of 40px (matches button height)
+    const newHeight = Math.max(40, Math.min(scrollHeight, 200));
+    textarea.style.height = `${newHeight}px`;
+    // Only show overflow when content exceeds max height
+    textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
+
+    onAfterResize?.();
+  }, [message, onBeforeResize, onAfterResize]);
 
   const handleSubmit = useCallback(async () => {
     if (!message.trim() || sending) return;
