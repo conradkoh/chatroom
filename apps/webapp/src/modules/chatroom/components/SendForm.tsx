@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -129,21 +129,22 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
 
   const sendMessage = useSessionMutation(api.messages.send);
 
-  // Auto-resize textarea based on content
-  // Use a stable base height to prevent layout shift
-  useEffect(() => {
+  // Auto-resize textarea based on content.
+  // Uses useLayoutEffect to run synchronously before browser paint.
+  // Avoids setting height to 'auto' or '0' which would cause layout thrash
+  // in the parent flex container and disturb scroll position in the message feed.
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      // Reset to auto to get accurate scrollHeight
-      textarea.style.height = 'auto';
-      // Get the actual scroll height needed for content
-      const scrollHeight = textarea.scrollHeight;
-      // Set to content height, capped at max (200px) with min of 40px (matches button height)
-      const newHeight = Math.max(40, Math.min(scrollHeight, 200));
-      textarea.style.height = `${newHeight}px`;
-      // Only show overflow when content exceeds max height
-      textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
-    }
+    if (!textarea) return;
+
+    // If content overflows or has excess space, we need to recalculate.
+    // First, save the current height and set to 0 to measure natural content height.
+    // This runs in useLayoutEffect so the browser won't paint the intermediate state.
+    textarea.style.height = '0px';
+    const contentHeight = textarea.scrollHeight;
+    const newHeight = Math.max(40, Math.min(contentHeight, 200));
+    textarea.style.height = `${newHeight}px`;
+    textarea.style.overflowY = contentHeight > 200 ? 'auto' : 'hidden';
   }, [message]);
 
   const handleSubmit = useCallback(async () => {
