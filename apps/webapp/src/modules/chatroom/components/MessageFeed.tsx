@@ -1813,14 +1813,28 @@ export const MessageFeed = memo(function MessageFeed({
   const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
 
   // Track if user is at bottom of scroll for floating "New messages" button
+  // and for the auto-scroll interval
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const pinnedToBottomRef = useRef(true);
 
   // Threshold for considering user "at bottom" (in pixels)
   const AT_BOTTOM_THRESHOLD = 50;
 
-  // Scroll to bottom smoothly (for button click and programmatic use)
+  // Track last scroll position to detect user-initiated upward scroll
+  const lastScrollTopRef = useRef(0);
+
+  // Scroll to bottom (instant, for interval-based pinning)
+  const snapToBottom = useCallback(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, []);
+
+  // Scroll to bottom smoothly (for button click)
   const scrollToBottom = useCallback(() => {
     if (feedRef.current) {
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
       feedRef.current.scrollTo({
         top: feedRef.current.scrollHeight,
         behavior: 'smooth',
@@ -1867,24 +1881,51 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [canLoadMore, loadMore, displayMessages.length]);
 
-  // NOTE: All auto-scroll code has been removed to establish a baseline.
-  // No ResizeObserver, no queue length observer, no auto-scroll on new messages.
-  // Only the "New messages" button and manual scroll-to-bottom remain.
+  // ── Interval-based auto-scroll ──────────────────────────────────────────
+  // When pinned to bottom, a 500ms interval keeps scroll at maximum.
+  // This handles ALL cases uniformly: new messages, textarea resize, queue
+  // changes, etc. — without needing event-specific observers.
+  useEffect(() => {
+    if (!pinnedToBottomRef.current) return;
 
-  // Handle scroll: load more when near top, track if at bottom
+    const interval = setInterval(() => {
+      if (pinnedToBottomRef.current && feedRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+        const gap = scrollHeight - scrollTop - clientHeight;
+        // Only snap if not already at bottom (avoids unnecessary DOM writes)
+        if (gap > 1) {
+          snapToBottom();
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isAtBottom, snapToBottom]);
+
+  // Handle scroll: detect user intent, load more when near top
   const handleScroll = useCallback(() => {
-    if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      setIsAtBottom(atBottom);
+    if (!feedRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+
+    // Detect intentional upward scroll
+    const scrolledUp = scrollTop < lastScrollTopRef.current - 5; // 5px deadzone
+    lastScrollTopRef.current = scrollTop;
+
+    if (atBottom) {
+      // Reached bottom — pin
+      pinnedToBottomRef.current = true;
+      setIsAtBottom(true);
+    } else if (scrolledUp) {
+      // User scrolled up intentionally — unpin
+      pinnedToBottomRef.current = false;
+      setIsAtBottom(false);
     }
 
     // Load more when user scrolls within threshold of top
-    if (feedRef.current && canLoadMore) {
-      const { scrollTop } = feedRef.current;
-      if (scrollTop < SCROLL_THRESHOLD) {
-        loadMore(LOAD_MORE_SIZE);
-      }
+    if (canLoadMore && scrollTop < SCROLL_THRESHOLD) {
+      loadMore(LOAD_MORE_SIZE);
     }
   }, [canLoadMore, loadMore]);
 
