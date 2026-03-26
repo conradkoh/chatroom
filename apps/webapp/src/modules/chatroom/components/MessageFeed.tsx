@@ -1939,45 +1939,24 @@ export const MessageFeed = memo(function MessageFeed({
     return () => observer.disconnect();
   }, []);
 
-  // Handle scroll: detect user intent, load more when near top
+  // Handle scroll: re-pin when at bottom, load more when near top
+  // NOTE: This handler does NOT unpin. Only wheel/touch events can unpin.
   const handleScroll = useCallback(() => {
     if (!feedRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
     const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
 
-    // Detect intentional upward scroll (user dragging/wheeling up)
-    // Large sudden drops (>100px) are likely layout changes, not user scrolls
-    const scrolledUp = scrollTop < lastScrollTopRef.current - 5; // 5px deadzone
-    const isLargeJump = Math.abs(scrollTop - lastScrollTopRef.current) > 100;
-    const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
 
-    if (atBottom) {
-      if (!pinnedToBottomRef.current) {
-        console.log('[scroll-debug] scroll → pin (reached bottom)', { scrollTop: Math.round(scrollTop), gap: Math.round(scrollHeight - scrollTop - clientHeight) });
-      }
+    if (atBottom && !pinnedToBottomRef.current) {
+      console.log('[scroll-debug] scroll → re-pin (reached bottom)');
       pinnedToBottomRef.current = true;
       setIsAtBottom(true);
-    } else if (scrolledUp && !isLargeJump) {
-      // Only unpin on small upward scrolls (user interaction)
-      // Large jumps are from layout changes (textarea resize) — ignore
-      console.log('[scroll-debug] scroll → unpin (scrolled up)', {
-        scrollTop: Math.round(scrollTop),
-        prev: Math.round(prevScrollTop),
-        delta: Math.round(scrollTop - prevScrollTop),
-        gap: Math.round(scrollHeight - scrollTop - clientHeight),
-      });
-      pinnedToBottomRef.current = false;
-      setIsAtBottom(false);
-    } else if (scrolledUp && isLargeJump) {
-      // Large jump while pinned — this is a layout change (textarea resize).
-      // Immediately snap back to bottom to prevent visible flicker.
-      console.log('[scroll-debug] scroll → SNAP BACK (layout change while pinned)', {
-        scrollTop: Math.round(scrollTop),
-        prev: Math.round(prevScrollTop),
-        delta: Math.round(scrollTop - prevScrollTop),
-      });
+    }
+
+    // If pinned and layout shifted us away, snap back immediately
+    if (pinnedToBottomRef.current && !atBottom) {
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
 
@@ -1986,6 +1965,37 @@ export const MessageFeed = memo(function MessageFeed({
       loadMore(LOAD_MORE_SIZE);
     }
   }, [canLoadMore, loadMore]);
+
+  // ── Unpin ONLY on user-initiated scroll (wheel/touch) ────────────────────
+  // The scroll event can't distinguish layout changes from user scroll.
+  // Wheel and touch events are ONLY from user interaction — these are the
+  // definitive signal that the user wants to scroll away from the bottom.
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+
+    const handleUserScroll = () => {
+      // Use requestAnimationFrame to check AFTER the scroll position updates
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+        if (!atBottom && pinnedToBottomRef.current) {
+          console.log('[scroll-debug] wheel/touch → unpin');
+          pinnedToBottomRef.current = false;
+          setIsAtBottom(false);
+        }
+      });
+    };
+
+    el.addEventListener('wheel', handleUserScroll, { passive: true });
+    el.addEventListener('touchmove', handleUserScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleUserScroll);
+      el.removeEventListener('touchmove', handleUserScroll);
+    };
+  }, []);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
