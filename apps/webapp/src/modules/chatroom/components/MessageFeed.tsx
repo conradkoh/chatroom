@@ -1826,7 +1826,17 @@ export const MessageFeed = memo(function MessageFeed({
   // Scroll to bottom (instant, for interval-based pinning)
   const snapToBottom = useCallback(() => {
     if (feedRef.current) {
+      const before = feedRef.current.scrollTop;
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      const after = feedRef.current.scrollTop;
+      console.log('[scroll-debug] snapToBottom:', {
+        before,
+        after,
+        scrollHeight: feedRef.current.scrollHeight,
+        clientHeight: feedRef.current.clientHeight,
+        maxScroll: feedRef.current.scrollHeight - feedRef.current.clientHeight,
+        gap: feedRef.current.scrollHeight - after - feedRef.current.clientHeight,
+      });
     }
   }, []);
 
@@ -1892,6 +1902,14 @@ export const MessageFeed = memo(function MessageFeed({
       if (pinnedToBottomRef.current && feedRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
         const gap = scrollHeight - scrollTop - clientHeight;
+        console.log('[scroll-debug] interval check:', {
+          pinned: pinnedToBottomRef.current,
+          scrollTop: Math.round(scrollTop),
+          scrollHeight,
+          clientHeight,
+          gap: Math.round(gap),
+          willSnap: gap > 1,
+        });
         // Only snap if not already at bottom (avoids unnecessary DOM writes)
         if (gap > 1) {
           snapToBottom();
@@ -1911,14 +1929,22 @@ export const MessageFeed = memo(function MessageFeed({
 
     // Detect intentional upward scroll
     const scrolledUp = scrollTop < lastScrollTopRef.current - 5; // 5px deadzone
+    const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
 
     if (atBottom) {
-      // Reached bottom — pin
+      if (!pinnedToBottomRef.current) {
+        console.log('[scroll-debug] scroll → pin (reached bottom)', { scrollTop: Math.round(scrollTop), gap: Math.round(scrollHeight - scrollTop - clientHeight) });
+      }
       pinnedToBottomRef.current = true;
       setIsAtBottom(true);
     } else if (scrolledUp) {
-      // User scrolled up intentionally — unpin
+      console.log('[scroll-debug] scroll → unpin (scrolled up)', {
+        scrollTop: Math.round(scrollTop),
+        prev: Math.round(prevScrollTop),
+        delta: Math.round(scrollTop - prevScrollTop),
+        gap: Math.round(scrollHeight - scrollTop - clientHeight),
+      });
       pinnedToBottomRef.current = false;
       setIsAtBottom(false);
     }
