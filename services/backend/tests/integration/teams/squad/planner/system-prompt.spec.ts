@@ -262,7 +262,7 @@ describe('Squad Team > Planner > System Prompt', () => {
          \`\`\`bash
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role=<role>
          \`\`\`
-      2. **Create the workflow DAG** with all steps using \`workflow create\`
+      2. **Create the workflow DAG** with all steps using \`workflow create\` (activate the workflow skill first for the full command reference and JSON schema)
       3. **Specify each step** using \`workflow specify\`. Each step needs:
          \`\`\`
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'

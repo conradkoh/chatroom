@@ -15,35 +15,39 @@ Workflows are DAG-based execution plans where each step has dependencies, an ass
 ## Command Reference
 
 ### Create Workflow
+
+**CLI options:** \`--chatroom-id\`, \`--role\`, \`--workflow-key\` (these are the ONLY flags — NO \`--title\` flag)
 \`\`\`
 ${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=<key>
 \`\`\`
-Reads JSON from stdin. **Each step MUST have exactly these 4 fields — no more, no less:**
+Reads JSON from stdin with a \`steps\` array. **Each step object MUST have exactly these 4 fields — no more, no less:**
 
-| Field         | Type       | Required | Description                              |
-|---------------|------------|----------|------------------------------------------|
-| \`stepKey\`     | string     | YES      | Unique identifier within the workflow    |
-| \`description\` | string     | YES      | What this step accomplishes              |
-| \`dependsOn\`   | string[]   | YES      | Step keys this depends on ([] for root)  |
-| \`order\`       | number     | YES      | Execution order (1-based integer)        |
+| Field         | Type       | Description                              |
+|---------------|------------|------------------------------------------|
+| \`stepKey\`     | string     | Unique identifier within the workflow    |
+| \`description\` | string     | What this step accomplishes              |
+| \`dependsOn\`   | string[]   | Step keys this depends on (\`[]\` for root)  |
+| \`order\`       | number     | Execution order (1-based integer)        |
 
-**Example:**
-\`\`\`json
+**Complete copy-paste example:**
+\`\`\`bash
+${cliEnvPrefix}chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=my-workflow << 'JSONEOF'
 {
   "steps": [
     { "stepKey": "schema", "description": "Create database schema", "dependsOn": [], "order": 1 },
     { "stepKey": "backend", "description": "Build backend API", "dependsOn": ["schema"], "order": 2 },
-    { "stepKey": "cli", "description": "Build CLI commands", "dependsOn": ["backend"], "order": 3 }
+    { "stepKey": "tests", "description": "Write and run tests", "dependsOn": ["backend"], "order": 3 }
   ]
 }
+JSONEOF
 \`\`\`
 
-**⚠️ Common Mistakes — DO NOT:**
-- ❌ Add \`role\`, \`label\`, \`assignee\`, \`name\`, or ANY extra fields — the backend rejects unknown fields
-- ❌ Omit \`stepKey\` or \`order\` — all 4 fields are mandatory for every step
-- ❌ Assume a workflow exists after a failed creation — check with \`workflow status\` first
-
-**✅ Role assignment happens later** in the \`specify\` step, NOT at creation time.
+**⚠️ STRICT RULES — violations cause errors:**
+- ❌ Do NOT add \`--title\` or any other CLI flags beyond \`--chatroom-id\`, \`--role\`, \`--workflow-key\`
+- ❌ Do NOT add \`role\`, \`assignee\`, \`name\`, \`title\`, \`label\`, or ANY extra fields to step objects — only \`stepKey\`, \`description\`, \`dependsOn\`, \`order\`
+- ❌ Do NOT omit \`stepKey\` or \`order\` — all 4 fields are mandatory for every step
+- ❌ Do NOT use \`key\` instead of \`stepKey\`
+- ✅ Role assignment happens in the \`specify\` step, NOT at creation time
 
 ### Specify Step
 \`\`\`

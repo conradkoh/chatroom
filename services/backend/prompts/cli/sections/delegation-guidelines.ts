@@ -39,7 +39,7 @@ If the task is a single-step change (one clear deliverable, one handoff), do it 
    \`\`\`bash
    ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=<id> --role=<role>
    \`\`\`
-2. **Create the workflow DAG** with all steps using \`workflow create\`
+2. **Create the workflow DAG** with all steps using \`workflow create\` (activate the workflow skill first for the full command reference and JSON schema)
 3. **Specify each step** using \`workflow specify\`. Each step needs:
    \`\`\`
    ${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role> << 'EOF'
