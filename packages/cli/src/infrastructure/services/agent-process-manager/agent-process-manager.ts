@@ -119,7 +119,6 @@ function agentKey(chatroomId: string, role: string): string {
 export class AgentProcessManager {
   private readonly deps: AgentProcessManagerDeps;
   private readonly slots = new Map<string, AgentSlot>();
-  private readonly pendingStopReasons = new Map<string, StopReason>();
 
   constructor(deps: AgentProcessManagerDeps) {
     this.deps = deps;
@@ -196,9 +195,6 @@ export class AgentProcessManager {
       return { success: true };
     }
 
-    // Store pending stop reason for when exit handler fires
-    this.pendingStopReasons.set(key, opts.reason);
-
     // CRITICAL: Set stopping state BEFORE any async operations to prevent
     // race condition where onExit callback fires before the guard can check.
     // This ensures handleExit() will see state === 'stopping' and return early.
@@ -227,11 +223,8 @@ export class AgentProcessManager {
       return;
     }
 
-    // Derive stop reason
-    const intentionalReason = this.pendingStopReasons.get(key);
-    this.pendingStopReasons.delete(key);
-    const stopReason: StopReason =
-      intentionalReason ?? resolveStopReason(opts.code, opts.signal, false);
+    // Derive stop reason from exit info (stateless — no map lookup needed)
+    const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     // Record exit in spawning service
     this.deps.spawning.recordExit(opts.chatroomId);

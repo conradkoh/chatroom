@@ -472,19 +472,14 @@ describe('AgentProcessManager', () => {
       expect(slot!.pid).toBe(100);
     });
 
-    test('intentional stop (user.stop) clears crash loop and does NOT restart', async () => {
+    test('signal exit (SIGTERM) triggers restart (no stale reason leak)', async () => {
       await manager.ensureRunning(createOpts());
-
-      // Record some crash loop history
-      deps.crashLoop.record(CHATROOM_ID, ROLE);
-      deps.crashLoop.record(CHATROOM_ID, ROLE);
 
       const service = deps.agentServices.get('opencode')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
 
-      // Simulate intentional exit (set pending stop reason externally or via stop flow)
-      // For handleExit, the intentional reason comes from pendingStopReasons
-      // which is set by the stop() method. Let's test directly:
+      // SIGTERM exit → agent_process.signal → should trigger restart
+      // This verifies no stale state from prior stops leaks into the reason
       manager.handleExit({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -493,13 +488,10 @@ describe('AgentProcessManager', () => {
         signal: 'SIGTERM',
       });
 
-      // Without a pending stop reason, SIGTERM → agent_process.signal → restart
-      // To test user.stop, we need to use the manager's stop() which sets pendingStopReasons
-      // Let's verify the direct path for signal-based stop
-      // Actually, let's set up a new test where stop() is called first
-
-      // For this test, verify the code path by checking what happens with
-      // an unexpected signal exit (should trigger restart, not be intentional)
+      // Should restart because agent_process.signal is a restartable reason
+      await vi.waitFor(() => {
+        expect(service.spawn).toHaveBeenCalledTimes(1);
+      });
     });
 
     test('stale PID is ignored', async () => {
@@ -549,24 +541,53 @@ describe('AgentProcessManager', () => {
       expect(service.spawn).not.toHaveBeenCalled();
     });
 
-    test('daemon.respawn does not auto-restart', async () => {
+    test('crash after previous stop does not leak stale stop reason', async () => {
       await manager.ensureRunning(createOpts());
 
-      // Set pending stop reason to daemon.respawn (simulates what stop() does)
-      // Access via the stop flow:
-      // Actually, we need to test that daemon.respawn exits don't restart.
-      // The easiest way: call handleExit after setting pendingStopReasons via stop.
-      // But stop() actually kills the process. Let's test at a lower level.
+      const service = deps.agentServices.get('opencode')!;
 
-      // For now, let's simulate by directly calling handleExit with daemon.respawn
-      // We need to set the pending stop reason. Since it's private, we'll use
-      // the approach of calling stop(), but our stop kills the process...
-      // Instead, let's verify that signal-based exit (which would be daemon.respawn
-      // in the real flow) doesn't restart when the reason is set.
+      // Stop the agent intentionally (user.stop)
+      await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
 
-      // Actually, the simplest test: the handleExit checks pendingStopReasons.
-      // If we call stop(), the slot transitions to stopping and handleExit wouldn't
-      // match the pid. So let's just verify the logic for crash-type exits.
+      // Restart the agent
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (service.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
+        pid: 200,
+        workingDir: '/test/work',
+      });
+      await manager.ensureRunning(createOpts());
+
+      // Clear mutation mock to isolate the exit event we care about
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      // Now let it crash — the stop reason should be derived from exit info,
+      // NOT leaked from the previous user.stop
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: 200,
+        code: 1,
+        signal: null,
+      });
+
+      // Verify the recordAgentExited mutation was called with agent_process.crashed
+      await vi.waitFor(() => {
+        const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
+        const exitCall = mutationCalls.find(
+          (c: unknown[]) =>
+            c[1] &&
+            typeof c[1] === 'object' &&
+            (c[1] as Record<string, unknown>).stopReason !== undefined
+        );
+        expect(exitCall).toBeDefined();
+        expect((exitCall![1] as Record<string, unknown>).stopReason).toBe(
+          'agent_process.crashed'
+        );
+      });
+    });
+
+    test('clean exit triggers restart', async () => {
+      await manager.ensureRunning(createOpts());
 
       const service = deps.agentServices.get('opencode')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
