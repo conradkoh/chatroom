@@ -1826,17 +1826,7 @@ export const MessageFeed = memo(function MessageFeed({
   // Scroll to bottom (instant, for interval-based pinning)
   const snapToBottom = useCallback(() => {
     if (feedRef.current) {
-      const before = feedRef.current.scrollTop;
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
-      const after = feedRef.current.scrollTop;
-      console.log('[scroll-debug] snapToBottom:', {
-        before,
-        after,
-        scrollHeight: feedRef.current.scrollHeight,
-        clientHeight: feedRef.current.clientHeight,
-        maxScroll: feedRef.current.scrollHeight - feedRef.current.clientHeight,
-        gap: feedRef.current.scrollHeight - after - feedRef.current.clientHeight,
-      });
     }
   }, []);
 
@@ -1902,14 +1892,6 @@ export const MessageFeed = memo(function MessageFeed({
       if (pinnedToBottomRef.current && feedRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
         const gap = scrollHeight - scrollTop - clientHeight;
-        console.log('[scroll-debug] interval check:', {
-          pinned: pinnedToBottomRef.current,
-          scrollTop: Math.round(scrollTop),
-          scrollHeight,
-          clientHeight,
-          gap: Math.round(gap),
-          willSnap: gap > 1,
-        });
         // Only snap if not already at bottom (avoids unnecessary DOM writes)
         // Use >= 1 to catch Safari's sub-pixel rounding (Safari reports gap=1 even at max scroll)
         if (gap >= 1) {
@@ -1950,7 +1932,6 @@ export const MessageFeed = memo(function MessageFeed({
     lastScrollTopRef.current = scrollTop;
 
     if (atBottom && !pinnedToBottomRef.current) {
-      console.log('[scroll-debug] scroll → re-pin (reached bottom)');
       pinnedToBottomRef.current = true;
       setIsAtBottom(true);
     }
@@ -1981,7 +1962,6 @@ export const MessageFeed = memo(function MessageFeed({
         const { scrollTop, scrollHeight, clientHeight } = el;
         const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
         if (!atBottom && pinnedToBottomRef.current) {
-          console.log('[scroll-debug] wheel/touch → unpin');
           pinnedToBottomRef.current = false;
           setIsAtBottom(false);
         }
