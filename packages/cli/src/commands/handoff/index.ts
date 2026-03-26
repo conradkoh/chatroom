@@ -38,6 +38,7 @@ export interface HandoffOptions {
   message: string;
   nextRole: string;
   attachedArtifactIds?: string[];
+  attachedWorkflowKeys?: string[];
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -65,7 +66,7 @@ export async function handoff(
   deps?: HandoffDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, message, nextRole, attachedArtifactIds = [] } = options;
+  const { role, message, nextRole, attachedArtifactIds = [], attachedWorkflowKeys = [] } = options;
 
   // Get session ID for authentication
   const sessionId = d.session.getSessionId();
@@ -108,6 +109,24 @@ export async function handoff(
     }
   }
 
+  // Resolve workflow keys to IDs
+  const resolvedWorkflowIds: string[] = [];
+  if (attachedWorkflowKeys.length > 0) {
+    for (const key of attachedWorkflowKeys) {
+      try {
+        const result = await d.backend.query(api.workflows.resolveWorkflowId, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowKey: key,
+        });
+        resolvedWorkflowIds.push(result.workflowId);
+      } catch {
+        formatError(`Workflow "${key}" not found`, ['Check the workflow key and try again']);
+        process.exit(1);
+      }
+    }
+  }
+
   let result;
   try {
     result = await d.backend.mutation(api.messages.handoff, {
@@ -118,6 +137,9 @@ export async function handoff(
       targetRole: nextRole,
       ...(attachedArtifactIds.length > 0 && {
         attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
+      }),
+      ...(resolvedWorkflowIds.length > 0 && {
+        attachedWorkflowIds: resolvedWorkflowIds as Id<'chatroom_workflows'>[],
       }),
     });
   } catch (error) {
@@ -192,6 +214,55 @@ export async function handoff(
     attachedArtifactIds.forEach((id) => {
       console.log(`   • ${id}`);
     });
+  }
+
+  // Show attached workflow summaries
+  if (resolvedWorkflowIds.length > 0) {
+    for (const wfId of resolvedWorkflowIds) {
+      try {
+        const detail = await d.backend.query(api.workflows.getWorkflowDetail, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowId: wfId as Id<'chatroom_workflows'>,
+        });
+
+        const wf = detail.workflow;
+        console.log('');
+        console.log(
+          `📊 Attached Workflow: ${wf.workflowKey} (${wf.status}, ${detail.steps.length} steps)`
+        );
+
+        for (let i = 0; i < detail.steps.length; i++) {
+          const step = detail.steps[i];
+          const isLast = i === detail.steps.length - 1;
+          const prefix = isLast ? '└─' : '├─';
+          const statusEmoji =
+            step.status === 'completed'
+              ? '✅'
+              : step.status === 'in_progress'
+                ? '🔄'
+                : step.status === 'cancelled'
+                  ? '❌'
+                  : '⏳';
+          const roleLabel = step.assigneeRole ? ` [${step.assigneeRole}]` : '';
+          const deps =
+            step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
+          console.log(
+            `   ${prefix} ${step.stepKey}${roleLabel} ${statusEmoji} ${step.status}${deps}`
+          );
+        }
+
+        console.log('');
+        console.log(
+          `   Inspect: chatroom workflow status --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey}`
+        );
+        console.log(
+          `   View step: chatroom workflow step-view --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey} --step-key=<key>`
+        );
+      } catch {
+        // Non-fatal: just skip rendering if query fails
+      }
+    }
   }
 
   const convexUrl = d.session.getConvexUrl();

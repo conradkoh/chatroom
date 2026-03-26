@@ -1,5 +1,10 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import React, { useState } from 'react';
+
+import { WorkflowVisualizer } from '../components/WorkflowVisualizer';
+import { buildWorkflowMermaid } from '../utils/workflowMermaid';
 import { registerEventType } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
 import type {
@@ -7,48 +12,41 @@ import type {
   WorkflowStepCompletedEvent,
   WorkflowStepCancelledEvent,
   WorkflowCompletedEvent,
+  WorkflowCreatedEvent,
+  WorkflowSpecifiedEvent,
+  WorkflowStepStartedEvent,
 } from '../viewModels/eventStreamViewModel';
 
-// ─── Helpers ───────────────────────────────────────────────────────
+// ─── View Workflow Button ──────────────────────────────────────────
 
 /**
- * Sanitize text for use in Mermaid node labels.
- * Escapes backslashes and replaces double quotes with single quotes
- * to prevent Mermaid parse errors.
+ * Shared button that opens the WorkflowVisualizer modal.
+ * Used across all workflow event detail views.
  */
-function sanitizeMermaidLabel(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/"/g, "'");
-}
-
-/**
- * Generate a Mermaid flowchart string from workflow steps.
- * Each step is rendered as a node with its key, description, and optional assignee.
- * Dependency edges connect steps.
- */
-function buildWorkflowMermaid(
-  steps: NonNullable<WorkflowStartedEvent['steps']>
-): string {
-  const lines: string[] = ['flowchart TD'];
-
-  // Node definitions — sanitize labels by replacing quotes with backtick-safe chars
-  for (const step of steps) {
-    const desc = sanitizeMermaidLabel(step.description);
-    const role = step.assigneeRole ? sanitizeMermaidLabel(step.assigneeRole) : null;
-    const label = role
-      ? `${step.stepKey}\\n${desc}\\n[${role}]`
-      : `${step.stepKey}\\n${desc}`;
-    // Use square bracket nodes for all steps
-    lines.push(`  ${step.stepKey}["${label}"]`);
-  }
-
-  // Edges
-  for (const step of steps) {
-    for (const dep of step.dependsOn) {
-      lines.push(`  ${dep} --> ${step.stepKey}`);
-    }
-  }
-
-  return lines.join('\n');
+function WorkflowVisualizerButton({
+  workflowId,
+  chatroomId,
+}: {
+  workflowId: string;
+  chatroomId: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="mt-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-chatroom-bg-tertiary hover:bg-chatroom-bg-hover border border-chatroom-border text-chatroom-text-secondary transition-colors"
+      >
+        View Workflow
+      </button>
+      <WorkflowVisualizer
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+        workflowId={workflowId as Id<'chatroom_workflows'>}
+      />
+    </>
+  );
 }
 
 // ─── Workflow Started ──────────────────────────────────────────────
@@ -89,6 +87,7 @@ function renderWorkflowStartedDetails(event: WorkflowStartedEvent) {
           content={`\`\`\`mermaid\n${mermaidChart}\n\`\`\``}
         />
       )}
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
     </EventDetails>
   );
 }
@@ -121,6 +120,7 @@ function renderStepCompletedDetails(event: WorkflowStepCompletedEvent) {
       <DetailRow label="Workflow Key" value={event.workflowKey} mono />
       {event.completedBy && <DetailRow label="Completed By" value={event.completedBy} />}
       <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
     </EventDetails>
   );
 }
@@ -154,6 +154,7 @@ function renderStepCancelledDetails(event: WorkflowStepCancelledEvent) {
       <DetailRow label="Reason" value={event.reason} />
       {event.cancelledBy && <DetailRow label="Cancelled By" value={event.cancelledBy} />}
       <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
     </EventDetails>
   );
 }
@@ -186,6 +187,115 @@ function renderWorkflowCompletedDetails(event: WorkflowCompletedEvent) {
       <DetailRow label="Workflow Key" value={event.workflowKey} mono />
       <DetailRow label="Final Status" value={event.finalStatus} />
       <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
+    </EventDetails>
+  );
+}
+
+// ─── Workflow Created ──────────────────────────────────────────────
+
+function renderWorkflowCreatedCell(event: WorkflowCreatedEvent, isSelected: boolean) {
+  return (
+    <EventRow
+      type="workflow.created"
+      badgeText="Draft 📝"
+      badgeColor="muted"
+      primaryInfo={event.workflowKey}
+      secondaryInfo={`${event.stepCount} steps`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderWorkflowCreatedDetails(event: WorkflowCreatedEvent) {
+  const mermaidChart = event.steps && event.steps.length > 0
+    ? buildWorkflowMermaid(event.steps)
+    : null;
+
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Workflow Created"
+      timestamp={event.timestamp}
+      type="workflow.created"
+    >
+      <DetailRow label="Workflow Key" value={event.workflowKey} mono />
+      <DetailRow label="Created By" value={event.createdBy} />
+      <DetailRow label="Steps" value={String(event.stepCount)} />
+      <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      {mermaidChart && (
+        <MarkdownDetailBlock
+          label="Step Graph"
+          content={`\`\`\`mermaid\n${mermaidChart}\n\`\`\``}
+        />
+      )}
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
+    </EventDetails>
+  );
+}
+
+// ─── Workflow Specified ────────────────────────────────────────────
+
+function renderWorkflowSpecifiedCell(event: WorkflowSpecifiedEvent, isSelected: boolean) {
+  return (
+    <EventRow
+      type="workflow.specified"
+      badgeText="Specified 📋"
+      badgeColor="info"
+      primaryInfo={event.stepKey}
+      secondaryInfo={event.workflowKey}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderWorkflowSpecifiedDetails(event: WorkflowSpecifiedEvent) {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Workflow Step Specified"
+      timestamp={event.timestamp}
+      type="workflow.specified"
+    >
+      <DetailRow label="Step Key" value={event.stepKey} mono />
+      <DetailRow label="Workflow Key" value={event.workflowKey} mono />
+      <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
+    </EventDetails>
+  );
+}
+
+// ─── Workflow Step Started ─────────────────────────────────────────
+
+function renderStepStartedCell(event: WorkflowStepStartedEvent, isSelected: boolean) {
+  return (
+    <EventRow
+      type="workflow.stepStarted"
+      badgeText="Step ▶️"
+      badgeColor="info"
+      primaryInfo={event.stepKey}
+      secondaryInfo={event.assigneeRole ?? ''}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderStepStartedDetails(event: WorkflowStepStartedEvent) {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Workflow Step Started"
+      timestamp={event.timestamp}
+      type="workflow.stepStarted"
+    >
+      <DetailRow label="Step Key" value={event.stepKey} mono />
+      <DetailRow label="Workflow Key" value={event.workflowKey} mono />
+      {event.assigneeRole && <DetailRow label="Assignee" value={event.assigneeRole} />}
+      <DetailRow label="Workflow ID" value={event.workflowId} mono />
+      <WorkflowVisualizerButton workflowId={event.workflowId} chatroomId={event.chatroomId} />
     </EventDetails>
   );
 }
@@ -208,5 +318,17 @@ export function registerWorkflowEvents(): void {
   registerEventType('workflow.completed', {
     cellRenderer: renderWorkflowCompletedCell,
     detailsRenderer: renderWorkflowCompletedDetails,
+  });
+  registerEventType('workflow.created', {
+    cellRenderer: renderWorkflowCreatedCell,
+    detailsRenderer: renderWorkflowCreatedDetails,
+  });
+  registerEventType('workflow.specified', {
+    cellRenderer: renderWorkflowSpecifiedCell,
+    detailsRenderer: renderWorkflowSpecifiedDetails,
+  });
+  registerEventType('workflow.stepStarted', {
+    cellRenderer: renderStepStartedCell,
+    detailsRenderer: renderStepStartedDetails,
   });
 }

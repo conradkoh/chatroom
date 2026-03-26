@@ -30,7 +30,10 @@ export type EventTypeName =
   | 'workflow.started'
   | 'workflow.stepCompleted'
   | 'workflow.stepCancelled'
-  | 'workflow.completed';
+  | 'workflow.completed'
+  | 'workflow.created'
+  | 'workflow.specified'
+  | 'workflow.stepStarted';
 
 // ─── Base Event Interface ─────────────────────────────────────────────────────
 
@@ -260,6 +263,39 @@ export interface WorkflowCompletedEvent extends EventStreamEventBase {
   finalStatus: 'completed' | 'cancelled';
 }
 
+export interface WorkflowCreatedEvent extends EventStreamEventBase {
+  type: 'workflow.created';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  createdBy: string;
+  stepCount: number;
+  steps?: {
+    stepKey: string;
+    description: string;
+    assigneeRole?: string;
+    dependsOn: string[];
+    order: number;
+  }[];
+}
+
+export interface WorkflowSpecifiedEvent extends EventStreamEventBase {
+  type: 'workflow.specified';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+}
+
+export interface WorkflowStepStartedEvent extends EventStreamEventBase {
+  type: 'workflow.stepStarted';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  assigneeRole?: string;
+}
+
 // ─── Combined Event Union ─────────────────────────────────────────────────────
 
 export type EventStreamEvent =
@@ -284,7 +320,10 @@ export type EventStreamEvent =
   | WorkflowStartedEvent
   | WorkflowStepCompletedEvent
   | WorkflowStepCancelledEvent
-  | WorkflowCompletedEvent;
+  | WorkflowCompletedEvent
+  | WorkflowCreatedEvent
+  | WorkflowSpecifiedEvent
+  | WorkflowStepStartedEvent;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -313,6 +352,9 @@ export function formatEventType(type: string): string {
     'workflow.stepCompleted': 'Workflow Step Completed',
     'workflow.stepCancelled': 'Workflow Step Cancelled',
     'workflow.completed': 'Workflow Completed',
+    'workflow.created': 'Workflow Created',
+    'workflow.specified': 'Workflow Specified',
+    'workflow.stepStarted': 'Workflow Step Started',
   };
   return labels[type] ?? type;
 }

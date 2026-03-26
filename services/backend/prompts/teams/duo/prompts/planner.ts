@@ -29,7 +29,7 @@ import { getCliEnvPrefix } from '../../../utils/env';
 const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
@@ -62,7 +62,7 @@ ${classificationNote}
 - You are the entry point — you communicate directly with the user
 - You coordinate with the builder for implementation tasks
 - You are ultimately accountable for all work quality
-- For complex tasks (3+ phases), use the workflow skill to plan and track execution
+- For any multi-step task (2+ steps), use the workflow skill to plan and track execution
 ${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you must implement yourself'}
 - After reviewing builder output, deliver results to the user
 - **Only you can hand off to \`user\`**
@@ -73,7 +73,7 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix })}
+${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG)}
 

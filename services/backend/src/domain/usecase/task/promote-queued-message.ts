@@ -46,6 +46,9 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedMessageIds?.length && {
       attachedMessageIds: queueRecord.attachedMessageIds,
     }),
+    ...(queueRecord.attachedWorkflowIds?.length && {
+      attachedWorkflowIds: queueRecord.attachedWorkflowIds,
+    }),
   });
 
   // Note: acknowledgedAt is intentionally NOT set here.

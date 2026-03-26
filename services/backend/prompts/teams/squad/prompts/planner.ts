@@ -30,7 +30,7 @@ import { getCliEnvPrefix } from '../../../utils/env';
 const SQUAD_TEAM_CONFIG = { hasBuilder: true, hasReviewer: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
@@ -71,7 +71,7 @@ ${classificationNote}
 - You coordinate a team of builder and reviewer
 - You are the ONLY role that communicates directly with the user
 - You are ultimately accountable for all work quality
-- For complex tasks (3+ phases), use the workflow skill to plan and track execution
+- For any multi-step task (2+ steps), use the workflow skill to plan and track execution
 ${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
 ${reviewerOnline ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}
 
@@ -81,7 +81,7 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix })}
+${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(SQUAD_TEAM_CONFIG)}
 

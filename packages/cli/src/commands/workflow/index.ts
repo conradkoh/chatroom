@@ -46,13 +46,6 @@ export interface StepCompleteOptions {
   stepKey: string;
 }
 
-export interface StepCancelOptions {
-  role: string;
-  workflowKey: string;
-  stepKey: string;
-  reason: string;
-}
-
 export interface ExitWorkflowOptions {
   role: string;
   workflowKey: string;
@@ -326,12 +319,13 @@ export async function specifyWorkflowStep(
   const sections = parseSections(
     options.stdinContent,
     ['GOAL', 'REQUIREMENTS'],
-    ['WARNINGS']
+    ['WARNINGS', 'SKILLS']
   );
 
   const goal = sections.get('GOAL')!;
   const requirements = sections.get('REQUIREMENTS')!;
   const warnings = sections.get('WARNINGS') || undefined;
+  const skills = sections.get('SKILLS') || undefined;
 
   try {
     await d.backend.mutation(api.workflows.specifyStep, {
@@ -343,6 +337,7 @@ export async function specifyWorkflowStep(
       goal,
       requirements,
       warnings,
+      skills,
     });
 
     console.log('');
@@ -474,9 +469,12 @@ export async function getWorkflowStatus(
 
         // Show specification details if present
         if (step.specification) {
-          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
           if (spec.goal) {
             console.log(`   📎 Goal: ${spec.goal}`);
+          }
+          if (spec.skills) {
+            console.log(`   🔧 Skills: ${spec.skills}`);
           }
           if (spec.requirements) {
             console.log(`   📎 Requirements: ${spec.requirements}`);
@@ -544,47 +542,6 @@ export async function completeStep(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to complete step: ${(error as Error).message}`);
-    process.exit(1);
-    return;
-  }
-}
-
-/**
- * Cancel a workflow step with a required reason.
- */
-export async function cancelStep(
-  chatroomId: string,
-  options: StepCancelOptions,
-  deps?: WorkflowDeps
-): Promise<void> {
-  const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
-  validateChatroomId(chatroomId);
-
-  // Validate reason is non-empty
-  if (!options.reason || options.reason.trim().length === 0) {
-    console.error('❌ Reason is required when cancelling a step');
-    process.exit(1);
-    return;
-  }
-
-  try {
-    await d.backend.mutation(api.workflows.cancelStep, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-      reason: options.reason.trim(),
-    });
-
-    console.log('');
-    console.log('❌ Step cancelled');
-    console.log(`   Workflow: ${options.workflowKey}`);
-    console.log(`   Step: ${options.stepKey}`);
-    console.log(`   Reason: ${options.reason.trim()}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to cancel step: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -694,7 +651,7 @@ export async function viewStep(
 
     // Show specification
     if (step.specification) {
-      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
       console.log('');
       console.log('──────────────────────────────────────────────────');
       console.log('📋 SPECIFICATION');
@@ -703,6 +660,11 @@ export async function viewStep(
         console.log('');
         console.log('Goal:');
         console.log(spec.goal);
+      }
+      if (spec.skills) {
+        console.log('');
+        console.log('Skills:');
+        console.log(spec.skills);
       }
       if (spec.requirements) {
         console.log('');
