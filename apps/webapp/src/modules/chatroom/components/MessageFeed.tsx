@@ -1911,7 +1911,8 @@ export const MessageFeed = memo(function MessageFeed({
           willSnap: gap > 1,
         });
         // Only snap if not already at bottom (avoids unnecessary DOM writes)
-        if (gap > 1) {
+        // Use >= 1 to catch Safari's sub-pixel rounding (Safari reports gap=1 even at max scroll)
+        if (gap >= 1) {
           snapToBottom();
         }
       }
@@ -1927,8 +1928,10 @@ export const MessageFeed = memo(function MessageFeed({
     const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
     const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
 
-    // Detect intentional upward scroll
+    // Detect intentional upward scroll (user dragging/wheeling up)
+    // Large sudden drops (>100px) are likely layout changes, not user scrolls
     const scrolledUp = scrollTop < lastScrollTopRef.current - 5; // 5px deadzone
+    const isLargeJump = Math.abs(scrollTop - lastScrollTopRef.current) > 100;
     const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
 
@@ -1938,7 +1941,9 @@ export const MessageFeed = memo(function MessageFeed({
       }
       pinnedToBottomRef.current = true;
       setIsAtBottom(true);
-    } else if (scrolledUp) {
+    } else if (scrolledUp && !isLargeJump) {
+      // Only unpin on small upward scrolls (user interaction)
+      // Large jumps are from layout changes (textarea resize) — ignore
       console.log('[scroll-debug] scroll → unpin (scrolled up)', {
         scrollTop: Math.round(scrollTop),
         prev: Math.round(prevScrollTop),
@@ -1947,6 +1952,12 @@ export const MessageFeed = memo(function MessageFeed({
       });
       pinnedToBottomRef.current = false;
       setIsAtBottom(false);
+    } else if (scrolledUp && isLargeJump) {
+      console.log('[scroll-debug] scroll → IGNORED large jump (likely layout change)', {
+        scrollTop: Math.round(scrollTop),
+        prev: Math.round(prevScrollTop),
+        delta: Math.round(scrollTop - prevScrollTop),
+      });
     }
 
     // Load more when user scrolls within threshold of top
