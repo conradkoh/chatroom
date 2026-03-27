@@ -6,6 +6,7 @@ import Script from 'next/script';
 import './globals.css';
 import { ConvexClientProvider } from '@/app/ConvexClientProvider';
 import { Navigation } from '@/components/Navigation';
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 import { Toaster } from '@/components/ui/sonner';
 import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
@@ -91,6 +92,7 @@ export default function RootLayout({
           </ConvexQueryCacheProvider>
         </ConvexClientProvider>
         <Toaster />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
