@@ -190,43 +190,6 @@ export async function getTaskDeliveryPromptData(
     }
   }
 
-  // Fetch attached tasks if any exist in origin message
-  const attachedTasksMap = new Map<
-    string,
-    { id: string; content: string; status: string; createdBy: string }
-  >();
-  if (originMessage?.attachedTaskIds && originMessage.attachedTaskIds.length > 0) {
-    for (const taskId of originMessage.attachedTaskIds) {
-      const attachedTask = await ctx.db.get('chatroom_tasks', taskId);
-      if (attachedTask) {
-        attachedTasksMap.set(taskId, {
-          id: attachedTask._id,
-          content: attachedTask.content,
-          status: attachedTask.status,
-          createdBy: attachedTask.createdBy,
-        });
-      }
-    }
-  }
-
-  // Fetch attached backlog items if any exist in origin message
-  const attachedBacklogItemsMap = new Map<
-    string,
-    { id: string; content: string; status: string }
-  >();
-  if (originMessage?.attachedBacklogItemIds && originMessage.attachedBacklogItemIds.length > 0) {
-    for (const itemId of originMessage.attachedBacklogItemIds) {
-      const item = await ctx.db.get('chatroom_backlog', itemId);
-      if (item) {
-        attachedBacklogItemsMap.set(itemId, {
-          id: item._id,
-          content: item.content,
-          status: item.status,
-        });
-      }
-    }
-  }
-
   // Fetch attached messages if any exist in origin message
   const attachedMessagesMap = new Map<
     string,
@@ -274,21 +237,6 @@ export async function getTaskDeliveryPromptData(
           senderRole: originMessage.senderRole,
           content: originMessage.content,
           classification: originMessage.classification,
-          attachedTasks: originMessage.attachedTaskIds
-            ?.map((id) => attachedTasksMap.get(id))
-            .filter(Boolean)
-            .map((t) => ({
-              status: t!.status,
-              content: t!.content,
-            })),
-          attachedBacklogItems: originMessage.attachedBacklogItemIds
-            ?.map((id) => attachedBacklogItemsMap.get(id))
-            .filter(Boolean)
-            .map((i) => ({
-              _id: i!.id,
-              status: i!.status,
-              content: i!.content,
-            })),
           attachedMessages: originMessage.attachedMessageIds
             ?.map((id) => attachedMessagesMap.get(id))
             .filter(Boolean)

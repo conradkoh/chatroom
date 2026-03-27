@@ -48,6 +48,11 @@ export interface ReadTaskResult {
     elapsedHours: number;
     messagesSinceContext: number;
   };
+  attachedBacklogItems?: {
+    _id: string;
+    content: string;
+    status: string;
+  }[];
 }
 
 // ============================================================================
@@ -110,7 +115,14 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
     await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
     const context = await fetchCurrentContext(ctx, chatroomId);
-    return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
+    const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
+    return {
+      taskId,
+      content: task.content,
+      status: 'in_progress',
+      ...(context && { context }),
+      ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+    };
   }
 
   // 5. If status is not acknowledged → error
@@ -128,8 +140,17 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   // 8. Fetch current context for inclusion in result
   const context = await fetchCurrentContext(ctx, chatroomId);
 
-  // 9. Return result
-  return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
+  // 9. Fetch attached backlog items from source message
+  const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
+
+  // 10. Return result
+  return {
+    taskId,
+    content: task.content,
+    status: 'in_progress',
+    ...(context && { context }),
+    ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+  };
 }
 // ============================================================================
 // HELPERS
@@ -193,4 +214,40 @@ async function fetchCurrentContext(
     elapsedHours,
     messagesSinceContext,
   };
+}
+
+/**
+ * Fetches attached backlog items from the task's source message.
+ *
+ * When a user sends a message with attached backlog items, the message stores
+ * the IDs in `attachedBacklogItemIds`. The task created from that message links
+ * back via `sourceMessageId`. This function follows that chain to return the
+ * backlog items for inclusion in the task read result.
+ */
+async function fetchAttachedBacklogItems(
+  ctx: MutationCtx,
+  task: { sourceMessageId?: Id<'chatroom_messages'> }
+): Promise<ReadTaskResult['attachedBacklogItems'] & object> {
+  if (!task.sourceMessageId) {
+    return [];
+  }
+
+  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+  if (!sourceMessage?.attachedBacklogItemIds || sourceMessage.attachedBacklogItemIds.length === 0) {
+    return [];
+  }
+
+  const items: { _id: string; content: string; status: string }[] = [];
+  for (const itemId of sourceMessage.attachedBacklogItemIds) {
+    const item = await ctx.db.get('chatroom_backlog', itemId);
+    if (item) {
+      items.push({
+        _id: item._id,
+        content: item.content,
+        status: item.status,
+      });
+    }
+  }
+
+  return items;
 }
