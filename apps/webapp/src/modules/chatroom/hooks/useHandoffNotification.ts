@@ -17,7 +17,38 @@ interface NotifiableMessage {
 const NOTIFICATION_THROTTLE_MS = 3000;
 
 /**
+ * Sends a notification via the Service Worker if available, otherwise
+ * falls back to the window Notification API.
+ */
+function showNotification(title: string, body: string, tag: string): void {
+  if (typeof window === 'undefined') return;
+
+  // Try Service Worker first — richer notification support
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      payload: { title, body, tag },
+    });
+    return;
+  }
+
+  // Fallback: direct Notification API
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const notification = new Notification(title, { body, tag });
+    setTimeout(() => notification.close(), 5000);
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  }
+}
+
+/**
  * Fires a browser notification when a new handoff message targets the user.
+ *
+ * Prefers the Service Worker notification API (via postMessage) for richer
+ * notification support. Falls back to window.Notification when the SW is
+ * not available.
  *
  * Only triggers when:
  * 1. The browser tab is NOT focused (tracked via visibilitychange listener)
@@ -35,7 +66,7 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
   );
   const lastNotificationTimeRef = useRef(0);
 
-  // Request notification permission on first mount
+  // Request permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
@@ -44,7 +75,7 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
     }
   }, []);
 
-  // Track document visibility in real-time via event listener
+  // Track document visibility
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -52,7 +83,6 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
       isDocumentHiddenRef.current = document.hidden;
     };
 
-    // Sync initial value
     isDocumentHiddenRef.current = document.hidden;
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -62,27 +92,16 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
   }, []);
 
   const fireNotification = useCallback((senderRole: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
-    const notification = new Notification('Chatroom Handoff', {
-      body: `${senderRole} has handed off to you`,
-      tag: 'chatroom-handoff', // Prevents duplicate notifications stacking
-    });
-
-    // Auto-close after 5 seconds
-    setTimeout(() => notification.close(), 5000);
-
-    // Focus the window when clicked
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
+    showNotification(
+      'Chatroom Handoff',
+      `${senderRole} has handed off to you`,
+      'chatroom-handoff'
+    );
   }, []);
 
-  // Unified effect: mark initial messages as seen OR fire notifications for new handoffs
+  // Detect new handoff messages and fire notifications
   useEffect(() => {
-    // On first run with messages: mark all IDs and return without notifying
+    // On initial load, mark all existing messages as seen (don't notify)
     if (isInitialLoadRef.current) {
       if (messages.length > 0) {
         for (const msg of messages) {
@@ -93,7 +112,7 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
       return;
     }
 
-    // Subsequent runs: detect new messages and notify for handoffs to user
+    // Check for new messages
     for (const msg of messages) {
       if (notifiedIdsRef.current.has(msg._id)) continue;
       notifiedIdsRef.current.add(msg._id);
