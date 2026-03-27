@@ -5,7 +5,10 @@
  * by a user. Used by the chatroom listing sidebar to show running/stopped
  * indicators without leaking machine-level details.
  *
- * Reads from chatroom_teamAgentConfigs (no machine ownership filtering).
+ * An agent is considered "running" only if it has a spawned PID AND its
+ * daemon is connected. This matches the frontend AgentConfigTabs logic.
+ *
+ * Reads from chatroom_teamAgentConfigs + chatroom_machines (daemon connectivity).
  * Replaces `listRemoteAgentRunningStatus` which exposed raw machineId+role
  * tuples to the frontend.
  */
