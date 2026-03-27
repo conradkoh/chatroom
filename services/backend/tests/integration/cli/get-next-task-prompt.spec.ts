@@ -1596,4 +1596,99 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(fullOutput).not.toContain('<backlog-item>');
     expect(fullOutput).not.toContain('<system-info>');
   });
+
+  test('readTask mutation returns attached backlog items from source message', async () => {
+    // Verifies that the readTask mutation (used by CLI `task read` command)
+    // correctly returns attachedBacklogItems when the source message has them.
+    const { sessionId } = await createTestSession('test-readtask-backlog-items');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a chatroom_backlog item
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+      sessionId,
+      chatroomId,
+      content: 'Add dead code elimination pillar',
+      createdBy: 'user',
+    });
+
+    // User sends message with backlog item attached
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please work on this backlog item',
+      type: 'message',
+      attachedBacklogItemIds: [backlogItemId],
+    });
+
+    // Builder claims the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Get the task ID from the acknowledged task
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    // Use readTask mutation (the one used by CLI `task read`)
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    // Verify backlog items are returned
+    expect(result.attachedBacklogItems).toBeDefined();
+    expect(result.attachedBacklogItems).toHaveLength(1);
+    expect(result.attachedBacklogItems![0].content).toBe('Add dead code elimination pillar');
+    expect(result.attachedBacklogItems![0].status).toBe('backlog');
+    expect(result.attachedBacklogItems![0]._id).toBe(backlogItemId);
+  });
+
+  test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {
+    const { sessionId } = await createTestSession('test-readtask-no-backlog-items');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message WITHOUT backlog items
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Just a regular message',
+      type: 'message',
+    });
+
+    // Builder claims the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Get the task ID
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    // Use readTask mutation
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    // Should not have attachedBacklogItems
+    expect(result.attachedBacklogItems).toBeUndefined();
+  });
 });
