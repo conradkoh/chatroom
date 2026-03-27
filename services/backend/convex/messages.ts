@@ -2367,21 +2367,6 @@ export const getTaskDeliveryPrompt = query({
             senderRole: originMessage.senderRole,
             content: originMessage.content,
             classification: originMessage.classification,
-            attachedTasks: originMessage.attachedTaskIds
-              ?.map((id) => attachedTasksMap.get(id))
-              .filter(Boolean)
-              .map((t) => ({
-                status: t!.status,
-                content: t!.content,
-              })),
-            attachedBacklogItems: originMessage.attachedBacklogItemIds
-              ?.map((id) => attachedBacklogItemsMap.get(id))
-              .filter(Boolean)
-              .map((i) => ({
-                _id: i!.id,
-                status: i!.status,
-                content: i!.content,
-              })),
             attachedMessages: originMessage.attachedMessageIds
               ?.map((id) => attachedMessagesMap.get(id))
               .filter(Boolean)

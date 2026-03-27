@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity } from 'lucide-react';
+import { Activity, ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
@@ -43,6 +43,8 @@ export const EventStreamModal = memo(function EventStreamModal({
 }: EventStreamModalProps) {
   // Track selected event for detail view
   const [selectedEvent, setSelectedEvent] = useState<EventStreamEvent | null>(null);
+  // Track whether to show details on mobile (list/detail toggle)
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Ref for the scrollable event list container
   const eventListRef = useRef<HTMLDivElement>(null);
@@ -60,10 +62,11 @@ export const EventStreamModal = memo(function EventStreamModal({
     }
   }, [events, selectedEvent]);
 
-  // Reset selection when modal closes
+  // Reset selection and mobile detail view when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedEvent(null);
+      setShowMobileDetail(false);
     }
   }, [isOpen]);
 
@@ -123,6 +126,15 @@ export const EventStreamModal = memo(function EventStreamModal({
     onLoadMore();
   }, [onLoadMore, events.length]);
 
+  // Handle selecting an event – also show detail panel on mobile
+  const handleSelectEvent = useCallback(
+    (event: EventStreamEvent) => {
+      setSelectedEvent(event);
+      setShowMobileDetail(true);
+    },
+    []
+  );
+
   // Render event row using the registry
   const renderEventRow = (event: EventStreamEvent) => {
     const isSelected = selectedEvent?._id === event._id;
@@ -131,7 +143,7 @@ export const EventStreamModal = memo(function EventStreamModal({
 
     if (definition) {
       return (
-        <div key={event._id} onClick={() => setSelectedEvent(event)} className="cursor-pointer">
+        <div key={event._id} onClick={() => handleSelectEvent(event)} className="cursor-pointer">
           {definition.cellRenderer(event as never, isSelected)}
         </div>
       );
@@ -143,7 +155,7 @@ export const EventStreamModal = memo(function EventStreamModal({
         type={event.type}
         timestamp={timestamp}
         isSelected={isSelected}
-        onClick={() => setSelectedEvent(event)}
+        onClick={() => handleSelectEvent(event)}
       />
     );
   };
@@ -182,7 +194,7 @@ export const EventStreamModal = memo(function EventStreamModal({
           style={{ height: '70vh' }}
         >
           {/* Left: Event List */}
-          <div className="md:w-2/5 border-r border-chatroom-border overflow-y-auto flex-shrink-0 flex flex-col">
+          <div className={`md:w-2/5 border-r border-chatroom-border overflow-y-auto flex-shrink-0 flex flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
             {/* Section header */}
             <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
               <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
@@ -222,8 +234,16 @@ export const EventStreamModal = memo(function EventStreamModal({
             )}
           </div>
           {/* Right: Event Detail */}
-          <div className="hidden md:flex md:flex-1 overflow-hidden w-full">
-            <div className="flex flex-col h-full w-full overflow-hidden">
+          <div className={`${showMobileDetail ? 'flex' : 'hidden'} md:flex md:flex-1 overflow-hidden w-full flex-col`}>
+            {/* Mobile back button */}
+            <button
+              onClick={() => setShowMobileDetail(false)}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border flex-shrink-0 md:hidden"
+            >
+              <ArrowLeft size={12} />
+              Back to events
+            </button>
+            <div className="flex flex-col h-full w-full overflow-hidden flex-1">
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <span className="text-xs text-chatroom-text-muted animate-pulse">Loading events…</span>

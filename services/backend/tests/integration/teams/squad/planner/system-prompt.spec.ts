@@ -92,7 +92,7 @@ describe('Squad Team > Planner > System Prompt', () => {
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
       - \`code-review\` (1 skill available)
-          - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+          - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
       - \`workflow\` (1 skill available)
           - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
@@ -255,6 +255,17 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **When to use a workflow:**
       If the task is a single-step change (one clear deliverable, one handoff), do it directly — no workflow needed. **For any task with 2 or more steps**, you MUST use a workflow. This applies whether you are delegating to a builder or implementing yourself. Workflows make the plan visible, trackable, and recoverable. Each workflow step should represent one logical unit of work that can be verified independently. Aim for 2–7 steps per workflow.
+
+      **Examples of multi-step tasks (MUST use workflow):**
+      - User asks for 2+ backlog items to be implemented
+      - A feature requires changes to both backend and frontend
+      - A task involves creating a branch, implementing changes, and raising a PR
+      - Any request where you identify multiple distinct pieces of work
+
+      **Examples of single-step tasks (no workflow needed):**
+      - Answering a question
+      - A single file fix with one clear change
+      - Running a command and reporting the result
 
       **For any multi-step task (2+ steps):** You MUST use the workflow skill to plan and track execution. Follow this process:
 

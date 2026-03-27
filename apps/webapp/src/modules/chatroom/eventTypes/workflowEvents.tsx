@@ -33,12 +33,14 @@ function WorkflowVisualizerButton({
   const [isOpen, setIsOpen] = useState(false);
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="mt-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-chatroom-bg-tertiary hover:bg-chatroom-bg-hover border border-chatroom-border text-chatroom-text-secondary transition-colors"
-      >
-        View Workflow
-      </button>
+      <div className="px-4 pt-2 pb-1">
+        <button
+          onClick={() => setIsOpen(true)}
+          className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-chatroom-bg-tertiary hover:bg-chatroom-bg-hover border border-chatroom-border text-chatroom-text-secondary transition-colors"
+        >
+          View Workflow
+        </button>
+      </div>
       <WorkflowVisualizer
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

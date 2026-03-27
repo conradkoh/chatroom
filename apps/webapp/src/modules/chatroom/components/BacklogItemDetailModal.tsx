@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Check, CornerUpLeft, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
+import { Check, CornerUpLeft, Paperclip, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -270,7 +270,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   disabled={isAttachedToContext || isLoading}
                   className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-transparent bg-chatroom-accent text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isAttachedToContext ? <Check size={12} /> : <Link size={12} />}
+                  {isAttachedToContext ? <Check size={12} /> : <Paperclip size={12} />}
                   {isAttachedToContext ? 'Attached ✓' : 'Attach to Context'}
                 </button>
               )}
@@ -343,7 +343,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     disabled={isAttachedToContext}
                     className="flex items-center gap-2 cursor-pointer"
                   >
-                    {isAttachedToContext ? <Check size={14} /> : <Link size={14} />}
+                    {isAttachedToContext ? <Check size={14} /> : <Paperclip size={14} />}
                     {isAttachedToContext ? 'Attached' : 'Attach to Context'}
                   </DropdownMenuItem>
 
