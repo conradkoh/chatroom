@@ -416,18 +416,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"
       \`\`\`
-
-      ## Attached Backlog (1)
-      <backlog-item>
-      - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
-
-      Add backlog section to get-next-task
-        ID: 10005;chatroom_backlog
-      </backlog-item>
-      <system-info>
-      HINT: If you have completed work on a backlog item and it is ready for review, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id="10002;chatroom_rooms" --role="builder" --backlog-item-id=<id>
-      </system-info>
       </task>
 
       <next-steps>
@@ -1602,11 +1590,10 @@ describe('Get-Next-Task Recent Improvements', () => {
     );
     expect(attachedItem?.status).toBe('backlog');
 
-    // ── Verify CLI output contains the item in ## Attached Backlog ────────────
+    // ── Verify CLI output does NOT contain backlog section (moved to task-read) ──
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
-    expect(fullOutput).toContain('## Attached Backlog (1)');
-    expect(fullOutput).toContain(
-      '- [BACKLOG] Refactor: extract shared auth helpers into a utility module'
-    );
+    expect(fullOutput).not.toContain('## Attached Backlog');
+    expect(fullOutput).not.toContain('<backlog-item>');
+    expect(fullOutput).not.toContain('<system-info>');
   });
 });

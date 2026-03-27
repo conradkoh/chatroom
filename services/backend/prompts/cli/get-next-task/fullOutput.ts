@@ -212,41 +212,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   );
   lines.push('```');
 
-  // Attached items from origin message (legacy chatroom_tasks + backlog items)
-  const legacyTasks = originMessage?.attachedTasks ?? [];
-  const backlogItems = originMessage?.attachedBacklogItems ?? [];
-  const totalAttached = legacyTasks.length + backlogItems.length;
-
-  if (totalAttached > 0) {
-    lines.push('');
-    lines.push(`## Attached Backlog (${totalAttached})`);
-
-    // Legacy tasks (no _id available — render as plain lines)
-    for (const attached of legacyTasks) {
-      lines.push(`- [${attached.status.toUpperCase()}] ${attached.content}`);
-    }
-
-    // Backlog items (with _id — wrap in <backlog-item> tags)
-    for (const attached of backlogItems) {
-      lines.push('<backlog-item>');
-      lines.push(`- [${attached.status.toUpperCase()}] ${attached.content}`);
-      lines.push(`  ID: ${attached._id}`);
-      lines.push('</backlog-item>');
-    }
-
-    // System info hint (only when backlog items with IDs are present)
-    if (backlogItems.length > 0) {
-      lines.push('<system-info>');
-      lines.push(
-        'HINT: If you have completed work on a backlog item and it is ready for review, run:'
-      );
-      lines.push(
-        `  ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=<id>`
-      );
-      lines.push('</system-info>');
-    }
-  }
-
   // Attached messages from origin message (user-pinned messages as context)
   const attachedMessages = originMessage?.attachedMessages ?? [];
   if (attachedMessages.length > 0) {
