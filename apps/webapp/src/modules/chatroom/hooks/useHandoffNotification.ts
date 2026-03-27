@@ -10,11 +10,13 @@ interface NotifiableMessage {
   type: string;
   senderRole: string;
   targetRole?: string;
-  _creationTime: number;
 }
 
 /** Minimum interval between notifications (ms). */
 const NOTIFICATION_THROTTLE_MS = 3000;
+
+/** Maximum number of message IDs to track in the notified set. */
+const MAX_NOTIFIED_IDS = 500;
 
 /**
  * Sends a notification via the Service Worker if available, otherwise
@@ -40,6 +42,21 @@ function showNotification(title: string, body: string, tag: string): void {
       window.focus();
       notification.close();
     };
+  }
+}
+
+/**
+ * Trims the notified IDs set to stay within MAX_NOTIFIED_IDS.
+ * Removes the oldest entries (Sets iterate in insertion order).
+ */
+function trimNotifiedIds(ids: Set<string>): void {
+  if (ids.size <= MAX_NOTIFIED_IDS) return;
+  const excess = ids.size - MAX_NOTIFIED_IDS;
+  let removed = 0;
+  for (const id of ids) {
+    if (removed >= excess) break;
+    ids.delete(id);
+    removed++;
   }
 }
 
@@ -129,5 +146,8 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
         }
       }
     }
+
+    // Prevent unbounded growth of the notified IDs set
+    trimNotifiedIds(notifiedIdsRef.current);
   }, [messages, fireNotification]);
 }

@@ -9,7 +9,6 @@ function makeMessage(
     type: string;
     senderRole: string;
     targetRole: string;
-    _creationTime: number;
   }> = {}
 ) {
   return {
@@ -17,7 +16,6 @@ function makeMessage(
     type: overrides.type ?? 'handoff',
     senderRole: overrides.senderRole ?? 'planner',
     targetRole: overrides.targetRole ?? 'user',
-    _creationTime: overrides._creationTime ?? Date.now(),
   };
 }
 

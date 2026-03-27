@@ -33,15 +33,13 @@ self.addEventListener('message', (event) => {
 
   switch (type) {
     case 'SHOW_NOTIFICATION': {
-      const { title, body, tag, data } = payload || {};
+      const { title, body, tag } = payload || {};
       event.waitUntil(
         self.registration.showNotification(title || 'Chatroom', {
           body: body || '',
           tag: tag || 'chatroom-default',
           icon: '/appicon-192x192.png',
           badge: '/appicon-96x96.png',
-          data: data || {},
-          // Auto-close after 8 seconds via the app (SW notifications persist until dismissed)
           requireInteraction: false,
         })
       );
