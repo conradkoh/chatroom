@@ -24,7 +24,6 @@ interface AgentWithStatus {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
-  desiredState?: string | null;
   statusVariant?: StatusVariant;
 }
 
