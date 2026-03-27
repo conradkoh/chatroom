@@ -1,6 +1,3 @@
-// @ts-nocheck — Service Worker global scope (ServiceWorkerGlobalScope)
-// This file runs in the SW context, not the browser window context.
-
 /**
  * Chatroom Service Worker
  *
