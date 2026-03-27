@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/fixed-modal';
 import { PromptsContext } from '@/contexts/PromptsContext';
 
-export interface AgentWithStatus {
+interface AgentWithStatus {
   role: string;
   online: boolean;
   lastSeenAt?: number | null;
