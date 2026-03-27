@@ -17,13 +17,15 @@ export async function onDaemonShutdown(ctx: DaemonContext): Promise<void> {
     // Stop all agents in parallel via the manager
     await Promise.allSettled(
       activeAgents.map(async ({ chatroomId, role, slot }) => {
+        // Capture PID before stop() — doStop() clears slot.pid during cleanup
+        const pid = slot.pid;
         try {
           await ctx.deps.agentProcessManager.stop({
             chatroomId,
             role,
             reason: 'daemon.shutdown',
           });
-          console.log(`   Stopped ${role} (PID ${slot.pid})`);
+          console.log(`   Stopped ${role} (PID ${pid})`);
         } catch (e) {
           console.log(`   ⚠️  Failed to stop ${role}: ${(e as Error).message}`);
         }
