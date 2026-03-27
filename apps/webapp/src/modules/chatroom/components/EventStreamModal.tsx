@@ -191,10 +191,9 @@ export const EventStreamModal = memo(function EventStreamModal({
         </FixedModalHeader>
         <FixedModalBody
           className="flex flex-col md:flex-row p-0 overflow-hidden"
-          style={{ height: '70vh' }}
         >
           {/* Left: Event List */}
-          <div className={`md:w-2/5 border-r border-chatroom-border overflow-y-auto flex-shrink-0 flex flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
+          <div className={`md:w-2/5 border-r border-chatroom-border flex-1 min-h-0 md:flex-none flex flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
             {/* Section header */}
             <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
               <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
@@ -234,7 +233,7 @@ export const EventStreamModal = memo(function EventStreamModal({
             )}
           </div>
           {/* Right: Event Detail */}
-          <div className={`${showMobileDetail ? 'flex' : 'hidden'} md:flex md:flex-1 overflow-hidden w-full flex-col`}>
+          <div className={`${showMobileDetail ? 'flex' : 'hidden'} md:flex md:flex-1 overflow-hidden w-full min-h-0 flex-col`}>
             {/* Mobile back button */}
             <button
               onClick={() => setShowMobileDetail(false)}
