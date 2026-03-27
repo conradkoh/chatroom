@@ -5,26 +5,25 @@
  * Idempotent: if the item is already closed, the operation is a no-op.
  * Delegates to the FSM which validates the transition and applies field updates.
  * Requires a reason for audit trail.
+ *
+ * Expects a pre-fetched item to avoid redundant DB reads (the Convex handler
+ * already fetches the item for access control).
  */
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionBacklogItem } from '../../../../convex/lib/backlogStateMachine';
 
 export async function closeBacklogItem(
   ctx: MutationCtx,
-  itemId: Id<'chatroom_backlog'>,
+  item: Doc<'chatroom_backlog'>,
   options: { reason: string }
 ): Promise<void> {
   // Idempotent guard: if the item is already closed, skip the transition
-  const item = await ctx.db.get('chatroom_backlog', itemId);
-  if (!item) {
-    throw new Error(`Backlog item ${itemId} not found`);
-  }
   if (item.status === 'closed') {
     return;
   }
 
-  await transitionBacklogItem(ctx, itemId, 'closed', 'closeBacklogItem', {
+  await transitionBacklogItem(ctx, item._id, 'closed', 'closeBacklogItem', {
     closeReason: options.reason,
   });
 }
