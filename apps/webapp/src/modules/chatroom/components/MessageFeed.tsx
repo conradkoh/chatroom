@@ -846,7 +846,6 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             {message.attachedMessages?.map((msg) => (
               <AttachedMessageFeedChip
                 key={msg._id}
-                messageId={msg._id}
                 content={msg.content}
                 senderRole={msg.senderRole}
                 badgeBase={BADGE_BASE}

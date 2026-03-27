@@ -15,8 +15,6 @@ import {
 import { compactMarkdownComponents, messageFeedProseClassNames } from './markdown-utils';
 
 interface AttachedMessageFeedChipProps {
-  /** Unique ID for the attached message */
-  messageId: string;
   /** Full message content */
   content: string;
   /** Role of the message sender (e.g. "user", "builder", "planner") */
