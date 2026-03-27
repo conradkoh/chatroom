@@ -27,6 +27,7 @@ function showNotification(title: string, body: string, tag: string): void {
 
   // Try Service Worker first — richer notification support
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    console.log('[Notification] Sending via Service Worker');
     navigator.serviceWorker.controller.postMessage({
       type: 'SHOW_NOTIFICATION',
       payload: { title, body, tag },
@@ -36,12 +37,19 @@ function showNotification(title: string, body: string, tag: string): void {
 
   // Fallback: direct Notification API
   if ('Notification' in window && Notification.permission === 'granted') {
+    console.log('[Notification] Sending via Notification API (fallback)');
     const notification = new Notification(title, { body, tag });
     setTimeout(() => notification.close(), 5000);
     notification.onclick = () => {
       window.focus();
       notification.close();
     };
+  } else {
+    console.warn(
+      '[Notification] Cannot show notification:',
+      'serviceWorker' in navigator ? `SW controller: ${!!navigator.serviceWorker.controller}` : 'No SW support',
+      'Notification' in window ? `Permission: ${Notification.permission}` : 'No Notification API'
+    );
   }
 }
 
@@ -85,10 +93,15 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
 
   // Request permission on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((result) => {
+        console.log('[Notification] Permission:', result);
+      });
+    } else {
+      console.log('[Notification] Permission already:', Notification.permission);
     }
   }, []);
 
@@ -109,6 +122,7 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
   }, []);
 
   const fireNotification = useCallback((senderRole: string) => {
+    console.log('[Notification] Firing notification from:', senderRole);
     showNotification(
       'Chatroom Handoff',
       `${senderRole} has handed off to you`,
@@ -134,16 +148,20 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
       if (notifiedIdsRef.current.has(msg._id)) continue;
       notifiedIdsRef.current.add(msg._id);
 
-      if (
-        msg.type === 'handoff' &&
-        msg.targetRole?.toLowerCase() === 'user' &&
-        isDocumentHiddenRef.current
-      ) {
+      const isHandoffToUser =
+        msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user';
+      const isHidden = isDocumentHiddenRef.current;
+
+      if (isHandoffToUser && isHidden) {
         const now = Date.now();
         if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
           lastNotificationTimeRef.current = now;
           fireNotification(msg.senderRole);
         }
+      } else if (isHandoffToUser && !isHidden) {
+        console.log(
+          '[Notification] Skipped — tab is visible. Switch away from the tab to receive notifications.'
+        );
       }
     }
 
