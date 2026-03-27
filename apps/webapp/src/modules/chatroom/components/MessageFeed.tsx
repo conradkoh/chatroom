@@ -27,7 +27,6 @@ import {
   Pencil,
   Check,
   Copy,
-  Pin,
   Paperclip,
 } from 'lucide-react';
 import React, {
@@ -1499,7 +1498,7 @@ const MessageItem = memo(function MessageItem({
               }`}
               title={isAddedToContext ? 'Added to context' : 'Add to context'}
             >
-              <Pin size={12} className={isAddedToContext ? 'fill-current' : ''} />
+              <Paperclip size={12} className={isAddedToContext ? 'fill-current' : ''} />
             </button>
           )}
         </div>

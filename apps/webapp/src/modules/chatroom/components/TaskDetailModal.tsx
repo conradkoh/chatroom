@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Link, MoreHorizontal, Pencil, StopCircle, Trash2, X } from 'lucide-react';
+import { Check, Paperclip, MoreHorizontal, Pencil, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -390,7 +390,7 @@ export function TaskDetailModal({
                       disabled={isAttached('task', task._id) || !canAddMore}
                       className="flex items-center gap-2 cursor-pointer"
                     >
-                      <Link size={14} />
+                      <Paperclip size={14} />
                       {isAttached('task', task._id) ? 'Already Attached' : 'Attach to Context'}
                     </DropdownMenuItem>
 
