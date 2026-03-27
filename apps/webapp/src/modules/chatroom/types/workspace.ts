@@ -29,9 +29,4 @@ export function getWorkspaceDisplayHostname(ws: { hostname: string; machineAlias
   return ws.machineAlias || ws.hostname;
 }
 
-/** Workspaces grouped under a single machine — for sidebar rendering. */
-export interface WorkspaceGroup {
-  machineId: string | null;
-  hostname: string;
-  workspaces: Workspace[];
-}
+
