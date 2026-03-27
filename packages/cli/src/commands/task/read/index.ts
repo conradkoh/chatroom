@@ -155,18 +155,18 @@ export async function taskRead(
       console.log('');
       console.log('<attachments>');
       for (const item of result.attachedBacklogItems) {
-        console.log(`<attachment type="backlog-item">`);
-        console.log(`- [${item.status.toUpperCase()}] ${item.content}`);
-        console.log(`  ID: ${item._id}`);
-        console.log(`<hint>`);
+        console.log(`  <attachment type="backlog-item">`);
+        console.log(`    - [${item.status.toUpperCase()}] ${item.content}`);
+        console.log(`      ID: ${item._id}`);
+        console.log(`    <hint>`);
         console.log(
-          `If you have completed work on a backlog item and it is ready for review, run:`
+          `      If you have completed work on a backlog item and it is ready for review, run:`
         );
         console.log(
-          `  chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}`
+          `        chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}`
         );
-        console.log(`</hint>`);
-        console.log(`</attachment>`);
+        console.log(`    </hint>`);
+        console.log(`  </attachment>`);
       }
       console.log('</attachments>');
     }
