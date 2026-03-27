@@ -35,6 +35,17 @@ ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=${chat
 **When to use a workflow:**
 If the task is a single-step change (one clear deliverable, one handoff), do it directly — no workflow needed. **For any task with 2 or more steps**, you MUST use a workflow. This applies whether you are delegating to a builder or implementing yourself. Workflows make the plan visible, trackable, and recoverable. Each workflow step should represent one logical unit of work that can be verified independently. Aim for 2–7 steps per workflow.
 
+**Examples of multi-step tasks (MUST use workflow):**
+- User asks for 2+ backlog items to be implemented
+- A feature requires changes to both backend and frontend
+- A task involves creating a branch, implementing changes, and raising a PR
+- Any request where you identify multiple distinct pieces of work
+
+**Examples of single-step tasks (no workflow needed):**
+- Answering a question
+- A single file fix with one clear change
+- Running a command and reporting the result
+
 **For any multi-step task (2+ steps):** You MUST use the workflow skill to plan and track execution. Follow this process:
 
 1. **Activate the workflow skill:**
