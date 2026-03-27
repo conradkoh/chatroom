@@ -245,7 +245,10 @@ const getClassificationBadge = (classification: Message['classification']) => {
 };
 
 // Map task status to display label and CSS classes for attached task badges
-function getAttachedTaskStatusBadge(status?: TaskStatus | string): { label: string; classes: string } {
+function getAttachedTaskStatusBadge(status?: TaskStatus | string): {
+  label: string;
+  classes: string;
+} {
   switch (status) {
     // Task-specific statuses
     case 'in_progress':
@@ -1349,9 +1352,7 @@ const MessageItem = memo(function MessageItem({
             className="w-full min-h-[80px] p-2 text-sm bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-accent resize-y"
             placeholder="Edit message content..."
           />
-          {editError && (
-            <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
-          )}
+          {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
           <div className="flex items-center gap-2">
             <button
               onClick={handleSaveEdit}
@@ -1485,20 +1486,16 @@ const MessageItem = memo(function MessageItem({
       )}
       {/* Message Footer */}
       <div className="flex justify-between items-center mt-2 pt-1.5">
-        {/* Left: Copy button + Add to Context — appears on hover */}
-        <div className="flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+        {/* Left: Copy button + Add to Context — always visible */}
+        <div className="flex items-center gap-1 opacity-100">
           <CopyMarkdownButton content={message.content} />
           {onAddToContext && (
             <button
               onClick={() => onAddToContext(message)}
-              className={`flex items-center justify-center w-6 h-6 transition-colors ${
-                isAddedToContext
-                  ? 'text-chatroom-accent'
-                  : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
-              }`}
+              className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
               title={isAddedToContext ? 'Added to context' : 'Add to context'}
             >
-              <Paperclip size={12} className={isAddedToContext ? 'fill-current' : ''} />
+              <Paperclip size={12} />
             </button>
           )}
         </div>
@@ -1635,7 +1632,8 @@ export const MessageFeed = memo(function MessageFeed({
   const loadMoreEvents = eventsPaginated.loadMore;
 
   // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
-  const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
+  const latestEvent: EventStreamEvent | null =
+    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
   // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
@@ -2046,7 +2044,10 @@ export const MessageFeed = memo(function MessageFeed({
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
         events={(paginatedEvents as EventStreamEvent[] | undefined) ?? []}
-        isLoading={isEventStreamOpen && (paginatedEvents === undefined || eventsPaginationStatus === 'LoadingFirstPage')}
+        isLoading={
+          isEventStreamOpen &&
+          (paginatedEvents === undefined || eventsPaginationStatus === 'LoadingFirstPage')
+        }
         onLoadMore={() => loadMoreEvents(20)}
         hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
