@@ -42,7 +42,7 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'code-review',
     definition:
-      'Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. ' +
+      'Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. ' +
       'Covers AI-generated code review with focus on maintainability and tech debt prevention.',
     linkedSkillId: 'code-review',
   },
