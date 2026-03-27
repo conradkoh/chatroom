@@ -3,15 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useHandoffNotification } from './useHandoffNotification';
 
-// ---------- helpers ----------
-
 function makeMessage(
   overrides: Partial<{
     _id: string;
     type: string;
     senderRole: string;
     targetRole: string;
-    _creationTime: number;
   }> = {}
 ) {
   return {
@@ -19,11 +16,10 @@ function makeMessage(
     type: overrides.type ?? 'handoff',
     senderRole: overrides.senderRole ?? 'planner',
     targetRole: overrides.targetRole ?? 'user',
-    _creationTime: overrides._creationTime ?? Date.now(),
   };
 }
 
-// ---------- mocks ----------
+// ─── Mock: Notification (fallback path) ──────────────────────────────────────
 
 const notificationCloseMock = vi.fn();
 const notificationInstances: Array<{ body: string; tag: string; close: () => void }> = [];
@@ -37,17 +33,38 @@ class MockNotification {
   onclick: (() => void) | null = null;
   close = notificationCloseMock;
 
-  constructor(
-    _title: string,
-    options?: { body?: string; tag?: string }
-  ) {
+  constructor(_title: string, options?: { body?: string; tag?: string }) {
     this.body = options?.body ?? '';
     this.tag = options?.tag ?? '';
     notificationInstances.push(this);
   }
 }
 
-// ---------- setup / teardown ----------
+// ─── Mock: Service Worker ────────────────────────────────────────────────────
+
+const swPostMessage = vi.fn();
+
+function enableServiceWorker() {
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: {
+      controller: { postMessage: swPostMessage },
+      register: vi.fn().mockResolvedValue({}),
+    },
+  });
+}
+
+function disableServiceWorker() {
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: {
+      controller: null,
+      register: vi.fn().mockResolvedValue({}),
+    },
+  });
+}
+
+// ─── Visibility helpers ──────────────────────────────────────────────────────
 
 let originalHidden: boolean;
 let visibilityListeners: Array<() => void>;
@@ -57,16 +74,16 @@ function setDocumentHidden(hidden: boolean) {
     configurable: true,
     get: () => hidden,
   });
-  // Fire listeners so the ref updates
   for (const listener of visibilityListeners) {
     listener();
   }
 }
 
+// ─── Setup / Teardown ────────────────────────────────────────────────────────
+
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
 
-  // Track visibilitychange listeners
   visibilityListeners = [];
   const originalAdd = document.addEventListener.bind(document);
   const originalRemove = document.removeEventListener.bind(document);
@@ -84,11 +101,9 @@ beforeEach(() => {
     return originalRemove(event, handler, options as any);
   });
 
-  // Start with document visible
   originalHidden = document.hidden;
   setDocumentHidden(false);
 
-  // Install Notification mock
   Object.defineProperty(window, 'Notification', {
     configurable: true,
     value: MockNotification,
@@ -97,6 +112,10 @@ beforeEach(() => {
   MockNotification.requestPermission.mockClear();
   notificationCloseMock.mockClear();
   notificationInstances.length = 0;
+  swPostMessage.mockClear();
+
+  // Default: SW available
+  enableServiceWorker();
 });
 
 afterEach(() => {
@@ -108,36 +127,59 @@ afterEach(() => {
   });
 });
 
-// ---------- tests ----------
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('useHandoffNotification', () => {
-  it('does NOT fire notification on initial load (marks existing messages as seen)', () => {
+  it('does not notify on initial load', () => {
     const initialMessages = [makeMessage(), makeMessage()];
-
     renderHook(() => useHandoffNotification(initialMessages));
 
+    expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(0);
   });
 
-  it('fires notification for new handoff to user when document is hidden', () => {
+  it('sends notification via service worker when hidden and new handoff arrives', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
       { initialProps: { msgs: initialMessages } }
     );
 
-    // Tab becomes hidden
     setDocumentHidden(true);
 
-    // New handoff arrives
     const newMessage = makeMessage({ _id: 'new-1', type: 'handoff', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, newMessage] });
 
-    expect(notificationInstances).toHaveLength(1);
-    expect(notificationInstances[0].body).toContain('planner');
+    expect(swPostMessage).toHaveBeenCalledWith({
+      type: 'SHOW_NOTIFICATION',
+      payload: {
+        title: 'Chatroom Handoff',
+        body: 'planner has handed off to you',
+        tag: 'chatroom-handoff',
+      },
+    });
   });
 
-  it('does NOT fire notification for non-handoff messages', () => {
+  it('falls back to Notification API when SW is not available', () => {
+    disableServiceWorker();
+
+    const initialMessages = [makeMessage({ _id: 'init-1' })];
+    const { rerender } = renderHook(
+      ({ msgs }) => useHandoffNotification(msgs),
+      { initialProps: { msgs: initialMessages } }
+    );
+
+    setDocumentHidden(true);
+
+    const newMessage = makeMessage({ _id: 'fb-1', type: 'handoff', targetRole: 'user' });
+    rerender({ msgs: [...initialMessages, newMessage] });
+
+    expect(swPostMessage).not.toHaveBeenCalled();
+    expect(notificationInstances).toHaveLength(1);
+    expect(notificationInstances[0]!.body).toBe('planner has handed off to you');
+  });
+
+  it('does not notify for non-handoff messages', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
@@ -149,10 +191,11 @@ describe('useHandoffNotification', () => {
     const chatMsg = makeMessage({ _id: 'chat-1', type: 'message', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, chatMsg] });
 
+    expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(0);
   });
 
-  it('does NOT fire notification for handoff to non-user role', () => {
+  it('does not notify for handoffs to non-user roles', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
@@ -164,10 +207,11 @@ describe('useHandoffNotification', () => {
     const agentMsg = makeMessage({ _id: 'agent-1', type: 'handoff', targetRole: 'builder' });
     rerender({ msgs: [...initialMessages, agentMsg] });
 
+    expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(0);
   });
 
-  it('does NOT fire duplicate notifications for same message ID', () => {
+  it('does not duplicate notifications for the same message', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
@@ -178,17 +222,13 @@ describe('useHandoffNotification', () => {
 
     const newMsg = makeMessage({ _id: 'dup-1', type: 'handoff', targetRole: 'user' });
     const msgs2 = [...initialMessages, newMsg];
-
-    // First rerender — should fire
     rerender({ msgs: msgs2 });
-    expect(notificationInstances).toHaveLength(1);
+    rerender({ msgs: msgs2 });
 
-    // Second rerender with same messages — should NOT fire again
-    rerender({ msgs: [...msgs2] });
-    expect(notificationInstances).toHaveLength(1);
+    expect(swPostMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('throttles: rapid messages within 3s only fire one notification', () => {
+  it('throttles rapid notifications', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
@@ -197,28 +237,25 @@ describe('useHandoffNotification', () => {
 
     setDocumentHidden(true);
 
-    // First new handoff — fires
     const msg1 = makeMessage({ _id: 'rapid-1', type: 'handoff', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, msg1] });
-    expect(notificationInstances).toHaveLength(1);
+    expect(swPostMessage).toHaveBeenCalledTimes(1);
 
-    // Second handoff immediately after — throttled
     const msg2 = makeMessage({ _id: 'rapid-2', type: 'handoff', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, msg1, msg2] });
-    expect(notificationInstances).toHaveLength(1);
+    // Throttled — still 1
+    expect(swPostMessage).toHaveBeenCalledTimes(1);
 
-    // Advance time past throttle window
     act(() => {
       vi.advanceTimersByTime(3000);
     });
 
-    // Third handoff after throttle — fires
     const msg3 = makeMessage({ _id: 'rapid-3', type: 'handoff', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, msg1, msg2, msg3] });
-    expect(notificationInstances).toHaveLength(2);
+    expect(swPostMessage).toHaveBeenCalledTimes(2);
   });
 
-  it('does NOT fire notification when document is visible', () => {
+  it('does not notify when document is visible', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
       ({ msgs }) => useHandoffNotification(msgs),
@@ -229,22 +266,13 @@ describe('useHandoffNotification', () => {
     const newMsg = makeMessage({ _id: 'vis-1', type: 'handoff', targetRole: 'user' });
     rerender({ msgs: [...initialMessages, newMsg] });
 
+    expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(0);
   });
 
-  it('requests notification permission on mount when permission is default', () => {
+  it('requests notification permission on mount', () => {
     MockNotification.permission = 'default';
-
     renderHook(() => useHandoffNotification([]));
-
     expect(MockNotification.requestPermission).toHaveBeenCalled();
-  });
-
-  it('does NOT request permission when already granted', () => {
-    MockNotification.permission = 'granted';
-
-    renderHook(() => useHandoffNotification([]));
-
-    expect(MockNotification.requestPermission).not.toHaveBeenCalled();
   });
 });

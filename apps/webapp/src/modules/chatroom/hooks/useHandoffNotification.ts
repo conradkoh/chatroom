@@ -10,14 +10,70 @@ interface NotifiableMessage {
   type: string;
   senderRole: string;
   targetRole?: string;
-  _creationTime: number;
 }
 
 /** Minimum interval between notifications (ms). */
 const NOTIFICATION_THROTTLE_MS = 3000;
 
+/** Maximum number of message IDs to track in the notified set. */
+const MAX_NOTIFIED_IDS = 500;
+
+/**
+ * Sends a notification via the Service Worker if available, otherwise
+ * falls back to the window Notification API.
+ */
+function showNotification(title: string, body: string, tag: string): void {
+  if (typeof window === 'undefined') return;
+
+  // Try Service Worker first — richer notification support
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    console.log('[Notification] Sending via Service Worker');
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      payload: { title, body, tag },
+    });
+    return;
+  }
+
+  // Fallback: direct Notification API
+  if ('Notification' in window && Notification.permission === 'granted') {
+    console.log('[Notification] Sending via Notification API (fallback)');
+    const notification = new Notification(title, { body, tag });
+    setTimeout(() => notification.close(), 5000);
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  } else {
+    console.warn(
+      '[Notification] Cannot show notification:',
+      'serviceWorker' in navigator ? `SW controller: ${!!navigator.serviceWorker.controller}` : 'No SW support',
+      'Notification' in window ? `Permission: ${Notification.permission}` : 'No Notification API'
+    );
+  }
+}
+
+/**
+ * Trims the notified IDs set to stay within MAX_NOTIFIED_IDS.
+ * Removes the oldest entries (Sets iterate in insertion order).
+ */
+function trimNotifiedIds(ids: Set<string>): void {
+  if (ids.size <= MAX_NOTIFIED_IDS) return;
+  const excess = ids.size - MAX_NOTIFIED_IDS;
+  let removed = 0;
+  for (const id of ids) {
+    if (removed >= excess) break;
+    ids.delete(id);
+    removed++;
+  }
+}
+
 /**
  * Fires a browser notification when a new handoff message targets the user.
+ *
+ * Prefers the Service Worker notification API (via postMessage) for richer
+ * notification support. Falls back to window.Notification when the SW is
+ * not available.
  *
  * Only triggers when:
  * 1. The browser tab is NOT focused (tracked via visibilitychange listener)
@@ -35,16 +91,21 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
   );
   const lastNotificationTimeRef = useRef(0);
 
-  // Request notification permission on first mount
+  // Request permission on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((result) => {
+        console.log('[Notification] Permission:', result);
+      });
+    } else {
+      console.log('[Notification] Permission already:', Notification.permission);
     }
   }, []);
 
-  // Track document visibility in real-time via event listener
+  // Track document visibility
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -52,7 +113,6 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
       isDocumentHiddenRef.current = document.hidden;
     };
 
-    // Sync initial value
     isDocumentHiddenRef.current = document.hidden;
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -62,27 +122,17 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
   }, []);
 
   const fireNotification = useCallback((senderRole: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
-    const notification = new Notification('Chatroom Handoff', {
-      body: `${senderRole} has handed off to you`,
-      tag: 'chatroom-handoff', // Prevents duplicate notifications stacking
-    });
-
-    // Auto-close after 5 seconds
-    setTimeout(() => notification.close(), 5000);
-
-    // Focus the window when clicked
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
+    console.log('[Notification] Firing notification from:', senderRole);
+    showNotification(
+      'Chatroom Handoff',
+      `${senderRole} has handed off to you`,
+      'chatroom-handoff'
+    );
   }, []);
 
-  // Unified effect: mark initial messages as seen OR fire notifications for new handoffs
+  // Detect new handoff messages and fire notifications
   useEffect(() => {
-    // On first run with messages: mark all IDs and return without notifying
+    // On initial load, mark all existing messages as seen (don't notify)
     if (isInitialLoadRef.current) {
       if (messages.length > 0) {
         for (const msg of messages) {
@@ -93,22 +143,29 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
       return;
     }
 
-    // Subsequent runs: detect new messages and notify for handoffs to user
+    // Check for new messages
     for (const msg of messages) {
       if (notifiedIdsRef.current.has(msg._id)) continue;
       notifiedIdsRef.current.add(msg._id);
 
-      if (
-        msg.type === 'handoff' &&
-        msg.targetRole?.toLowerCase() === 'user' &&
-        isDocumentHiddenRef.current
-      ) {
+      const isHandoffToUser =
+        msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user';
+      const isHidden = isDocumentHiddenRef.current;
+
+      if (isHandoffToUser && isHidden) {
         const now = Date.now();
         if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
           lastNotificationTimeRef.current = now;
           fireNotification(msg.senderRole);
         }
+      } else if (isHandoffToUser && !isHidden) {
+        console.log(
+          '[Notification] Skipped — tab is visible. Switch away from the tab to receive notifications.'
+        );
       }
     }
+
+    // Prevent unbounded growth of the notified IDs set
+    trimNotifiedIds(notifiedIdsRef.current);
   }, [messages, fireNotification]);
 }
