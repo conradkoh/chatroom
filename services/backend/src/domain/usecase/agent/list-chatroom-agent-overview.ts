@@ -44,6 +44,13 @@ export async function listChatroomAgentOverview(
     .withIndex('by_ownerId', (q) => q.eq('ownerId', input.userId))
     .collect();
 
+  // Pre-fetch all user machines for daemon connectivity check
+  const userMachines = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_userId', (q) => q.eq('userId', input.userId))
+    .collect();
+  const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+
   const results = await Promise.all(
     userChatrooms.map(async (room) => {
       const configs = await ctx.db
@@ -51,7 +58,14 @@ export async function listChatroomAgentOverview(
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
         .collect();
 
-      const runningConfigs = configs.filter((c) => c.spawnedAgentPid != null);
+      // An agent is only considered running if it has a PID AND its daemon is connected.
+      // This matches the frontend AgentConfigTabs check (spawnedAgentPid && daemonConnected)
+      // and prevents stale "running" status when a daemon disconnects without cleanup.
+      const runningConfigs = configs.filter((c) => {
+        if (c.spawnedAgentPid == null) return false;
+        const machine = c.machineId ? machineMap.get(c.machineId) : undefined;
+        return machine?.daemonConnected === true;
+      });
 
       const agentStatus: ChatroomAgentOverview['agentStatus'] =
         configs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
