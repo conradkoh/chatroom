@@ -44,6 +44,7 @@ import remarkGfm from 'remark-gfm';
 
 import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
+import { AttachedMessageFeedChip } from './AttachedMessageFeedChip';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -842,14 +843,13 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               );
             })}
             {message.attachedMessages?.map((msg) => (
-              <span
+              <AttachedMessageFeedChip
                 key={msg._id}
-                className={`${BADGE_BASE} bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border`}
-                title={`From ${msg.senderRole}: ${msg.content.slice(0, 50)}`}
-              >
-                <MessageSquare size={ICON_SIZE} />
-                {msg.senderRole}
-              </span>
+                content={msg.content}
+                senderRole={msg.senderRole}
+                badgeBase={BADGE_BASE}
+                iconSize={ICON_SIZE}
+              />
             ))}
             {message.attachedWorkflows?.map((wf) => (
               <AttachedWorkflowChip
