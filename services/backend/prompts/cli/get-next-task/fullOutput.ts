@@ -48,15 +48,6 @@ export interface FullCliOutputParams {
     senderRole: string;
     content: string;
     classification?: string | null;
-    attachedTasks?: {
-      status: string;
-      content: string;
-    }[];
-    attachedBacklogItems?: {
-      _id: string;
-      status: string;
-      content: string;
-    }[];
     attachedMessages?: {
       _id: string;
       content: string;
