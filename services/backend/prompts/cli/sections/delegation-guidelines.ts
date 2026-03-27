@@ -84,6 +84,12 @@ If the task is a single-step change (one clear deliverable, one handoff), do it 
 
 ⚠️ Successful workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon a workflow that isn't working.
 
+**Mandatory code review step:** Every multi-step workflow that produces code changes MUST include a final code review step assigned to the planner. This step should:
+- Activate the code-review skill: \`${cliEnvPrefix}chatroom skill activate code-review --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
+- Review all changes against the 8-pillar framework
+- Fix any issues found (simplification, type drift, duplication, dead code, etc.)
+- Verify typecheck and tests pass after fixes
+
 **If the plan isn't working:** If a step fails after 2 rework attempts, exit the workflow with \`workflow exit\` and a reason, then replan with a different approach or deliver partial results to the user.
 
 **Review loop:**
