@@ -4,7 +4,7 @@ export const codeReviewSkill: SkillModule = {
   skillId: 'code-review',
   name: 'Code Review',
   description:
-    'Use this skill when reviewing, auditing, or giving feedback on code. Covers seven pillars: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability.',
+    'Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.',
 
   getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "code-review" skill.
 
@@ -20,7 +20,7 @@ considering existing patterns, refactoring opportunities, or long-term cost. Res
 and 1.57x more security findings than human-written code (CodeRabbit, 2025). 66% of developers
 report spending more time fixing AI output than it saved (Stack Overflow, 2026).
 
-Apply the seven pillars below in priority order.
+Apply the eight pillars below in priority order.
 
 ---
 
@@ -200,6 +200,40 @@ differently across environments?
 Action: Require every AI-generated module to have a named owner in CODEOWNERS. Add logging
 requirements to the PR template. Establish a team AI governance policy that tracks tools
 and model versions — treat this like any other dependency.
+
+---
+
+## Pillar 8 — Dead Code Elimination (Standard Priority)
+
+AI generates code speculatively. It adds helper functions "just in case", creates abstractions
+for paths that never materialise, and leaves behind scaffolding from earlier generation
+attempts. GitClear's 2025 data showed a 75% increase in total code volume, much of it never
+executed. Dead code is not harmless — it misleads future readers, inflates bundle sizes, creates
+false positive search results, and adds surface area for bugs and security vulnerabilities
+in code that serves no purpose.
+
+Look for:
+- Unreachable code: functions, methods, or branches that no call site ever invokes
+- Unused imports: modules imported but never referenced — common in AI-generated files
+- Commented-out code: old implementations left inline instead of being removed; version
+  control already preserves history
+- Feature flags that are permanently off: conditional paths that were never enabled or have
+  been superseded but not cleaned up
+- Orphaned configuration: environment variables, constants, or config entries with no consumer
+- Stale types and interfaces: type definitions for data shapes that no longer exist in the
+  system
+- Unused dependencies: packages listed in \`package.json\` (or equivalent) that no source file
+  imports
+- Vestigial error handling: catch blocks or fallback paths for conditions that can no longer
+  occur due to upstream changes
+- Test helpers and fixtures for tests that have been deleted
+
+Ask: Is every function called? Is every import used? Is every dependency exercised?
+Would removing this code change any observable behaviour?
+
+Action: Run tree-shaking analysis and dead code detection tools (e.g., \`ts-prune\`,
+\`knip\`, \`depcheck\`, IDE unused-symbol highlighting) as part of CI. Treat dead code
+the same as duplication — it compounds over time and must be actively managed.
 
 ---
 
