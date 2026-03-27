@@ -1,6 +1,6 @@
 'use client';
 
-import { FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
+import { ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
 import { memo, useState, useCallback } from 'react';
 
 import { InlineDiffStat } from './shared';
@@ -8,6 +8,7 @@ import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
+import type { GitRemote } from '../types/git';
 import {
   FixedModal,
   FixedModalContent,
@@ -36,6 +37,78 @@ type WorkspaceWithMachine = Workspace & { machineId: string };
 function getWorkspaceName(workingDir: string): string {
   return workingDir.split('/').filter(Boolean).pop() ?? workingDir;
 }
+
+/**
+ * Converts a git remote URL to an HTTPS URL suitable for opening in a browser.
+ * Handles SSH URLs (git@github.com:user/repo.git) and HTTPS URLs.
+ * Returns null if the URL cannot be converted.
+ */
+function toHttpsUrl(remoteUrl: string): string | null {
+  const trimmed = remoteUrl.trim().replace(/\.git$/, '');
+
+  // Already HTTPS
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    return trimmed;
+  }
+
+  // SSH format: git@github.com:user/repo
+  const sshMatch = trimmed.match(/^git@([^:]+):(.+)$/);
+  if (sshMatch) {
+    const [, host, path] = sshMatch;
+    return `https://${host}/${path}`;
+  }
+
+  // ssh:// format: ssh://git@github.com/user/repo
+  const sshProtoMatch = trimmed.match(/^ssh:\/\/[^@]+@([^/]+)\/(.+)$/);
+  if (sshProtoMatch) {
+    const [, host, path] = sshProtoMatch;
+    return `https://${host}/${path}`;
+  }
+
+  return null;
+}
+
+// ─── RemoteLinks ──────────────────────────────────────────────────────────────
+
+/**
+ * Renders clickable remote URL links for a workspace.
+ * Each remote is shown as a labeled link that opens in a new tab.
+ */
+const RemoteLinks = memo(function RemoteLinks({ remotes }: { remotes: GitRemote[] }) {
+  if (remotes.length === 0) return null;
+
+  return (
+    <>
+      {remotes.map((remote) => {
+        const httpsUrl = toHttpsUrl(remote.url);
+        return (
+          <span key={remote.name} className="inline-flex items-center gap-0.5">
+            <span className="text-[11px] text-chatroom-text-muted">·</span>
+            {httpsUrl ? (
+              <a
+                href={httpsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
+                title={remote.url}
+              >
+                <ExternalLink size={9} className="shrink-0" />
+                {remote.name}
+              </a>
+            ) : (
+              <span
+                className="text-[11px] text-chatroom-text-muted font-mono"
+                title={remote.url}
+              >
+                {remote.name}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </>
+  );
+});
 
 // ─── WorkspaceInfoFooter ──────────────────────────────────────────────────────
 
@@ -105,6 +178,11 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
         </>
+      )}
+
+      {/* Remote URLs (when available) */}
+      {isAvailable && gitState.remotes.length > 0 && (
+        <RemoteLinks remotes={gitState.remotes} />
       )}
     </div>
   );

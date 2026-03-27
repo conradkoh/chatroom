@@ -1254,6 +1254,16 @@ export default defineSchema({
       )
     ),
 
+    // Git remotes (only when status === 'available')
+    remotes: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          url: v.string(),
+        })
+      )
+    ),
+
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 

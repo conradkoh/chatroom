@@ -67,6 +67,8 @@ export type WorkspaceGitState =
       hasMoreCommits: boolean;
       /** Open pull requests for the current branch. Empty if none or gh unavailable. */
       openPullRequests: GitPullRequest[];
+      /** Configured git remotes (e.g. origin, upstream). */
+      remotes: GitRemote[];
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }
@@ -81,3 +83,11 @@ export type WorkspaceGitState =
       /** Unix timestamp (ms) when the error was last recorded. */
       updatedAt: number;
     };
+
+/** A configured git remote (from `git remote -v`). */
+export interface GitRemote {
+  /** Remote name (e.g. 'origin', 'upstream'). */
+  name: string;
+  /** Remote URL (HTTPS or SSH). */
+  url: string;
+}

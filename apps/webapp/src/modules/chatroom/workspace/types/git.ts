@@ -15,6 +15,7 @@ export type {
   DiffStat,
   GitCommit,
   GitPullRequest,
+  GitRemote,
   WorkspaceGitState,
 } from '@workspace/backend/src/domain/types/workspace-git';
 
