@@ -272,6 +272,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
         <button
           type="submit"
           disabled={!message.trim() || sending}
+          onTouchStart={(e) => e.preventDefault()}
           className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           {sending ? 'Sending...' : 'Send'}
