@@ -1,7 +1,9 @@
 'use client';
 
-import { ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
-import { memo, useState, useCallback } from 'react';
+import { ChevronDown, ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
+import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { InlineDiffStat } from './shared';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
@@ -9,6 +11,12 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote } from '../types/git';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalContent,
@@ -68,45 +76,110 @@ function toHttpsUrl(remoteUrl: string): string | null {
   return null;
 }
 
-// ─── RemoteLinks ──────────────────────────────────────────────────────────────
+/** Known git hosting platforms for icon matching. */
+type GitPlatform = 'github' | 'gitlab' | 'bitbucket' | 'generic';
+
+/** Detects the git hosting platform from a remote URL. */
+function detectPlatform(remoteUrl: string): GitPlatform {
+  // Extract hostname from various URL formats
+  const httpsUrl = toHttpsUrl(remoteUrl);
+  const hostname = httpsUrl
+    ? (() => { try { return new URL(httpsUrl).hostname.toLowerCase(); } catch { return ''; } })()
+    : '';
+  if (hostname.includes('github.com')) return 'github';
+  if (hostname.includes('gitlab.com') || hostname.includes('gitlab')) return 'gitlab';
+  if (hostname.includes('bitbucket.org') || hostname.includes('bitbucket')) return 'bitbucket';
+  return 'generic';
+}
+
+/** Platform icon components keyed by platform type. */
+const PLATFORM_ICONS: Record<GitPlatform, ComponentType<{ size?: number; className?: string }>> = {
+  github: SiGithub,
+  gitlab: SiGitlab,
+  bitbucket: SiBitbucket,
+  generic: ExternalLink,
+};
+
+/** Returns the appropriate icon component for a remote URL. */
+function getPlatformIcon(remoteUrl: string): ComponentType<{ size?: number; className?: string }> {
+  return PLATFORM_ICONS[detectPlatform(remoteUrl)];
+}
+
+// ─── RemoteRepoLink ───────────────────────────────────────────────────────────
 
 /**
- * Renders clickable remote URL links for a workspace.
- * Each remote is shown as a labeled link that opens in a new tab.
+ * Renders a repository link with platform-specific icon and optional
+ * dropdown for selecting among multiple remotes.
+ * Defaults to "origin" if available, otherwise the first remote.
  */
-const RemoteLinks = memo(function RemoteLinks({ remotes }: { remotes: GitRemote[] }) {
+const RemoteRepoLink = memo(function RemoteRepoLink({ remotes }: { remotes: GitRemote[] }) {
   if (remotes.length === 0) return null;
 
+  const defaultRemote = useMemo(
+    () => remotes.find((r) => r.name === 'origin') ?? remotes[0]!,
+    [remotes]
+  );
+  const [selected, setSelected] = useState<GitRemote>(defaultRemote);
+  const httpsUrl = toHttpsUrl(selected.url);
+  const PlatformIcon = getPlatformIcon(selected.url);
+
+  const linkContent = httpsUrl ? (
+    <a
+      href={httpsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
+      title={selected.url}
+    >
+      <PlatformIcon size={10} className="shrink-0" />
+      {selected.name}
+    </a>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider" title={selected.url}>
+      <PlatformIcon size={10} className="shrink-0" />
+      {selected.name}
+    </span>
+  );
+
+  // Single remote — simple link, no dropdown
+  if (remotes.length === 1) {
+    return linkContent;
+  }
+
+  // Multiple remotes — link + dropdown chevron
   return (
-    <>
-      {remotes.map((remote) => {
-        const httpsUrl = toHttpsUrl(remote.url);
-        return (
-          <span key={remote.name} className="inline-flex items-center gap-0.5">
-            <span className="text-[11px] text-chatroom-text-muted">·</span>
-            {httpsUrl ? (
-              <a
-                href={httpsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
-                title={remote.url}
+    <span className="inline-flex items-center gap-0">
+      {linkContent}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center p-0.5 text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors rounded"
+            title="Select remote"
+          >
+            <ChevronDown size={10} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[120px]">
+          {remotes.map((remote) => {
+            const RemoteIcon = getPlatformIcon(remote.url);
+            return (
+              <DropdownMenuItem
+                key={remote.name}
+                onClick={() => setSelected(remote)}
+                className={cn(
+                  'text-[11px] font-mono flex items-center gap-1.5 cursor-pointer uppercase tracking-wider',
+                  remote.name === selected.name && 'font-bold'
+                )}
               >
-                <ExternalLink size={9} className="shrink-0" />
+                <RemoteIcon size={10} className="shrink-0 text-chatroom-status-info" />
                 {remote.name}
-              </a>
-            ) : (
-              <span
-                className="text-[11px] text-chatroom-text-muted font-mono"
-                title={remote.url}
-              >
-                {remote.name}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 });
 
@@ -114,7 +187,9 @@ const RemoteLinks = memo(function RemoteLinks({ remotes }: { remotes: GitRemote[
 
 /**
  * Footer bar for the workspace git modal.
- * Shows workspace name, hostname, git branch, and diff stats.
+ * Split into two logical groups:
+ *   1. Machine & git status: workspace name, hostname, branch, diff stats
+ *   2. Remote-centric links: PR link, repo link with platform icon + remote selector
  */
 export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
   workspace,
@@ -126,63 +201,67 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
   const isAvailable = gitState.status === 'available';
 
   return (
-    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center justify-end gap-2 flex-wrap">
-      {/* Workspace name */}
-      <div className="flex items-center gap-1">
-        <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
-        <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
-          {getWorkspaceName(workspace.workingDir)}
+    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center justify-between gap-3 flex-wrap">
+      {/* ── Group 1: Machine & Git Status ── */}
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        {/* Workspace name */}
+        <div className="flex items-center gap-1">
+          <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
+          <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
+            {getWorkspaceName(workspace.workingDir)}
+          </span>
+        </div>
+
+        {/* Hostname */}
+        <span className="text-[11px] text-chatroom-text-muted">·</span>
+        <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">
+          {getWorkspaceDisplayHostname(workspace)}
         </span>
+
+        {/* Diff stats (when available) */}
+        {isAvailable && (
+          <>
+            <span className="text-[11px] text-chatroom-text-muted">·</span>
+            <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
+          </>
+        )}
       </div>
 
-      {/* Hostname */}
-      <span className="text-[11px] text-chatroom-text-muted">·</span>
-      <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">
-        {getWorkspaceDisplayHostname(workspace)}
-      </span>
-
-      {/* Branch name (when available) — links to first PR if one exists */}
+      {/* ── Group 2: Remote-centric Links ── */}
       {isAvailable && (
-        <>
-          <span className="text-[11px] text-chatroom-text-muted">·</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Branch name — clickable with PR number when PR exists */}
           {(gitState.openPullRequests?.length ?? 0) > 0 ? (
             <a
               href={gitState.openPullRequests[0]!.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-0.5 text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+              className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
               title={gitState.openPullRequests[0]!.title}
             >
               <GitPullRequestIcon size={10} className="shrink-0" />
-              <span className="text-[11px] font-mono uppercase tracking-wider">
+              <span className="uppercase tracking-wider">
                 {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
               </span>
-              <span className="text-[11px] font-mono">
-                (#{gitState.openPullRequests[0]!.number})
-              </span>
+              <span>(#{gitState.openPullRequests[0]!.number})</span>
             </a>
           ) : (
-            <div className="flex items-center gap-0.5">
+            <div className="inline-flex items-center gap-0.5 text-[11px] font-mono">
               <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-              <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
+              <span className="text-chatroom-text-secondary uppercase tracking-wider">
                 {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
               </span>
             </div>
           )}
-        </>
-      )}
 
-      {/* Diff stats (when available) */}
-      {isAvailable && (
-        <>
-          <span className="text-[11px] text-chatroom-text-muted">·</span>
-          <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
-        </>
-      )}
-
-      {/* Remote URLs (when available) */}
-      {isAvailable && gitState.remotes.length > 0 && (
-        <RemoteLinks remotes={gitState.remotes} />
+          {/* Repo link with platform icon + remote dropdown */}
+          {gitState.remotes.length > 0 && (
+            <>
+              <span className="text-[11px] text-chatroom-text-muted">·</span>
+              <RemoteRepoLink remotes={gitState.remotes} />
+            </>
+          )}
+        </div>
       )}
     </div>
   );
