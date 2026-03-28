@@ -624,10 +624,18 @@ const ChatroomTable = memo(function ChatroomTable({
         });
 
         return (
-          <button
+          <div
+            role="button"
+            tabIndex={0}
             key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
             onClick={() => onSelect(chatroom._id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(chatroom._id);
+              }
+            }}
           >
             {/* Favorite Star */}
             <div
@@ -706,7 +714,7 @@ const ChatroomTable = memo(function ChatroomTable({
                 </DropdownMenu>
               )}
             </div>
-          </button>
+          </div>
         );
       })}
     </div>
