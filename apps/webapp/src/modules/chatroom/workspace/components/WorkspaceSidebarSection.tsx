@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
+import { ChevronDown, ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
 import { memo, useState, useCallback } from 'react';
 
 import { InlineDiffStat } from './shared';
@@ -9,6 +9,12 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote } from '../types/git';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalContent,
@@ -68,45 +74,100 @@ function toHttpsUrl(remoteUrl: string): string | null {
   return null;
 }
 
-// ─── RemoteLinks ──────────────────────────────────────────────────────────────
+// ─── RemoteSelector ───────────────────────────────────────────────────────────
 
 /**
- * Renders clickable remote URL links for a workspace.
- * Each remote is shown as a labeled link that opens in a new tab.
+ * Renders a remote link with dropdown selector when multiple remotes exist.
+ * Defaults to "origin" if available, otherwise the first remote.
+ * Single remote shows a simple link; multiple remotes show a dropdown chevron.
  */
-const RemoteLinks = memo(function RemoteLinks({ remotes }: { remotes: GitRemote[] }) {
+const RemoteSelector = memo(function RemoteSelector({ remotes }: { remotes: GitRemote[] }) {
   if (remotes.length === 0) return null;
 
+  const defaultRemote =
+    remotes.find((r) => r.name === 'origin') ?? remotes[0]!;
+  const [selected, setSelected] = useState<GitRemote>(defaultRemote);
+  const httpsUrl = toHttpsUrl(selected.url);
+
+  // Single remote — simple link, no dropdown
+  if (remotes.length === 1) {
+    return httpsUrl ? (
+      <a
+        href={httpsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
+        title={selected.url}
+      >
+        <ExternalLink size={9} className="shrink-0" />
+        {selected.name}
+      </a>
+    ) : (
+      <span
+        className="text-[11px] text-chatroom-text-muted font-mono"
+        title={selected.url}
+      >
+        {selected.name}
+      </span>
+    );
+  }
+
+  // Multiple remotes — link + dropdown chevron
   return (
-    <>
-      {remotes.map((remote) => {
-        const httpsUrl = toHttpsUrl(remote.url);
-        return (
-          <span key={remote.name} className="inline-flex items-center gap-0.5">
-            <span className="text-[11px] text-chatroom-text-muted">·</span>
-            {httpsUrl ? (
-              <a
-                href={httpsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
-                title={remote.url}
+    <span className="inline-flex items-center gap-0">
+      {httpsUrl ? (
+        <a
+          href={httpsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
+          title={selected.url}
+        >
+          <ExternalLink size={9} className="shrink-0" />
+          {selected.name}
+        </a>
+      ) : (
+        <span
+          className="text-[11px] text-chatroom-text-muted font-mono"
+          title={selected.url}
+        >
+          {selected.name}
+        </span>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center p-0.5 text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors rounded"
+            title="Select remote"
+          >
+            <ChevronDown size={10} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[120px]">
+          {remotes.map((remote) => {
+            const remoteHttps = toHttpsUrl(remote.url);
+            return (
+              <DropdownMenuItem
+                key={remote.name}
+                onClick={() => setSelected(remote)}
+                className={cn(
+                  'text-[11px] font-mono flex items-center gap-1.5 cursor-pointer',
+                  remote.name === selected.name && 'font-bold'
+                )}
               >
-                <ExternalLink size={9} className="shrink-0" />
+                {remoteHttps ? (
+                  <ExternalLink size={9} className="shrink-0 text-chatroom-status-info" />
+                ) : (
+                  <span className="w-[9px] shrink-0" />
+                )}
                 {remote.name}
-              </a>
-            ) : (
-              <span
-                className="text-[11px] text-chatroom-text-muted font-mono"
-                title={remote.url}
-              >
-                {remote.name}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 });
 
@@ -172,17 +233,20 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
         </>
       )}
 
+      {/* Remote selector (when available) — placed beside PR/branch text */}
+      {isAvailable && gitState.remotes.length > 0 && (
+        <>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
+          <RemoteSelector remotes={gitState.remotes} />
+        </>
+      )}
+
       {/* Diff stats (when available) */}
       {isAvailable && (
         <>
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
         </>
-      )}
-
-      {/* Remote URLs (when available) */}
-      {isAvailable && gitState.remotes.length > 0 && (
-        <RemoteLinks remotes={gitState.remotes} />
       )}
     </div>
   );
