@@ -56,17 +56,33 @@ export async function listChatroomAgentOverview(
 
   const results = await Promise.all(
     userChatrooms.map(async (room) => {
-      const configs = await ctx.db
+      const allConfigs = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
         .collect();
+
+      // Filter to only configs for the CURRENT team and user-owned machines.
+      // This matches the filtering in getMachineAgentConfigs (convex/machines.ts)
+      // so the sidebar status aligns with the per-agent settings panel.
+      // Stale configs from old teams (after a team switch) are excluded to
+      // prevent the sidebar from seeing spawnedAgentPid on old-team configs.
+      const currentTeamId = room.teamId;
+      const configs = allConfigs.filter((c) => {
+        // Only include configs for machines the user owns
+        if (!c.machineId || !machineMap.has(c.machineId)) return false;
+        // Only include configs for the current team
+        if (currentTeamId && c.teamRoleKey) {
+          return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+        }
+        return true;
+      });
 
       // An agent is only considered running if it has a PID AND its daemon is connected.
       // This matches the frontend AgentConfigTabs check (spawnedAgentPid && daemonConnected)
       // and prevents stale "running" status when a daemon disconnects without cleanup.
       const runningConfigs = configs.filter((c) => {
         if (c.spawnedAgentPid == null) return false;
-        const machine = c.machineId ? machineMap.get(c.machineId) : undefined;
+        const machine = machineMap.get(c.machineId!);
         return machine?.daemonConnected === true;
       });
 
