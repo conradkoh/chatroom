@@ -266,6 +266,10 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
   const teamName = chatroom.teamName || 'Team';
   const displayName = chatroom.name || teamName;
 
+  const teamRoles = chatroom.teamRoles || [];
+  const { agents } = chatroom;
+  const agentMap = new Map(agents.map((a) => [a.role.toLowerCase(), a]));
+
   return (
     <div
       role="button"
@@ -297,6 +301,22 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
           </button>
         </div>
       </div>
+      {/* Card Agents */}
+      {teamRoles.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {teamRoles.map((role) => {
+            const agent = agentMap.get(role.toLowerCase());
+            return (
+              <div key={role} className="flex items-center gap-1">
+                <span className={getAgentIndicatorClasses(agent?.isAlive ?? false)} />
+                <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                  {role}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="font-mono text-[9px] text-chatroom-text-muted truncate">{chatroom._id}</div>
     </div>
   );
