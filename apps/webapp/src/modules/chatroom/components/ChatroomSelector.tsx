@@ -3,18 +3,11 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List, Star } from 'lucide-react';
+import { MessageSquare, LayoutGrid, List, Star } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 type TabType = 'current' | 'complete';
 type ViewMode = 'grid' | 'table';
@@ -323,7 +316,6 @@ const ChatroomCard = memo(function ChatroomCard({
   onSelect,
   activeTab,
 }: ChatroomCardProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -338,21 +330,6 @@ const ChatroomCard = memo(function ChatroomCard({
       }
     },
     [toggleFavorite, chatroom._id]
-  );
-
-  const handleMarkComplete = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      try {
-        await updateStatus({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-          status: 'completed',
-        });
-      } catch (error) {
-        console.error('Failed to mark as complete:', error);
-      }
-    },
-    [updateStatus, chatroom._id]
   );
 
   const formattedDate = useMemo(() => {
@@ -417,32 +394,6 @@ const ChatroomCard = memo(function ChatroomCard({
             >
               <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
             </button>
-            {/* Action Menu - only show for non-completed chatrooms */}
-            {chatStatus !== 'completed' && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div
-                    className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
-                    onClick={(e) => e.stopPropagation()}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                      }
-                    }}
-                  >
-                    <MoreVertical size={14} />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[140px]">
-                  <DropdownMenuItem onClick={handleMarkComplete}>
-                    <CheckCircle size={14} className="mr-2" />
-                    Mark Complete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
@@ -483,7 +434,6 @@ const ChatroomTable = memo(function ChatroomTable({
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -498,21 +448,6 @@ const ChatroomTable = memo(function ChatroomTable({
       }
     },
     [toggleFavorite]
-  );
-
-  const handleMarkComplete = useCallback(
-    async (e: React.MouseEvent, chatroomId: string) => {
-      e.stopPropagation();
-      try {
-        await updateStatus({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          status: 'completed',
-        });
-      } catch (error) {
-        console.error('Failed to mark as complete:', error);
-      }
-    },
-    [updateStatus]
   );
 
   // Filter chatrooms based on active tab
@@ -537,7 +472,7 @@ const ChatroomTable = memo(function ChatroomTable({
   return (
     <div className="border-2 border-chatroom-border overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+      <div className="grid grid-cols-[32px_1fr_auto_100px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Name
@@ -548,7 +483,6 @@ const ChatroomTable = memo(function ChatroomTable({
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-right">
           Created
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
       </div>
       {/* Table Rows */}
       {filteredChatrooms.map((chatroom) => {
@@ -568,7 +502,7 @@ const ChatroomTable = memo(function ChatroomTable({
         return (
           <button
             key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            className="grid grid-cols-[32px_1fr_auto_100px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
             onClick={() => onSelect(chatroom._id)}
           >
             {/* Favorite Star */}
@@ -621,32 +555,6 @@ const ChatroomTable = memo(function ChatroomTable({
               <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
                 {formattedDate}
               </span>
-            </div>
-            {/* Actions */}
-            <div
-              className="flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-              }}
-              role="button"
-              tabIndex={-1}
-            >
-              {chatroom.chatStatus !== 'completed' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100 cursor-pointer">
-                      <MoreVertical size={14} />
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[140px]">
-                    <DropdownMenuItem onClick={(e) => handleMarkComplete(e, chatroom._id)}>
-                      <CheckCircle size={14} className="mr-2" />
-                      Mark Complete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </div>
           </button>
         );

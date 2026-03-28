@@ -60,12 +60,29 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
  */
 const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: string }) {
   const [copied, setCopied] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(chatroomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [chatroomId]);
+
+  const handleArchive = useCallback(async () => {
+    setIsArchiving(true);
+    try {
+      await updateStatus({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        status: 'completed',
+      });
+    } catch (error) {
+      console.error('Failed to archive chat:', error);
+    } finally {
+      setIsArchiving(false);
+    }
+  }, [updateStatus, chatroomId]);
 
   return (
     <div className="space-y-6">
@@ -96,7 +113,7 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
         </div>
       </div>
 
-      {/* Environment variable */}
+      {/* Connection Command */}
       <div className="space-y-2">
         <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Connection Command
@@ -104,6 +121,23 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
         <div className="font-mono text-[10px] text-chatroom-text-secondary break-all p-3 bg-chatroom-bg-tertiary border border-chatroom-border leading-relaxed">
           chatroom get-next-task --chatroom-id={chatroomId} --role=&lt;role&gt;
         </div>
+      </div>
+
+      {/* Chat Actions */}
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Chat Actions
+        </label>
+        <p className="text-[10px] text-chatroom-text-muted">
+          Archive this chat to mark it as complete. Archived chats appear in the Complete tab.
+        </p>
+        <button
+          onClick={handleArchive}
+          disabled={isArchiving}
+          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isArchiving ? 'Archiving...' : 'Archive Chat'}
+        </button>
       </div>
     </div>
   );
