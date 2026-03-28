@@ -766,6 +766,18 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     setEditError(null);
   }, []);
 
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        handleCancelEdit();
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSaveEdit();
+      }
+    },
+    [handleCancelEdit, handleSaveEdit]
+  );
+
   return (
     <>
       <div className="px-3 py-2 bg-card border-b border-border">
@@ -892,6 +904,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                   className="w-full min-h-[120px] p-3 text-sm bg-background border border-border resize-y focus:outline-none focus:ring-1 focus:ring-ring"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
                   autoFocus
                 />
                 {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
