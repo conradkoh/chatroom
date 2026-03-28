@@ -305,11 +305,7 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       ⚠️ Successful workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon a workflow that isn't working.
 
-      **Mandatory code review step:** Every multi-step workflow that produces code changes MUST include a final code review step assigned to the planner. This step should:
-      - Activate the code-review skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`
-      - Review all changes against the 8-pillar framework
-      - Fix any issues found (simplification, type drift, duplication, dead code, etc.)
-      - Verify typecheck and tests pass after fixes
+      **Code review:** Multi-step workflows with code changes should include a final review step. Activate \`code-review\` skill for the 8-pillar framework.
 
       **If the plan isn't working:** If a step fails after 2 rework attempts, exit the workflow with \`workflow exit\` and a reason, then replan with a different approach or deliver partial results to the user.
 
