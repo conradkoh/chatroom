@@ -3,6 +3,7 @@
  */
 
 import type { WorkflowDeps } from './deps.js';
+import { ConvexError } from 'convex/values';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
@@ -98,6 +99,21 @@ function validateChatroomId(chatroomId: string): void {
     );
     process.exit(1);
   }
+}
+
+// ─── Error Helper ──────────────────────────────────────────────────────────
+
+/**
+ * Extracts a user-friendly error message from a Convex error or generic Error.
+ * ConvexErrors carry structured data (code, message) that is more helpful than
+ * the generic "[Request ID: xxx] Server Error" message.
+ */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError) {
+    const data = error.data as { code?: string; message?: string };
+    return data.message || data.code || error.message;
+  }
+  return (error as Error).message;
 }
 
 // ─── Section Parser ────────────────────────────────────────────────────────
@@ -297,7 +313,7 @@ export async function createWorkflow(
     console.log(`   Status: draft`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to create workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to create workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -347,7 +363,7 @@ export async function specifyWorkflowStep(
     console.log(`   Assignee: ${options.assigneeRole}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to specify step: ${(error as Error).message}`);
+    console.error(`❌ Failed to specify step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -380,7 +396,7 @@ export async function executeWorkflow(
     console.log('💡 Root steps (no dependencies) are now in_progress.');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to execute workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to execute workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -509,7 +525,7 @@ export async function getWorkflowStatus(
     console.log('══════════════════════════════════════════════════');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to get workflow status: ${(error as Error).message}`);
+    console.error(`❌ Failed to get workflow status: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -541,7 +557,7 @@ export async function completeStep(
     console.log(`   Step: ${options.stepKey}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to complete step: ${(error as Error).message}`);
+    console.error(`❌ Failed to complete step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -580,7 +596,7 @@ export async function exitWorkflow(
     console.log(`   Reason: ${options.reason.trim()}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to exit workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to exit workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -685,7 +701,7 @@ export async function viewStep(
     console.log('══════════════════════════════════════════════════');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to view step: ${(error as Error).message}`);
+    console.error(`❌ Failed to view step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
