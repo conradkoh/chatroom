@@ -50,7 +50,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   // Compute recently used chatrooms (top 3 by last activity, non-completed)
   const recentlyUsed = useMemo(() => {
     if (!chatrooms) return [];
-    return chatrooms.filter((c) => c.chatStatus !== 'completed').slice(0, 3);
+    return chatrooms.filter((c) => c.chatStatus !== 'completed').slice(0, 10);
   }, [chatrooms]);
 
   // Compute favorite chatrooms
@@ -126,21 +126,10 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
             Recently Used
           </h2>
-          {/* Desktop: grid of 3 */}
-          <div className="hidden md:grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {recentlyUsed.map((chatroom) => (
               <RecentChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} />
             ))}
-          </div>
-          {/* Mobile: horizontal scroll showing 1.5 cards */}
-          <div className="md:hidden overflow-x-auto scrollbar-hide -mx-6 px-6">
-            <div className="flex gap-4" style={{ width: 'max-content' }}>
-              {recentlyUsed.map((chatroom) => (
-                <div key={chatroom._id} className="w-[75vw] flex-shrink-0">
-                  <RecentChatroomCard chatroom={chatroom} onSelect={onSelect} />
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}
@@ -274,7 +263,7 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
     <div
       role="button"
       tabIndex={0}
-      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 md:p-3 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
       onClick={() => onSelect(chatroom._id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -400,7 +389,7 @@ const ChatroomCard = memo(function ChatroomCard({
       <div
         role="button"
         tabIndex={0}
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -411,7 +400,7 @@ const ChatroomCard = memo(function ChatroomCard({
         data-chat-status={chatStatus}
       >
         {/* Card Main */}
-        <div className="flex justify-between items-start mb-3">
+        <div className="flex justify-between items-start mb-2 md:mb-3">
           <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-2 flex-1 min-w-0 truncate">
             {displayName}
           </span>
@@ -456,11 +445,11 @@ const ChatroomCard = memo(function ChatroomCard({
             )}
           </div>
         </div>
-        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
+        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
           {chatroom._id}
         </div>
         {/* Card Agents */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-2 md:mb-3">
           {teamRoles.map((role) => {
             const agent = agentMap.get(role.toLowerCase());
             return (
