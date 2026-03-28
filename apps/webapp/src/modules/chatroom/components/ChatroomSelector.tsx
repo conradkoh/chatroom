@@ -47,7 +47,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     [onSelect]
   );
 
-  // Compute recently used chatrooms (top 3 by last activity, non-completed)
+  // Compute recently used chatrooms (top 10 by last activity, non-completed)
   const recentlyUsed = useMemo(() => {
     if (!chatrooms) return [];
     return chatrooms.filter((c) => c.chatStatus !== 'completed').slice(0, 10);
