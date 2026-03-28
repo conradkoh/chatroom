@@ -126,14 +126,14 @@ const RemoteRepoLink = memo(function RemoteRepoLink({ remotes }: { remotes: GitR
           href={httpsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
+          className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
           title={selected.url}
         >
           <PlatformIcon size={10} className="shrink-0" />
           {selected.name}
         </a>
       ) : (
-        <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono" title={selected.url}>
+        <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider" title={selected.url}>
           <PlatformIcon size={10} className="shrink-0" />
           {selected.name}
         </span>
@@ -168,7 +168,7 @@ const RemoteRepoLink = memo(function RemoteRepoLink({ remotes }: { remotes: GitR
                 key={remote.name}
                 onClick={() => setSelected(remote)}
                 className={cn(
-                  'text-[11px] font-mono flex items-center gap-1.5 cursor-pointer',
+                  'text-[11px] font-mono flex items-center gap-1.5 cursor-pointer uppercase tracking-wider',
                   remote.name === selected.name && 'font-bold'
                 )}
               >
