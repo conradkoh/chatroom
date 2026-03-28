@@ -81,10 +81,14 @@ type GitPlatform = 'github' | 'gitlab' | 'bitbucket' | 'generic';
 
 /** Detects the git hosting platform from a remote URL. */
 function detectPlatform(remoteUrl: string): GitPlatform {
-  const lower = remoteUrl.toLowerCase();
-  if (lower.includes('github.com')) return 'github';
-  if (lower.includes('gitlab.com') || lower.includes('gitlab')) return 'gitlab';
-  if (lower.includes('bitbucket.org') || lower.includes('bitbucket')) return 'bitbucket';
+  // Extract hostname from various URL formats
+  const httpsUrl = toHttpsUrl(remoteUrl);
+  const hostname = httpsUrl
+    ? (() => { try { return new URL(httpsUrl).hostname.toLowerCase(); } catch { return ''; } })()
+    : '';
+  if (hostname.includes('github.com')) return 'github';
+  if (hostname.includes('gitlab.com') || hostname.includes('gitlab')) return 'gitlab';
+  if (hostname.includes('bitbucket.org') || hostname.includes('bitbucket')) return 'bitbucket';
   return 'generic';
 }
 
@@ -119,26 +123,22 @@ const RemoteRepoLink = memo(function RemoteRepoLink({ remotes }: { remotes: GitR
   const httpsUrl = toHttpsUrl(selected.url);
   const PlatformIcon = getPlatformIcon(selected.url);
 
-  const linkContent = (
-    <>
-      {httpsUrl ? (
-        <a
-          href={httpsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
-          title={selected.url}
-        >
-          <PlatformIcon size={10} className="shrink-0" />
-          {selected.name}
-        </a>
-      ) : (
-        <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider" title={selected.url}>
-          <PlatformIcon size={10} className="shrink-0" />
-          {selected.name}
-        </span>
-      )}
-    </>
+  const linkContent = httpsUrl ? (
+    <a
+      href={httpsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
+      title={selected.url}
+    >
+      <PlatformIcon size={10} className="shrink-0" />
+      {selected.name}
+    </a>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider" title={selected.url}>
+      <PlatformIcon size={10} className="shrink-0" />
+      {selected.name}
+    </span>
   );
 
   // Single remote — simple link, no dropdown
