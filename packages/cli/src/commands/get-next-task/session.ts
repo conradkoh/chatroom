@@ -18,6 +18,7 @@ import { api, type Id } from '../../api.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ---------------------------------------------------------------------------
 // Type definitions
@@ -197,7 +198,7 @@ export class GetNextTaskSession {
       },
       (response: GetNextTaskResponse) => {
         this.handleSubscriptionResponse(response).catch((error) => {
-          console.error(`❌ Error processing task: ${(error as Error).message}`);
+          console.error(`❌ Error processing task: ${getErrorMessage(error)}`);
         });
       },
       (error: Error) => {

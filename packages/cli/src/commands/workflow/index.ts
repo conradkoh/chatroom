@@ -3,8 +3,8 @@
  */
 
 import type { WorkflowDeps } from './deps.js';
-import { ConvexError } from 'convex/values';
 import { api, type Id } from '../../api.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
@@ -99,21 +99,6 @@ function validateChatroomId(chatroomId: string): void {
     );
     process.exit(1);
   }
-}
-
-// ─── Error Helper ──────────────────────────────────────────────────────────
-
-/**
- * Extracts a user-friendly error message from a Convex error or generic Error.
- * ConvexErrors carry structured data (code, message) that is more helpful than
- * the generic "[Request ID: xxx] Server Error" message.
- */
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ConvexError) {
-    const data = error.data as { code?: string; message?: string };
-    return data.message || data.code || error.message;
-  }
-  return (error as Error).message;
 }
 
 // ─── Section Parser ────────────────────────────────────────────────────────

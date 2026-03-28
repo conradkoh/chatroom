@@ -37,6 +37,7 @@ import {
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 
@@ -192,7 +193,7 @@ async function registerCapabilities(
     });
   } catch (error) {
     // Registration failure is non-critical — daemon can still work
-    console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
+    console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
   }
 
   return availableModels;
@@ -219,7 +220,7 @@ async function connectDaemon(
       formatConnectivityError(error, convexUrl);
       throw error; // Re-throw for caller retry logic
     } else {
-      console.error(`❌ Failed to update daemon status: ${(error as Error).message}`);
+      console.error(`❌ Failed to update daemon status: ${getErrorMessage(error)}`);
       releaseLock();
       process.exit(1);
     }

@@ -22,6 +22,7 @@ import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.j
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
       `[${formatTimestamp()}] 🔄 Model refresh: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
     );
   } catch (error) {
-    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);
+    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${getErrorMessage(error)}`);
   }
 }
 

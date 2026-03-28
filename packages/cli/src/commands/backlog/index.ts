@@ -6,6 +6,7 @@ import type { BacklogDeps, BacklogFsOps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { createHash } from 'node:crypto';
 import * as nodePath from 'node:path';
 
@@ -239,7 +240,7 @@ export async function listBacklog(
     console.log(`Showing ${backlogItems.length} backlog item(s)`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to list backlog items: ${(error as Error).message}`);
+    console.error(`❌ Failed to list backlog items: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -278,7 +279,7 @@ export async function addBacklog(
     console.log(`   Status: backlog`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to add backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to add backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -326,7 +327,7 @@ export async function completeBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to complete backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to complete backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -365,7 +366,7 @@ export async function reopenBacklog(
     console.log('💡 The backlog item is now ready for user review again.');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to reopen backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to reopen backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -454,7 +455,7 @@ export async function patchBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to patch backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to patch backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -545,7 +546,7 @@ export async function scoreBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to score backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to score backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -586,7 +587,7 @@ export async function markForReviewBacklog(
     );
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to mark backlog item for review: ${(error as Error).message}`);
+    console.error(`❌ Failed to mark backlog item for review: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -706,7 +707,7 @@ export async function historyBacklog(
     console.log(`Showing ${tasks.length} task(s)`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to load history: ${(error as Error).message}`);
+    console.error(`❌ Failed to load history: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -750,7 +751,7 @@ export async function closeBacklog(
     console.log(`   Reason: ${options.reason}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to close backlog item: ${(error as Error).message}`);
+    console.error(`❌ Failed to close backlog item: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -856,7 +857,7 @@ export async function exportBacklog(
     console.log(`   File: ${filePath}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to export backlog items: ${(error as Error).message}`);
+    console.error(`❌ Failed to export backlog items: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -942,7 +943,7 @@ export async function importBacklog(
     console.log(`   Skipped (duplicate): ${skipped}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to import backlog items: ${(error as Error).message}`);
+    console.error(`❌ Failed to import backlog items: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
