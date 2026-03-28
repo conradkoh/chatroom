@@ -82,6 +82,9 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
     gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE),
   ]);
 
+  // Fetch remotes (non-blocking on failure — returns empty array)
+  const remotes = await gitReader.getRemotes(workingDir);
+
   // Handle error state from branch (primary indicator)
   if (branchResult.status === 'error') {
     const stateHash = `error:${branchResult.message}`;
@@ -117,7 +120,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number) }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
@@ -136,6 +139,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
     recentCommits: commits,
     hasMoreCommits,
     openPullRequests: openPRs,
+    remotes,
   });
 
   ctx.lastPushedGitState.set(stateKey, stateHash);

@@ -7,9 +7,7 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import {
   ArrowLeft,
   Check,
-  CheckCircle,
   ChevronDown,
-  MoreVertical,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -299,9 +297,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
 
-  // Update status mutation (for marking complete)
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
-
   // Update team mutation (for switching teams)
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
@@ -404,22 +399,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleCloseSetup = useCallback(() => {
     setSetupModalOpen(false);
   }, []);
-
-  // Mark complete handler
-  const handleMarkComplete = useCallback(async () => {
-    try {
-      await updateStatus({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        status: 'completed',
-      });
-      // Navigate back after marking complete
-      if (onBack) {
-        onBack();
-      }
-    } catch (error) {
-      console.error('Failed to mark as complete:', error);
-    }
-  }, [updateStatus, chatroomId, onBack]);
 
   // Rename mutation (for setup modal)
   const renameChatroom = useSessionMutation(api.chatrooms.rename);
@@ -583,25 +562,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 />
               )}
             </button>
-            {/* Actions Menu - only show when not completed */}
-            {chatroom.status !== 'completed' && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                    title="Actions"
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[160px]">
-                  <DropdownMenuItem onClick={handleMarkComplete}>
-                    <CheckCircle size={14} className="mr-2" />
-                    Mark Complete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         ),
       });
@@ -623,7 +583,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     clearHeaderContent,
     getStatusBadgeClasses,
     displayName,
-    handleMarkComplete,
     setupModalOpen,
     handleOpenSetup,
   ]);

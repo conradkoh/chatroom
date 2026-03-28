@@ -490,3 +490,46 @@ export async function getOpenPRsForBranch(
     return [];
   }
 }
+
+// ─── Git Remotes ────────────────────────────────────────────────────────────
+
+/** A single git remote entry (from `git remote -v`). */
+export interface GitRemoteEntry {
+  /** Remote name (e.g. 'origin', 'upstream'). */
+  name: string;
+  /** Remote URL (HTTPS or SSH). */
+  url: string;
+}
+
+/**
+ * Get all configured git remotes for the repository at `cwd`.
+ *
+ * Runs `git remote -v` and deduplicates (keeping fetch entries).
+ * Returns an empty array if no remotes are configured or the command fails.
+ */
+export async function getRemotes(cwd: string): Promise<GitRemoteEntry[]> {
+  const result = await runGit('remote -v', cwd);
+  if ('error' in result) return [];
+  if (!result.stdout.trim()) return [];
+
+  const lines = result.stdout.trim().split('\n');
+  const seen = new Set<string>();
+  const remotes: GitRemoteEntry[] = [];
+
+  for (const line of lines) {
+    // Format: "origin\thttps://github.com/user/repo.git (fetch)"
+    const match = line.match(/^(\S+)\s+(\S+)\s+\((\w+)\)$/);
+    if (!match) continue;
+
+    const [, name, url, type] = match;
+    if (!name || !url) continue;
+
+    // Deduplicate — prefer fetch entry (listed first)
+    if (type === 'fetch' && !seen.has(name)) {
+      seen.add(name);
+      remotes.push({ name, url });
+    }
+  }
+
+  return remotes;
+}

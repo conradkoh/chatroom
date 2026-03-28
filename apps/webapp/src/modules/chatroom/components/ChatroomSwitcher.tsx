@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 import {
   Command,
@@ -14,6 +14,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 import {
   useChatroomListing,
@@ -52,6 +53,10 @@ export function ChatroomSwitcher() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { chatrooms } = useChatroomListing();
+
+  // Two-finger tap on mobile opens the switcher (same as Cmd+K on desktop)
+  const toggleOpen = useCallback(() => setOpen((prev) => !prev), []);
+  useTwoFingerTap(toggleOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

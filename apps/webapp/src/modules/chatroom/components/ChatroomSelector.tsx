@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List, Star } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List, Search, Star, X } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
@@ -31,10 +31,70 @@ function getAgentIndicatorClasses(isAlive: boolean): string {
     : `${base} bg-chatroom-text-muted opacity-40`;
 }
 
+// ─── Sorting & Filtering ──────────────────────────────────────────────────────
+
+/**
+ * Groups chatrooms into priority-ordered sections:
+ *   1. Active — agents present and engaged (working/active)
+ *   2. Recent — top N most recently active idle chatrooms
+ *   3. Remainder — all other non-completed chatrooms
+ *
+ * This mirrors the ordering used in ChatroomSidebar.
+ */
+function groupChatrooms(chatrooms: ChatroomWithStatus[]): {
+  active: ChatroomWithStatus[];
+  recent: ChatroomWithStatus[];
+  remainder: ChatroomWithStatus[];
+  completed: ChatroomWithStatus[];
+} {
+  const completed = chatrooms.filter((c) => c.chatStatus === 'completed');
+
+  // Active: agents present and engaged, sorted by creation time ASC (stable)
+  const active = chatrooms
+    .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
+    .sort((a, b) => a._creationTime - b._creationTime);
+
+  // Recent: top 5 by lastActivityAt, excluding active and completed
+  const activeIds = new Set(active.map((c) => c._id));
+  const idle = chatrooms.filter(
+    (c) => !activeIds.has(c._id) && c.chatStatus !== 'completed'
+  );
+  const sortedIdle = [...idle].sort((a, b) => {
+    const aTime = a.lastActivityAt || a._creationTime;
+    const bTime = b.lastActivityAt || b._creationTime;
+    return bTime - aTime || a._id.localeCompare(b._id);
+  });
+  const recent = sortedIdle.slice(0, 5);
+  const recentIds = new Set(recent.map((c) => c._id));
+
+  // Remainder: everything else (not active, not recent, not completed)
+  const remainder = sortedIdle.filter((c) => !recentIds.has(c._id));
+
+  return { active, recent, remainder, completed };
+}
+
+/**
+ * Filters chatrooms by a search query.
+ * Matches against chatroom name, team name, and ID (case-insensitive).
+ */
+function filterChatrooms(chatrooms: ChatroomWithStatus[], query: string): ChatroomWithStatus[] {
+  const lower = query.toLowerCase().trim();
+  if (!lower) return chatrooms;
+
+  return chatrooms.filter((c) => {
+    const name = (c.name || '').toLowerCase();
+    const teamName = (c.teamName || '').toLowerCase();
+    const id = c._id.toLowerCase();
+    return name.includes(lower) || teamName.includes(lower) || id.includes(lower);
+  });
+}
+
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('current');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Use context for chatroom data - single source of truth
   const { chatrooms, isLoading } = useChatroomListing();
@@ -47,17 +107,33 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     [onSelect]
   );
 
-  // Compute recently used chatrooms (top 3 by last activity, non-completed)
-  const recentlyUsed = useMemo(() => {
-    if (!chatrooms) return [];
-    return chatrooms.filter((c) => c.chatStatus !== 'completed').slice(0, 3);
-  }, [chatrooms]);
+  // Filter chatrooms by search query, then group into priority sections
+  const filtered = useMemo(() => {
+    if (!chatrooms) return undefined;
+    return filterChatrooms(chatrooms, searchQuery);
+  }, [chatrooms, searchQuery]);
+
+  const groups = useMemo(() => {
+    if (!filtered) return { active: [], recent: [], remainder: [], completed: [] };
+    return groupChatrooms(filtered);
+  }, [filtered]);
+
+  // Ordered list for the "current" tab: active → recent → remainder
+  const orderedCurrent = useMemo(
+    () => [...groups.active, ...groups.recent, ...groups.remainder],
+    [groups]
+  );
 
   // Compute favorite chatrooms
   const favorites = useMemo(() => {
-    if (!chatrooms) return [];
-    return chatrooms.filter((c) => c.isFavorite);
-  }, [chatrooms]);
+    if (!filtered) return [];
+    return filtered.filter((c) => c.isFavorite);
+  }, [filtered]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    searchInputRef.current?.focus();
+  }, []);
 
   if (isLoading) {
     return (
@@ -120,33 +196,32 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         </button>
       </div>
 
-      {/* Recently Used Section - Desktop: 3 cards, Mobile: horizontally scrollable */}
-      {recentlyUsed.length > 0 && activeTab === 'current' && (
-        <div className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
-            Recently Used
-          </h2>
-          {/* Desktop: grid of 3 */}
-          <div className="hidden md:grid md:grid-cols-3 gap-4">
-            {recentlyUsed.map((chatroom) => (
-              <RecentChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} />
-            ))}
-          </div>
-          {/* Mobile: horizontal scroll showing 1.5 cards */}
-          <div className="md:hidden overflow-x-auto scrollbar-hide -mx-6 px-6">
-            <div className="flex gap-4" style={{ width: 'max-content' }}>
-              {recentlyUsed.map((chatroom) => (
-                <div key={chatroom._id} className="w-[75vw] flex-shrink-0">
-                  <RecentChatroomCard chatroom={chatroom} onSelect={onSelect} />
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Search Input */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chatrooms..."
+            className="w-full bg-chatroom-bg-surface border-2 border-chatroom-border text-chatroom-text-primary pl-9 pr-9 py-2 text-xs font-mono placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Favorites Section */}
-      {favorites.length > 0 && activeTab === 'current' && (
+      {favorites.length > 0 && activeTab === 'current' && !searchQuery && (
         <div className="mb-6">
           <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3 flex items-center gap-2">
             <Star size={12} className="text-yellow-500" fill="currentColor" />
@@ -216,91 +291,83 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           </button>
         </div>
       </div>
-      {/* Chatroom List */}
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {chatrooms.map((chatroom) => (
-            <ChatroomCard
-              key={chatroom._id}
-              chatroom={chatroom}
-              onSelect={onSelect}
-              activeTab={activeTab}
-            />
-          ))}
-        </div>
+
+      {/* Chatroom List — ordered: active → recent → remainder */}
+      {activeTab === 'current' ? (
+        viewMode === 'grid' ? (
+          orderedCurrent.length > 0 ? (
+            <div className="space-y-6">
+              {/* Active Section */}
+              {groups.active.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="w-1.5 h-1.5 bg-chatroom-status-success flex-shrink-0" />
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted">
+                      Active
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groups.active.map((chatroom) => (
+                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Section */}
+              {groups.recent.length > 0 && (
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+                    Recent
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groups.recent.map((chatroom) => (
+                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Remainder Section */}
+              {groups.remainder.length > 0 && (
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+                    Older
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groups.remainder.map((chatroom) => (
+                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-chatroom-text-muted">
+              {searchQuery ? 'No chatrooms match your search' : 'No current chatrooms'}
+            </div>
+          )
+        ) : (
+          <ChatroomTable chatrooms={orderedCurrent} onSelect={onSelect} activeTab={activeTab} />
+        )
+      ) : viewMode === 'grid' ? (
+        groups.completed.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {groups.completed.map((chatroom) => (
+              <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-chatroom-text-muted">
+            {searchQuery ? 'No completed chatrooms match your search' : 'No completed chatrooms'}
+          </div>
+        )
       ) : (
-        <ChatroomTable chatrooms={chatrooms} onSelect={onSelect} activeTab={activeTab} />
+        <ChatroomTable chatrooms={groups.completed} onSelect={onSelect} activeTab={activeTab} />
       )}
     </div>
   );
 }
-
-/**
- * Compact card for recently used chatrooms section
- */
-interface RecentChatroomCardProps {
-  chatroom: ChatroomWithStatus;
-  onSelect: (chatroomId: string) => void;
-}
-
-const RecentChatroomCard = memo(function RecentChatroomCard({
-  chatroom,
-  onSelect,
-}: RecentChatroomCardProps) {
-  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
-
-  const handleToggleFavorite = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      try {
-        await toggleFavorite({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        });
-      } catch (error) {
-        console.error('Failed to toggle favorite:', error);
-      }
-    },
-    [toggleFavorite, chatroom._id]
-  );
-
-  const teamName = chatroom.teamName || 'Team';
-  const displayName = chatroom.name || teamName;
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
-      onClick={() => onSelect(chatroom._id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(chatroom._id);
-        }
-      }}
-    >
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate flex-1 mr-2">
-          {displayName}
-        </span>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
-            onClick={handleToggleFavorite}
-            className={`w-6 h-6 flex items-center justify-center transition-all duration-100 ${
-              chatroom.isFavorite
-                ? 'text-yellow-500 hover:text-yellow-400'
-                : 'text-chatroom-text-muted hover:text-yellow-500'
-            }`}
-            title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            <Star size={12} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
-          </button>
-        </div>
-      </div>
-      <div className="font-mono text-[9px] text-chatroom-text-muted truncate">{chatroom._id}</div>
-    </div>
-  );
-});
 
 interface ChatroomCardProps {
   chatroom: ChatroomWithStatus;
@@ -331,7 +398,7 @@ const ChatroomCard = memo(function ChatroomCard({
     [toggleFavorite, chatroom._id]
   );
 
-  const handleMarkComplete = useCallback(
+  const handleArchive = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation(); // Prevent card click
       try {
@@ -340,7 +407,7 @@ const ChatroomCard = memo(function ChatroomCard({
           status: 'completed',
         });
       } catch (error) {
-        console.error('Failed to mark as complete:', error);
+        console.error('Failed to archive chat:', error);
       }
     },
     [updateStatus, chatroom._id]
@@ -380,7 +447,7 @@ const ChatroomCard = memo(function ChatroomCard({
       <div
         role="button"
         tabIndex={0}
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -391,7 +458,7 @@ const ChatroomCard = memo(function ChatroomCard({
         data-chat-status={chatStatus}
       >
         {/* Card Main */}
-        <div className="flex justify-between items-start mb-3">
+        <div className="flex justify-between items-start mb-2 md:mb-3">
           <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-2 flex-1 min-w-0 truncate">
             {displayName}
           </span>
@@ -427,20 +494,20 @@ const ChatroomCard = memo(function ChatroomCard({
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[140px]">
-                  <DropdownMenuItem onClick={handleMarkComplete}>
+                  <DropdownMenuItem onClick={handleArchive}>
                     <CheckCircle size={14} className="mr-2" />
-                    Mark Complete
+                    Archive Chat
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
           </div>
         </div>
-        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
+        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
           {chatroom._id}
         </div>
         {/* Card Agents */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-2 md:mb-3">
           {teamRoles.map((role) => {
             const agent = agentMap.get(role.toLowerCase());
             return (
@@ -491,7 +558,7 @@ const ChatroomTable = memo(function ChatroomTable({
     [toggleFavorite]
   );
 
-  const handleMarkComplete = useCallback(
+  const handleArchive = useCallback(
     async (e: React.MouseEvent, chatroomId: string) => {
       e.stopPropagation();
       try {
@@ -500,7 +567,7 @@ const ChatroomTable = memo(function ChatroomTable({
           status: 'completed',
         });
       } catch (error) {
-        console.error('Failed to mark as complete:', error);
+        console.error('Failed to archive chat:', error);
       }
     },
     [updateStatus]
@@ -557,10 +624,18 @@ const ChatroomTable = memo(function ChatroomTable({
         });
 
         return (
-          <button
+          <div
+            role="button"
+            tabIndex={0}
             key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
             onClick={() => onSelect(chatroom._id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(chatroom._id);
+              }
+            }}
           >
             {/* Favorite Star */}
             <div
@@ -631,15 +706,15 @@ const ChatroomTable = memo(function ChatroomTable({
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[140px]">
-                    <DropdownMenuItem onClick={(e) => handleMarkComplete(e, chatroom._id)}>
+                    <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
                       <CheckCircle size={14} className="mr-2" />
-                      Mark Complete
+                      Archive Chat
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
             </div>
-          </button>
+          </div>
         );
       })}
     </div>
