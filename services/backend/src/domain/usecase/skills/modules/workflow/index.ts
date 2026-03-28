@@ -50,6 +50,9 @@ Reads content from stdin with sections:
 \`\`\`
 ---GOAL---
 [High-level goal in markdown]
+---SKILLS---
+${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<assignee-role>
+[List each chatroom skill activation command, one per line. Available: software-engineering, code-review]
 ---REQUIREMENTS---
 [Specific, verifiable outcomes]
 ---WARNINGS---
