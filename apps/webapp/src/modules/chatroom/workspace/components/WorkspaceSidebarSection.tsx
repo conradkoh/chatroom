@@ -218,19 +218,6 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           {getWorkspaceDisplayHostname(workspace)}
         </span>
 
-        {/* Branch name (when available) */}
-        {isAvailable && (
-          <>
-            <span className="text-[11px] text-chatroom-text-muted">·</span>
-            <div className="flex items-center gap-0.5">
-              <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-              <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
-                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
-              </span>
-            </div>
-          </>
-        )}
-
         {/* Diff stats (when available) */}
         {isAvailable && (
           <>
@@ -243,28 +230,36 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
       {/* ── Group 2: Remote-centric Links ── */}
       {isAvailable && (
         <div className="flex items-center gap-2 flex-wrap">
-          {/* PR link (if open PR exists) */}
-          {(gitState.openPullRequests?.length ?? 0) > 0 && (
-            <>
-              <a
-                href={gitState.openPullRequests[0]!.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
-                title={gitState.openPullRequests[0]!.title}
-              >
-                <GitPullRequestIcon size={10} className="shrink-0" />
-                PR #{gitState.openPullRequests[0]!.number}
-              </a>
-              {gitState.remotes.length > 0 && (
-                <span className="text-[11px] text-chatroom-text-muted">·</span>
-              )}
-            </>
+          {/* Branch name — clickable with PR number when PR exists */}
+          {(gitState.openPullRequests?.length ?? 0) > 0 ? (
+            <a
+              href={gitState.openPullRequests[0]!.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono"
+              title={gitState.openPullRequests[0]!.title}
+            >
+              <GitPullRequestIcon size={10} className="shrink-0" />
+              <span className="uppercase tracking-wider">
+                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
+              </span>
+              <span>(#{gitState.openPullRequests[0]!.number})</span>
+            </a>
+          ) : (
+            <div className="inline-flex items-center gap-0.5 text-[11px] font-mono">
+              <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+              <span className="text-chatroom-text-secondary uppercase tracking-wider">
+                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
+              </span>
+            </div>
           )}
 
           {/* Repo link with platform icon + remote dropdown */}
           {gitState.remotes.length > 0 && (
-            <RemoteRepoLink remotes={gitState.remotes} />
+            <>
+              <span className="text-[11px] text-chatroom-text-muted">·</span>
+              <RemoteRepoLink remotes={gitState.remotes} />
+            </>
           )}
         </div>
       )}
