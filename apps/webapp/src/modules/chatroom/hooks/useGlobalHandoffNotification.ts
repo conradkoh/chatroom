@@ -36,25 +36,41 @@ const NOTIFICATION_THROTTLE_MS = 3000;
 
 /**
  * Global notification hook that fires browser notifications when any chatroom
- * transitions to "unread" while the document is hidden.
+ * transitions to "unread."
  *
  * Unlike `useHandoffNotification` (which only watches the currently viewed
  * chatroom's messages), this hook monitors ALL chatrooms via the listing context
  * and fires notifications for any new unread activity.
  *
- * Mount this once at the app layout level (not per-chatroom).
+ * ## Design decisions (WhatsApp Web-inspired):
  *
- * Only triggers when:
- * 1. A chatroom transitions from hasUnread=false to hasUnread=true
- * 2. The browser tab is NOT focused (document.hidden === true)
- * 3. At least NOTIFICATION_THROTTLE_MS has elapsed since the last notification
+ * 1. **Notify regardless of tab focus** — WhatsApp Web shows notifications
+ *    even when the tab is visible. Users may have the tab open but not be
+ *    actively looking at it. We follow the same pattern. The tab being visible
+ *    does NOT suppress notifications.
+ *
+ * 2. **Catch-up on visibility change** — Browsers throttle background tabs,
+ *    which delays Convex subscription updates. When the tab regains focus,
+ *    we immediately check for missed unread transitions and fire any
+ *    pending notifications. This addresses the "delayed notification" issue.
+ *
+ * 3. **Transition detection, not state polling** — We track previous unread
+ *    state per chatroom and only notify on false→true transitions, preventing
+ *    duplicate notifications for the same unread chatroom.
+ *
+ * ## Limitations:
+ *
+ * This approach still relies on the client-side Convex subscription being
+ * active. For truly background/offline push notifications (like WhatsApp
+ * mobile), a server-side Web Push implementation would be needed. That
+ * requires a push subscription endpoint (e.g. Firebase Cloud Messaging)
+ * and server-side push on message creation.
+ *
+ * Mount this once at the app layout level (not per-chatroom).
  */
 export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | undefined) {
   const prevUnreadMapRef = useRef<Map<string, boolean>>(new Map());
   const isInitialLoadRef = useRef(true);
-  const isDocumentHiddenRef = useRef(
-    typeof document !== 'undefined' ? document.hidden : false
-  );
   const lastNotificationTimeRef = useRef(0);
 
   // Request notification permission on mount
@@ -67,41 +83,16 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     }
   }, []);
 
-  // Track document visibility
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const handleVisibilityChange = () => {
-      isDocumentHiddenRef.current = document.hidden;
-    };
-
-    isDocumentHiddenRef.current = document.hidden;
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  // Watch chatrooms for unread transitions
-  useEffect(() => {
-    if (!chatrooms) return;
-
-    // On initial load, snapshot current state without notifying
-    if (isInitialLoadRef.current) {
-      const initialMap = new Map<string, boolean>();
-      for (const chatroom of chatrooms) {
-        initialMap.set(chatroom._id, chatroom.hasUnread);
-      }
-      prevUnreadMapRef.current = initialMap;
-      isInitialLoadRef.current = false;
-      return;
-    }
-
-    // Detect chatrooms that became newly unread
+  /**
+   * Core notification logic: detect newly unread chatrooms and fire notification.
+   * Extracted so it can be called both from the subscription effect and the
+   * visibility-change catch-up handler.
+   */
+  const processUnreadTransitions = (currentChatrooms: ChatroomWithStatus[]) => {
     const newlyUnread: ChatroomWithStatus[] = [];
     const nextMap = new Map<string, boolean>();
 
-    for (const chatroom of chatrooms) {
+    for (const chatroom of currentChatrooms) {
       nextMap.set(chatroom._id, chatroom.hasUnread);
 
       const wasUnread = prevUnreadMapRef.current.get(chatroom._id) ?? false;
@@ -112,8 +103,8 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
 
     prevUnreadMapRef.current = nextMap;
 
-    // Fire notification for newly unread chatrooms (only when tab is hidden)
-    if (newlyUnread.length > 0 && isDocumentHiddenRef.current) {
+    // Fire notification for newly unread chatrooms
+    if (newlyUnread.length > 0) {
       const now = Date.now();
       if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
         lastNotificationTimeRef.current = now;
@@ -131,5 +122,45 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
         }
       }
     }
+  };
+
+  // Catch-up on tab visibility change: when the tab becomes visible again,
+  // the Convex subscription will soon deliver fresh data. However, we also
+  // need to check the current state in case the subscription already updated
+  // while we were throttled in the background.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && chatrooms && !isInitialLoadRef.current) {
+        // Tab just became visible — process any missed transitions
+        processUnreadTransitions(chatrooms);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatrooms]);
+
+  // Watch chatrooms for unread transitions (primary path)
+  useEffect(() => {
+    if (!chatrooms) return;
+
+    // On initial load, snapshot current state without notifying
+    if (isInitialLoadRef.current) {
+      const initialMap = new Map<string, boolean>();
+      for (const chatroom of chatrooms) {
+        initialMap.set(chatroom._id, chatroom.hasUnread);
+      }
+      prevUnreadMapRef.current = initialMap;
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    processUnreadTransitions(chatrooms);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatrooms]);
 }
