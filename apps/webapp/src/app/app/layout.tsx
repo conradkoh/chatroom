@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 
 import { PageSpinner } from '@/components/ui/spinner';
+import { PushSubscriptionRegistration } from '@/components/PushSubscriptionRegistration';
 import { AuthErrorBoundary } from '@/modules/auth/AuthErrorBoundary';
 import { RequireLogin } from '@/modules/auth/RequireLogin';
 import { ChatroomSwitcher } from '@/modules/chatroom/components/ChatroomSwitcher';
@@ -33,6 +34,7 @@ export default function AppLayout({
         <ChatroomListingProvider>
           <ChatroomSwitcher />
           <GlobalNotificationListener />
+          <PushSubscriptionRegistration />
           <Suspense fallback={<PageSpinner />}>{children}</Suspense>
         </ChatroomListingProvider>
       </AuthErrorBoundary>

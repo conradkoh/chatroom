@@ -1199,6 +1199,30 @@ export default defineSchema({
     // Query: workspace (machineId+workingDir) + role, time range (for workspace breakdown)
     .index('by_workspace_role_hour', ['machineId', 'workingDir', 'role', 'hourBucket']),
 
+  // ─── Push Notification Subscriptions ────────────────────────────────────────
+
+  /**
+   * Web Push API subscriptions for browser notifications.
+   *
+   * Each row represents a browser endpoint that can receive push notifications.
+   * A single user may have multiple subscriptions (multiple browsers/devices).
+   * Keyed by userId + endpoint (unique per browser).
+   */
+  chatroom_pushSubscriptions: defineTable({
+    /** The user who owns this subscription. */
+    userId: v.string(),
+    /** The push service endpoint URL (unique per browser instance). */
+    endpoint: v.string(),
+    /** The p256dh key for encrypting push messages. */
+    p256dh: v.string(),
+    /** The auth secret for encrypting push messages. */
+    auth: v.string(),
+    /** ISO 8601 timestamp when this subscription was created/last refreshed. */
+    createdAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_endpoint', ['endpoint']),
+
   /**
    * Workspace git state pushed by the daemon on heartbeat.
    * Stores branch, dirty status, diff stats, and recent commits.

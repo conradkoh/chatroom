@@ -6,6 +6,7 @@ import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } fr
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
@@ -662,6 +663,20 @@ async function _handoffHandler(
           promotedTaskId = promoted.taskId;
         }
       }
+    }
+  }
+
+  // Step 7: Send push notification to the chatroom owner when handing off to user
+  if (isHandoffToUser) {
+    const ownerId = chatroom.ownerId;
+    if (ownerId) {
+      await ctx.scheduler.runAfter(0, internal.pushNotificationActions.sendPushToUser, {
+        userId: ownerId,
+        title: 'Chatroom Handoff',
+        body: `${args.senderRole} has handed off to you`,
+        tag: `chatroom-handoff-${args.chatroomId}`,
+        url: `/app/chatroom?id=${args.chatroomId}`,
+      });
     }
   }
 
