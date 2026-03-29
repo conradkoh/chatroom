@@ -8,7 +8,7 @@ import { useGlobalHandoffNotification } from '@/modules/chatroom/hooks/useGlobal
  *
  * Must be rendered inside ChatroomListingProvider so it can access
  * the chatroom listing context. Fires browser notifications when
- * any chatroom transitions to "unread" while the tab is hidden.
+ * any chatroom transitions to "unread" — regardless of tab focus state.
  *
  * Renders nothing — side-effects only.
  */

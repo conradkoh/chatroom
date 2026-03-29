@@ -3,33 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
-
-/**
- * Sends a notification via the Service Worker if available, otherwise
- * falls back to the window Notification API.
- */
-function showNotification(title: string, body: string, tag: string): void {
-  if (typeof window === 'undefined') return;
-
-  // Try Service Worker first — richer notification support
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_NOTIFICATION',
-      payload: { title, body, tag },
-    });
-    return;
-  }
-
-  // Fallback: direct Notification API
-  if ('Notification' in window && Notification.permission === 'granted') {
-    const notification = new Notification(title, { body, tag });
-    setTimeout(() => notification.close(), 5000);
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-  }
-}
+import { showNotification } from '../utils/showNotification';
 
 /** Minimum interval between notifications (ms). */
 const NOTIFICATION_THROTTLE_MS = 3000;

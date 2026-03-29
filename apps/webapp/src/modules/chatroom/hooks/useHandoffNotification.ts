@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { showNotification } from '../utils/showNotification';
+
 /**
  * Minimal message shape needed for handoff notification detection.
  */
@@ -17,41 +19,6 @@ const NOTIFICATION_THROTTLE_MS = 3000;
 
 /** Maximum number of message IDs to track in the notified set. */
 const MAX_NOTIFIED_IDS = 500;
-
-/**
- * Sends a notification via the Service Worker if available, otherwise
- * falls back to the window Notification API.
- */
-function showNotification(title: string, body: string, tag: string): void {
-  if (typeof window === 'undefined') return;
-
-  // Try Service Worker first — richer notification support
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    console.log('[Notification] Sending via Service Worker');
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_NOTIFICATION',
-      payload: { title, body, tag },
-    });
-    return;
-  }
-
-  // Fallback: direct Notification API
-  if ('Notification' in window && Notification.permission === 'granted') {
-    console.log('[Notification] Sending via Notification API (fallback)');
-    const notification = new Notification(title, { body, tag });
-    setTimeout(() => notification.close(), 5000);
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-  } else {
-    console.warn(
-      '[Notification] Cannot show notification:',
-      'serviceWorker' in navigator ? `SW controller: ${!!navigator.serviceWorker.controller}` : 'No SW support',
-      'Notification' in window ? `Permission: ${Notification.permission}` : 'No Notification API'
-    );
-  }
-}
 
 /**
  * Trims the notified IDs set to stay within MAX_NOTIFIED_IDS.
