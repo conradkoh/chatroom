@@ -487,9 +487,15 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
             // With useMaxWidth:false the SVG is rendered at full size and the
             // container scrolls horizontally if needed.
             useMaxWidth: false,
+            // Increase internal node padding for a more polished look.
+            // Default is 15px which feels cramped with multi-line labels.
+            padding: 20,
             // Remove the 200px wrapping cap — let the layout engine size nodes
             // naturally based on their content length.
             wrappingWidth: 500,
+            // Add more breathing room around the entire diagram.
+            // Default is 8px which feels tight.
+            diagramPadding: 16,
           },
           themeVariables: {
             fontSize: '12px',
@@ -611,7 +617,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
       <div className="relative my-3 group">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible"
+          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible p-2"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />

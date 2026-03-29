@@ -6,6 +6,7 @@
  * - No React useState for zoom/pan state (uses refs for direct DOM manipulation)
  * - SVG viewBox manipulation instead of CSS transforms
  * - Zoom label updated via ref (not state)
+ * - Cross-browser SVG post-processing for Safari compatibility
  */
 
 import fs from 'fs';
@@ -140,5 +141,115 @@ describe('MermaidBlock — structure', () => {
   test('supports keyboard (Escape) and backdrop click to close', () => {
     expect(source).toContain("e.key === 'Escape'");
     expect(source).toContain('handleBackdropClick');
+  });
+});
+
+// ─── Mermaid Configuration Tests ─────────────────────────────────────────────
+
+describe('MermaidBlock — mermaid configuration', () => {
+  test('htmlLabels is set at the top level (not nested under flowchart)', () => {
+    // In Mermaid 11.x, flowchart.htmlLabels is deprecated.
+    // The setting must be at the top level of mermaid.initialize().
+    // Extract the mermaid.initialize call
+    const initMatch = source.match(
+      /mermaid\.initialize\(\{[\s\S]*?\}\);/
+    );
+    expect(initMatch).not.toBeNull();
+    const initBlock = initMatch![0];
+
+    // htmlLabels: false should appear BEFORE the flowchart block
+    const htmlLabelsIdx = initBlock.indexOf('htmlLabels: false');
+    const flowchartIdx = initBlock.indexOf('flowchart:');
+    expect(htmlLabelsIdx).toBeGreaterThan(-1);
+    expect(flowchartIdx).toBeGreaterThan(-1);
+    // htmlLabels must come before flowchart (top-level, not nested)
+    expect(htmlLabelsIdx).toBeLessThan(flowchartIdx);
+  });
+
+  test('htmlLabels is not set inside the flowchart config block', () => {
+    // Extract just the flowchart config object
+    const flowchartMatch = source.match(
+      /flowchart:\s*\{[\s\S]*?\},/
+    );
+    expect(flowchartMatch).not.toBeNull();
+    const flowchartBlock = flowchartMatch![0];
+
+    // flowchart block should NOT contain htmlLabels
+    expect(flowchartBlock).not.toContain('htmlLabels');
+  });
+
+  test('useMaxWidth is set to false for natural sizing', () => {
+    const flowchartMatch = source.match(
+      /flowchart:\s*\{[\s\S]*?\},/
+    );
+    expect(flowchartMatch).not.toBeNull();
+    expect(flowchartMatch![0]).toContain('useMaxWidth: false');
+  });
+
+  test('node padding is increased for polished appearance', () => {
+    const flowchartMatch = source.match(
+      /flowchart:\s*\{[\s\S]*?\},/
+    );
+    expect(flowchartMatch).not.toBeNull();
+    // padding should be >= 20 (default is 15)
+    const paddingMatch = flowchartMatch![0].match(/padding:\s*(\d+)/);
+    expect(paddingMatch).not.toBeNull();
+    expect(Number(paddingMatch![1])).toBeGreaterThanOrEqual(20);
+  });
+
+  test('wrappingWidth is set to 500 to prevent excessive wrapping', () => {
+    expect(source).toContain('wrappingWidth: 500');
+  });
+});
+
+// ─── SVG Post-Processing Tests ───────────────────────────────────────────────
+
+describe('MermaidBlock — SVG post-processing', () => {
+  // Extract the renderChart function body for analysis
+  const renderChartMatch = source.match(
+    /async function renderChart\(\)\s*\{[\s\S]*?\n\s{4}\}/
+  );
+  const renderChartBody = renderChartMatch ? renderChartMatch[0] : '';
+
+  test('removes max-width from SVG inline style', () => {
+    // Should have a regex that strips max-width from the SVG style attribute
+    expect(renderChartBody).toContain('max-width:');
+    expect(renderChartBody).toMatch(/cleanedSvg\s*=\s*cleanedSvg\.replace/);
+  });
+
+  test('forces overflow="visible" on the root SVG element', () => {
+    // Should add or replace overflow attribute on <svg>
+    expect(renderChartBody).toContain('overflow="visible"');
+    // Should handle both cases: existing overflow attr and missing one
+    expect(renderChartBody).toMatch(/overflow="[^"]*"/);
+  });
+
+  test('pads the viewBox for Safari text metric differences', () => {
+    // Should have VB_PAD constant and viewBox manipulation
+    expect(renderChartBody).toContain('VB_PAD');
+    expect(renderChartBody).toContain('viewBox');
+    // Should subtract padding from x,y and add 2*padding to width,height
+    expect(renderChartBody).toContain('x - VB_PAD');
+    expect(renderChartBody).toContain('y - VB_PAD');
+    expect(renderChartBody).toContain('w + VB_PAD * 2');
+    expect(renderChartBody).toContain('h + VB_PAD * 2');
+  });
+
+  test('adds overflow="visible" to foreignObject elements (defense-in-depth)', () => {
+    // Should post-process foreignObject elements for Safari compatibility
+    expect(renderChartBody).toContain('<foreignObject');
+    expect(renderChartBody).toContain('foreignObject');
+    // Should add overflow="visible" to each foreignObject
+    expect(renderChartBody).toMatch(/foreignObject.*overflow/s);
+  });
+
+  test('inline container has overflow-visible CSS for SVG children', () => {
+    // The container div should have [&_svg]:overflow-visible
+    expect(source).toContain('[&_svg]:overflow-visible');
+  });
+
+  test('inline container has padding for polished appearance', () => {
+    // The container div for the inline diagram should have padding
+    expect(source).toMatch(/className="[^"]*p-\d/);
   });
 });
