@@ -240,7 +240,7 @@ describe('MermaidBlock — SVG post-processing', () => {
     expect(renderChartBody).toContain('<foreignObject');
     expect(renderChartBody).toContain('foreignObject');
     // Should add overflow="visible" to each foreignObject
-    expect(renderChartBody).toMatch(/foreignObject.*overflow/s);
+    expect(renderChartBody).toMatch(new RegExp('foreignObject.*overflow', 's'));
   });
 
   test('inline container has overflow-visible CSS for SVG children', () => {
