@@ -101,4 +101,10 @@ export interface DaemonContext {
    * Only push to backend when this hash changes.
    */
   lastPushedGitState: Map<string, string>;
+  /**
+   * Stops the local API HTTP server.
+   * Populated after `startLocalApi()` returns successfully.
+   * May be undefined if the local API failed to start (e.g. port conflict).
+   */
+  stopLocalApi?: () => Promise<void>;
 }
