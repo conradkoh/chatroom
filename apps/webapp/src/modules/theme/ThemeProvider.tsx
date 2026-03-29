@@ -82,6 +82,13 @@ const themeScript = `
   // listen to updates from the system
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   mediaQuery.addEventListener('change', window.__theme.onThemeChange);
+
+  // Re-apply theme when page becomes visible again (e.g., after mobile background)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.__theme.onThemeChange();
+    }
+  });
 })();
 `;
 
@@ -96,7 +103,6 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
     _setTheme(theme);
     window.__theme.setTheme(theme);
   }, []);
-
 
   // We need to use this component pattern for hydration safety
   return (

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "convex dev",
+    "dev": "CONVEX_NON_INTERACTIVE=true convex dev",
     "deploy": "convex deploy",
     "build": "tsc --build",
     "migrate": "convex run migrations:runAll",

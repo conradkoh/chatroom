@@ -18,6 +18,7 @@ const cliArgs = {
   appDescription: getArgValue(args, '--app-description'),
   landingPageTitle: getArgValue(args, '--landing-page-title'),
   packageName: getArgValue(args, '--package-name'),
+  repoUrl: getArgValue(args, '--repo-url'),
   help: args.includes('--help') || args.includes('-h'),
 };
 
@@ -46,6 +47,7 @@ OPTIONS:
   --help, -h                    Show this help message
   --skip-branding               Skip branding setup entirely
   --non-interactive, -y         Run in non-interactive mode (skip prompts)
+  --repo-url <url>              GitHub repository URL (e.g. https://github.com/owner/repo)
   
   Branding Options (requires --non-interactive):
   --app-name <name>             Full application name
@@ -282,6 +284,122 @@ function addUpstreamRemote() {
   } catch (error) {
     console.error('❌ Error adding upstream remote:', error.message);
   }
+}
+
+/**
+ * Parse owner/repo from a GitHub URL
+ * Supports formats:
+ *   https://github.com/owner/repo
+ *   https://github.com/owner/repo.git
+ *   git@github.com:owner/repo.git
+ */
+function parseGitHubOwnerRepo(repoUrl) {
+  // HTTPS format: https://github.com/owner/repo or https://github.com/owner/repo.git
+  const httpsMatch = repoUrl.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/);
+  if (httpsMatch) {
+    return { owner: httpsMatch[1], repo: httpsMatch[2] };
+  }
+  return null;
+}
+
+/**
+ * Check if the gh CLI is available
+ */
+function isGhCliAvailable() {
+  try {
+    execSync('command -v gh', { stdio: 'pipe' });
+    return true;
+  } catch {
+    // Try running gh directly as a fallback (for Windows and PATH edge cases)
+    try {
+      execSync('gh --version', { stdio: 'pipe' });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Configure the GitHub repository as origin and set up gh CLI defaults
+ */
+async function configureGitHubRepo(nonInteractive = false, repoUrl = null) {
+  console.log('\n🐙 GitHub Repository Setup');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  // Determine the repo URL
+  let githubRepoUrl = repoUrl;
+
+  if (!githubRepoUrl) {
+    if (nonInteractive) {
+      console.log(
+        '⏭️  Non-interactive mode: skipping GitHub repo configuration (no --repo-url provided).\n'
+      );
+      return;
+    }
+
+    githubRepoUrl = await promptUser(
+      'Enter your GitHub repository URL (e.g. https://github.com/owner/repo)',
+      ''
+    );
+  }
+
+  if (!githubRepoUrl) {
+    console.log('⏭️  No repository URL provided. Skipping GitHub repo configuration.\n');
+    return;
+  }
+
+  const parsed = parseGitHubOwnerRepo(githubRepoUrl);
+  if (!parsed) {
+    console.error(
+      '❌ Could not parse GitHub owner/repo from the provided URL. Skipping GitHub repo configuration.'
+    );
+    return;
+  }
+
+  const { owner, repo } = parsed;
+  const ownerRepo = `${owner}/${repo}`;
+
+  // Set/update origin remote
+  try {
+    const remotes = execSync('git remote -v').toString();
+    if (remotes.includes('origin')) {
+      execSync(`git remote set-url origin ${githubRepoUrl}`, { stdio: 'inherit' });
+      console.log(`✅ Updated origin remote to ${githubRepoUrl}`);
+    } else {
+      execSync(`git remote add origin ${githubRepoUrl}`, { stdio: 'inherit' });
+      console.log(`✅ Added origin remote: ${githubRepoUrl}`);
+    }
+  } catch (error) {
+    console.error('❌ Error configuring origin remote:', error.message);
+  }
+
+  // Set upstream tracking branch
+  try {
+    execSync('git branch --set-upstream-to=origin/master', { stdio: 'inherit' });
+    console.log('✅ Set upstream tracking branch to origin/master');
+  } catch (error) {
+    // Branch may not exist on remote yet — that's okay
+    console.warn(`⚠️  Could not set upstream tracking branch: ${error.message}`);
+    console.warn('   This is expected if you have not pushed to the remote yet.');
+  }
+
+  // Configure gh CLI default if available
+  if (isGhCliAvailable()) {
+    try {
+      execSync(`gh repo set-default ${ownerRepo}`, { stdio: 'inherit' });
+      console.log(`✅ Set gh CLI default repo to ${ownerRepo}`);
+    } catch (error) {
+      console.error(`❌ Error setting gh CLI default repo: ${error.message}`);
+    }
+  } else {
+    console.log('ℹ️  gh CLI not found — skipping gh repo set-default.');
+    console.log(
+      `   Install the GitHub CLI (https://cli.github.com/) and run: gh repo set-default ${ownerRepo}`
+    );
+  }
+
+  console.log('');
 }
 
 /**
@@ -643,6 +761,9 @@ async function setup() {
 
   // Add upstream remote repository
   addUpstreamRemote();
+
+  // Configure GitHub repository (origin, upstream tracking, gh CLI)
+  await configureGitHubRepo(cliArgs.nonInteractive, cliArgs.repoUrl);
 
   // Disable Next.js telemetry
   console.log('🔧 Disabling Next.js telemetry...');
