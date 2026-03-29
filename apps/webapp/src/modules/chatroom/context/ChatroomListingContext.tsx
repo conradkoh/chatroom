@@ -29,6 +29,7 @@ export interface ChatroomWithStatus {
   chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
+  hasUnreadHandoff: boolean;
   remoteAgentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
   runningAgentConfigs: { machineId: string; role: string }[];
@@ -88,6 +89,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
 
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
+    const unreadHandoffMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false]));
     const remoteAgentStatusMap = new Map(
       remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
     );
@@ -138,6 +140,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
+        hasUnreadHandoff: unreadHandoffMap.get(chatroom._id) ?? false,
         remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
           | 'running'
           | 'stopped'

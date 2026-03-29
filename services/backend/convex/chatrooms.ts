@@ -411,6 +411,7 @@ export const listUnreadStatus = query({
       chatrooms.map(async (chatroom) => {
         const lastSeenAt = readCursorMap.get(chatroom._id.toString());
         let hasUnread = false;
+        let hasUnreadHandoff = false;
 
         if (lastSeenAt !== undefined) {
           // Check if there's any message newer than the cursor
@@ -420,6 +421,22 @@ export const listUnreadStatus = query({
             .order('desc')
             .first();
           hasUnread = newerMessage !== null && newerMessage._creationTime > lastSeenAt;
+
+          // Check specifically for handoff-to-user messages newer than cursor
+          if (hasUnread) {
+            // Scan recent messages for handoff-to-user type
+            const recentMessages = await ctx.db
+              .query('chatroom_messages')
+              .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+              .order('desc')
+              .take(10);
+            hasUnreadHandoff = recentMessages.some(
+              (msg) =>
+                msg._creationTime > lastSeenAt &&
+                msg.type === 'handoff' &&
+                msg.targetRole?.toLowerCase() === 'user'
+            );
+          }
         } else {
           // No cursor — check if there are any messages at all
           const anyMessage = await ctx.db
@@ -427,9 +444,23 @@ export const listUnreadStatus = query({
             .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
             .first();
           hasUnread = anyMessage !== null;
+
+          // Check for handoff-to-user in first batch of messages
+          if (hasUnread) {
+            const recentMessages = await ctx.db
+              .query('chatroom_messages')
+              .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+              .order('desc')
+              .take(10);
+            hasUnreadHandoff = recentMessages.some(
+              (msg) =>
+                msg.type === 'handoff' &&
+                msg.targetRole?.toLowerCase() === 'user'
+            );
+          }
         }
 
-        return { chatroomId: chatroom._id as string, hasUnread };
+        return { chatroomId: chatroom._id as string, hasUnread, hasUnreadHandoff };
       })
     );
 

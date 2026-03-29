@@ -9,12 +9,12 @@ import { showNotification } from '../utils/showNotification';
 const NOTIFICATION_THROTTLE_MS = 3000;
 
 /**
- * Global notification hook that fires browser notifications when any chatroom
- * transitions to "unread."
+ * Global notification hook that fires browser notifications when an agent
+ * hands off to the user in any chatroom.
  *
  * Unlike `useHandoffNotification` (which only watches the currently viewed
  * chatroom's messages), this hook monitors ALL chatrooms via the listing context
- * and fires notifications for any new unread activity.
+ * and fires notifications specifically for handoff-to-user messages.
  *
  * ## Design decisions (WhatsApp Web-inspired):
  *
@@ -28,9 +28,13 @@ const NOTIFICATION_THROTTLE_MS = 3000;
  *    we immediately check for missed unread transitions and fire any
  *    pending notifications. This addresses the "delayed notification" issue.
  *
- * 3. **Transition detection, not state polling** — We track previous unread
- *    state per chatroom and only notify on false→true transitions, preventing
- *    duplicate notifications for the same unread chatroom.
+ * 3. **Transition detection, not state polling** — We track previous
+ *    hasUnreadHandoff state per chatroom and only notify on false→true
+ *    transitions, preventing duplicate notifications for the same handoff.
+ *
+ * 4. **Handoff-only filtering** — Only handoff-to-user messages trigger
+ *    notifications, not general chatroom activity (e.g., agent-to-agent
+ *    messages, progress updates, etc.).
  *
  * ## Limitations:
  *
@@ -43,7 +47,7 @@ const NOTIFICATION_THROTTLE_MS = 3000;
  * Mount this once at the app layout level (not per-chatroom).
  */
 export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | undefined) {
-  const prevUnreadMapRef = useRef<Map<string, boolean>>(new Map());
+  const prevHandoffMapRef = useRef<Map<string, boolean>>(new Map());
   const isInitialLoadRef = useRef(true);
   const lastNotificationTimeRef = useRef(0);
 
@@ -58,40 +62,44 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
   }, []);
 
   /**
-   * Core notification logic: detect newly unread chatrooms and fire notification.
+   * Core notification logic: detect chatrooms with new handoff-to-user and fire notification.
    * Extracted so it can be called both from the subscription effect and the
    * visibility-change catch-up handler.
    */
-  const processUnreadTransitions = (currentChatrooms: ChatroomWithStatus[]) => {
-    const newlyUnread: ChatroomWithStatus[] = [];
+  const processHandoffTransitions = (currentChatrooms: ChatroomWithStatus[]) => {
+    const newlyHandedOff: ChatroomWithStatus[] = [];
     const nextMap = new Map<string, boolean>();
 
     for (const chatroom of currentChatrooms) {
-      nextMap.set(chatroom._id, chatroom.hasUnread);
+      nextMap.set(chatroom._id, chatroom.hasUnreadHandoff);
 
-      const wasUnread = prevUnreadMapRef.current.get(chatroom._id) ?? false;
-      if (chatroom.hasUnread && !wasUnread) {
-        newlyUnread.push(chatroom);
+      const wasHandedOff = prevHandoffMapRef.current.get(chatroom._id) ?? false;
+      if (chatroom.hasUnreadHandoff && !wasHandedOff) {
+        newlyHandedOff.push(chatroom);
       }
     }
 
-    prevUnreadMapRef.current = nextMap;
+    prevHandoffMapRef.current = nextMap;
 
-    // Fire notification for newly unread chatrooms
-    if (newlyUnread.length > 0) {
+    // Fire notification for chatrooms with new handoff-to-user
+    if (newlyHandedOff.length > 0) {
       const now = Date.now();
       if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
         lastNotificationTimeRef.current = now;
 
-        if (newlyUnread.length === 1) {
-          const chatroom = newlyUnread[0]!;
+        if (newlyHandedOff.length === 1) {
+          const chatroom = newlyHandedOff[0]!;
           const name = chatroom.name || 'Chatroom';
-          showNotification('New Message', `Activity in ${name}`, `chatroom-unread-${chatroom._id}`);
+          showNotification(
+            'Handoff Received',
+            `An agent has handed off to you in ${name}`,
+            `chatroom-handoff-${chatroom._id}`
+          );
         } else {
           showNotification(
-            'New Messages',
-            `Activity in ${newlyUnread.length} chatrooms`,
-            'chatroom-unread-batch'
+            'Handoffs Received',
+            `Agents have handed off to you in ${newlyHandedOff.length} chatrooms`,
+            'chatroom-handoff-batch'
           );
         }
       }
@@ -108,7 +116,7 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     const handleVisibilityChange = () => {
       if (!document.hidden && chatrooms && !isInitialLoadRef.current) {
         // Tab just became visible — process any missed transitions
-        processUnreadTransitions(chatrooms);
+        processHandoffTransitions(chatrooms);
       }
     };
 
@@ -119,7 +127,7 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatrooms]);
 
-  // Watch chatrooms for unread transitions (primary path)
+  // Watch chatrooms for handoff transitions (primary path)
   useEffect(() => {
     if (!chatrooms) return;
 
@@ -127,14 +135,14 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     if (isInitialLoadRef.current) {
       const initialMap = new Map<string, boolean>();
       for (const chatroom of chatrooms) {
-        initialMap.set(chatroom._id, chatroom.hasUnread);
+        initialMap.set(chatroom._id, chatroom.hasUnreadHandoff);
       }
-      prevUnreadMapRef.current = initialMap;
+      prevHandoffMapRef.current = initialMap;
       isInitialLoadRef.current = false;
       return;
     }
 
-    processUnreadTransitions(chatrooms);
+    processHandoffTransitions(chatrooms);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatrooms]);
 }
