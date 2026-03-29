@@ -114,11 +114,38 @@ function agentKey(chatroomId: string, role: string): string {
   return `${chatroomId}:${role.toLowerCase()}`;
 }
 
+// ─── Retry Queue Types ────────────────────────────────────────────────────────
+
+/** Arguments for a queued recordAgentExited call that failed and needs retry. */
+interface RetryQueueItem {
+  role: string;
+  args: {
+    sessionId: string;
+    machineId: string;
+    chatroomId: string;
+    role: string;
+    pid: number;
+    stopReason?: string;
+    stopSignal?: string;
+    exitCode?: number;
+    signal?: string;
+    agentHarness?: string;
+  };
+}
+
+/** Interval (ms) between retry attempts for failed agent exit events. */
+const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 
 export class AgentProcessManager {
   private readonly deps: AgentProcessManagerDeps;
   private readonly slots = new Map<string, AgentSlot>();
+
+  /** Queue of failed recordAgentExited calls awaiting retry. */
+  private readonly exitRetryQueue: RetryQueueItem[] = [];
+  /** Active retry interval timer handle, or null if queue is empty. */
+  private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: AgentProcessManagerDeps) {
     this.deps = deps;
@@ -166,20 +193,22 @@ export class AgentProcessManager {
       }
 
       // Still notify the backend so participant status is cleaned up.
+      const exitArgs1 = {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        pid: eventPid ?? 0, // Use backend PID if available, else 0
+        stopReason: opts.reason,
+        exitCode: undefined as number | undefined,
+        signal: undefined as string | undefined,
+        agentHarness: undefined as string | undefined,
+      };
       this.deps.backend
-        .mutation(api.machines.recordAgentExited, {
-          sessionId: this.deps.sessionId,
-          machineId: this.deps.machineId,
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          pid: eventPid ?? 0, // Use backend PID if available, else 0
-          stopReason: opts.reason,
-          exitCode: undefined,
-          signal: undefined,
-          agentHarness: undefined,
-        })
+        .mutation(api.machines.recordAgentExited, exitArgs1)
         .catch((err: Error) => {
           console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
+          this.queueExitRetry({ role: opts.role, args: exitArgs1 });
         });
       return { success: true };
     }
@@ -241,21 +270,23 @@ export class AgentProcessManager {
     slot.pendingOperation = undefined;
 
     // Emit agent.exited to backend (fire-and-forget)
+    const exitArgs2 = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid: opts.pid,
+      stopReason,
+      stopSignal: stopReason === 'agent_process.signal' ? (opts.signal ?? undefined) : undefined,
+      exitCode: opts.code ?? undefined,
+      signal: opts.signal ?? undefined,
+      agentHarness: harness,
+    };
     this.deps.backend
-      .mutation(api.machines.recordAgentExited, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid: opts.pid,
-        stopReason,
-        stopSignal: stopReason === 'agent_process.signal' ? (opts.signal ?? undefined) : undefined,
-        exitCode: opts.code ?? undefined,
-        signal: opts.signal ?? undefined,
-        agentHarness: harness,
-      })
+      .mutation(api.machines.recordAgentExited, exitArgs2)
       .catch((err: Error) => {
         console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+        this.queueExitRetry({ role: opts.role, args: exitArgs2 });
       });
 
     // Clear from disk
@@ -368,6 +399,62 @@ export class AgentProcessManager {
       this.slots.set(key, slot);
     }
     return slot;
+  }
+
+  /**
+   * Queue a failed recordAgentExited call for retry.
+   * Starts the retry interval timer if not already running.
+   */
+  private queueExitRetry(item: RetryQueueItem): void {
+    this.exitRetryQueue.push(item);
+    if (this.exitRetryTimer === null) {
+      this.exitRetryTimer = setInterval(() => {
+        void this.drainExitRetryQueue();
+      }, AGENT_EXIT_RETRY_INTERVAL_MS);
+      // Allow process to exit even if the timer is still active
+      this.exitRetryTimer.unref?.();
+    }
+  }
+
+  /**
+   * Attempt to flush all queued agent exit events.
+   * Successful items are removed; failures remain for the next cycle.
+   * When the queue is empty, the retry interval is stopped.
+   */
+  private async drainExitRetryQueue(): Promise<void> {
+    if (this.exitRetryQueue.length === 0) {
+      this.stopExitRetryTimer();
+      return;
+    }
+
+    console.log(
+      `[AgentProcessManager] Retrying ${this.exitRetryQueue.length} pending agent exit event(s)...`
+    );
+
+    // Iterate in reverse so splice by index is safe
+    for (let i = this.exitRetryQueue.length - 1; i >= 0; i--) {
+      const item = this.exitRetryQueue[i];
+      try {
+        await this.deps.backend.mutation(api.machines.recordAgentExited, item.args);
+        this.exitRetryQueue.splice(i, 1);
+        console.log(
+          `[AgentProcessManager] ✅ Successfully retried agent exit event for ${item.role}`
+        );
+      } catch {
+        // Keep in queue for next cycle
+      }
+    }
+
+    if (this.exitRetryQueue.length === 0) {
+      this.stopExitRetryTimer();
+    }
+  }
+
+  private stopExitRetryTimer(): void {
+    if (this.exitRetryTimer !== null) {
+      clearInterval(this.exitRetryTimer);
+      this.exitRetryTimer = null;
+    }
   }
 
   private async doEnsureRunning(
@@ -634,20 +721,22 @@ export class AgentProcessManager {
     slot.pendingOperation = undefined;
 
     // Emit agent.exited to backend (fire-and-forget)
+    const exitArgs3 = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid,
+      stopReason: opts.reason,
+      exitCode: undefined as number | undefined,
+      signal: undefined as string | undefined,
+      agentHarness: slot.harness,
+    };
     this.deps.backend
-      .mutation(api.machines.recordAgentExited, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid,
-        stopReason: opts.reason,
-        exitCode: undefined,
-        signal: undefined,
-        agentHarness: slot.harness,
-      })
+      .mutation(api.machines.recordAgentExited, exitArgs3)
       .catch((err: Error) => {
         console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+        this.queueExitRetry({ role: opts.role, args: exitArgs3 });
       });
 
     // Clear from disk
