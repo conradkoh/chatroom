@@ -16,6 +16,8 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { identityRoute } from './routes/identity.js';
+import { openFinderRoute } from './routes/open-finder.js';
+import { openGitHubDesktopRoute } from './routes/open-github-desktop.js';
 import { LocalApiRouter } from './router.js';
 import type { DaemonContext, LocalApiRequest } from './types.js';
 
@@ -89,6 +91,8 @@ function writeResponse(res: ServerResponse, status: number, headers: Record<stri
 function createRouter(): LocalApiRouter {
   const router = new LocalApiRouter();
   router.registerRoute(identityRoute);
+  router.registerRoute(openFinderRoute);
+  router.registerRoute(openGitHubDesktopRoute);
   return router;
 }
 
