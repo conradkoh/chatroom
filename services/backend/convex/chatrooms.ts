@@ -413,23 +413,19 @@ export const listUnreadStatus = query({
         let hasUnread = false;
         let hasUnreadHandoff = false;
 
+        // Fetch the 10 most recent messages once (used for both hasUnread and hasUnreadHandoff)
+        const recentMessages = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .order('desc')
+          .take(10);
+
         if (lastSeenAt !== undefined) {
           // Check if there's any message newer than the cursor
-          const newerMessage = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-            .order('desc')
-            .first();
-          hasUnread = newerMessage !== null && newerMessage._creationTime > lastSeenAt;
+          hasUnread = recentMessages.some((msg) => msg._creationTime > lastSeenAt);
 
           // Check specifically for handoff-to-user messages newer than cursor
           if (hasUnread) {
-            // Scan recent messages for handoff-to-user type
-            const recentMessages = await ctx.db
-              .query('chatroom_messages')
-              .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-              .order('desc')
-              .take(10);
             hasUnreadHandoff = recentMessages.some(
               (msg) =>
                 msg._creationTime > lastSeenAt &&
@@ -438,20 +434,11 @@ export const listUnreadStatus = query({
             );
           }
         } else {
-          // No cursor — check if there are any messages at all
-          const anyMessage = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-            .first();
-          hasUnread = anyMessage !== null;
+          // No cursor — any messages means unread
+          hasUnread = recentMessages.length > 0;
 
-          // Check for handoff-to-user in first batch of messages
+          // Check for handoff-to-user in recent messages
           if (hasUnread) {
-            const recentMessages = await ctx.db
-              .query('chatroom_messages')
-              .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-              .order('desc')
-              .take(10);
             hasUnreadHandoff = recentMessages.some(
               (msg) =>
                 msg.type === 'handoff' &&
