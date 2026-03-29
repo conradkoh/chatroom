@@ -135,7 +135,7 @@ export const removeExpiredSubscription = internalMutation({
  */
 export const getSubscriptionsForUser = internalQuery({
   args: {
-    userId: v.string(),
+    userId: v.id('users'),
   },
   handler: async (ctx, args) => {
     return await ctx.db

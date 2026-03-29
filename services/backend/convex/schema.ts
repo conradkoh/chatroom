@@ -1210,7 +1210,7 @@ export default defineSchema({
    */
   chatroom_pushSubscriptions: defineTable({
     /** The user who owns this subscription. */
-    userId: v.string(),
+    userId: v.id('users'),
     /** The push service endpoint URL (unique per browser instance). */
     endpoint: v.string(),
     /** The p256dh key for encrypting push messages. */

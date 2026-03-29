@@ -24,7 +24,7 @@ import { internal } from './_generated/api';
  */
 export const sendPushToUser = internalAction({
   args: {
-    userId: v.string(),
+    userId: v.id('users'),
     title: v.string(),
     body: v.string(),
     tag: v.optional(v.string()),
