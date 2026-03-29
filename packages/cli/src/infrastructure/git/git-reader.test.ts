@@ -18,6 +18,7 @@ import {
   getRecentCommits,
   getCommitDetail,
   getOpenPRsForBranch,
+  getCommitsAhead,
   parseDiffStatLine,
   parseRepoSlug,
   getOriginRepoSlug,
@@ -582,5 +583,39 @@ describe('getOpenPRsForBranch', () => {
     mockSuccess('{"number": 42}');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
+  });
+});
+
+// ─── getCommitsAhead ─────────────────────────────────────────────────────────
+
+describe('getCommitsAhead', () => {
+  test('returns count of commits ahead of upstream', async () => {
+    mockSuccess('3\n');
+    const result = await getCommitsAhead('/repo');
+    expect(result).toBe(3);
+  });
+
+  test('returns 0 when no commits ahead', async () => {
+    mockSuccess('0\n');
+    const result = await getCommitsAhead('/repo');
+    expect(result).toBe(0);
+  });
+
+  test('returns 0 when no upstream is configured', async () => {
+    mockFailure("fatal: no upstream configured for branch 'main'");
+    const result = await getCommitsAhead('/repo');
+    expect(result).toBe(0);
+  });
+
+  test('returns 0 on any git error', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getCommitsAhead('/repo');
+    expect(result).toBe(0);
+  });
+
+  test('returns 0 for non-numeric output', async () => {
+    mockSuccess('not-a-number\n');
+    const result = await getCommitsAhead('/repo');
+    expect(result).toBe(0);
   });
 });

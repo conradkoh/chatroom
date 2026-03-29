@@ -1,6 +1,6 @@
 {
   "name": "chatroom",
-  "version": "1.16.3",
+  "version": "1.16.4",
   "description": "",
   "packageManager": "pnpm@10.15.1",
   "main": "index.js",
