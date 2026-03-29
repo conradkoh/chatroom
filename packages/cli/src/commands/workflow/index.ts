@@ -4,6 +4,7 @@
 
 import type { WorkflowDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
@@ -297,7 +298,7 @@ export async function createWorkflow(
     console.log(`   Status: draft`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to create workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to create workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -347,7 +348,7 @@ export async function specifyWorkflowStep(
     console.log(`   Assignee: ${options.assigneeRole}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to specify step: ${(error as Error).message}`);
+    console.error(`❌ Failed to specify step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -380,7 +381,7 @@ export async function executeWorkflow(
     console.log('💡 Root steps (no dependencies) are now in_progress.');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to execute workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to execute workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -509,7 +510,7 @@ export async function getWorkflowStatus(
     console.log('══════════════════════════════════════════════════');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to get workflow status: ${(error as Error).message}`);
+    console.error(`❌ Failed to get workflow status: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -541,7 +542,7 @@ export async function completeStep(
     console.log(`   Step: ${options.stepKey}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to complete step: ${(error as Error).message}`);
+    console.error(`❌ Failed to complete step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -580,7 +581,7 @@ export async function exitWorkflow(
     console.log(`   Reason: ${options.reason.trim()}`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to exit workflow: ${(error as Error).message}`);
+    console.error(`❌ Failed to exit workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -685,7 +686,7 @@ export async function viewStep(
     console.log('══════════════════════════════════════════════════');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to view step: ${(error as Error).message}`);
+    console.error(`❌ Failed to view step: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }

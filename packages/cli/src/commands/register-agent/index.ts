@@ -8,6 +8,7 @@
 
 import type { RegisterAgentDeps } from './deps.js';
 import { api } from '../../api.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
@@ -146,7 +147,7 @@ export async function registerAgent(
 
       console.log(`✅ Registered as custom agent for role "${role}"`);
     } catch (error) {
-      console.error(`❌ Registration failed: ${(error as Error).message}`);
+      console.error(`❌ Registration failed: ${getErrorMessage(error)}`);
       process.exit(1);
     }
   }

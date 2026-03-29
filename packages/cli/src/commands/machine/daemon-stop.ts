@@ -5,6 +5,7 @@
  */
 
 import { isDaemonRunning, removePid } from './pid.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 /**
  * Stop the daemon
@@ -42,7 +43,7 @@ export async function daemonStop(): Promise<void> {
 
     console.log(`✅ Daemon stopped`);
   } catch (error) {
-    console.error(`❌ Failed to stop daemon: ${(error as Error).message}`);
+    console.error(`❌ Failed to stop daemon: ${getErrorMessage(error)}`);
     // Clean up stale PID file
     removePid();
   }

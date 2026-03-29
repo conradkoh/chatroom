@@ -16,6 +16,7 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -193,13 +194,12 @@ export async function classify(
       console.log(`\n💡 ${result.reminder}`);
     }
   } catch (error) {
-    const err = error as Error;
     console.error(`❌ Failed to acknowledge task`);
-    console.error(`   Error: ${err.message}`);
+    console.error(`   Error: ${getErrorMessage(error)}`);
 
     // Try to extract more details from the error if available
-    if ('stack' in err && err.stack) {
-      const stackLines = err.stack.split('\n').slice(0, 5);
+    if (error instanceof Error && error.stack) {
+      const stackLines = error.stack.split('\n').slice(0, 5);
       console.error(`   Stack trace:`);
       stackLines.forEach((line) => console.error(`     ${line}`));
     }

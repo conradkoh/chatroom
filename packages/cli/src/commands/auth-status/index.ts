@@ -13,6 +13,7 @@ import {
 import { getConvexClient } from '../../infrastructure/convex/client.js';
 import { loadMachineConfig } from '../../infrastructure/machine/index.js';
 import { getVersion } from '../../version.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -91,8 +92,7 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
       console.log(`\n   Run: chatroom auth login`);
     }
   } catch (error) {
-    const err = error as Error;
-    console.log(`\n⚠️  Could not validate session: ${err.message}`);
+    console.log(`\n⚠️  Could not validate session: ${getErrorMessage(error)}`);
     console.log(`   Session may still be valid. Try running a command.`);
   }
 }

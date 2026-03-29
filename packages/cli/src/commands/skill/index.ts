@@ -2,12 +2,11 @@
  * Skill commands — list and activate chatroom skills.
  */
 
-import { ConvexError } from 'convex/values';
-
 import type { SkillDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
@@ -89,15 +88,7 @@ export async function listSkills(
       console.log(`  ${padded}  ${skill.description}`);
     }
   } catch (error) {
-    if (error instanceof ConvexError) {
-      const msg =
-        typeof error.data === 'string'
-          ? error.data
-          : ((error.data as { message?: string }).message ?? String(error.data));
-      console.error(`❌ ${msg}`);
-    } else {
-      console.error(`❌ Failed to list skills: ${(error as Error).message}`);
-    }
+    console.error(`❌ Failed to list skills: ${getErrorMessage(error)}`);
     process.exit(1);
   }
 }
@@ -130,15 +121,7 @@ export async function activateSkill(
     console.log(`   The agent will now: ${result.skill.description}`);
     console.log('');
   } catch (error) {
-    if (error instanceof ConvexError) {
-      const msg =
-        typeof error.data === 'string'
-          ? error.data
-          : ((error.data as { message?: string }).message ?? String(error.data));
-      console.error(`❌ ${msg}`);
-    } else {
-      console.error(`❌ Failed to activate skill: ${(error as Error).message}`);
-    }
+    console.error(`❌ Failed to activate skill: ${getErrorMessage(error)}`);
     process.exit(1);
   }
 }

@@ -23,6 +23,7 @@ import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Handle returned by `startGitRequestSubscription` to stop the subscription. */
 export interface GitSubscriptionHandle {
@@ -66,18 +67,18 @@ export function startGitRequestSubscription(
 
       processing = true;
       processRequests(ctx, requests, processedRequestIds, DEDUP_TTL_MS)
-        .catch((err: Error) => {
+        .catch((err: unknown) => {
           console.warn(
-            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${err.message}`
+            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
           );
         })
         .finally(() => {
           processing = false;
         });
     },
-    (err) => {
+    (err: unknown) => {
       console.warn(
-        `[${formatTimestamp()}] ⚠️  Git request subscription error: ${err.message}`
+        `[${formatTimestamp()}] ⚠️  Git request subscription error: ${getErrorMessage(err)}`
       );
     }
   );
@@ -308,7 +309,7 @@ export async function processRequests(
       });
     } catch (err) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to process ${req.requestType} request: ${(err as Error).message}`
+        `[${formatTimestamp()}] ⚠️  Failed to process ${req.requestType} request: ${getErrorMessage(err)}`
       );
       // Best-effort: mark as error (don't abort the loop on mutation failure)
       await ctx.deps.backend
