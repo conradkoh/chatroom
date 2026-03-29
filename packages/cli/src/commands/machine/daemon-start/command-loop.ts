@@ -163,12 +163,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
         // Push git state after each successful heartbeat (change-detected, no-op if unchanged)
-        pushGitState(ctx).catch((err: Error) => {
-          console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${err.message}`);
+        pushGitState(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`);
         });
       })
-      .catch((err: Error) => {
-        console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${err.message}`);
+      .catch((err: unknown) => {
+        console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
       });
   }, DAEMON_HEARTBEAT_INTERVAL_MS);
 
@@ -254,7 +254,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
           );
         } catch (err) {
           console.error(
-            `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`
+            `[${formatTimestamp()}] ❌ Stream command event failed: ${getErrorMessage(err)}`
           );
         }
       }
@@ -265,7 +265,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // in case new providers are configured while the daemon is running
   const modelRefreshTimer = setInterval(() => {
     refreshModels(ctx).catch((err) => {
-      console.warn(`[${formatTimestamp()}] ⚠️  Model refresh error: ${(err as Error).message}`);
+      console.warn(`[${formatTimestamp()}] ⚠️  Model refresh error: ${getErrorMessage(err)}`);
     });
   }, MODEL_REFRESH_INTERVAL_MS);
 

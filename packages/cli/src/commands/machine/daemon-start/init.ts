@@ -251,7 +251,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   try {
     await recoverAgentState(ctx);
   } catch (e) {
-    console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
+    console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
     console.log(`   Continuing with fresh state`);
   }
 
@@ -268,7 +268,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
       console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
     }
   } catch (e) {
-    console.log(`   ⚠️  Failed to clear stale PIDs: ${(e as Error).message}`);
+    console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
   }
 }
 

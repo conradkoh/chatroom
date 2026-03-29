@@ -6,6 +6,7 @@ import type { MessagesDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -130,8 +131,7 @@ export async function listBySenderRole(
     console.log(`💡 Use --full to see complete message content`);
     console.log(`💡 Use --since-message-id=<id> to get all messages since a specific message`);
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`\n❌ Error fetching messages: ${errorMessage}`);
+    console.error(`\n❌ Error fetching messages: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
@@ -221,8 +221,7 @@ export async function listSinceMessage(
     console.log('\n' + '─'.repeat(60));
     console.log(`💡 Use --full to see complete message content`);
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`\n❌ Error fetching messages: ${errorMessage}`);
+    console.error(`\n❌ Error fetching messages: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }

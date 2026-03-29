@@ -13,6 +13,7 @@ import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ export async function readContext(
     console.log('</context>');
   } catch (err) {
     console.error(
-      `❌ Failed to read context: ${sanitizeUnknownForTerminal((err as Error).message)}`
+      `❌ Failed to read context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
     );
     process.exit(1);
     return;
@@ -280,7 +281,7 @@ export async function newContext(
       process.exit(1);
       return;
     }
-    console.error(`❌ Failed to create context: ${(err as Error).message}`);
+    console.error(`❌ Failed to create context: ${getErrorMessage(err)}`);
     process.exit(1);
     return;
   }
@@ -363,7 +364,7 @@ export async function listContexts(
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
     console.error(
-      `❌ Failed to list contexts: ${sanitizeUnknownForTerminal((err as Error).message)}`
+      `❌ Failed to list contexts: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
     );
     process.exit(1);
     return;
@@ -431,7 +432,7 @@ export async function inspectContext(
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
     console.error(
-      `❌ Failed to inspect context: ${sanitizeUnknownForTerminal((err as Error).message)}`
+      `❌ Failed to inspect context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
     );
     process.exit(1);
     return;

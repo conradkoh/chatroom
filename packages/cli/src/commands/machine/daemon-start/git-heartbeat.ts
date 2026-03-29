@@ -14,6 +14,7 @@ import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /**
  * Collect git state for all tracked working directories and push to backend.
@@ -34,7 +35,7 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
     });
   } catch (err) {
     console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${(err as Error).message}`
+      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${getErrorMessage(err)}`
     );
     return; // Skip this cycle — will retry on next heartbeat
   }
@@ -49,7 +50,7 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
       await pushSingleWorkspaceGitState(ctx, workingDir);
     } catch (err) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${(err as Error).message}`
+        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
       );
     }
   }
@@ -148,9 +149,9 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
   );
 
   // Pre-fetch commit details for commits not yet stored (background, non-blocking)
-  prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: Error) => {
+  prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: unknown) => {
     console.warn(
-      `[${formatTimestamp()}] ⚠️  Commit pre-fetch failed for ${workingDir}: ${err.message}`
+      `[${formatTimestamp()}] ⚠️  Commit pre-fetch failed for ${workingDir}: ${getErrorMessage(err)}`
     );
   });
 }
@@ -188,7 +189,7 @@ async function prefetchMissingCommitDetails(
       await prefetchSingleCommit(ctx, workingDir, sha, commits);
     } catch (err) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️  Pre-fetch failed for ${sha.slice(0, 7)}: ${(err as Error).message}`
+        `[${formatTimestamp()}] ⚠️  Pre-fetch failed for ${sha.slice(0, 7)}: ${getErrorMessage(err)}`
       );
     }
   }
