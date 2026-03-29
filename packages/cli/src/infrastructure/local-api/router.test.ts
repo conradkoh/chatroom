@@ -137,4 +137,20 @@ describe('LocalApiRouter', () => {
     const res = await router.handleRequest(makeReq(), makeCtx());
     expect(res.body).toBe('first');
   });
+
+  test('matches route ignoring query parameters', async () => {
+    const router = new LocalApiRouter();
+    router.registerRoute({
+      method: 'GET',
+      path: '/api/test',
+      handler: async () => ({ status: 200, body: 'matched' }),
+    });
+
+    const res = await router.handleRequest(
+      makeReq({ url: '/api/test?foo=bar&baz=1' }),
+      makeCtx()
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toBe('matched');
+  });
 });

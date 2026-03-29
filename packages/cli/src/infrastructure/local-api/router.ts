@@ -38,9 +38,10 @@ export class LocalApiRouter {
       return buildPreflightResponse();
     }
 
-    // Find a matching route
+    // Find a matching route (strip query string for path matching)
+    const pathname = req.url.split('?')[0] ?? req.url;
     const route = this.routes.find(
-      (r) => r.method === req.method && r.path === req.url
+      (r) => r.method === req.method && r.path === pathname
     );
 
     let response: LocalApiResponse;
