@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   AgentProcessManager,
@@ -684,6 +684,198 @@ describe('AgentProcessManager', () => {
       for (const entry of active) {
         expect(['running', 'spawning']).toContain(entry.slot.state);
       }
+    });
+  });
+
+  // ── exitRetryQueue ────────────────────────────────────────────────────
+
+  describe('exitRetryQueue', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test('queues exit event for retry when recordAgentExited fails in handleExit', async () => {
+      // Arrange: mutation mock — all calls succeed by default, except for recordAgentExited on first try
+      const mutation = vi.fn().mockResolvedValue(undefined);
+      // Allow first spawn, then block restarts
+      const shouldAllowSpawn = vi.fn()
+        .mockReturnValueOnce({ allowed: true })      // first spawn succeeds
+        .mockReturnValue({ allowed: false, retryAfterMs: 60_000 }); // no restarts
+
+      const localDeps = createDeps({
+        backend: {
+          query: vi.fn().mockResolvedValue({
+            prompt: true,
+            rolePrompt: 'You are a builder',
+            initialMessage: 'Start working',
+          }),
+          mutation,
+        },
+        spawning: {
+          shouldAllowSpawn,
+          recordSpawn: vi.fn(),
+          recordExit: vi.fn(),
+        },
+      });
+      const localManager = new AgentProcessManager(localDeps);
+
+      // Spawn agent
+      const result = await localManager.ensureRunning(createOpts());
+      expect(result.success).toBe(true);
+
+      // recordAgentExited fails on the next call
+      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+
+      const callsBeforeExit = mutation.mock.calls.length;
+
+      // Trigger exit
+      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+
+      // Let the promise rejection propagate
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // recordAgentExited was attempted (and failed)
+      expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeExit + 1);
+
+      // Advance timers to trigger retry — retry should succeed now (mock returns resolved)
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Verify a retry was attempted (at least one more mutation call)
+      expect(mutation.mock.calls.length).toBeGreaterThan(callsBeforeExit + 1);
+    });
+
+    test('removes item from retry queue on successful retry', async () => {
+      const mutation = vi.fn();
+      // First: spawn-related mutations succeed
+      const localDeps = createDeps({
+        backend: {
+          query: vi.fn().mockResolvedValue({
+            prompt: true,
+            rolePrompt: 'You are a builder',
+            initialMessage: 'Start working',
+          }),
+          mutation,
+        },
+      });
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning(createOpts());
+
+      // recordAgentExited fails first time
+      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+
+      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Now retry succeeds
+      mutation.mockResolvedValueOnce(undefined);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // After success, the timer should stop (advancing again won't trigger more mutations)
+      const callCountAfterSuccess = mutation.mock.calls.length;
+      mutation.mockResolvedValueOnce(undefined); // would be called if timer still running
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+
+      // No additional calls — timer was stopped
+      expect(mutation.mock.calls.length).toBe(callCountAfterSuccess);
+    });
+
+    test('keeps item in retry queue when retry also fails', async () => {
+      const mutation = vi.fn();
+      const localDeps = createDeps({
+        backend: {
+          query: vi.fn().mockResolvedValue({
+            prompt: true,
+            rolePrompt: 'You are a builder',
+            initialMessage: 'Start working',
+          }),
+          mutation,
+        },
+      });
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning(createOpts());
+
+      // Initial recordAgentExited fails
+      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const callsAfterFirstFail = mutation.mock.calls.length;
+
+      // Retry also fails
+      mutation.mockRejectedValueOnce(new Error('still offline'));
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // A retry was attempted (mutation called again)
+      expect(mutation.mock.calls.length).toBeGreaterThan(callsAfterFirstFail);
+
+      // Retry second time succeeds
+      mutation.mockResolvedValueOnce(undefined);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Timer should stop now
+      const callCountAfterSecondSuccess = mutation.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      expect(mutation.mock.calls.length).toBe(callCountAfterSecondSuccess);
+    });
+
+    test('queues multiple failed exit events independently', async () => {
+      const mutation = vi.fn();
+      const localDeps = createDeps({
+        backend: {
+          query: vi.fn().mockResolvedValue({
+            prompt: true,
+            rolePrompt: 'You are a builder',
+            initialMessage: 'Start working',
+          }),
+          mutation,
+        },
+      });
+      const localManager = new AgentProcessManager(localDeps);
+
+      // Spawn two agents
+      await localManager.ensureRunning(createOpts({ chatroomId: 'room-1', role: 'builder' }));
+      await localManager.ensureRunning(createOpts({ chatroomId: 'room-2', role: 'builder' }));
+
+      // Both recordAgentExited calls fail
+      mutation.mockRejectedValueOnce(new Error('offline'));
+      mutation.mockRejectedValueOnce(new Error('offline'));
+
+      localManager.handleExit({ chatroomId: 'room-1', role: 'builder', pid: PID, code: 0, signal: null });
+      localManager.handleExit({ chatroomId: 'room-2', role: 'builder', pid: PID, code: 0, signal: null });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const callsBeforeRetry = mutation.mock.calls.length;
+
+      // Both retries succeed
+      mutation.mockResolvedValue(undefined);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // 2 additional retry calls were made
+      expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
     });
   });
 });
