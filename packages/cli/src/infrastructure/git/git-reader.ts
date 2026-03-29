@@ -533,3 +533,26 @@ export async function getRemotes(cwd: string): Promise<GitRemoteEntry[]> {
 
   return remotes;
 }
+
+/**
+ * Returns the number of commits on the current branch that are ahead of the
+ * tracking remote branch (i.e. unpushed commits).
+ *
+ * Uses `git rev-list --count @{upstream}..HEAD` which counts commits reachable
+ * from HEAD but not from the upstream tracking branch.
+ *
+ * Returns 0 if:
+ *  - There is no upstream configured for the current branch
+ *  - The repository has no commits
+ *  - The directory is not a git repository
+ *  - Any other error occurs
+ *
+ * This is intentionally lenient — unpushed count is supplementary info and
+ * should never cause the git state push to fail.
+ */
+export async function getCommitsAhead(workingDir: string): Promise<number> {
+  const result = await runGit('rev-list --count @{upstream}..HEAD', workingDir);
+  if ('error' in result) return 0;
+  const count = parseInt(result.stdout.trim(), 10);
+  return Number.isNaN(count) ? 0 : count;
+}

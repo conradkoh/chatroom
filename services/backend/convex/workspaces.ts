@@ -138,6 +138,7 @@ export const getWorkspaceGitState = query({
         hasMoreCommits: row.hasMoreCommits ?? false,
         openPullRequests: row.openPullRequests ?? [],
         remotes: row.remotes ?? [],
+        commitsAhead: row.commitsAhead ?? 0,
         updatedAt: row.updatedAt,
       };
     }
@@ -328,6 +329,8 @@ export const upsertWorkspaceGitState = mutation({
         })
       )
     ),
+    // Commits ahead of upstream (unpushed)
+    commitsAhead: v.optional(v.number()),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
   },
@@ -350,6 +353,7 @@ export const upsertWorkspaceGitState = mutation({
       hasMoreCommits: args.hasMoreCommits,
       openPullRequests: args.openPullRequests,
       remotes: args.remotes,
+      commitsAhead: args.commitsAhead,
       errorMessage: args.errorMessage,
       updatedAt: now,
     };

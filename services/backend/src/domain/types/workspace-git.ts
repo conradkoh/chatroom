@@ -69,6 +69,8 @@ export type WorkspaceGitState =
       openPullRequests: GitPullRequest[];
       /** Configured git remotes (e.g. origin, upstream). */
       remotes: GitRemote[];
+      /** Number of commits ahead of the upstream tracking branch (unpushed). 0 if no upstream. */
+      commitsAhead: number;
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }

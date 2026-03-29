@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, AlertTriangle, GitBranch } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowUp, GitBranch } from 'lucide-react';
 import { memo } from 'react';
 
 import { InlineDiffStat, formatRelativeTime } from './shared';
@@ -49,7 +49,7 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
   }
 
   // state.status === 'available'
-  const { branch, isDirty, diffStat } = state;
+  const { branch, isDirty, diffStat, commitsAhead } = state;
   const displayBranch = branch === 'HEAD' ? 'detached HEAD' : branch;
 
   return (
@@ -57,6 +57,17 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
       {/* Branch icon + name */}
       <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
       <span className="font-mono text-xs text-chatroom-text-primary truncate">{displayBranch}</span>
+
+      {/* Unpushed commits indicator */}
+      {commitsAhead > 0 && (
+        <span
+          className="inline-flex items-center gap-0.5 text-[10px] font-bold text-chatroom-accent shrink-0"
+          title={`${commitsAhead} unpushed commit${commitsAhead === 1 ? '' : 's'}`}
+        >
+          <ArrowUp size={10} />
+          {commitsAhead}
+        </span>
+      )}
 
       {/* Dirty indicator */}
       {isDirty && (

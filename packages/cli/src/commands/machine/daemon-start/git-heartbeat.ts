@@ -76,11 +76,12 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
   }
 
   // Collect git state in parallel for efficiency
-  const [branchResult, dirtyResult, diffStatResult, commits] = await Promise.all([
+  const [branchResult, dirtyResult, diffStatResult, commits, commitsAhead] = await Promise.all([
     gitReader.getBranch(workingDir),
     gitReader.isDirty(workingDir),
     gitReader.getDiffStat(workingDir),
     gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE),
+    gitReader.getCommitsAhead(workingDir),
   ]);
 
   // Fetch remotes (non-blocking on failure — returns empty array)
@@ -121,7 +122,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
@@ -141,6 +142,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
     hasMoreCommits,
     openPullRequests: openPRs,
     remotes,
+    commitsAhead,
   });
 
   ctx.lastPushedGitState.set(stateKey, stateHash);

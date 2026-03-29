@@ -1264,6 +1264,9 @@ export default defineSchema({
       )
     ),
 
+    // Commits ahead of upstream tracking branch (unpushed)
+    commitsAhead: v.optional(v.number()),
+
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
