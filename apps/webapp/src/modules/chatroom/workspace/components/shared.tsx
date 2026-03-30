@@ -28,7 +28,7 @@ export const InlineDiffStat = memo(function InlineDiffStat({
   const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
 
   if (isClean) {
-    return <span className="text-[11px] text-chatroom-text-muted">Clean</span>;
+    return <span className="text-[11px] text-chatroom-text-muted flex items-center">Clean</span>;
   }
 
   return (
