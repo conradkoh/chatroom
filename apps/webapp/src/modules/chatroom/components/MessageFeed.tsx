@@ -1585,6 +1585,7 @@ const LatestEventTicker = memo(function LatestEventTicker({
       </button>
     );
   }
+  const workflowDetail = getWorkflowEventDetail(event);
   return (
     <button
       onClick={onClick}
@@ -1594,9 +1595,9 @@ const LatestEventTicker = memo(function LatestEventTicker({
         {formatEventType(event.type)}
       </span>
       {/* Workflow-specific detail (step count, step name, etc.) */}
-      {getWorkflowEventDetail(event) && (
+      {workflowDetail && (
         <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
-          {getWorkflowEventDetail(event)}
+          {workflowDetail}
         </span>
       )}
       {'role' in event && event.role && (
