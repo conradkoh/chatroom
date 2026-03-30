@@ -189,4 +189,40 @@ describe('parsePdf', () => {
       expect(result.outputPath).toMatch(/parse-pdf-\d{8}-\d{6}-\d{3}\.txt$/);
     });
   });
+
+  describe('output directory preparation failure', () => {
+    it('returns error when mkdir fails', async () => {
+      const { deps } = createFakeDeps({
+        '/project/doc.pdf': Buffer.from('fake-pdf'),
+      });
+      // Override mkdir to throw
+      deps.fs.mkdir = async () => {
+        throw new Error('EACCES: permission denied');
+      };
+
+      const result = await parsePdf('/project/doc.pdf', '/project', deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to prepare output directory');
+      expect(result.message).toContain('EACCES');
+    });
+  });
+
+  describe('write failure', () => {
+    it('returns error when writeFile fails', async () => {
+      const { deps } = createFakeDeps({
+        '/project/doc.pdf': Buffer.from('fake-pdf'),
+      });
+      // Override writeFile to throw
+      deps.fs.writeFile = async () => {
+        throw new Error('ENOSPC: no space left on device');
+      };
+
+      const result = await parsePdf('/project/doc.pdf', '/project', deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to write output file');
+      expect(result.message).toContain('ENOSPC');
+    });
+  });
 });
