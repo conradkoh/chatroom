@@ -4,7 +4,7 @@
  * VS Code-style status bar at the bottom of the chatroom that displays
  * workspace information horizontally.
  *
- * Layout: <workspace selector> | <spacer> <remote> · <branch> · <diff stat>
+ * Layout: <workspace selector> | <spacer> <remote>  <branch>  <diff stat>
  *
  * Interactions:
  * - Click workspace selector → dropdown to switch workspaces, sub-menu for local actions
@@ -247,7 +247,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
 // ─── WorkspaceStatusContent ───────────────────────────────────────────────────
 
 /**
- * Right-aligned git info: <remote> · <branch> · <diff stat | clean>
+ * Right-aligned git info: <remote>  <branch>  <diff stat | clean>
  * Branch is clickable → popover with PR link + Open in GitHub Desktop.
  * Diff stat is clickable → opens git panel.
  */
@@ -273,7 +273,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
   const hasPopoverContent = hasPR || isLocal;
 
   return (
-    <div className="flex items-center gap-3 min-w-0 flex-1 px-3">
+    <div className="flex items-center gap-4 min-w-0 flex-1 px-4">
       {/* Spacer pushes everything to the right */}
       <div className="flex-1" />
 
@@ -281,10 +281,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
         <>
           {/* Remote (first item, right-aligned) */}
           {gitState.remotes.length > 0 && (
-            <>
-              <RemotePopover remotes={gitState.remotes} />
-              <span className="text-[10px] text-chatroom-text-muted shrink-0">·</span>
-            </>
+            <RemotePopover remotes={gitState.remotes} />
           )}
 
           {/* Branch + PR — clickable popover with PR link + GitHub Desktop */}
@@ -346,9 +343,6 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
               </span>
             </div>
           )}
-
-          {/* Separator */}
-          <span className="text-[10px] text-chatroom-text-muted shrink-0">·</span>
 
           {/* Diff stats — clickable, opens git panel */}
           <button
@@ -419,24 +413,31 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   if (validWorkspaces.length === 0) return null;
 
   const workspaceTriggerLabel = activeWorkspace
-    ? `${getWorkspaceName(activeWorkspace.workingDir)} · ${getWorkspaceDisplayHostname(activeWorkspace)}`
+    ? `${getWorkspaceName(activeWorkspace.workingDir)}`
+    : '';
+
+  const workspaceMachineLabel = activeWorkspace
+    ? getWorkspaceDisplayHostname(activeWorkspace)
     : '';
 
   return (
     <>
       {/* ── Bottom Bar ── */}
-      <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-1">
+      <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* Workspace selector — click to switch workspaces, sub-menu for actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
+              className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
               title={activeWorkspace?.workingDir ?? ''}
             >
               <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
               <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[280px]">
                 {workspaceTriggerLabel}
+              </span>
+              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider truncate max-w-[160px]">
+                {workspaceMachineLabel}
               </span>
               <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
             </button>
