@@ -1542,6 +1542,35 @@ interface FeatureModalState {
 
 // ─── LatestEventTicker ────────────────────────────────────────────────────────
 
+/**
+ * Returns a short contextual detail string for workflow events.
+ * - workflow.created → "5 steps"
+ * - workflow.stepCompleted → step key/description
+ * - workflow.stepStarted → step key
+ * - workflow.stepCancelled → step key
+ * Returns null for non-workflow events or when no extra info is available.
+ */
+function getWorkflowEventDetail(event: EventStreamEvent): string | null {
+  switch (event.type) {
+    case 'workflow.created':
+      return `${event.stepCount} steps`;
+    case 'workflow.started':
+      return `${event.stepCount} steps`;
+    case 'workflow.stepCompleted':
+      return event.stepKey;
+    case 'workflow.stepStarted':
+      return event.stepKey;
+    case 'workflow.stepCancelled':
+      return event.stepKey;
+    case 'workflow.specified':
+      return event.stepKey;
+    case 'workflow.completed':
+      return event.finalStatus === 'completed' ? 'all steps done' : 'cancelled';
+    default:
+      return null;
+  }
+}
+
 const LatestEventTicker = memo(function LatestEventTicker({
   event,
   onClick,
@@ -1568,6 +1597,15 @@ const LatestEventTicker = memo(function LatestEventTicker({
       <span className={`font-bold uppercase tracking-wider ${getEventBadgeTextColor(event.type)}`}>
         {formatEventType(event.type)}
       </span>
+      {/* Workflow-specific detail (step count, step name, etc.) */}
+      {(() => {
+        const detail = getWorkflowEventDetail(event);
+        return detail ? (
+          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
+            {detail}
+          </span>
+        ) : null;
+      })()}
       {'role' in event && event.role && (
         <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
           {event.role}
