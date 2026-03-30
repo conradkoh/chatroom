@@ -248,6 +248,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
 
 /**
  * Right-aligned git info: <remote> · <branch> · <diff stat | clean>
+ * Branch is clickable → popover with PR link + Open in GitHub Desktop.
  * Diff stat is clickable → opens git panel.
  */
 const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
@@ -258,7 +259,18 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
   onOpenGitPanel: () => void;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const { isLocal } = useLocalDaemon();
   const isAvailable = gitState.status === 'available';
+
+  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
+  const branchDisplay = isAvailable
+    ? gitState.branch === 'HEAD'
+      ? 'detached HEAD'
+      : gitState.branch
+    : '';
+
+  // Determine if the branch popover has any content worth showing
+  const hasPopoverContent = hasPR || isLocal;
 
   return (
     <div className="flex items-center gap-3 min-w-0 flex-1 px-3">
@@ -275,26 +287,62 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             </>
           )}
 
-          {/* Branch + PR */}
-          {(gitState.openPullRequests?.length ?? 0) > 0 ? (
-            <a
-              href={gitState.openPullRequests[0]!.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono shrink-0"
-              title={gitState.openPullRequests[0]!.title}
-            >
-              <GitPullRequestIcon size={11} className="shrink-0" />
-              <span className="uppercase tracking-wider">
-                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
-              </span>
-              <span>(#{gitState.openPullRequests[0]!.number})</span>
-            </a>
+          {/* Branch + PR — clickable popover with PR link + GitHub Desktop */}
+          {hasPopoverContent ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-sm transition-colors',
+                    hasPR
+                      ? 'text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50'
+                      : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
+                  )}
+                  title={hasPR ? gitState.openPullRequests[0]!.title : branchDisplay}
+                >
+                  {hasPR ? (
+                    <GitPullRequestIcon size={11} className="shrink-0" />
+                  ) : (
+                    <GitBranch size={11} className="shrink-0" />
+                  )}
+                  <span className="uppercase tracking-wider">{branchDisplay}</span>
+                  {hasPR && <span>(#{gitState.openPullRequests[0]!.number})</span>}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
+                {hasPR && (
+                  <a
+                    href={gitState.openPullRequests[0]!.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                    title={gitState.openPullRequests[0]!.title}
+                  >
+                    <GitPullRequestIcon size={12} className="shrink-0" />
+                    <span className="truncate">{gitState.openPullRequests[0]!.title}</span>
+                  </a>
+                )}
+                {isLocal && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void callLocalApi('open-github-desktop', workspace.workingDir)
+                    }
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                  >
+                    <GitBranch size={12} className="shrink-0" />
+                    Open in GitHub Desktop
+                  </button>
+                )}
+              </PopoverContent>
+            </Popover>
           ) : (
+            /* Non-local, no PR — static branch display */
             <div className="inline-flex items-center gap-1 text-[11px] font-mono shrink-0">
               <GitBranch size={11} className="text-chatroom-text-muted shrink-0" />
               <span className="text-chatroom-text-secondary uppercase tracking-wider">
-                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
+                {branchDisplay}
               </span>
             </div>
           )}
@@ -450,14 +498,6 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                         >
                           <Code2 size={13} className="mr-2" />
                           Open in VS Code
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            void callLocalApi('open-github-desktop', ws.workingDir)
-                          }
-                        >
-                          <GitBranch size={13} className="mr-2" />
-                          Open in GitHub Desktop
                         </DropdownMenuItem>
                       </>
                     )}
