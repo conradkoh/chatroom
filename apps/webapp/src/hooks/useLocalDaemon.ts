@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * @deprecated Use `useDaemonConnected` from `@/hooks/useDaemonConnected` instead.
+ * This hook uses direct localhost HTTP calls which are blocked by Safari's
+ * mixed-content policy on HTTPS pages. The replacement queries Convex for
+ * daemon presence, which works on all browsers.
+ *
+ * This file is retained for reference and as a potential fallback for
+ * local development environments where Convex may not be available.
+ */
+
 import { useState, useEffect, useRef } from 'react';
 
 /**
