@@ -13,48 +13,14 @@
  *   - `{ success: false, error: string }` — validation failure or path error
  */
 
-import { exec } from 'node:child_process';
-import { access } from 'node:fs/promises';
-
 import type { LocalApiRequest, LocalApiResponse, LocalApiRoute } from '../types.js';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-/** JSON body sent by the caller. */
-interface OpenGitHubDesktopBody {
-  workingDir?: string;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Resolve the platform-specific command used to locate an executable.
- * - POSIX: `which <name>`
- * - Windows: `where <name>`
- */
-function resolveWhichCommand(name: string): string {
-  return process.platform === 'win32' ? `where ${name}` : `which ${name}`;
-}
-
-/**
- * Check whether the `github` CLI command is available on PATH.
- * Resolves to true if found, false otherwise.
- */
-function isGitHubCliAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    exec(resolveWhichCommand('github'), (err) => {
-      resolve(!err);
-    });
-  });
-}
-
-/**
- * Escape a filesystem path for safe use as a shell argument.
- * Wraps the path in double quotes and escapes any embedded double quotes.
- */
-function escapeShellArg(arg: string): string {
-  return `"${arg.replace(/"/g, '\\"')}"`;
-}
+import {
+  parseWorkingDir,
+  escapeShellArg,
+  isCliAvailable,
+  execFireAndForget,
+  jsonResponse,
+} from './shared-utils.js';
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
@@ -62,67 +28,19 @@ function escapeShellArg(arg: string): string {
  * Handle POST /api/open-github-desktop.
  */
 async function handleOpenGitHubDesktop(req: LocalApiRequest): Promise<LocalApiResponse> {
-  // Parse body
-  let body: OpenGitHubDesktopBody = {};
-  try {
-    if (req.body) {
-      body = JSON.parse(req.body) as OpenGitHubDesktopBody;
-    }
-  } catch {
-    return {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: 'Invalid JSON body' }),
-    };
-  }
-
-  const { workingDir } = body;
-
-  // Validate workingDir
-  if (!workingDir || typeof workingDir !== 'string' || workingDir.trim() === '') {
-    return {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: 'workingDir is required' }),
-    };
-  }
-
-  // Verify the path exists before opening
-  try {
-    await access(workingDir);
-  } catch {
-    return {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: `Directory not found: ${workingDir}` }),
-    };
-  }
+  const parsed = await parseWorkingDir(req);
+  if (!parsed.ok) return parsed.response;
 
   // Check if `github` CLI is available
-  const available = await isGitHubCliAvailable();
+  const available = await isCliAvailable('github');
   if (!available) {
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: 'GitHub Desktop CLI not found' }),
-    };
+    return jsonResponse(200, { success: false, error: 'GitHub Desktop CLI not found' });
   }
 
   // Fire-and-forget: open GitHub Desktop
-  const command = `github ${escapeShellArg(workingDir)}`;
+  execFireAndForget(`github ${escapeShellArg(parsed.workingDir)}`, 'open-github-desktop');
 
-  exec(command, (err) => {
-    if (err) {
-      // Log but don't propagate — response has already been sent
-      console.warn(`[open-github-desktop] exec failed: ${err.message}`);
-    }
-  });
-
-  return {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ success: true }),
-  };
+  return jsonResponse(200, { success: true });
 }
 
 // ─── Route Definition ─────────────────────────────────────────────────────────

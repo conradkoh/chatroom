@@ -13,6 +13,12 @@ import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote } from '../types/git';
 import { useLocalDaemon } from '@/hooks/useLocalDaemon';
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -345,6 +351,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
   onRemove?: () => void;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const { isLocal } = useLocalDaemon();
 
   // Build stat content
   let statContent: React.ReactNode = null;
@@ -361,7 +368,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
         : gitState.branch
       : null;
 
-  return (
+  const rowContent = (
     <div
       role="button"
       tabIndex={0}
@@ -450,6 +457,39 @@ const WorkspaceRow = memo(function WorkspaceRow({
       )}
     </div>
   );
+
+  // When on the same machine, wrap with a context menu for local actions
+  if (isLocal) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {rowContent}
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-[180px]">
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-finder', workspace.workingDir)}
+          >
+            <FolderOpen size={13} className="mr-2" />
+            Open in Finder
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-vscode', workspace.workingDir)}
+          >
+            <Code2 size={13} className="mr-2" />
+            Open in VS Code
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-github-desktop', workspace.workingDir)}
+          >
+            <GitBranch size={13} className="mr-2" />
+            Open in GitHub Desktop
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return rowContent;
 });
 
 // ─── WorkspaceSidebarSection ──────────────────────────────────────────────────
