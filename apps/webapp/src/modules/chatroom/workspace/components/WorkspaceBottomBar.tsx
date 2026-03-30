@@ -33,7 +33,8 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote } from '../types/git';
-import { useLocalDaemon } from '@/hooks/useLocalDaemon';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,7 +73,6 @@ type WorkspaceWithMachine = Workspace & { machineId: string };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
-const LOCAL_API_PORT = 19847;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,22 +124,6 @@ const PLATFORM_ICONS: Record<GitPlatform, ComponentType<{ size?: number; classNa
 
 function getPlatformIcon(remoteUrl: string): ComponentType<{ size?: number; className?: string }> {
   return PLATFORM_ICONS[detectPlatform(remoteUrl)];
-}
-
-async function callLocalApi(endpoint: string, workingDir: string): Promise<void> {
-  try {
-    const res = await fetch(`http://localhost:${LOCAL_API_PORT}/api/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workingDir }),
-    });
-    const data = (await res.json()) as { success: boolean; error?: string };
-    if (!data.success) {
-      console.warn(`[LocalAPI] ${endpoint}: ${data.error}`);
-    }
-  } catch {
-    // Silent fail
-  }
 }
 
 // ─── Active Workspace Persistence ─────────────────────────────────────────────
@@ -312,7 +296,8 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
   workspace: WorkspaceWithMachine;
   onOpenGitPanel: () => void;
 }) {
-  const { isLocal } = useLocalDaemon();
+  const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
+  const sendAction = useSendLocalAction();
   const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat } =
     useDerivedGitInfo(workspace, isLocal);
 
@@ -359,7 +344,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                   <button
                     type="button"
                     onClick={() =>
-                      void callLocalApi('open-github-desktop', workspace.workingDir)
+                      void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir)
                     }
                     className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                   >
@@ -398,7 +383,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
           <button
             type="button"
             onClick={onOpenGitPanel}
-            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer"
+            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer flex items-center"
             title="Open workspace details"
           >
             <InlineDiffStat diffStat={diffStat} showFileCount={true} />
@@ -482,6 +467,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onOpenGitPanel,
   onSwitchWorkspace,
   isLocal,
+  sendAction,
 }: {
   workspace: WorkspaceWithMachine;
   allWorkspaces: WorkspaceWithMachine[];
@@ -490,6 +476,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onOpenGitPanel: () => void;
   onSwitchWorkspace: (workspaceId: string) => void;
   isLocal: boolean;
+  sendAction: (machineId: string, action: 'open-vscode' | 'open-finder' | 'open-github-desktop', workingDir: string) => void;
 }) {
   const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat, primaryRemote } =
     useDerivedGitInfo(workspace, isLocal);
@@ -583,7 +570,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     <>
                       <button
                         type="button"
-                        onClick={() => { void callLocalApi('open-finder', workspace.workingDir); onClose(); }}
+                        onClick={() => { void sendAction(workspace.machineId, 'open-finder', workspace.workingDir); onClose(); }}
                         className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                       >
                         <FolderOpen size={12} className="shrink-0" />
@@ -591,7 +578,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { void callLocalApi('open-vscode', workspace.workingDir); onClose(); }}
+                        onClick={() => { void sendAction(workspace.machineId, 'open-vscode', workspace.workingDir); onClose(); }}
                         className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                       >
                         <Code2 size={12} className="shrink-0" />
@@ -725,7 +712,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       {isLocal && (
                         <button
                           type="button"
-                          onClick={() => { void callLocalApi('open-github-desktop', workspace.workingDir); onClose(); }}
+                          onClick={() => { void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir); onClose(); }}
                           className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                         >
                           <SiGithub size={12} className="shrink-0" />
@@ -833,7 +820,8 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     setMobileModalOpen(false);
   }, []);
 
-  const { isLocal } = useLocalDaemon();
+  const { isConnected: isLocal } = useDaemonConnected(activeWorkspace?.machineId ?? null);
+  const sendAction = useSendLocalAction();
 
   if (validWorkspaces.length === 0) return null;
 
@@ -917,13 +905,13 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => void callLocalApi('open-finder', ws.workingDir)}
+                              onClick={() => void sendAction(ws.machineId, 'open-finder', ws.workingDir)}
                             >
                               <FolderOpen size={13} className="mr-2" />
                               Open in Finder
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => void callLocalApi('open-vscode', ws.workingDir)}
+                              onClick={() => void sendAction(ws.machineId, 'open-vscode', ws.workingDir)}
                             >
                               <Code2 size={13} className="mr-2" />
                               Open in VS Code
@@ -970,6 +958,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           onOpenGitPanel={handleOpenGitPanel}
           onSwitchWorkspace={handleSwitchWorkspace}
           isLocal={isLocal}
+          sendAction={sendAction}
         />
       )}
 

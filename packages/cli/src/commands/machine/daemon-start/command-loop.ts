@@ -21,6 +21,7 @@ import { api } from '../../../api.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -77,7 +78,8 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
 function evictStaleDedupEntries(
   processedCommandIds: Map<string, number>,
   processedPingIds: Map<string, number>,
-  processedGitRefreshIds: Map<string, number>
+  processedGitRefreshIds: Map<string, number>,
+  processedLocalActionIds: Map<string, number>
 ): void {
   const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
   for (const [id, ts] of processedCommandIds) {
@@ -88,6 +90,9 @@ function evictStaleDedupEntries(
   }
   for (const [id, ts] of processedGitRefreshIds) {
     if (ts < evictBefore) processedGitRefreshIds.delete(id);
+  }
+  for (const [id, ts] of processedLocalActionIds) {
+    if (ts < evictBefore) processedLocalActionIds.delete(id);
   }
 }
 
@@ -100,7 +105,8 @@ async function dispatchCommandEvent(
   event: CommandEvent,
   processedCommandIds: Map<string, number>,
   processedPingIds: Map<string, number>,
-  processedGitRefreshIds: Map<string, number>
+  processedGitRefreshIds: Map<string, number>,
+  processedLocalActionIds: Map<string, number>
 ): Promise<void> {
   const eventId = event._id.toString();
 
@@ -138,6 +144,16 @@ async function dispatchCommandEvent(
     // Push git state immediately (non-blocking from caller perspective)
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${event.workingDir}`);
     await pushGitState(ctx);
+  } else if (event.type === 'daemon.localAction') {
+    // Session dedup — don't re-process same local action event twice in one daemon run
+    if (processedLocalActionIds.has(eventId)) return;
+    processedLocalActionIds.set(eventId, Date.now());
+
+    console.log(`[${formatTimestamp()}] 🖥️  Local action: ${event.action} → ${event.workingDir}`);
+    const result = await executeLocalAction(event.action, event.workingDir);
+    if (!result.success) {
+      console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
+    }
   }
 }
 
@@ -233,6 +249,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
   const processedPingIds = new Map<string, number>(); // daemon.ping
   const processedGitRefreshIds = new Map<string, number>(); // daemon.gitRefresh
+  const processedLocalActionIds = new Map<string, number>(); // daemon.localAction
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
@@ -243,7 +260,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     async (result) => {
       if (!result.events || result.events.length === 0) return;
 
-      evictStaleDedupEntries(processedCommandIds, processedPingIds, processedGitRefreshIds);
+      evictStaleDedupEntries(processedCommandIds, processedPingIds, processedGitRefreshIds, processedLocalActionIds);
 
       for (const event of result.events) {
         try {
@@ -255,7 +272,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
             event,
             processedCommandIds,
             processedPingIds,
-            processedGitRefreshIds
+            processedGitRefreshIds,
+            processedLocalActionIds
           );
         } catch (err) {
           console.error(
