@@ -248,7 +248,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
 
 /**
  * Right-aligned git info: <remote>  <branch>  <diff stat | clean>
- * Branch is clickable → popover with PR link + Open in GitHub Desktop.
+ * Branch is clickable → popover with "Open in GitHub Desktop" + "View on GitHub".
  * Diff stat is clickable → opens git panel.
  */
 const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
@@ -269,8 +269,17 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
       : gitState.branch
     : '';
 
-  // Determine if the branch popover has any content worth showing
-  const hasPopoverContent = hasPR || isLocal;
+  // Derive the GitHub/GitLab/etc URL from remotes for "View on GitHub"
+  const primaryRemote = isAvailable
+    ? (gitState.remotes.find((r: GitRemote) => r.name === 'origin') ?? gitState.remotes[0])
+    : undefined;
+  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
+  const isGitHubRepo = primaryRemote
+    ? detectPlatform(primaryRemote.url) === 'github'
+    : false;
+
+  // Show the popover if there's anything to show (local actions or repo link)
+  const hasPopoverContent = isLocal || repoHttpsUrl;
 
   return (
     <div className="flex items-center gap-4 min-w-0 flex-1 px-4">
@@ -284,7 +293,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             <RemotePopover remotes={gitState.remotes} />
           )}
 
-          {/* Branch + PR — clickable popover with PR link + GitHub Desktop */}
+          {/* Branch + PR — clickable popover with GitHub Desktop + View on GitHub */}
           {hasPopoverContent ? (
             <Popover>
               <PopoverTrigger asChild>
@@ -308,18 +317,6 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
-                {hasPR && (
-                  <a
-                    href={gitState.openPullRequests[0]!.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
-                    title={gitState.openPullRequests[0]!.title}
-                  >
-                    <GitPullRequestIcon size={12} className="shrink-0" />
-                    <span className="truncate">{gitState.openPullRequests[0]!.title}</span>
-                  </a>
-                )}
                 {isLocal && (
                   <button
                     type="button"
@@ -328,14 +325,29 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     }
                     className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                   >
-                    <GitBranch size={12} className="shrink-0" />
+                    <SiGithub size={12} className="shrink-0" />
                     Open in GitHub Desktop
                   </button>
+                )}
+                {repoHttpsUrl && (
+                  <a
+                    href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                  >
+                    {isGitHubRepo ? (
+                      <SiGithub size={12} className="shrink-0" />
+                    ) : (
+                      <ExternalLink size={12} className="shrink-0" />
+                    )}
+                    {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                  </a>
                 )}
               </PopoverContent>
             </Popover>
           ) : (
-            /* Non-local, no PR — static branch display */
+            /* No popover content — static branch display */
             <div className="inline-flex items-center gap-1 text-[11px] font-mono shrink-0">
               <GitBranch size={11} className="text-chatroom-text-muted shrink-0" />
               <span className="text-chatroom-text-secondary uppercase tracking-wider">
