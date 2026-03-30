@@ -72,6 +72,23 @@ describe('LocalApiRouter', () => {
     expect(res.headers?.['Access-Control-Allow-Methods']).toContain('GET');
   });
 
+  test('includes Access-Control-Allow-Private-Network header for Chrome PNA', async () => {
+    const router = new LocalApiRouter();
+    router.registerRoute({
+      method: 'GET',
+      path: '/api/test',
+      handler: async () => ({ status: 200, body: 'ok' }),
+    });
+
+    // Verify on preflight responses
+    const preflight = await router.handleRequest(makeReq({ method: 'OPTIONS' }), makeCtx());
+    expect(preflight.headers?.['Access-Control-Allow-Private-Network']).toBe('true');
+
+    // Verify on regular responses
+    const res = await router.handleRequest(makeReq(), makeCtx());
+    expect(res.headers?.['Access-Control-Allow-Private-Network']).toBe('true');
+  });
+
   test('applies CORS headers to all responses', async () => {
     const router = new LocalApiRouter();
     router.registerRoute({
