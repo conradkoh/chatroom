@@ -12,6 +12,14 @@ import type { ToolResult } from '../types.js';
 import { ensureChatroomDir, ensureGitignore, generateOutputPath } from '../output.js';
 import type { ParsePdfDeps } from './deps.js';
 
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Timeout for HTTP downloads in milliseconds (30 seconds). */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/** Maximum download size in bytes (50 MB). */
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Check whether a string looks like a URL. */
@@ -45,12 +53,36 @@ function createDefaultDeps(): ParsePdfDeps {
     },
     http: {
       download: async (url) => {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        const arrayBuffer = await response.arrayBuffer();
-        return Buffer.from(arrayBuffer);
+
+        // Check Content-Length header for early rejection
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > MAX_DOWNLOAD_BYTES) {
+          throw new Error('PDF exceeds maximum size of 50MB');
+        }
+
+        // Stream the response and enforce size limit
+        if (!response.body) {
+          throw new Error('Response body is empty');
+        }
+
+        const chunks: Uint8Array[] = [];
+        let totalBytes = 0;
+
+        for await (const chunk of response.body) {
+          totalBytes += chunk.byteLength;
+          if (totalBytes > MAX_DOWNLOAD_BYTES) {
+            throw new Error('PDF exceeds maximum size of 50MB');
+          }
+          chunks.push(chunk);
+        }
+
+        return Buffer.concat(chunks);
       },
     },
   };
@@ -93,9 +125,16 @@ export async function parsePdf(
     try {
       pdfInput = await d.http.download(input);
     } catch (err) {
+      // Provide clear message for timeout errors
+      const message =
+        err instanceof Error && err.name === 'TimeoutError'
+          ? `Download timed out after ${FETCH_TIMEOUT_MS / 1000}s`
+          : err instanceof Error
+            ? err.message
+            : String(err);
       return {
         success: false,
-        message: `Failed to download PDF: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Failed to download PDF: ${message}`,
       };
     }
   } else {
