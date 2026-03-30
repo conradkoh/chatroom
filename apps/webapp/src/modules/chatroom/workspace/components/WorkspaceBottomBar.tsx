@@ -175,8 +175,6 @@ interface DerivedGitInfo {
   repoHttpsUrl: string | null;
   isGitHubRepo: boolean;
   hasBranchActions: boolean;
-  /** The raw git state. Access `remotes`, `openPullRequests`, `diffStat` only when `isAvailable` is true. */
-  gitState: Extract<ReturnType<typeof useWorkspaceGit>, { status: 'available' }> | { status: 'loading' | 'not_found' | 'error' };
   /** Remotes array (empty when not available). */
   remotes: GitRemote[];
   /** Open pull requests (empty when not available). */
@@ -212,7 +210,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
 
   return {
     isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
-    isGitHubRepo, hasBranchActions, gitState, remotes, openPullRequests, diffStat,
+    isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat,
   };
 }
 
