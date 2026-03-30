@@ -435,7 +435,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
               title={activeWorkspace?.workingDir ?? ''}
             >
               <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-              <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[200px]">
+              <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[280px]">
                 {workspaceTriggerLabel}
               </span>
               <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
