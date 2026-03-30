@@ -21,7 +21,6 @@ import {
   FolderOpen,
   GitBranch,
   GitPullRequest as GitPullRequestIcon,
-  Maximize2,
   PanelBottomOpen,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -949,22 +948,17 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
             )}
           </>
         ) : (
-          /* Mobile: compact branch/PR/stats + expand button */
-          <>
+          /* Mobile: entire bar is clickable → opens fullscreen modal */
+          <button
+            type="button"
+            onClick={handleOpenMobileModal}
+            className="flex items-center flex-1 min-w-0 h-full hover:bg-chatroom-bg-hover/50 transition-colors"
+            title="View workspace details"
+          >
             {activeWorkspace && (
               <MobileStatusContent workspace={activeWorkspace} />
             )}
-
-            {/* Expand button — opens fullscreen mobile modal */}
-            <button
-              type="button"
-              onClick={handleOpenMobileModal}
-              className="shrink-0 flex items-center justify-center w-8 h-full hover:bg-chatroom-bg-hover/50 transition-colors"
-              title="View workspace details"
-            >
-              <Maximize2 size={13} className="text-chatroom-text-muted" />
-            </button>
-          </>
+          </button>
         )}
       </div>
 
