@@ -21,6 +21,7 @@ import {
   FolderOpen,
   GitBranch,
   GitPullRequest as GitPullRequestIcon,
+  Maximize2,
   PanelBottomOpen,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -57,6 +58,7 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { cn } from '@/lib/utils';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -376,6 +378,272 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
   );
 });
 
+// ─── MobileStatusContent ──────────────────────────────────────────────────
+
+/**
+ * Compact read-only status for mobile bottom bar.
+ * Shows branch name, PR number, and diff stats — non-interactive.
+ */
+const MobileStatusContent = memo(function MobileStatusContent({
+  workspace,
+}: {
+  workspace: WorkspaceWithMachine;
+}) {
+  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const isAvailable = gitState.status === 'available';
+
+  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
+  const branchDisplay = isAvailable
+    ? gitState.branch === 'HEAD'
+      ? 'detached HEAD'
+      : gitState.branch
+    : '';
+
+  return (
+    <div className="flex items-center gap-2 min-w-0 flex-1 px-2 overflow-hidden">
+      {isAvailable && (
+        <>
+          {/* Branch + PR */}
+          <div className="inline-flex items-center gap-1 text-[11px] font-mono shrink min-w-0">
+            {hasPR ? (
+              <GitPullRequestIcon size={11} className="text-chatroom-text-muted shrink-0" />
+            ) : (
+              <GitBranch size={11} className="text-chatroom-text-muted shrink-0" />
+            )}
+            <span className="text-chatroom-text-secondary uppercase tracking-wider truncate">
+              {branchDisplay}
+            </span>
+            {hasPR && (
+              <span className="text-chatroom-text-muted shrink-0">
+                (#{gitState.openPullRequests[0]!.number})
+              </span>
+            )}
+          </div>
+
+          {/* Diff stats */}
+          <div className="shrink-0">
+            <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
+          </div>
+        </>
+      )}
+
+      {gitState.status === 'loading' && (
+        <span className="text-[10px] text-chatroom-text-muted">loading…</span>
+      )}
+    </div>
+  );
+});
+
+// ─── MobileWorkspaceModal ─────────────────────────────────────────────────────
+
+/**
+ * Fullscreen modal with workspace details in vertical layout for mobile.
+ * Shows all the information and actions that the desktop bottom bar provides.
+ */
+const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
+  workspace,
+  isOpen,
+  onClose,
+  onOpenGitPanel,
+  isLocal,
+}: {
+  workspace: WorkspaceWithMachine;
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenGitPanel: () => void;
+  isLocal: boolean;
+}) {
+  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const isAvailable = gitState.status === 'available';
+
+  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
+  const branchDisplay = isAvailable
+    ? gitState.branch === 'HEAD'
+      ? 'detached HEAD'
+      : gitState.branch
+    : '';
+
+  const primaryRemote = isAvailable
+    ? (gitState.remotes.find((r: GitRemote) => r.name === 'origin') ?? gitState.remotes[0])
+    : undefined;
+  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
+  const isGitHubRepo = primaryRemote
+    ? detectPlatform(primaryRemote.url) === 'github'
+    : false;
+
+  return (
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <FixedModalTitle>
+            <div className="flex items-center gap-2">
+              <FolderOpen size={16} className="text-chatroom-text-muted" />
+              <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                {getWorkspaceName(workspace.workingDir)}
+              </span>
+            </div>
+          </FixedModalTitle>
+        </FixedModalHeader>
+        <FixedModalBody className="p-4">
+          <div className="flex flex-col gap-4">
+            {/* Workspace info */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Workspace</span>
+              <div className="flex items-center gap-2">
+                <FolderOpen size={14} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-sm font-bold text-chatroom-text-primary uppercase tracking-wider">
+                  {getWorkspaceName(workspace.workingDir)}
+                </span>
+              </div>
+              <span className="text-[11px] text-chatroom-text-muted">
+                {getWorkspaceDisplayHostname(workspace)}
+              </span>
+            </div>
+
+            {isAvailable && (
+              <>
+                {/* Branch + PR */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Branch</span>
+                  <div className="flex items-center gap-2">
+                    {hasPR ? (
+                      <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                    ) : (
+                      <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
+                    )}
+                    <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                      {branchDisplay}
+                    </span>
+                    {hasPR && (
+                      <span className="text-sm text-chatroom-text-muted">
+                        (#{gitState.openPullRequests[0]!.number})
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Remote */}
+                {gitState.remotes.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Remote</span>
+                    {gitState.remotes.map((remote) => {
+                      const RemoteIcon = getPlatformIcon(remote.url);
+                      const httpsUrl = toHttpsUrl(remote.url);
+                      return (
+                        <div key={remote.name} className="flex items-center gap-2">
+                          <RemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                          {httpsUrl ? (
+                            <a
+                              href={httpsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider"
+                            >
+                              {remote.name}
+                            </a>
+                          ) : (
+                            <span className="text-sm text-chatroom-text-muted font-mono uppercase tracking-wider">
+                              {remote.name}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Diff stats */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Changes</span>
+                  <InlineDiffStat diffStat={gitState.diffStat} showFileCount={true} />
+                </div>
+              </>
+            )}
+
+            {gitState.status === 'loading' && (
+              <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-col gap-1 pt-2 border-t border-chatroom-border-strong">
+              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Actions</span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenGitPanel();
+                }}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
+              >
+                <PanelBottomOpen size={16} className="shrink-0" />
+                Open workspace details
+              </button>
+
+              {isLocal && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void callLocalApi('open-github-desktop', workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
+                  >
+                    <SiGithub size={16} className="shrink-0" />
+                    Open in GitHub Desktop
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void callLocalApi('open-finder', workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
+                  >
+                    <FolderOpen size={16} className="shrink-0" />
+                    Open in Finder
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void callLocalApi('open-vscode', workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
+                  >
+                    <Code2 size={16} className="shrink-0" />
+                    Open in VS Code
+                  </button>
+                </>
+              )}
+
+              {repoHttpsUrl && (
+                <a
+                  href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
+                  onClick={onClose}
+                >
+                  {isGitHubRepo ? (
+                    <SiGithub size={16} className="shrink-0" />
+                  ) : (
+                    <ExternalLink size={16} className="shrink-0" />
+                  )}
+                  {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                </a>
+              )}
+            </div>
+          </div>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
+  );
+});
+
 // ─── WorkspaceBottomBar ───────────────────────────────────────────────────────
 
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
@@ -386,6 +654,8 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     getPersistedActiveWorkspaceId(chatroomId)
   );
   const [gitModalOpen, setGitModalOpen] = useState(false);
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
+  const isDesktop = useIsDesktop(640);
 
   const validWorkspaces = useMemo(
     () => workspaces.filter((ws): ws is WorkspaceWithMachine => ws.machineId !== null),
@@ -420,6 +690,14 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     setGitModalOpen(false);
   }, []);
 
+  const handleOpenMobileModal = useCallback(() => {
+    setMobileModalOpen(true);
+  }, []);
+
+  const handleCloseMobileModal = useCallback(() => {
+    setMobileModalOpen(false);
+  }, []);
+
   const { isLocal } = useLocalDaemon();
 
   if (validWorkspaces.length === 0) return null;
@@ -436,99 +714,132 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     <>
       {/* ── Bottom Bar ── */}
       <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {/* Workspace selector — click to switch workspaces, sub-menu for actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {isDesktop ? (
+          /* Desktop: full workspace selector + status */
+          <>
+            {/* Workspace selector — click to switch workspaces, sub-menu for actions */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
+                  title={activeWorkspace?.workingDir ?? ''}
+                >
+                  <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
+                  <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[280px]">
+                    {workspaceTriggerLabel}
+                  </span>
+                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider truncate max-w-[160px]">
+                    {workspaceMachineLabel}
+                  </span>
+                  <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="min-w-[280px]">
+                {validWorkspaces.map((ws) => {
+                  const isActive = ws.id === activeWorkspace?.id;
+                  return (
+                    <DropdownMenuSub key={ws.id}>
+                      <DropdownMenuSubTrigger
+                        className={cn(
+                          'text-[11px] flex items-center gap-2 cursor-pointer py-2',
+                          isActive && 'bg-chatroom-bg-hover/50'
+                        )}
+                        onClick={() => handleSwitchWorkspace(ws.id)}
+                      >
+                        <FolderOpen
+                          size={12}
+                          className={cn(
+                            'shrink-0',
+                            isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-muted'
+                          )}
+                        />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              'font-mono uppercase tracking-wider truncate',
+                              isActive ? 'font-bold text-chatroom-text-primary' : ''
+                            )}
+                          >
+                            {getWorkspaceName(ws.workingDir)}
+                          </span>
+                          <span className="text-[10px] text-chatroom-text-muted">
+                            {getWorkspaceDisplayHostname(ws)}
+                          </span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="min-w-[180px]">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            handleSwitchWorkspace(ws.id);
+                            handleOpenGitPanel();
+                          }}
+                        >
+                          <PanelBottomOpen size={13} className="mr-2" />
+                          Open workspace details
+                        </DropdownMenuItem>
+                        {isLocal && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => void callLocalApi('open-finder', ws.workingDir)}
+                            >
+                              <FolderOpen size={13} className="mr-2" />
+                              Open in Finder
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => void callLocalApi('open-vscode', ws.workingDir)}
+                            >
+                              <Code2 size={13} className="mr-2" />
+                              Open in VS Code
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Active workspace git status — right-aligned */}
+            {activeWorkspace && (
+              <WorkspaceStatusContent
+                workspace={activeWorkspace}
+                onOpenGitPanel={handleOpenGitPanel}
+              />
+            )}
+          </>
+        ) : (
+          /* Mobile: compact branch/PR/stats + expand button */
+          <>
+            {activeWorkspace && (
+              <MobileStatusContent workspace={activeWorkspace} />
+            )}
+
+            {/* Expand button — opens fullscreen mobile modal */}
             <button
               type="button"
-              className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
-              title={activeWorkspace?.workingDir ?? ''}
+              onClick={handleOpenMobileModal}
+              className="shrink-0 flex items-center justify-center w-8 h-full hover:bg-chatroom-bg-hover/50 transition-colors"
+              title="View workspace details"
             >
-              <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-              <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[280px]">
-                {workspaceTriggerLabel}
-              </span>
-              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider truncate max-w-[160px]">
-                {workspaceMachineLabel}
-              </span>
-              <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
+              <Maximize2 size={13} className="text-chatroom-text-muted" />
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="min-w-[280px]">
-            {validWorkspaces.map((ws) => {
-              const isActive = ws.id === activeWorkspace?.id;
-              return (
-                <DropdownMenuSub key={ws.id}>
-                  <DropdownMenuSubTrigger
-                    className={cn(
-                      'text-[11px] flex items-center gap-2 cursor-pointer py-2',
-                      isActive && 'bg-chatroom-bg-hover/50'
-                    )}
-                    onClick={() => handleSwitchWorkspace(ws.id)}
-                  >
-                    <FolderOpen
-                      size={12}
-                      className={cn(
-                        'shrink-0',
-                        isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-muted'
-                      )}
-                    />
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          'font-mono uppercase tracking-wider truncate',
-                          isActive ? 'font-bold text-chatroom-text-primary' : ''
-                        )}
-                      >
-                        {getWorkspaceName(ws.workingDir)}
-                      </span>
-                      <span className="text-[10px] text-chatroom-text-muted">
-                        {getWorkspaceDisplayHostname(ws)}
-                      </span>
-                    </div>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="min-w-[180px]">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        handleSwitchWorkspace(ws.id);
-                        handleOpenGitPanel();
-                      }}
-                    >
-                      <PanelBottomOpen size={13} className="mr-2" />
-                      Open workspace details
-                    </DropdownMenuItem>
-                    {isLocal && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => void callLocalApi('open-finder', ws.workingDir)}
-                        >
-                          <FolderOpen size={13} className="mr-2" />
-                          Open in Finder
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => void callLocalApi('open-vscode', ws.workingDir)}
-                        >
-                          <Code2 size={13} className="mr-2" />
-                          Open in VS Code
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Active workspace git status — right-aligned */}
-        {activeWorkspace && (
-          <WorkspaceStatusContent
-            workspace={activeWorkspace}
-            onOpenGitPanel={handleOpenGitPanel}
-          />
+          </>
         )}
       </div>
+
+      {/* ── Mobile Workspace Modal ── */}
+      {!isDesktop && activeWorkspace && (
+        <MobileWorkspaceModal
+          workspace={activeWorkspace}
+          isOpen={mobileModalOpen}
+          onClose={handleCloseMobileModal}
+          onOpenGitPanel={handleOpenGitPanel}
+          isLocal={isLocal}
+        />
+      )}
 
       {/* ── Git Modal ── */}
       <FixedModal
