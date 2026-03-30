@@ -14,11 +14,17 @@ import type { LocalApiResponse } from './types.js';
  * Standard CORS headers added to every local API response.
  * Permissive by design: the server only binds to 127.0.0.1, so there is no
  * cross-origin security risk in allowing all origins.
+ *
+ * Includes `Access-Control-Allow-Private-Network` for Chrome's Private Network
+ * Access (PNA) policy, which blocks requests from public origins (e.g.
+ * https://chatroom.duskfare.com) to loopback addresses unless the server
+ * explicitly opts in via this header.
  */
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Private-Network': 'true',
 };
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
