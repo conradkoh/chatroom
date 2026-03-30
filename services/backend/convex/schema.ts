@@ -1157,6 +1157,19 @@ export default defineSchema({
         stepKey: v.string(),
         assigneeRole: v.optional(v.string()),
         timestamp: v.number(),
+      }),
+      // Daemon local action request (open-vscode, open-finder, etc.) sent via Convex
+      // instead of direct localhost HTTP to work around Safari mixed-content blocking.
+      v.object({
+        type: v.literal('daemon.localAction'),
+        machineId: v.string(),
+        action: v.union(
+          v.literal('open-vscode'),
+          v.literal('open-finder'),
+          v.literal('open-github-desktop')
+        ),
+        workingDir: v.string(),
+        timestamp: v.number(),
       })
     )
   )
