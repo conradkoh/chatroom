@@ -470,213 +470,310 @@ const MobileStatusContent = memo(function MobileStatusContent({
 
 /**
  * Fullscreen modal with workspace details in vertical layout for mobile.
- * Actions are bound to their respective components, matching desktop behavior:
- * - Branch is clickable → reveals GitHub Desktop + View on GitHub options
- * - Diff stat is clickable → opens workspace details panel
- * - Remote links navigate to the remote URL
- * - Workspace section shows local actions (Finder, VS Code) when available
+ *
+ * Four rows, each clickable to expand contextual actions:
+ * 1. <folder> <machine name> → switch workspace / open details / local actions
+ * 2. <origin> → show all remotes
+ * 3. <branch> <pr> → open PR on GitHub / open in GitHub Desktop
+ * 4. <diff> → open git details modal
  */
 const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   workspace,
+  allWorkspaces,
   isOpen,
   onClose,
   onOpenGitPanel,
+  onSwitchWorkspace,
   isLocal,
 }: {
   workspace: WorkspaceWithMachine;
+  allWorkspaces: WorkspaceWithMachine[];
   isOpen: boolean;
   onClose: () => void;
   onOpenGitPanel: () => void;
+  onSwitchWorkspace: (workspaceId: string) => void;
   isLocal: boolean;
 }) {
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat, primaryRemote } =
     useDerivedGitInfo(workspace, isLocal);
+  const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
+  const [remoteExpanded, setRemoteExpanded] = useState(false);
   const [branchExpanded, setBranchExpanded] = useState(false);
+
+  const PrimaryRemoteIcon = primaryRemote ? getPlatformIcon(primaryRemote.url) : null;
+  const hasMultipleWorkspaces = allWorkspaces.length > 1;
+  const hasWorkspaceActions = hasMultipleWorkspaces || isLocal;
+  const hasRemoteActions = remotes.length > 1;
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>
-            <div className="flex items-center gap-2">
-              <FolderOpen size={16} className="text-chatroom-text-muted" />
-              <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
-                {getWorkspaceName(workspace.workingDir)}
-              </span>
-            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+              Workspace
+            </span>
           </FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="p-4">
-          <div className="flex flex-col gap-4">
-            {/* Workspace info + local actions */}
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Workspace</span>
-              <div className="flex items-center gap-2">
-                <FolderOpen size={14} className="text-chatroom-text-muted shrink-0" />
-                <span className="text-sm font-bold text-chatroom-text-primary uppercase tracking-wider">
-                  {getWorkspaceName(workspace.workingDir)}
-                </span>
-              </div>
-              <span className="text-[11px] text-chatroom-text-muted">
-                {getWorkspaceDisplayHostname(workspace)}
-              </span>
-              {isLocal && (
-                <div className="flex flex-col gap-0.5 mt-1 ml-1 pl-4 border-l-2 border-chatroom-border-strong">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void callLocalApi('open-finder', workspace.workingDir);
-                      onClose();
-                    }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
-                  >
-                    <FolderOpen size={13} className="shrink-0" />
-                    Open in Finder
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void callLocalApi('open-vscode', workspace.workingDir);
-                      onClose();
-                    }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
-                  >
-                    <Code2 size={13} className="shrink-0" />
-                    Open in VS Code
-                  </button>
+        <FixedModalBody className="p-2">
+          <div className="flex flex-col gap-0.5">
+            {/* Row 1: Workspace / Machine */}
+            <div className="flex flex-col">
+              {hasWorkspaceActions ? (
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceExpanded((prev) => !prev)}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                >
+                  <FolderOpen size={14} className="text-chatroom-text-muted shrink-0" />
+                  <span className="text-[12px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate">
+                    {getWorkspaceName(workspace.workingDir)}
+                  </span>
+                  <span className="text-[11px] text-chatroom-text-muted truncate">
+                    {getWorkspaceDisplayHostname(workspace)}
+                  </span>
+                  <ChevronDown
+                    size={12}
+                    className={cn(
+                      'text-chatroom-text-muted shrink-0 transition-transform ml-auto',
+                      workspaceExpanded && 'rotate-180'
+                    )}
+                  />
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  <FolderOpen size={14} className="text-chatroom-text-muted shrink-0" />
+                  <span className="text-[12px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate">
+                    {getWorkspaceName(workspace.workingDir)}
+                  </span>
+                  <span className="text-[11px] text-chatroom-text-muted truncate">
+                    {getWorkspaceDisplayHostname(workspace)}
+                  </span>
                 </div>
               )}
-            </div>
-
-            {isAvailable && (
-              <>
-                {/* Branch + PR — clickable to reveal actions */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Branch</span>
-                  {hasBranchActions ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setBranchExpanded((prev) => !prev)}
-                        className="flex items-center gap-2 px-1 py-1 rounded-sm hover:bg-chatroom-bg-hover/50 transition-colors text-left"
-                      >
-                        {hasPR ? (
-                          <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
-                        ) : (
-                          <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
-                        )}
-                        <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
-                          {branchDisplay}
-                        </span>
-                        {hasPR && (
-                          <span className="text-sm text-chatroom-text-muted">
-                            (#{openPullRequests[0]!.number})
-                          </span>
-                        )}
-                        <ChevronDown
-                          size={12}
-                          className={cn(
-                            'text-chatroom-text-muted shrink-0 transition-transform ml-auto',
-                            branchExpanded && 'rotate-180'
-                          )}
-                        />
-                      </button>
-                      {branchExpanded && (
-                        <div className="flex flex-col gap-0.5 ml-1 pl-4 border-l-2 border-chatroom-border-strong">
-                          {isLocal && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void callLocalApi('open-github-desktop', workspace.workingDir);
-                                onClose();
-                              }}
-                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
-                            >
-                              <SiGithub size={13} className="shrink-0" />
-                              Open in GitHub Desktop
-                            </button>
-                          )}
-                          {repoHttpsUrl && (
-                            <a
-                              href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
-                              onClick={onClose}
-                            >
-                              {isGitHubRepo ? (
-                                <SiGithub size={13} className="shrink-0" />
-                              ) : (
-                                <ExternalLink size={13} className="shrink-0" />
-                              )}
-                              {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    /* No actions available — static display */
-                    <div className="flex items-center gap-2 px-1">
-                      <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
-                      <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
-                        {branchDisplay}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Remote */}
-                {remotes.length > 0 && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Remote</span>
-                    {remotes.map((remote) => {
-                      const RemoteIcon = getPlatformIcon(remote.url);
-                      const httpsUrl = toHttpsUrl(remote.url);
-                      return (
-                        <div key={remote.name} className="flex items-center gap-2 px-1">
-                          <RemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
-                          {httpsUrl ? (
-                            <a
-                              href={httpsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider"
-                            >
-                              {remote.name}
-                            </a>
-                          ) : (
-                            <span className="text-sm text-chatroom-text-muted font-mono uppercase tracking-wider">
-                              {remote.name}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Diff stats — clickable, opens git panel */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Changes</span>
+              {workspaceExpanded && (
+                <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
+                  {/* Switch workspace options */}
+                  {hasMultipleWorkspaces && allWorkspaces.filter((ws) => ws.id !== workspace.id).map((ws) => (
+                    <button
+                      key={ws.id}
+                      type="button"
+                      onClick={() => {
+                        onSwitchWorkspace(ws.id);
+                        setWorkspaceExpanded(false);
+                      }}
+                      className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                    >
+                      <FolderOpen size={12} className="shrink-0" />
+                      <span className="font-mono uppercase tracking-wider truncate">{getWorkspaceName(ws.workingDir)}</span>
+                      <span className="text-[10px] text-chatroom-text-muted truncate">{getWorkspaceDisplayHostname(ws)}</span>
+                    </button>
+                  ))}
+                  {/* Open workspace details */}
                   <button
                     type="button"
                     onClick={() => {
                       onClose();
                       onOpenGitPanel();
                     }}
-                    className="flex items-center gap-2 px-1 py-1 rounded-sm hover:bg-chatroom-bg-hover/50 transition-colors text-left"
-                    title="Open workspace details"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
                   >
-                    <PanelBottomOpen size={14} className="text-chatroom-text-muted shrink-0" />
-                    <InlineDiffStat diffStat={diffStat} showFileCount={true} />
+                    <PanelBottomOpen size={12} className="shrink-0" />
+                    Open workspace details
                   </button>
+                  {/* Local actions */}
+                  {isLocal && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { void callLocalApi('open-finder', workspace.workingDir); onClose(); }}
+                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                      >
+                        <FolderOpen size={12} className="shrink-0" />
+                        Open in Finder
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { void callLocalApi('open-vscode', workspace.workingDir); onClose(); }}
+                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                      >
+                        <Code2 size={12} className="shrink-0" />
+                        Open in VS Code
+                      </button>
+                    </>
+                  )}
                 </div>
+              )}
+            </div>
+
+            {isAvailable && (
+              <>
+                {/* Row 2: Remote / Origin */}
+                {remotes.length > 0 && PrimaryRemoteIcon && (
+                  <div className="flex flex-col">
+                    {hasRemoteActions ? (
+                      <button
+                        type="button"
+                        onClick={() => setRemoteExpanded((prev) => !prev)}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                      >
+                        <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                        <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                          {primaryRemote!.name}
+                        </span>
+                        <ChevronDown
+                          size={12}
+                          className={cn(
+                            'text-chatroom-text-muted shrink-0 transition-transform ml-auto',
+                            remoteExpanded && 'rotate-180'
+                          )}
+                        />
+                      </button>
+                    ) : (
+                      /* Single remote — link or static display */
+                      (() => {
+                        const httpsUrl = toHttpsUrl(primaryRemote!.url);
+                        return httpsUrl ? (
+                          <a
+                            href={httpsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors"
+                          >
+                            <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                            <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                              {primaryRemote!.name}
+                            </span>
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3 py-2.5">
+                            <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                            <span className="text-[12px] text-chatroom-text-muted font-mono uppercase tracking-wider">
+                              {primaryRemote!.name}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
+                    {remoteExpanded && (
+                      <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
+                        {remotes.map((remote) => {
+                          const RemoteIcon = getPlatformIcon(remote.url);
+                          const httpsUrl = toHttpsUrl(remote.url);
+                          return httpsUrl ? (
+                            <a
+                              key={remote.name}
+                              href={httpsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                            >
+                              <RemoteIcon size={12} className="shrink-0" />
+                              {remote.name}
+                            </a>
+                          ) : (
+                            <div
+                              key={remote.name}
+                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-muted"
+                            >
+                              <RemoteIcon size={12} className="shrink-0" />
+                              {remote.name}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Row 3: Branch + PR */}
+                <div className="flex flex-col">
+                  {hasBranchActions ? (
+                    <button
+                      type="button"
+                      onClick={() => setBranchExpanded((prev) => !prev)}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                    >
+                      {hasPR ? (
+                        <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                      ) : (
+                        <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
+                      )}
+                      <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider truncate">
+                        {branchDisplay}
+                      </span>
+                      {hasPR && (
+                        <span className="text-[12px] text-chatroom-text-muted shrink-0">
+                          (#{openPullRequests[0]!.number})
+                        </span>
+                      )}
+                      <ChevronDown
+                        size={12}
+                        className={cn(
+                          'text-chatroom-text-muted shrink-0 transition-transform ml-auto',
+                          branchExpanded && 'rotate-180'
+                        )}
+                      />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
+                      <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                        {branchDisplay}
+                      </span>
+                    </div>
+                  )}
+                  {branchExpanded && (
+                    <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
+                      {isLocal && (
+                        <button
+                          type="button"
+                          onClick={() => { void callLocalApi('open-github-desktop', workspace.workingDir); onClose(); }}
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                        >
+                          <SiGithub size={12} className="shrink-0" />
+                          Open in GitHub Desktop
+                        </button>
+                      )}
+                      {repoHttpsUrl && (
+                        <a
+                          href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                          onClick={onClose}
+                        >
+                          {isGitHubRepo ? (
+                            <SiGithub size={12} className="shrink-0" />
+                          ) : (
+                            <ExternalLink size={12} className="shrink-0" />
+                          )}
+                          {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Row 4: Diff stats */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenGitPanel();
+                  }}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                  title="Open workspace details"
+                >
+                  <InlineDiffStat diffStat={diffStat} showFileCount={true} />
+                </button>
               </>
             )}
 
             {isLoading && (
-              <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
+              <div className="flex items-center px-3 py-2.5">
+                <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
+              </div>
             )}
           </div>
         </FixedModalBody>
@@ -875,9 +972,11 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
       {!isDesktop && activeWorkspace && (
         <MobileWorkspaceModal
           workspace={activeWorkspace}
+          allWorkspaces={validWorkspaces}
           isOpen={mobileModalOpen}
           onClose={handleCloseMobileModal}
           onOpenGitPanel={handleOpenGitPanel}
+          onSwitchWorkspace={handleSwitchWorkspace}
           isLocal={isLocal}
         />
       )}
