@@ -438,7 +438,11 @@ const MobileStatusContent = memo(function MobileStatusContent({
 
 /**
  * Fullscreen modal with workspace details in vertical layout for mobile.
- * Shows all the information and actions that the desktop bottom bar provides.
+ * Actions are bound to their respective components, matching desktop behavior:
+ * - Branch is clickable → reveals GitHub Desktop + View on GitHub options
+ * - Diff stat is clickable → opens workspace details panel
+ * - Remote links navigate to the remote URL
+ * - Workspace section shows local actions (Finder, VS Code) when available
  */
 const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   workspace,
@@ -454,6 +458,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   isLocal: boolean;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const [branchExpanded, setBranchExpanded] = useState(false);
   const isAvailable = gitState.status === 'available';
 
   const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
@@ -471,6 +476,9 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
     ? detectPlatform(primaryRemote.url) === 'github'
     : false;
 
+  // Show branch actions if there's anything to show
+  const hasBranchActions = isLocal || repoHttpsUrl;
+
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
       <FixedModalContent>
@@ -486,7 +494,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
         </FixedModalHeader>
         <FixedModalBody className="p-4">
           <div className="flex flex-col gap-4">
-            {/* Workspace info */}
+            {/* Workspace info + local actions */}
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Workspace</span>
               <div className="flex items-center gap-2">
@@ -498,28 +506,110 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
               <span className="text-[11px] text-chatroom-text-muted">
                 {getWorkspaceDisplayHostname(workspace)}
               </span>
+              {isLocal && (
+                <div className="flex flex-col gap-0.5 mt-1 ml-1 pl-4 border-l-2 border-chatroom-border-strong">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void callLocalApi('open-finder', workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                  >
+                    <FolderOpen size={13} className="shrink-0" />
+                    Open in Finder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void callLocalApi('open-vscode', workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                  >
+                    <Code2 size={13} className="shrink-0" />
+                    Open in VS Code
+                  </button>
+                </div>
+              )}
             </div>
 
             {isAvailable && (
               <>
-                {/* Branch + PR */}
+                {/* Branch + PR — clickable to reveal actions */}
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Branch</span>
-                  <div className="flex items-center gap-2">
-                    {hasPR ? (
-                      <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
-                    ) : (
+                  {hasBranchActions ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setBranchExpanded((prev) => !prev)}
+                        className="flex items-center gap-2 px-1 py-1 rounded-sm hover:bg-chatroom-bg-hover/50 transition-colors text-left"
+                      >
+                        {hasPR ? (
+                          <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                        ) : (
+                          <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
+                        )}
+                        <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                          {branchDisplay}
+                        </span>
+                        {hasPR && (
+                          <span className="text-sm text-chatroom-text-muted">
+                            (#{gitState.openPullRequests[0]!.number})
+                          </span>
+                        )}
+                        <ChevronDown
+                          size={12}
+                          className={cn(
+                            'text-chatroom-text-muted shrink-0 transition-transform ml-auto',
+                            branchExpanded && 'rotate-180'
+                          )}
+                        />
+                      </button>
+                      {branchExpanded && (
+                        <div className="flex flex-col gap-0.5 ml-1 pl-4 border-l-2 border-chatroom-border-strong">
+                          {isLocal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void callLocalApi('open-github-desktop', workspace.workingDir);
+                                onClose();
+                              }}
+                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                            >
+                              <SiGithub size={13} className="shrink-0" />
+                              Open in GitHub Desktop
+                            </button>
+                          )}
+                          {repoHttpsUrl && (
+                            <a
+                              href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                              onClick={onClose}
+                            >
+                              {isGitHubRepo ? (
+                                <SiGithub size={13} className="shrink-0" />
+                              ) : (
+                                <ExternalLink size={13} className="shrink-0" />
+                              )}
+                              {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* No actions available — static display */
+                    <div className="flex items-center gap-2 px-1">
                       <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
-                    )}
-                    <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
-                      {branchDisplay}
-                    </span>
-                    {hasPR && (
-                      <span className="text-sm text-chatroom-text-muted">
-                        (#{gitState.openPullRequests[0]!.number})
+                      <span className="text-sm text-chatroom-text-secondary font-mono uppercase tracking-wider">
+                        {branchDisplay}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Remote */}
@@ -530,7 +620,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       const RemoteIcon = getPlatformIcon(remote.url);
                       const httpsUrl = toHttpsUrl(remote.url);
                       return (
-                        <div key={remote.name} className="flex items-center gap-2">
+                        <div key={remote.name} className="flex items-center gap-2 px-1">
                           <RemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
                           {httpsUrl ? (
                             <a
@@ -552,10 +642,21 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                   </div>
                 )}
 
-                {/* Diff stats */}
+                {/* Diff stats — clickable, opens git panel */}
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Changes</span>
-                  <InlineDiffStat diffStat={gitState.diffStat} showFileCount={true} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenGitPanel();
+                    }}
+                    className="flex items-center gap-2 px-1 py-1 rounded-sm hover:bg-chatroom-bg-hover/50 transition-colors text-left"
+                    title="Open workspace details"
+                  >
+                    <PanelBottomOpen size={14} className="text-chatroom-text-muted shrink-0" />
+                    <InlineDiffStat diffStat={gitState.diffStat} showFileCount={true} />
+                  </button>
                 </div>
               </>
             )}
@@ -563,80 +664,6 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
             {gitState.status === 'loading' && (
               <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
             )}
-
-            {/* Actions */}
-            <div className="flex flex-col gap-1 pt-2 border-t border-chatroom-border-strong">
-              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Actions</span>
-
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenGitPanel();
-                }}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
-              >
-                <PanelBottomOpen size={16} className="shrink-0" />
-                Open workspace details
-              </button>
-
-              {isLocal && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void callLocalApi('open-github-desktop', workspace.workingDir);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
-                  >
-                    <SiGithub size={16} className="shrink-0" />
-                    Open in GitHub Desktop
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void callLocalApi('open-finder', workspace.workingDir);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
-                  >
-                    <FolderOpen size={16} className="shrink-0" />
-                    Open in Finder
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void callLocalApi('open-vscode', workspace.workingDir);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
-                  >
-                    <Code2 size={16} className="shrink-0" />
-                    Open in VS Code
-                  </button>
-                </>
-              )}
-
-              {repoHttpsUrl && (
-                <a
-                  href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-md transition-colors w-full text-left"
-                  onClick={onClose}
-                >
-                  {isGitHubRepo ? (
-                    <SiGithub size={16} className="shrink-0" />
-                  ) : (
-                    <ExternalLink size={16} className="shrink-0" />
-                  )}
-                  {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
-                </a>
-              )}
-            </div>
           </div>
         </FixedModalBody>
       </FixedModalContent>
