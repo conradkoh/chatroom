@@ -65,7 +65,6 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
-  onRemoveWorkspace?: (registryId: string) => Promise<void>;
 }
 
 /** A workspace guaranteed to have a machineId. */
@@ -160,6 +159,62 @@ function setPersistedActiveWorkspaceId(chatroomId: string, workspaceId: string):
   } catch {
     // Silent fail
   }
+}
+
+// ─── Derived Git State ────────────────────────────────────────────────────────
+
+/**
+ * Derived values from workspace git state, shared across desktop and mobile components.
+ * Avoids duplicating the same derivation logic in multiple components.
+ */
+interface DerivedGitInfo {
+  isAvailable: boolean;
+  isLoading: boolean;
+  hasPR: boolean;
+  branchDisplay: string;
+  primaryRemote: GitRemote | undefined;
+  repoHttpsUrl: string | null;
+  isGitHubRepo: boolean;
+  hasBranchActions: boolean;
+  /** The raw git state. Access `remotes`, `openPullRequests`, `diffStat` only when `isAvailable` is true. */
+  gitState: Extract<ReturnType<typeof useWorkspaceGit>, { status: 'available' }> | { status: 'loading' | 'not_found' | 'error' };
+  /** Remotes array (empty when not available). */
+  remotes: GitRemote[];
+  /** Open pull requests (empty when not available). */
+  openPullRequests: { number: number; title: string; url: string }[];
+  /** Diff stat (zeros when not available). */
+  diffStat: { filesChanged: number; insertions: number; deletions: number };
+}
+
+function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): DerivedGitInfo {
+  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const isAvailable = gitState.status === 'available';
+  const isLoading = gitState.status === 'loading';
+
+  // Safely extract fields from the available state, defaulting for other states
+  const remotes = isAvailable ? gitState.remotes : [];
+  const openPullRequests = isAvailable ? gitState.openPullRequests : [];
+  const diffStat = isAvailable ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
+
+  const hasPR = openPullRequests.length > 0;
+  const branchDisplay = isAvailable
+    ? gitState.branch === 'HEAD'
+      ? 'detached HEAD'
+      : gitState.branch
+    : '';
+
+  const primaryRemote = remotes.find((r) => r.name === 'origin') ?? remotes[0];
+  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
+  const isGitHubRepo = primaryRemote
+    ? detectPlatform(primaryRemote.url) === 'github'
+    : false;
+
+  const hasBranchActions = isLocal || !!repoHttpsUrl;
+
+  return {
+    isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
+    isGitHubRepo, hasBranchActions, gitState, remotes, openPullRequests, diffStat,
+  };
 }
 
 // ─── RemotePopover ────────────────────────────────────────────────────────────
@@ -260,25 +315,9 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
   workspace: WorkspaceWithMachine;
   onOpenGitPanel: () => void;
 }) {
-  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
   const { isLocal } = useLocalDaemon();
-  const isAvailable = gitState.status === 'available';
-
-  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
-  const branchDisplay = isAvailable
-    ? gitState.branch === 'HEAD'
-      ? 'detached HEAD'
-      : gitState.branch
-    : '';
-
-  // Derive the GitHub/GitLab/etc URL from remotes for "View on GitHub"
-  const primaryRemote = isAvailable
-    ? (gitState.remotes.find((r: GitRemote) => r.name === 'origin') ?? gitState.remotes[0])
-    : undefined;
-  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
-  const isGitHubRepo = primaryRemote
-    ? detectPlatform(primaryRemote.url) === 'github'
-    : false;
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat } =
+    useDerivedGitInfo(workspace, isLocal);
 
   // Show the popover if there's anything to show (local actions or repo link)
   const hasPopoverContent = isLocal || repoHttpsUrl;
@@ -291,8 +330,8 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
       {isAvailable && (
         <>
           {/* Remote (first item, right-aligned) */}
-          {gitState.remotes.length > 0 && (
-            <RemotePopover remotes={gitState.remotes} />
+          {remotes.length > 0 && (
+            <RemotePopover remotes={remotes} />
           )}
 
           {/* Branch + PR — clickable popover with GitHub Desktop + View on GitHub */}
@@ -307,7 +346,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                       ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
                       : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
                   )}
-                  title={hasPR ? gitState.openPullRequests[0]!.title : branchDisplay}
+                  title={hasPR ? openPullRequests[0]!.title : branchDisplay}
                 >
                   {hasPR ? (
                     <GitPullRequestIcon size={11} className="shrink-0" />
@@ -315,7 +354,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     <GitBranch size={11} className="shrink-0" />
                   )}
                   <span className="uppercase tracking-wider">{branchDisplay}</span>
-                  {hasPR && <span>(#{gitState.openPullRequests[0]!.number})</span>}
+                  {hasPR && <span>(#{openPullRequests[0]!.number})</span>}
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
@@ -333,7 +372,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                 )}
                 {repoHttpsUrl && (
                   <a
-                    href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
+                    href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
@@ -343,7 +382,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     ) : (
                       <ExternalLink size={12} className="shrink-0" />
                     )}
-                    {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                    {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
                   </a>
                 )}
               </PopoverContent>
@@ -365,13 +404,13 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer"
             title="Open workspace details"
           >
-            <InlineDiffStat diffStat={gitState.diffStat} showFileCount={true} />
+            <InlineDiffStat diffStat={diffStat} showFileCount={true} />
           </button>
         </>
       )}
 
       {/* Loading state */}
-      {gitState.status === 'loading' && (
+      {isLoading && (
         <span className="text-[10px] text-chatroom-text-muted">loading…</span>
       )}
     </div>
@@ -389,15 +428,8 @@ const MobileStatusContent = memo(function MobileStatusContent({
 }: {
   workspace: WorkspaceWithMachine;
 }) {
-  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
-  const isAvailable = gitState.status === 'available';
-
-  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
-  const branchDisplay = isAvailable
-    ? gitState.branch === 'HEAD'
-      ? 'detached HEAD'
-      : gitState.branch
-    : '';
+  const { isAvailable, isLoading, hasPR, branchDisplay, openPullRequests, diffStat } =
+    useDerivedGitInfo(workspace, false);
 
   return (
     <div className="flex items-center gap-2 min-w-0 flex-1 px-2 overflow-hidden">
@@ -415,19 +447,19 @@ const MobileStatusContent = memo(function MobileStatusContent({
             </span>
             {hasPR && (
               <span className="text-chatroom-text-muted shrink-0">
-                (#{gitState.openPullRequests[0]!.number})
+                (#{openPullRequests[0]!.number})
               </span>
             )}
           </div>
 
           {/* Diff stats */}
           <div className="shrink-0">
-            <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
+            <InlineDiffStat diffStat={diffStat} showFileCount={false} />
           </div>
         </>
       )}
 
-      {gitState.status === 'loading' && (
+      {isLoading && (
         <span className="text-[10px] text-chatroom-text-muted">loading…</span>
       )}
     </div>
@@ -457,27 +489,9 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onOpenGitPanel: () => void;
   isLocal: boolean;
 }) {
-  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat } =
+    useDerivedGitInfo(workspace, isLocal);
   const [branchExpanded, setBranchExpanded] = useState(false);
-  const isAvailable = gitState.status === 'available';
-
-  const hasPR = isAvailable && (gitState.openPullRequests?.length ?? 0) > 0;
-  const branchDisplay = isAvailable
-    ? gitState.branch === 'HEAD'
-      ? 'detached HEAD'
-      : gitState.branch
-    : '';
-
-  const primaryRemote = isAvailable
-    ? (gitState.remotes.find((r: GitRemote) => r.name === 'origin') ?? gitState.remotes[0])
-    : undefined;
-  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
-  const isGitHubRepo = primaryRemote
-    ? detectPlatform(primaryRemote.url) === 'github'
-    : false;
-
-  // Show branch actions if there's anything to show
-  const hasBranchActions = isLocal || repoHttpsUrl;
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
@@ -556,7 +570,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                         </span>
                         {hasPR && (
                           <span className="text-sm text-chatroom-text-muted">
-                            (#{gitState.openPullRequests[0]!.number})
+                            (#{openPullRequests[0]!.number})
                           </span>
                         )}
                         <ChevronDown
@@ -584,7 +598,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                           )}
                           {repoHttpsUrl && (
                             <a
-                              href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
+                              href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
@@ -595,7 +609,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                               ) : (
                                 <ExternalLink size={13} className="shrink-0" />
                               )}
-                              {hasPR ? `View PR #${gitState.openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
+                              {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
                             </a>
                           )}
                         </div>
@@ -613,10 +627,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                 </div>
 
                 {/* Remote */}
-                {gitState.remotes.length > 0 && (
+                {remotes.length > 0 && (
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider">Remote</span>
-                    {gitState.remotes.map((remote) => {
+                    {remotes.map((remote) => {
                       const RemoteIcon = getPlatformIcon(remote.url);
                       const httpsUrl = toHttpsUrl(remote.url);
                       return (
@@ -655,13 +669,13 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     title="Open workspace details"
                   >
                     <PanelBottomOpen size={14} className="text-chatroom-text-muted shrink-0" />
-                    <InlineDiffStat diffStat={gitState.diffStat} showFileCount={true} />
+                    <InlineDiffStat diffStat={diffStat} showFileCount={true} />
                   </button>
                 </div>
               </>
             )}
 
-            {gitState.status === 'loading' && (
+            {isLoading && (
               <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
             )}
           </div>

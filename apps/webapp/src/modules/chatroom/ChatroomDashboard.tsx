@@ -351,7 +351,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
   // Workspace bar data
-  const { workspaces: chatroomWorkspaces, removeWorkspace } = useChatroomWorkspaces(chatroomId);
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
@@ -668,7 +668,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
               </div>
             </div>
-            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
+            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
           </div>
 
           <PromptModal
