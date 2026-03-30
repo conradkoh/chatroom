@@ -1553,15 +1553,11 @@ interface FeatureModalState {
 function getWorkflowEventDetail(event: EventStreamEvent): string | null {
   switch (event.type) {
     case 'workflow.created':
-      return `${event.stepCount} steps`;
     case 'workflow.started':
       return `${event.stepCount} steps`;
     case 'workflow.stepCompleted':
-      return event.stepKey;
     case 'workflow.stepStarted':
-      return event.stepKey;
     case 'workflow.stepCancelled':
-      return event.stepKey;
     case 'workflow.specified':
       return event.stepKey;
     case 'workflow.completed':
@@ -1598,14 +1594,11 @@ const LatestEventTicker = memo(function LatestEventTicker({
         {formatEventType(event.type)}
       </span>
       {/* Workflow-specific detail (step count, step name, etc.) */}
-      {(() => {
-        const detail = getWorkflowEventDetail(event);
-        return detail ? (
-          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
-            {detail}
-          </span>
-        ) : null;
-      })()}
+      {getWorkflowEventDetail(event) && (
+        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
+          {getWorkflowEventDetail(event)}
+        </span>
+      )}
       {'role' in event && event.role && (
         <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
           {event.role}
