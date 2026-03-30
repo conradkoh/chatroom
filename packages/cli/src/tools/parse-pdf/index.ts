@@ -25,12 +25,14 @@ function isUrl(input: string): boolean {
 function createDefaultDeps(): ParsePdfDeps {
   return {
     fs: {
+      // OutputFsOps methods
       access: (p) => access(p),
-      readFile: (p) => readFile(p),
-      writeFile: (p, content, enc) => writeFile(p, content, enc),
       mkdir: (p, opts) => mkdir(p, opts).then(() => {}),
-      readFileUtf8: (p, enc) => readFile(p, { encoding: enc }).then((b) => b.toString()),
+      readFile: (p, enc) => readFile(p, { encoding: enc }).then((b) => b.toString()),
       appendFile: (p, content) => appendFile(p, content),
+      // ParsePdfFsOps-specific methods
+      readFileAsBuffer: (p) => readFile(p),
+      writeFile: (p, content, enc) => writeFile(p, content, enc),
     },
     parser: {
       parse: async (input) => {
@@ -72,18 +74,10 @@ export async function parsePdf(
   const d = deps ?? createDefaultDeps();
 
   // ── Prepare output directory ──────────────────────────────────────────
-  const outputDeps = {
-    fs: {
-      mkdir: d.fs.mkdir,
-      readFile: d.fs.readFileUtf8,
-      appendFile: d.fs.appendFile,
-      access: d.fs.access,
-    },
-  };
-
+  // ParsePdfFsOps extends OutputFsOps, so d.fs satisfies OutputDeps.fs directly.
   try {
-    await ensureChatroomDir(outputDeps, workingDir);
-    await ensureGitignore(outputDeps, workingDir);
+    await ensureChatroomDir({ fs: d.fs }, workingDir);
+    await ensureGitignore({ fs: d.fs }, workingDir);
   } catch (err) {
     return {
       success: false,

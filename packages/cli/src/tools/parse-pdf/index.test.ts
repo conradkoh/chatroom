@@ -25,22 +25,14 @@ function createFakeDeps(
 
   const deps: ParsePdfDeps = {
     fs: {
+      // OutputFsOps methods
       access: async (p: string) => {
         if (!store.has(p)) throw new Error(`ENOENT: ${p}`);
       },
-      readFile: async (p: string) => {
-        const content = store.get(p);
-        if (content === undefined) throw new Error(`ENOENT: ${p}`);
-        return Buffer.isBuffer(content) ? content : Buffer.from(content);
-      },
-      writeFile: async (p: string, content: string, _encoding: BufferEncoding) => {
-        store.set(p, content);
-        writtenFiles.set(p, content);
-      },
       mkdir: async (_p: string, _opts: { recursive: boolean }) => {
-        // no-op: we don't actually create dirs in tests
+        // no-op in tests
       },
-      readFileUtf8: async (p: string, _encoding: BufferEncoding) => {
+      readFile: async (p: string, _encoding: BufferEncoding) => {
         const content = store.get(p);
         if (content === undefined) throw new Error(`ENOENT: ${p}`);
         return typeof content === 'string' ? content : content.toString();
@@ -49,6 +41,16 @@ function createFakeDeps(
         const existing = store.get(p) ?? '';
         const value = typeof existing === 'string' ? existing + content : existing.toString() + content;
         store.set(p, value);
+      },
+      // ParsePdfFsOps-specific methods
+      readFileAsBuffer: async (p: string) => {
+        const content = store.get(p);
+        if (content === undefined) throw new Error(`ENOENT: ${p}`);
+        return Buffer.isBuffer(content) ? content : Buffer.from(content);
+      },
+      writeFile: async (p: string, content: string, _encoding: BufferEncoding) => {
+        store.set(p, content);
+        writtenFiles.set(p, content);
       },
     },
     parser: overrides?.parser ?? {

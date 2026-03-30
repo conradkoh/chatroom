@@ -5,16 +5,20 @@
  * without touching the real file system or @llamaindex/liteparse.
  */
 
+import type { OutputFsOps } from '../output.js';
+
 // ─── File System Operations ─────────────────────────────────────────────────
 
-/** File system operations needed by the parse-pdf tool. */
-export interface ParsePdfFsOps {
-  access: (path: string) => Promise<void>;
-  readFile: (path: string) => Promise<Buffer>;
+/**
+ * File system operations needed by the parse-pdf tool.
+ * Extends OutputFsOps (mkdir, readFile, appendFile, access) and adds
+ * PDF-specific operations for binary reads and file writes.
+ */
+export interface ParsePdfFsOps extends OutputFsOps {
+  /** Read a file as a raw Buffer (for binary PDF data). */
+  readFileAsBuffer: (path: string) => Promise<Buffer>;
+  /** Write string content to a file. */
   writeFile: (path: string, content: string, encoding: BufferEncoding) => Promise<void>;
-  mkdir: (path: string, options: { recursive: boolean }) => Promise<void>;
-  readFileUtf8: (path: string, encoding: BufferEncoding) => Promise<string>;
-  appendFile: (path: string, content: string) => Promise<void>;
 }
 
 // ─── PDF Parser ─────────────────────────────────────────────────────────────
