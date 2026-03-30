@@ -30,7 +30,7 @@ import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { WorkspaceSidebarSection } from './workspace/components/WorkspaceSidebarSection';
+import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 
 import {
@@ -652,7 +652,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
-                grid grid-rows-[auto_1fr_auto] border-l-2 border-chatroom-border-strong
+                grid grid-rows-[auto_1fr] border-l-2 border-chatroom-border-strong
                 ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
@@ -666,9 +666,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onOpenAgents={handleOpenAgents}
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
-                <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
               </div>
             </div>
+            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
           </div>
 
           <PromptModal
