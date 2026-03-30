@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
+import { ChevronDown, Code2, ExternalLink, FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { memo, useState, useCallback, useMemo } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
@@ -11,6 +11,13 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote } from '../types/git';
+import { useLocalDaemon } from '@/hooks/useLocalDaemon';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -183,6 +190,31 @@ const RemoteRepoLink = memo(function RemoteRepoLink({ remotes }: { remotes: GitR
   );
 });
 
+// ─── Local API Helper ─────────────────────────────────────────────────────────
+
+/** Port the local daemon API listens on (must match daemon LOCAL_API_PORT). */
+const LOCAL_API_PORT = 19847;
+
+/**
+ * Call a local daemon API endpoint with a workingDir payload.
+ * Silent fail if daemon is not running or the request errors.
+ */
+async function callLocalApi(endpoint: string, workingDir: string): Promise<void> {
+  try {
+    const res = await fetch(`http://localhost:${LOCAL_API_PORT}/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workingDir }),
+    });
+    const data = (await res.json()) as { success: boolean; error?: string };
+    if (!data.success) {
+      console.warn(`[LocalAPI] ${endpoint}: ${data.error}`);
+    }
+  } catch {
+    // Silent fail — daemon may not be running
+  }
+}
+
 // ─── WorkspaceInfoFooter ──────────────────────────────────────────────────────
 
 /**
@@ -197,6 +229,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
   workspace: WorkspaceWithMachine;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const { isLocal } = useLocalDaemon();
 
   const isAvailable = gitState.status === 'available';
 
@@ -204,13 +237,50 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
     <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center justify-between gap-3 flex-wrap">
       {/* ── Group 1: Machine & Git Status ── */}
       <div className="flex items-center gap-2 flex-wrap min-w-0">
-        {/* Workspace name */}
-        <div className="flex items-center gap-1">
-          <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
-          <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
-            {getWorkspaceName(workspace.workingDir)}
-          </span>
-        </div>
+        {/* Workspace name — clickable dropdown when on same machine */}
+        {isLocal ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-chatroom-accent transition-colors rounded-none"
+              >
+                <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
+                  {getWorkspaceName(workspace.workingDir)}
+                </span>
+                <ChevronDown size={9} className="text-chatroom-text-muted" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[180px]">
+              <DropdownMenuItem
+                onClick={() => void callLocalApi('open-finder', workspace.workingDir)}
+              >
+                <FolderOpen size={13} className="mr-2" />
+                Open in Finder
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void callLocalApi('open-vscode', workspace.workingDir)}
+              >
+                <Code2 size={13} className="mr-2" />
+                Open in VS Code
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void callLocalApi('open-github-desktop', workspace.workingDir)}
+              >
+                <GitBranch size={13} className="mr-2" />
+                Open in GitHub Desktop
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="flex items-center gap-1">
+            <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
+            <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
+              {getWorkspaceName(workspace.workingDir)}
+            </span>
+          </div>
+        )}
 
         {/* Hostname */}
         <span className="text-[11px] text-chatroom-text-muted">·</span>
@@ -281,6 +351,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
   onRemove?: () => void;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
+  const { isLocal } = useLocalDaemon();
 
   // Build stat content
   let statContent: React.ReactNode = null;
@@ -297,7 +368,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
         : gitState.branch
       : null;
 
-  return (
+  const rowContent = (
     <div
       role="button"
       tabIndex={0}
@@ -386,6 +457,39 @@ const WorkspaceRow = memo(function WorkspaceRow({
       )}
     </div>
   );
+
+  // When on the same machine, wrap with a context menu for local actions
+  if (isLocal) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {rowContent}
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-[180px]">
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-finder', workspace.workingDir)}
+          >
+            <FolderOpen size={13} className="mr-2" />
+            Open in Finder
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-vscode', workspace.workingDir)}
+          >
+            <Code2 size={13} className="mr-2" />
+            Open in VS Code
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => void callLocalApi('open-github-desktop', workspace.workingDir)}
+          >
+            <GitBranch size={13} className="mr-2" />
+            Open in GitHub Desktop
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return rowContent;
 });
 
 // ─── WorkspaceSidebarSection ──────────────────────────────────────────────────

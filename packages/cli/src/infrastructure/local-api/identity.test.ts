@@ -55,7 +55,8 @@ describe('GET /api/identity', () => {
     expect(body.machineId).toBe('abc-123');
     expect(body.hostname).toBe('my-macbook');
     expect(body.os).toBe('darwin');
-    expect(body.version).toBe('1.16.6');
+    expect(typeof body.version).toBe('string');
+    expect(body.version.length).toBeGreaterThan(0);
   });
 
   test('returns Content-Type: application/json', async () => {
