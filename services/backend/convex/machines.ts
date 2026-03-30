@@ -294,6 +294,34 @@ export const listMachines = query({
   },
 });
 
+/** Returns daemon connectivity status for a specific machine. Used by the webapp to detect daemon presence via Convex instead of localhost HTTP. */
+export const getDaemonStatus = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return { connected: false, lastSeenAt: null };
+    }
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!machine || machine.userId !== auth.user._id) {
+      return { connected: false, lastSeenAt: null };
+    }
+
+    return {
+      connected: machine.daemonConnected,
+      lastSeenAt: machine.lastSeenAt,
+    };
+  },
+});
+
 /** Returns machine-level agent configs for a chatroom, enriched with machine details. */
 export const getMachineAgentConfigs = query({
   args: {
@@ -419,8 +447,17 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    // 5b. Local action events (open-vscode, open-finder, etc.)
+    const localActionEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'daemon.localAction')
+      )
+      .order('asc')
+      .collect();
+
     // 7. Merge and sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents].sort((a, b) =>
+    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents].sort((a, b) =>
       a._creationTime < b._creationTime ? -1 : 1
     );
 
@@ -598,6 +635,44 @@ export const daemonHeartbeat = mutation({
     await ctx.db.patch('chatroom_machines', machine._id, {
       lastSeenAt: Date.now(),
       daemonConnected: true, // Self-healing: recover from transient disconnect (Plan 026)
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Dispatches a local action (open-vscode, open-finder, open-github-desktop) to a machine
+ * via the Convex event stream, avoiding direct localhost HTTP calls from the browser.
+ * This fixes Safari's mixed-content blocking of http://localhost from HTTPS pages.
+ */
+export const sendLocalAction = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    action: v.union(
+      v.literal('open-vscode'),
+      v.literal('open-finder'),
+      v.literal('open-github-desktop')
+    ),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+    await getOwnedMachine(ctx, args.machineId, user._id);
+
+    validateWorkingDir(args.workingDir);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.localAction',
+      machineId: args.machineId,
+      action: args.action,
+      workingDir: args.workingDir,
+      timestamp: Date.now(),
     });
 
     return { success: true };
