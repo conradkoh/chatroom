@@ -1160,6 +1160,8 @@ export default defineSchema({
       }),
       // Daemon local action request (open-vscode, open-finder, etc.) sent via Convex
       // instead of direct localhost HTTP to work around Safari mixed-content blocking.
+      // NOTE: When adding new action types, also update the canonical TypeScript type
+      // in config/localActions.ts (LocalActionType).
       v.object({
         type: v.literal('daemon.localAction'),
         machineId: v.string(),
