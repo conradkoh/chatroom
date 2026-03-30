@@ -242,6 +242,7 @@ export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
   workflowKey: string;
   workflowId: string;
   stepKey: string;
+  stepDescription?: string;
   completedBy?: string;
 }
 
@@ -251,6 +252,7 @@ export interface WorkflowStepCancelledEvent extends EventStreamEventBase {
   workflowKey: string;
   workflowId: string;
   stepKey: string;
+  stepDescription?: string;
   cancelledBy?: string;
   reason: string;
 }
@@ -293,6 +295,7 @@ export interface WorkflowStepStartedEvent extends EventStreamEventBase {
   workflowKey: string;
   workflowId: string;
   stepKey: string;
+  stepDescription?: string;
   assigneeRole?: string;
 }
 
