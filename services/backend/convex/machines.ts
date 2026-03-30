@@ -448,11 +448,14 @@ export const getCommandEvents = query({
       .collect();
 
     // 5b. Local action events (open-vscode, open-finder, etc.)
+    // Time-filtered to avoid replaying stale actions on daemon restart.
+    const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
     const localActionEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.localAction')
       )
+      .filter((q) => q.gt(q.field('timestamp'), now - LOCAL_ACTION_TTL_MS))
       .order('asc')
       .collect();
 
