@@ -85,12 +85,12 @@ export default function RootLayout({
         </ConvexClientProvider>
         <Toaster />
         <ServiceWorkerRegistration />
-        {/* React Grab for development — moved to body to fix SSR script console error */}
+        {/* React Grab for development — afterInteractive to avoid hydration mismatch */}
         {process.env.NODE_ENV === 'development' && (
           <Script
             src="//unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
-            strategy="beforeInteractive"
+            strategy="afterInteractive"
           />
         )}
       </body>
