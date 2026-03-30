@@ -398,7 +398,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
           <button
             type="button"
             onClick={onOpenGitPanel}
-            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer"
+            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer flex items-center"
             title="Open workspace details"
           >
             <InlineDiffStat diffStat={diffStat} showFileCount={true} />
