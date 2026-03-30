@@ -182,7 +182,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
           href={primaryHttpsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
+          className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors font-mono uppercase tracking-wider"
           title={primaryRemote.url}
         >
           <PrimaryIcon size={11} className="shrink-0" />
@@ -204,7 +204,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors font-mono uppercase tracking-wider"
+          className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors font-mono uppercase tracking-wider"
           title="View remotes"
         >
           <PrimaryIcon size={11} className="shrink-0" />
@@ -222,7 +222,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
               href={httpsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
               title={remote.url}
             >
               <RemoteIcon size={11} className="shrink-0" />
@@ -302,7 +302,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                   className={cn(
                     'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-sm transition-colors',
                     hasPR
-                      ? 'text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50'
+                      ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
                       : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
                   )}
                   title={hasPR ? gitState.openPullRequests[0]!.title : branchDisplay}
@@ -334,7 +334,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     href={hasPR ? gitState.openPullRequests[0]!.url : repoHttpsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
                   >
                     {isGitHubRepo ? (
                       <SiGithub size={12} className="shrink-0" />
