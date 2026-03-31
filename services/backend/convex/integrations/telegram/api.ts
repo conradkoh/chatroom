@@ -8,6 +8,7 @@
  */
 
 import { v, ConvexError } from 'convex/values';
+import { randomBytes } from 'crypto';
 import { internalAction } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import type { GetMeResponse, WebhookResponse } from './types';
@@ -67,10 +68,8 @@ export const registerWebhook = internalAction({
 
     const webhookUrl = `${convexSiteUrl}/api/telegram/webhook/${args.integrationId}`;
 
-    // Generate a random webhook secret for verification
-    const webhookSecret = Array.from({ length: 32 }, () =>
-      Math.random().toString(36).charAt(2)
-    ).join('');
+    // Generate a cryptographically secure webhook secret for verification
+    const webhookSecret = randomBytes(32).toString('hex');
 
     const url = `${TELEGRAM_API}/bot${args.botToken}/setWebhook`;
     const response = await fetch(url, {

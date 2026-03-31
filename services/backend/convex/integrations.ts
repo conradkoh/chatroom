@@ -2,6 +2,7 @@ import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query, internalQuery } from './_generated/server';
+import { requireChatroomAccess } from './auth/cliSessionAuth';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ export const get = query({
 
 /**
  * Create a new chat platform integration for a chatroom.
+ * Requires chatroom ownership.
  */
 export const create = mutation({
   args: {
@@ -85,6 +87,9 @@ export const create = mutation({
     enabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Validate session and chatroom ownership
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const now = Date.now();
 
     const integrationId = await ctx.db.insert('chatroom_integrations', {
@@ -102,6 +107,7 @@ export const create = mutation({
 
 /**
  * Update an existing integration's config or enabled status.
+ * Requires chatroom ownership.
  */
 export const update = mutation({
   args: {
@@ -125,6 +131,9 @@ export const update = mutation({
       });
     }
 
+    // Validate session and chatroom ownership
+    await requireChatroomAccess(ctx, args.sessionId, existing.chatroomId);
+
     const now = Date.now();
 
     await ctx.db.patch(args.integrationId, {
@@ -139,6 +148,7 @@ export const update = mutation({
 
 /**
  * Delete an integration.
+ * Requires chatroom ownership.
  */
 export const remove = mutation({
   args: {
@@ -153,6 +163,9 @@ export const remove = mutation({
         message: 'Integration not found',
       });
     }
+
+    // Validate session and chatroom ownership
+    await requireChatroomAccess(ctx, args.sessionId, existing.chatroomId);
 
     await ctx.db.delete(args.integrationId);
 
