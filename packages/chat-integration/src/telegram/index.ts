@@ -16,6 +16,9 @@ import type {
   PlatformMessage,
   PlatformMessageHandler,
 } from '../types.js';
+import type { ChatroomForwarder, ForwarderContext } from '../forwarder.js';
+import { noopForwarder } from '../forwarder.js';
+import { toPlatformMessage } from '../mapping.js';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,15 @@ export interface TelegramBridgeConfig extends BridgeConfig {
    * - "auto"    — let the adapter decide (default)
    */
   mode?: 'auto' | 'webhook' | 'polling';
+
+  /**
+   * Optional forwarder for sending platform messages to the chatroom backend.
+   * If not provided, messages are only dispatched to `onPlatformMessage` handlers.
+   */
+  forwarder?: ChatroomForwarder;
+
+  /** Chatroom ID for the forwarder context. Required if forwarder is provided. */
+  chatroomId?: string;
 }
 
 // ─── Factory ───────────────────────────────────────────────────────────────────
@@ -54,6 +66,11 @@ export interface TelegramBridgeConfig extends BridgeConfig {
  */
 export function createTelegramBridge(config: TelegramBridgeConfig): ChatroomBridge {
   const handlers: PlatformMessageHandler[] = [];
+  const forwarder = config.forwarder ?? noopForwarder;
+  const forwarderCtx: ForwarderContext = {
+    chatroomId: config.chatroomId ?? '',
+    platform: 'telegram',
+  };
 
   const adapterConfig: TelegramAdapterConfig = {
     botToken: config.botToken,
@@ -73,42 +90,32 @@ export function createTelegramBridge(config: TelegramBridgeConfig): ChatroomBrid
 
   // ── Inbound: Platform → Chatroom ──────────────────────────────────────────
 
-  /** Dispatch a platform message to all registered handlers. */
+  /** Dispatch a platform message to all registered handlers and the forwarder. */
   const dispatch = async (msg: PlatformMessage) => {
+    // Fire registered handlers
     for (const handler of handlers) {
       await handler(msg);
     }
+    // Forward to chatroom backend
+    await forwarder.forward(msg, forwarderCtx);
   };
-
-  /** Convert a Chat SDK message into our PlatformMessage shape. */
-  const toPlatformMessage = (threadId: string, message: import('chat').Message): PlatformMessage => ({
-    id: message.id,
-    text: message.text ?? '',
-    threadId,
-    author: {
-      id: message.author?.userId ?? 'unknown',
-      name: message.author?.fullName ?? message.author?.userName ?? 'unknown',
-    },
-    timestamp: message.metadata?.dateSent?.toISOString() ?? new Date().toISOString(),
-    platform: 'telegram',
-  });
 
   // Handle first-time mentions (unsubscribed threads)
   chat.onNewMention(async (thread, message) => {
     // Subscribe so future messages in this thread also reach us
     await thread.subscribe();
-    await dispatch(toPlatformMessage(thread.id, message));
+    await dispatch(toPlatformMessage(thread.id, message, 'telegram'));
   });
 
   // Handle direct messages
   chat.onDirectMessage(async (thread, message) => {
     await thread.subscribe();
-    await dispatch(toPlatformMessage(thread.id, message));
+    await dispatch(toPlatformMessage(thread.id, message, 'telegram'));
   });
 
   // Handle follow-up messages in subscribed threads
   chat.onSubscribedMessage(async (thread, message) => {
-    await dispatch(toPlatformMessage(thread.id, message));
+    await dispatch(toPlatformMessage(thread.id, message, 'telegram'));
   });
 
   // ── Bridge implementation ─────────────────────────────────────────────────

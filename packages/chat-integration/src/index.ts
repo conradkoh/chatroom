@@ -14,5 +14,12 @@ export type {
   PlatformMessageHandler,
 } from './types.js';
 
+// Forwarder
+export type { ChatroomForwarder, ForwarderContext, ForwardFn } from './forwarder.js';
+export { createCallbackForwarder, noopForwarder } from './forwarder.js';
+
+// Message mapping
+export { toPlatformMessage, stripMarkdown, prepareChatroomText } from './mapping.js';
+
 // Telegram
 export { createTelegramBridge, type TelegramBridgeConfig } from './telegram/index.js';
