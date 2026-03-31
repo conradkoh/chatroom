@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
+import { FaTelegram } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -206,7 +207,7 @@ const IntegrationCard = memo(function IntegrationCard({
     }
   }, [chatroomId, testMessage, sendMessage]);
 
-  const platformIcon = integration.platform === 'telegram' ? '✈️' : '💬';
+  const PlatformIcon = integration.platform === 'telegram' ? FaTelegram : MessageSquare;
   const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
 
   return (
@@ -214,8 +215,8 @@ const IntegrationCard = memo(function IntegrationCard({
       <div className="flex items-center justify-between">
         {/* Left: Platform info */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-chatroom-bg-tertiary flex items-center justify-center shrink-0 text-lg">
-            {platformIcon}
+          <div className="w-10 h-10 rounded-lg bg-chatroom-bg-tertiary flex items-center justify-center shrink-0">
+            <PlatformIcon size={20} className="text-chatroom-text-muted" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -455,7 +456,9 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
       {/* Wizard Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary/50">
         <div className="flex items-center gap-2">
-          <span className="text-lg">✈️</span>
+          <span className="w-5 h-5 flex items-center justify-center">
+            <FaTelegram size={16} />
+          </span>
           <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
             Connect Telegram Bot
           </span>
