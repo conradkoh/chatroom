@@ -99,6 +99,8 @@ interface Message {
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
   taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  // Source platform for messages from external integrations (e.g. 'telegram')
+  sourcePlatform?: string;
   // Feature metadata (only for new_feature classification)
   featureTitle?: string;
   featureDescription?: string;
@@ -379,6 +381,11 @@ const TaskHeader = memo(function TaskHeader({
                   <span className={`${classificationBadge.className} flex-shrink-0`}>
                     {classificationBadge.icon}
                     {classificationBadge.label}
+                  </span>
+                )}
+                {message.sourcePlatform === 'telegram' && (
+                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
+                    ✈️
                   </span>
                 )}
                 <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
@@ -1328,6 +1335,11 @@ const MessageItem = memo(function MessageItem({
           {/* Right: Sender → Target - User always rendered in gold */}
           <div className="flex items-center gap-x-1.5">
             <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+            {message.sourcePlatform === 'telegram' && (
+              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
+                ✈️ Telegram
+              </span>
+            )}
             {message.targetRole && (
               <>
                 <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
