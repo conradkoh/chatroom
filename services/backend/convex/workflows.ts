@@ -193,6 +193,7 @@ async function advanceWorkflow(
           workflowKey: workflow.workflowKey,
           workflowId: workflow._id,
           stepKey: step.stepKey,
+          stepDescription: step.description,
           assigneeRole: step.assigneeRole ?? undefined,
           timestamp: now,
         });
@@ -419,6 +420,7 @@ export const executeWorkflow = mutation({
           workflowKey: workflow.workflowKey,
           workflowId: workflow._id,
           stepKey: step.stepKey,
+          stepDescription: step.description,
           assigneeRole: step.assigneeRole ?? undefined,
           timestamp: now,
         });
@@ -501,6 +503,7 @@ export const completeStep = mutation({
       workflowKey: workflow.workflowKey,
       workflowId: workflow._id,
       stepKey: step.stepKey,
+      stepDescription: step.description,
       completedBy: step.assigneeRole ?? undefined,
       timestamp: now,
     });
@@ -560,6 +563,7 @@ export const cancelStep = mutation({
       workflowKey: workflow.workflowKey,
       workflowId: workflow._id,
       stepKey: step.stepKey,
+      stepDescription: step.description,
       cancelledBy: step.assigneeRole ?? undefined,
       reason: args.reason,
       timestamp: now,
