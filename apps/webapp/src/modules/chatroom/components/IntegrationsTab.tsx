@@ -21,6 +21,7 @@ import {
   Plus,
   Power,
   PowerOff,
+  Send,
   Trash2,
   X,
 } from 'lucide-react';
@@ -95,6 +96,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({
             <IntegrationCard
               key={integration._id}
               integration={integration}
+              chatroomId={chatroomId}
             />
           ))}
         </div>
@@ -139,14 +141,22 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 const IntegrationCard = memo(function IntegrationCard({
   integration,
+  chatroomId,
 }: {
   integration: any;
+  chatroomId: string;
 }) {
   const updateIntegration = useSessionMutation(api.integrations.update);
   const removeIntegration = useSessionMutation(api.integrations.remove);
+  const sendMessage = useSessionAction(api.integrations.telegram.actions.sendMessage);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [testMessage, setTestMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testSuccess, setTestSuccess] = useState(false);
 
   const handleToggle = useCallback(async () => {
     setIsToggling(true);
@@ -169,6 +179,32 @@ const IntegrationCard = memo(function IntegrationCard({
       setShowDeleteConfirm(false);
     }
   }, [integration._id, removeIntegration]);
+
+  const handleSendTestMessage = useCallback(async () => {
+    if (!testMessage.trim()) return;
+
+    setIsSending(true);
+    setTestError(null);
+    setTestSuccess(false);
+
+    try {
+      await sendMessage({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        message: testMessage.trim(),
+        senderRole: 'user',
+      });
+      setTestSuccess(true);
+      setTestMessage('');
+      setTimeout(() => {
+        setShowTestDialog(false);
+        setTestSuccess(false);
+      }, 2000);
+    } catch (err: any) {
+      setTestError(err?.data?.message ?? err?.message ?? 'Failed to send message');
+    } finally {
+      setIsSending(false);
+    }
+  }, [chatroomId, testMessage, sendMessage]);
 
   const platformIcon = integration.platform === 'telegram' ? '✈️' : '💬';
   const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
@@ -242,17 +278,95 @@ const IntegrationCard = memo(function IntegrationCard({
               </Button>
             </div>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 h-7 w-7 p-0"
-            >
-              <Trash2 size={14} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTestDialog(true)}
+                disabled={!integration.enabled}
+                className="text-chatroom-text-muted hover:text-chatroom-accent h-7 px-2 text-xs gap-1"
+              >
+                <Send size={12} />
+                Test
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 h-7 w-7 p-0"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Test Message Dialog */}
+      {showTestDialog && (
+        <div className="mt-3 pt-3 border-t border-chatroom-border">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-chatroom-text-primary">
+                Send Test Message
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowTestDialog(false);
+                  setTestError(null);
+                  setTestSuccess(false);
+                  setTestMessage('');
+                }}
+                className="h-6 w-6 p-0 text-chatroom-text-muted"
+              >
+                <X size={12} />
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Type a test message..."
+                value={testMessage}
+                onChange={(e) => {
+                  setTestMessage(e.target.value);
+                  setTestError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendTestMessage()}
+                disabled={isSending || testSuccess}
+                className="text-xs bg-chatroom-bg-primary border-chatroom-border flex-1"
+              />
+              <Button
+                size="sm"
+                onClick={handleSendTestMessage}
+                disabled={isSending || !testMessage.trim() || testSuccess}
+                className="text-xs gap-1.5 h-9"
+              >
+                {isSending ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : testSuccess ? (
+                  <Check size={12} className="text-green-500" />
+                ) : (
+                  <Send size={12} />
+                )}
+                {isSending ? 'Sending...' : testSuccess ? 'Sent!' : 'Send'}
+              </Button>
+            </div>
+
+            {testError && (
+              <p className="text-xs text-red-500 dark:text-red-400">{testError}</p>
+            )}
+
+            {testSuccess && (
+              <p className="text-xs text-green-500 dark:text-green-400">
+                ✅ Message sent to Telegram!
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 });
