@@ -1,7 +1,7 @@
 import { httpRouter } from 'convex/server';
 import { httpAction } from './_generated/server';
 import { internal } from './_generated/api';
-import { parseTelegramUpdate } from './telegramBotInternal';
+import { parseTelegramUpdate } from './integrations/telegram';
 
 const http = httpRouter();
 
@@ -88,7 +88,7 @@ http.route({
       );
 
       // Route the message to the chatroom
-      await ctx.runMutation(internal.telegramBotInternal.handleIncomingMessage, {
+      await ctx.runMutation(internal.integrations.telegram.internal.handleIncomingMessage, {
         chatroomId: integration.chatroomId,
         integrationId: integration._id,
         telegramChatId: parsed.chatId,

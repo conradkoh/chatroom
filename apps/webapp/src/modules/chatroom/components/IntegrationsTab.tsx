@@ -275,8 +275,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   const [isValidating, setIsValidating] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const validateBotToken = useSessionAction(api.telegramActions.validateBotToken);
-  const registerWebhook = useSessionAction(api.telegramActions.registerWebhook);
+  const validateBotToken = useSessionAction(api.integrations.telegram.actions.validateBotToken);
+  const registerWebhook = useSessionAction(api.integrations.telegram.actions.registerWebhook);
   const createIntegration = useSessionMutation(api.integrations.create);
 
   // Step 1: Validate the bot token

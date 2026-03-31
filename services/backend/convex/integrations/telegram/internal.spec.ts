@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseTelegramUpdate, type TelegramUpdate } from './telegramBotInternal';
+import { parseTelegramUpdate } from './internal';
+import type { TelegramUpdate } from './types';
 
 describe('parseTelegramUpdate', () => {
   it('returns null for updates without a message', () => {
