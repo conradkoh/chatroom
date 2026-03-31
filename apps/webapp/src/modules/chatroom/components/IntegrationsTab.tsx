@@ -44,7 +44,7 @@ interface BotInfo {
   botUsername: string | null;
 }
 
-type WizardStep = 'select-platform' | 'enter-token' | 'confirm' | 'done';
+type WizardStep = 'select-platform' | 'enter-token' | 'enter-chat-id' | 'confirm' | 'done';
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
@@ -385,6 +385,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
 }) {
   const [step, setStep] = useState<WizardStep>('enter-token');
   const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState('');
   const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -406,7 +407,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     try {
       const info = await validateBotToken({ botToken: botToken.trim() });
       setBotInfo(info);
-      setStep('confirm');
+      setStep('enter-chat-id');
     } catch (err: any) {
       setError(
         err?.data?.message ?? err?.message ?? 'Invalid bot token. Check with @BotFather.',
@@ -428,6 +429,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         platform: 'telegram',
         config: {
           botToken: botToken.trim(),
+          chatId: chatId.trim(),
         },
         enabled: true,
       });
@@ -530,6 +532,99 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
           </div>
         )}
 
+        {/* Step: Enter Chat ID */}
+        {step === 'enter-chat-id' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs text-chatroom-text-muted font-medium">
+                Where do you want to send messages?
+              </p>
+              <p className="text-xs text-chatroom-text-muted">
+                Enter the Chat ID of the group, channel, or user where your bot will send messages.
+              </p>
+            </div>
+
+            <div className="space-y-3 p-3 rounded-lg bg-chatroom-bg-tertiary text-xs text-chatroom-text-muted">
+              <p className="font-medium text-chatroom-text-primary">How to find your Chat ID:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>
+                  <strong>Group/Channel:</strong> Add{' '}
+                  <a
+                    href="https://t.me/userinfobot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-chatroom-accent hover:underline"
+                  >
+                    @userinfobot
+                  </a>{' '}
+                  to your group — it will reply with &quot;Chat ID: -100...&quot;
+                </li>
+                <li>
+                  <strong>Private Chat:</strong> Message{' '}
+                  <a
+                    href="https://t.me/userinfobot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-chatroom-accent hover:underline"
+                  >
+                    @userinfobot
+                  </a>{' '}
+                  directly — it will show your User ID
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <Input
+                type="text"
+                placeholder="-1001234567890"
+                value={chatId}
+                onChange={(e) => {
+                  setChatId(e.target.value);
+                  setError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && chatId.trim()) {
+                    setStep('confirm');
+                  }
+                }}
+                className="font-mono text-xs bg-chatroom-bg-primary border-chatroom-border"
+              />
+              {error && (
+                <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStep('enter-token');
+                  setError(null);
+                }}
+                className="text-xs"
+              >
+                Back
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!chatId.trim()) {
+                    setError('Please enter a Chat ID');
+                    return;
+                  }
+                  setStep('confirm');
+                }}
+                className="text-xs gap-1.5"
+              >
+                Continue
+                <ChevronRight size={12} />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Step: Confirm Bot */}
         {step === 'confirm' && botInfo && (
           <div className="space-y-4">
@@ -550,6 +645,13 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               <Check size={16} className="ml-auto text-green-500 dark:text-green-400" />
             </div>
 
+            {chatId.trim() && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-chatroom-bg-tertiary">
+                <span className="text-xs text-chatroom-text-muted">Chat ID:</span>
+                <span className="text-xs font-mono text-chatroom-text-primary">{chatId.trim()}</span>
+              </div>
+            )}
+
             {error && (
               <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
             )}
@@ -559,8 +661,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setStep('enter-token');
-                  setBotInfo(null);
+                  setStep('enter-chat-id');
                   setError(null);
                 }}
                 className="text-xs"
