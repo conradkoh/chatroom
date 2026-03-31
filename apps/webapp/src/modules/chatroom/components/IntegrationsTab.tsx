@@ -318,17 +318,10 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         enabled: true,
       });
 
-      // Register the webhook with Telegram
-      const convexSiteUrl = window.location.origin.replace(
-        /:\d+$/,
-        '',
-      );
-
       try {
         await registerWebhook({
           botToken: botToken.trim(),
           integrationId: integrationId as Id<'chatroom_integrations'>,
-          convexSiteUrl: process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? convexSiteUrl,
         });
       } catch {
         // Webhook registration may fail in dev (no public URL) — that's OK

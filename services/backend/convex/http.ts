@@ -63,6 +63,7 @@ http.route({
       if (expectedSecret) {
         const receivedSecret = request.headers.get('x-telegram-bot-api-secret-token');
         if (receivedSecret !== expectedSecret) {
+          console.warn(`[Telegram Webhook] Secret mismatch for integration=${integrationId}`);
           return new Response(JSON.stringify({ error: 'Invalid secret token' }), {
             status: 403,
             headers: { 'Content-Type': 'application/json' },
@@ -81,6 +82,10 @@ http.route({
           headers: { 'Content-Type': 'application/json' },
         });
       }
+
+      console.log(
+        `[Telegram Webhook] Message received: integration=${integrationId} chat=${parsed.chatId} sender=${parsed.senderName}`
+      );
 
       // Route the message to the chatroom
       await ctx.runMutation(internal.telegramBotInternal.handleIncomingMessage, {

@@ -77,10 +77,18 @@ export const registerWebhook = internalAction({
   args: {
     botToken: v.string(),
     integrationId: v.id('chatroom_integrations'),
-    convexSiteUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    const webhookUrl = `${args.convexSiteUrl}/api/telegram/webhook/${args.integrationId}`;
+    // Derive the Convex site URL server-side (never trust client input)
+    const convexSiteUrl = process.env.CONVEX_SITE_URL;
+    if (!convexSiteUrl) {
+      throw new ConvexError({
+        code: 'CONFIGURATION_ERROR',
+        message: 'CONVEX_SITE_URL environment variable is not set',
+      });
+    }
+
+    const webhookUrl = `${convexSiteUrl}/api/telegram/webhook/${args.integrationId}`;
 
     // Generate a random webhook secret for verification
     const webhookSecret = Array.from({ length: 32 }, () =>
@@ -143,45 +151,12 @@ export const removeWebhook = internalAction({
       });
     }
 
-    // Clear webhook URL from integration
-    await ctx.runMutation(internal.telegramBotInternal.updateWebhookUrl, {
+    // Clear webhook URL and secret from integration
+    await ctx.runMutation(internal.telegramBotInternal.updateWebhookRegistration, {
       integrationId: args.integrationId,
       webhookUrl: '',
+      webhookSecret: '',
     });
-
-    return { success: true };
-  },
-});
-
-/**
- * Send a message to a Telegram chat via the Bot API.
- */
-export const sendMessage = internalAction({
-  args: {
-    botToken: v.string(),
-    chatId: v.string(),
-    text: v.string(),
-  },
-  handler: async (_ctx, args) => {
-    const url = `${TELEGRAM_API}/bot${args.botToken}/sendMessage`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: args.chatId,
-        text: args.text,
-        parse_mode: 'Markdown',
-      }),
-    });
-
-    const data = (await response.json()) as { ok: boolean; description?: string };
-
-    if (!data.ok) {
-      throw new ConvexError({
-        code: 'SEND_MESSAGE_FAILED',
-        message: data.description ?? 'Failed to send Telegram message',
-      });
-    }
 
     return { success: true };
   },

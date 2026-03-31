@@ -38,29 +38,6 @@ export interface TelegramUpdate {
 // ─── Internal Mutations ───────────────────────────────────────────────────────
 
 /**
- * Update the webhook URL on an integration record.
- * Called internally by registerWebhook / removeWebhook actions.
- */
-export const updateWebhookUrl = internalMutation({
-  args: {
-    integrationId: v.id('chatroom_integrations'),
-    webhookUrl: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const integration = await ctx.db.get(args.integrationId);
-    if (!integration) return;
-
-    await ctx.db.patch(args.integrationId, {
-      config: {
-        ...integration.config,
-        webhookUrl: args.webhookUrl || undefined,
-      },
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-/**
  * Process an incoming Telegram message — create a chatroom message.
  * Called by the HTTP webhook handler.
  */

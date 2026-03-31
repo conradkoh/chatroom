@@ -34,13 +34,11 @@ export const registerWebhook = action({
     ...SessionIdArg,
     botToken: v.string(),
     integrationId: v.id('chatroom_integrations'),
-    convexSiteUrl: v.string(),
   },
   handler: async (ctx, args): Promise<{ webhookUrl: string }> => {
     return await ctx.runAction(internal.telegramBot.registerWebhook, {
       botToken: args.botToken,
       integrationId: args.integrationId,
-      convexSiteUrl: args.convexSiteUrl,
     });
   },
 });
