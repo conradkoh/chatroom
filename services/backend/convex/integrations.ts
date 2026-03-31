@@ -171,3 +171,24 @@ export const updateChatId = internalMutation({
     });
   },
 });
+
+/**
+ * Internal query to list active integrations for a chatroom by platform.
+ * Used by the outbound forwarding action.
+ */
+export const listActiveByPlatform = internalQuery({
+  args: {
+    chatroomId: v.id('chatroom_rooms'),
+    platform: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const integrations = await ctx.db
+      .query('chatroom_integrations')
+      .withIndex('by_chatroom_platform', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('platform', args.platform)
+      )
+      .collect();
+
+    return integrations.filter((i) => i.enabled);
+  },
+});

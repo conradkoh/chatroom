@@ -371,6 +371,9 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // For broadcast messages, this gets set when the message is claimed
     claimedByRole: v.optional(v.string()),
+    // Source platform for messages from external integrations (e.g. "telegram")
+    // Used for loop prevention — messages with a sourcePlatform are not re-forwarded.
+    sourcePlatform: v.optional(v.string()),
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),

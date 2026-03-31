@@ -261,6 +261,7 @@ export const handleIncomingMessage = internalMutation({
       content,
       targetRole: undefined,
       type: 'message',
+      sourcePlatform: 'telegram',
     });
 
     // Update chatroom activity
@@ -292,3 +293,64 @@ export function parseTelegramUpdate(update: TelegramUpdate) {
     date: message.date,
   };
 }
+
+// ─── Outbound Forwarding ──────────────────────────────────────────────────────
+
+/**
+ * Forward a chatroom message to all active Telegram integrations for that chatroom.
+ * Skips messages that originated from Telegram (loop prevention via sourcePlatform).
+ *
+ * Called from the messages module after a message is inserted.
+ */
+export const forwardToTelegram = action({
+  args: {
+    chatroomId: v.id('chatroom_rooms'),
+    content: v.string(),
+    senderRole: v.string(),
+    sourcePlatform: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Loop prevention: don't forward messages that came from Telegram
+    if (args.sourcePlatform === 'telegram') return;
+
+    // Skip non-user/agent messages (system messages, etc.)
+    if (args.senderRole !== 'user' && !args.senderRole.match(/^(planner|builder|reviewer)$/)) {
+      return;
+    }
+
+    // Get active Telegram integrations for this chatroom
+    const integrations = await ctx.runQuery(internal.integrations.listActiveByPlatform, {
+      chatroomId: args.chatroomId,
+      platform: 'telegram',
+    });
+
+    if (!integrations || integrations.length === 0) return;
+
+    // Forward to each active Telegram integration
+    for (const integration of integrations) {
+      const chatId = integration.config.chatId;
+      const botToken = integration.config.botToken;
+
+      if (!chatId || !botToken) continue;
+
+      try {
+        // Format the outbound message with sender context
+        const label = args.senderRole === 'user' ? 'You' : args.senderRole;
+        const text = `[${label}] ${args.content}`;
+
+        const url = `${TELEGRAM_API}/bot${botToken}/sendMessage`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+          }),
+        });
+      } catch (error) {
+        // Log but don't fail — the primary message was already saved
+        console.error(`Failed to forward to Telegram integration ${integration._id}:`, error);
+      }
+    }
+  },
+});
