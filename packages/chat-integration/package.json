@@ -1,0 +1,20 @@
+{
+  "name": "@workspace/chat-integration",
+  "version": "1.0.0",
+  "description": "Chat SDK integration bridge for chatroom — connects external chat platforms to chatroom",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chat": "^4.23.0",
+    "@chat-adapter/telegram": "^4.23.0",
+    "@chat-adapter/state-memory": "^4.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
