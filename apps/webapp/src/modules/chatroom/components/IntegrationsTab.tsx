@@ -391,7 +391,6 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   const [isConnecting, setIsConnecting] = useState(false);
 
   const validateBotToken = useSessionAction(api.integrations.telegram.actions.validateBotToken);
-  const registerWebhook = useSessionAction(api.integrations.telegram.actions.registerWebhook);
   const createIntegration = useSessionMutation(api.integrations.create);
 
   // Step 1: Validate the bot token
@@ -417,14 +416,14 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     }
   }, [botToken, validateBotToken]);
 
-  // Step 2: Create integration and register webhook
+  // Step 2: Create integration (output-only — no webhook needed)
   const handleConnect = useCallback(async () => {
     setError(null);
     setIsConnecting(true);
 
     try {
-      // Create the integration record
-      const integrationId = await createIntegration({
+      // Create the integration record (webhook not needed for output-only)
+      await createIntegration({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         platform: 'telegram',
         config: {
@@ -433,23 +432,13 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         enabled: true,
       });
 
-      try {
-        await registerWebhook({
-          botToken: botToken.trim(),
-          integrationId: integrationId as Id<'chatroom_integrations'>,
-        });
-      } catch {
-        // Webhook registration may fail in dev (no public URL) — that's OK
-        console.warn('Webhook registration failed — may need manual setup in production');
-      }
-
       setStep('done');
     } catch (err: any) {
       setError(err?.data?.message ?? err?.message ?? 'Failed to create integration');
     } finally {
       setIsConnecting(false);
     }
-  }, [botToken, chatroomId, createIntegration, registerWebhook]);
+  }, [botToken, chatroomId, createIntegration]);
 
   return (
     <div className="border border-chatroom-border rounded-lg bg-chatroom-bg-secondary overflow-hidden">
@@ -611,7 +600,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 Telegram connected!
               </p>
               <p className="text-xs text-chatroom-text-muted mt-1">
-                Send a message to your bot to start receiving messages in this chatroom.
+                Your Telegram bot is connected. Use the &quot;Test&quot; button to send messages.
               </p>
             </div>
             <Button
