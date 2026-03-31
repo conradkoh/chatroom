@@ -10,10 +10,10 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import type {
+  DiffStat,
   GitBranchResult,
   GitCommit,
   GitCommitDetailResult,
-  GitDiffStat,
   GitDiffStatResult,
   GitFullDiffResult,
   GitPullRequest,
@@ -150,13 +150,13 @@ export async function isDirty(workingDir: string): Promise<boolean> {
 }
 
 /**
- * Parses `--stat` output into a `GitDiffStat`.
+ * Parses `--stat` output into a `DiffStat`.
  * Input: the summary line, e.g. "3 files changed, 45 insertions(+), 12 deletions(-)"
  * Returns zero values if the tree is clean or the line cannot be parsed.
  *
  * Exported for direct unit testing.
  */
-export function parseDiffStatLine(statLine: string): GitDiffStat {
+export function parseDiffStatLine(statLine: string): DiffStat {
   const filesMatch = statLine.match(/(\d+)\s+file/);
   const insertMatch = statLine.match(/(\d+)\s+insertion/);
   const deleteMatch = statLine.match(/(\d+)\s+deletion/);

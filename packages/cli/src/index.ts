@@ -93,6 +93,24 @@ program
   });
 
 // ============================================================================
+// TOOL COMMANDS (no auth required — agents run tools locally)
+// ============================================================================
+
+const toolCommand = program.command('tool').description('Built-in tools for agent workflows');
+
+toolCommand
+  .command('parse-pdf')
+  .description('Parse a PDF file and extract text content to a temp file')
+  .requiredOption('--input <path-or-url>', 'PDF file path or URL')
+  .option('--working-dir <dir>', 'Working directory for output', process.cwd())
+  .action(async (options: { input: string; workingDir: string }) => {
+    const { parsePdf } = await import('./tools/parse-pdf/index.js');
+    const result = await parsePdf(options.input, options.workingDir);
+    console.log(result.message);
+    process.exit(result.success ? 0 : 1);
+  });
+
+// ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)
 // ============================================================================
 
