@@ -8,7 +8,7 @@
  */
 
 import { v, ConvexError } from 'convex/values';
-import { action } from './_generated/server';
+import { internalAction } from './_generated/server';
 import { internal } from './_generated/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ const TELEGRAM_API = 'https://api.telegram.org';
  * Validate a Telegram bot token by calling getMe.
  * Returns bot info on success, throws on failure.
  */
-export const validateBotToken = action({
+export const validateBotToken = internalAction({
   args: {
     botToken: v.string(),
   },
@@ -73,7 +73,7 @@ export const validateBotToken = action({
 /**
  * Register a Telegram webhook pointing to our Convex HTTP endpoint.
  */
-export const registerWebhook = action({
+export const registerWebhook = internalAction({
   args: {
     botToken: v.string(),
     integrationId: v.id('chatroom_integrations'),
@@ -82,6 +82,11 @@ export const registerWebhook = action({
   handler: async (ctx, args) => {
     const webhookUrl = `${args.convexSiteUrl}/api/telegram/webhook/${args.integrationId}`;
 
+    // Generate a random webhook secret for verification
+    const webhookSecret = Array.from({ length: 32 }, () =>
+      Math.random().toString(36).charAt(2)
+    ).join('');
+
     const url = `${TELEGRAM_API}/bot${args.botToken}/setWebhook`;
     const response = await fetch(url, {
       method: 'POST',
@@ -89,6 +94,7 @@ export const registerWebhook = action({
       body: JSON.stringify({
         url: webhookUrl,
         allowed_updates: ['message'],
+        secret_token: webhookSecret,
       }),
     });
 
@@ -101,10 +107,11 @@ export const registerWebhook = action({
       });
     }
 
-    // Update integration with webhook URL
-    await ctx.runMutation(internal.telegramBotInternal.updateWebhookUrl, {
+    // Update integration with webhook URL and secret
+    await ctx.runMutation(internal.telegramBotInternal.updateWebhookRegistration, {
       integrationId: args.integrationId,
       webhookUrl,
+      webhookSecret,
     });
 
     return { webhookUrl };
@@ -114,7 +121,7 @@ export const registerWebhook = action({
 /**
  * Remove the Telegram webhook when disconnecting an integration.
  */
-export const removeWebhook = action({
+export const removeWebhook = internalAction({
   args: {
     botToken: v.string(),
     integrationId: v.id('chatroom_integrations'),
@@ -149,7 +156,7 @@ export const removeWebhook = action({
 /**
  * Send a message to a Telegram chat via the Bot API.
  */
-export const sendMessage = action({
+export const sendMessage = internalAction({
   args: {
     botToken: v.string(),
     chatId: v.string(),
@@ -186,7 +193,7 @@ export const sendMessage = action({
  * Forward a chatroom message to all active Telegram integrations for that chatroom.
  * Skips messages that originated from Telegram (loop prevention via sourcePlatform).
  */
-export const forwardToTelegram = action({
+export const forwardToTelegram = internalAction({
   args: {
     chatroomId: v.id('chatroom_rooms'),
     content: v.string(),

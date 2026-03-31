@@ -10,7 +10,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useAction } from 'convex/react';
+import { useSessionAction } from 'convex-helpers/react/sessions';
 import {
   Bot,
   Check,
@@ -275,8 +275,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   const [isValidating, setIsValidating] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const validateBotToken = useAction(api.telegramBot.validateBotToken);
-  const registerWebhook = useAction(api.telegramBot.registerWebhook);
+  const validateBotToken = useSessionAction(api.telegramActions.validateBotToken);
+  const registerWebhook = useSessionAction(api.telegramActions.registerWebhook);
   const createIntegration = useSessionMutation(api.integrations.create);
 
   // Step 1: Validate the bot token

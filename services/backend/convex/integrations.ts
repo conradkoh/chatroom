@@ -3,10 +3,33 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query, internalQuery, internalMutation } from './_generated/server';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Redact a bot token for safe display — show only last 4 chars. */
+function redactBotToken(token?: string): string | undefined {
+  if (!token) return undefined;
+  if (token.length <= 4) return '••••';
+  return '•'.repeat(token.length - 4) + token.slice(-4);
+}
+
+/** Redact sensitive fields from an integration record for frontend display. */
+function redactIntegration(integration: any) {
+  return {
+    ...integration,
+    config: {
+      ...integration.config,
+      botToken: redactBotToken(integration.config?.botToken),
+      // Never expose webhookSecret to frontend
+      webhookSecret: undefined,
+    },
+  };
+}
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 /**
  * List all integrations for a chatroom.
+ * Bot tokens are redacted for security.
  */
 export const list = query({
   args: {
@@ -14,15 +37,18 @@ export const list = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const integrations = await ctx.db
       .query('chatroom_integrations')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
+
+    return integrations.map(redactIntegration);
   },
 });
 
 /**
  * Get a single integration by ID.
+ * Bot token is redacted for security.
  */
 export const get = query({
   args: {
@@ -37,7 +63,7 @@ export const get = query({
         message: 'Integration not found',
       });
     }
-    return integration;
+    return redactIntegration(integration);
   },
 });
 

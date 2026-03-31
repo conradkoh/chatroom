@@ -81,7 +81,12 @@ export const handleIncomingMessage = internalMutation({
       ? `${args.senderName} (@${args.senderUsername})`
       : args.senderName;
 
-    const content = `[Telegram · ${senderLabel}] ${args.text}`;
+    // Sanitize text — strip any markdown/HTML that could render unexpectedly
+    const sanitizedText = args.text
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const content = `[Telegram · ${senderLabel}] ${sanitizedText}`;
 
     await ctx.db.insert('chatroom_messages', {
       chatroomId: args.chatroomId,
@@ -123,3 +128,28 @@ export function parseTelegramUpdate(update: TelegramUpdate) {
     date: message.date,
   };
 }
+
+/**
+ * Update the webhook URL and secret on an integration record.
+ * Called internally by registerWebhook action.
+ */
+export const updateWebhookRegistration = internalMutation({
+  args: {
+    integrationId: v.id('chatroom_integrations'),
+    webhookUrl: v.string(),
+    webhookSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const integration = await ctx.db.get(args.integrationId);
+    if (!integration) return;
+
+    await ctx.db.patch(args.integrationId, {
+      config: {
+        ...integration.config,
+        webhookUrl: args.webhookUrl || undefined,
+        webhookSecret: args.webhookSecret,
+      },
+      updatedAt: Date.now(),
+    });
+  },
+});

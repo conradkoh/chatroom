@@ -31,9 +31,17 @@ http.route({
       }
 
       // Look up the integration
-      const integration = await ctx.runQuery(internal.integrations.getInternal, {
-        integrationId: integrationId as any, // Will be validated by Convex
-      });
+      let integration;
+      try {
+        integration = await ctx.runQuery(internal.integrations.getInternal, {
+          integrationId: integrationId as any, // Convex will validate the ID format
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid integration ID' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
 
       if (!integration) {
         return new Response(JSON.stringify({ error: 'Integration not found' }), {
@@ -48,6 +56,18 @@ http.route({
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
+      }
+
+      // Verify Telegram webhook secret if one is configured
+      const expectedSecret = integration.config?.webhookSecret;
+      if (expectedSecret) {
+        const receivedSecret = request.headers.get('x-telegram-bot-api-secret-token');
+        if (receivedSecret !== expectedSecret) {
+          return new Response(JSON.stringify({ error: 'Invalid secret token' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       // Parse the Telegram update

@@ -1476,6 +1476,8 @@ export default defineSchema({
       chatId: v.optional(v.string()),
       /** Optional webhook URL */
       webhookUrl: v.optional(v.string()),
+      /** Webhook secret for verifying inbound requests from Telegram */
+      webhookSecret: v.optional(v.string()),
     }),
     /** Whether the integration is currently active */
     enabled: v.boolean(),
