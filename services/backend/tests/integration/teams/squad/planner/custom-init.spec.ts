@@ -223,6 +223,8 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Code review:** Include a final review step for code-producing workflows. Activate \`code-review\` skill for the 8-pillar framework.
 
+      **Backlog items:** When the task originates from a backlog item (attached as \`<attachment type="backlog-item">\`), activate the \`backlog\` skill for lifecycle management (mark-for-review, scoring, completion).
+
       **If stuck:** After 2 failed rework attempts → \`workflow exit\` with reason → replan or deliver partial results.
 
       **Review loop:**
