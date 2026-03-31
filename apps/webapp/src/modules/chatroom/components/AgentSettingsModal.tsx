@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } from 'lucide-react';
+import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X, Plug } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getDaemonStartCommand } from '@/lib/environment';
+import { IntegrationsTab } from './IntegrationsTab';
 import { TEAMS_CONFIG } from '../config/teams';
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ interface AgentSettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'integrations';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
   { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
+  { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -709,6 +711,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
+          {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>
