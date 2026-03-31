@@ -59,3 +59,25 @@ export const removeWebhook = action({
     });
   },
 });
+
+/**
+ * Send a message to all active Telegram integrations for a chatroom (authenticated).
+ * Used by agents via the CLI to push messages to Telegram.
+ */
+export const sendMessage = action({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    message: v.string(),
+    senderRole: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean }> => {
+    await ctx.runAction(internal.integrations.telegram.api.forwardToTelegram, {
+      chatroomId: args.chatroomId,
+      content: args.message,
+      senderRole: args.senderRole,
+      // No sourcePlatform — this is coming from the chatroom, not Telegram
+    });
+    return { success: true };
+  },
+});
