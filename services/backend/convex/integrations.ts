@@ -1,7 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from './_generated/server';
+import { mutation, query, internalQuery, internalMutation } from './_generated/server';
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -131,5 +131,43 @@ export const remove = mutation({
     await ctx.db.delete(args.integrationId);
 
     return { success: true };
+  },
+});
+
+// ─── Internal functions (for HTTP actions / internal use) ─────────────────────
+
+/**
+ * Internal query to look up an integration by ID (no session auth).
+ * Used by the HTTP webhook handler.
+ */
+export const getInternal = internalQuery({
+  args: {
+    integrationId: v.id('chatroom_integrations'),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.integrationId);
+  },
+});
+
+/**
+ * Internal mutation to update the Telegram chat ID on an integration.
+ * Called when the first message arrives and we learn the chat ID.
+ */
+export const updateChatId = internalMutation({
+  args: {
+    integrationId: v.id('chatroom_integrations'),
+    chatId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const integration = await ctx.db.get(args.integrationId);
+    if (!integration) return;
+
+    await ctx.db.patch(args.integrationId, {
+      config: {
+        ...integration.config,
+        chatId: args.chatId,
+      },
+      updatedAt: Date.now(),
+    });
   },
 });
