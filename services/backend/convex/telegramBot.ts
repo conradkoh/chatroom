@@ -1,16 +1,14 @@
 'use node';
 
 /**
- * Telegram Bot Utilities — Convex actions for interacting with the Telegram Bot API.
+ * Telegram Bot Actions — Convex actions that call the Telegram Bot API.
  *
- * These are used by the integration setup flow to:
- * 1. Validate a bot token (getMe)
- * 2. Register/remove a webhook (setWebhook / deleteWebhook)
- * 3. Process incoming Telegram updates
+ * These run in Node.js and use `fetch` to communicate with Telegram.
+ * Mutations/queries are in telegramBotInternal.ts (Convex runtime).
  */
 
 import { v, ConvexError } from 'convex/values';
-import { action, internalMutation } from './_generated/server';
+import { action } from './_generated/server';
 import { internal } from './_generated/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,31 +33,6 @@ interface WebhookResponse {
   ok: boolean;
   result?: boolean;
   description?: string;
-}
-
-/** Subset of a Telegram Update object (message updates only). */
-interface TelegramUpdate {
-  update_id: number;
-  message?: {
-    message_id: number;
-    from?: {
-      id: number;
-      is_bot: boolean;
-      first_name: string;
-      last_name?: string;
-      username?: string;
-    };
-    chat: {
-      id: number;
-      type: string;
-      title?: string;
-      first_name?: string;
-      last_name?: string;
-      username?: string;
-    };
-    date: number;
-    text?: string;
-  };
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -104,7 +77,7 @@ export const registerWebhook = action({
   args: {
     botToken: v.string(),
     integrationId: v.id('chatroom_integrations'),
-    convexSiteUrl: v.string(), // e.g. "https://example-123.convex.site"
+    convexSiteUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const webhookUrl = `${args.convexSiteUrl}/api/telegram/webhook/${args.integrationId}`;
@@ -129,7 +102,7 @@ export const registerWebhook = action({
     }
 
     // Update integration with webhook URL
-    await ctx.runMutation(internal.telegramBot.updateWebhookUrl, {
+    await ctx.runMutation(internal.telegramBotInternal.updateWebhookUrl, {
       integrationId: args.integrationId,
       webhookUrl,
     });
@@ -164,7 +137,7 @@ export const removeWebhook = action({
     }
 
     // Clear webhook URL from integration
-    await ctx.runMutation(internal.telegramBot.updateWebhookUrl, {
+    await ctx.runMutation(internal.telegramBotInternal.updateWebhookUrl, {
       integrationId: args.integrationId,
       webhookUrl: '',
     });
@@ -207,100 +180,11 @@ export const sendMessage = action({
   },
 });
 
-// ─── Internal Mutations ───────────────────────────────────────────────────────
-
-/**
- * Update the webhook URL on an integration record.
- * Called internally by registerWebhook / removeWebhook actions.
- */
-export const updateWebhookUrl = internalMutation({
-  args: {
-    integrationId: v.id('chatroom_integrations'),
-    webhookUrl: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const integration = await ctx.db.get(args.integrationId);
-    if (!integration) return;
-
-    await ctx.db.patch(args.integrationId, {
-      config: {
-        ...integration.config,
-        webhookUrl: args.webhookUrl || undefined,
-      },
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-/**
- * Process an incoming Telegram message — create a chatroom message.
- * Called by the HTTP webhook handler.
- */
-export const handleIncomingMessage = internalMutation({
-  args: {
-    chatroomId: v.id('chatroom_rooms'),
-    integrationId: v.id('chatroom_integrations'),
-    telegramChatId: v.string(),
-    telegramMessageId: v.number(),
-    senderName: v.string(),
-    senderUsername: v.optional(v.string()),
-    text: v.string(),
-    timestamp: v.number(),
-  },
-  handler: async (ctx, args) => {
-    // Create a message in the chatroom from the Telegram user
-    const senderLabel = args.senderUsername
-      ? `${args.senderName} (@${args.senderUsername})`
-      : args.senderName;
-
-    const content = `[Telegram · ${senderLabel}] ${args.text}`;
-
-    await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: 'user',
-      content,
-      targetRole: undefined,
-      type: 'message',
-      sourcePlatform: 'telegram',
-    });
-
-    // Update chatroom activity
-    await ctx.db.patch(args.chatroomId, {
-      lastActivityAt: Date.now(),
-    });
-
-    return { success: true };
-  },
-});
-
-/**
- * Parse and route a raw Telegram update payload.
- * Returns the extracted data or null if the update should be skipped.
- */
-export function parseTelegramUpdate(update: TelegramUpdate) {
-  const message = update.message;
-  if (!message || !message.text) return null;
-
-  return {
-    messageId: message.message_id,
-    chatId: String(message.chat.id),
-    chatType: message.chat.type,
-    chatTitle: message.chat.title ?? message.chat.first_name ?? 'Unknown',
-    senderName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
-    senderUsername: message.from?.username,
-    senderId: message.from?.id ? String(message.from.id) : undefined,
-    text: message.text,
-    date: message.date,
-  };
-}
-
 // ─── Outbound Forwarding ──────────────────────────────────────────────────────
 
 /**
  * Forward a chatroom message to all active Telegram integrations for that chatroom.
  * Skips messages that originated from Telegram (loop prevention via sourcePlatform).
- *
- * Called from the messages module after a message is inserted.
  */
 export const forwardToTelegram = action({
   args: {
@@ -334,7 +218,6 @@ export const forwardToTelegram = action({
       if (!chatId || !botToken) continue;
 
       try {
-        // Format the outbound message with sender context
         const label = args.senderRole === 'user' ? 'You' : args.senderRole;
         const text = `[${label}] ${args.content}`;
 
@@ -348,7 +231,6 @@ export const forwardToTelegram = action({
           }),
         });
       } catch (error) {
-        // Log but don't fail — the primary message was already saved
         console.error(`Failed to forward to Telegram integration ${integration._id}:`, error);
       }
     }

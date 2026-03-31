@@ -46,6 +46,7 @@ import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
 import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as telegramBot from "../telegramBot.js";
+import type * as telegramBotInternal from "../telegramBotInternal.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as workflows from "../workflows.js";
 import type * as workspaces from "../workspaces.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   "tasks/taskDelivery": typeof tasks_taskDelivery;
   telegramBot: typeof telegramBot;
+  telegramBotInternal: typeof telegramBotInternal;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   workflows: typeof workflows;
   workspaces: typeof workspaces;
