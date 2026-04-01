@@ -89,7 +89,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               NO FILES FOUND
             </CommandEmpty>
             <CommandGroup>
-              {files.map((file) => (
+              {files.slice(0, 200).map((file) => (
                 <CommandItem
                   key={file.path}
                   value={file.path}
@@ -111,6 +111,11 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {files.length > 200 && (
+              <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
+                SHOWING 200 OF {files.length} FILES
+              </div>
+            )}
           </CommandList>
         </Command>
       </DialogContent>
