@@ -1,7 +1,7 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
 interface UseFileSelectorOptions {
@@ -24,17 +24,6 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     api.workspaceFiles.getFileTree,
     machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
-
-  // Fetch file content for selected file
-  const contentResult = useSessionQuery(
-    api.workspaceFiles.getFileContent,
-    machineId && workingDir && selectedFile
-      ? { machineId, workingDir, filePath: selectedFile }
-      : 'skip'
-  );
-
-  // Request file content mutation
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
   // Parse file tree entries
   const entries: FileEntry[] = (() => {
@@ -66,24 +55,13 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // When a file is selected, request its content
-  const selectFile = useCallback(
-    async (filePath: string) => {
-      setSelectedFile(filePath);
-      if (machineId && workingDir) {
-        try {
-          await requestContent({ machineId, workingDir, filePath });
-        } catch {
-          // Content request failed — content will show as unavailable
-        }
-      }
-    },
-    [machineId, workingDir, requestContent]
-  );
+  // When a file is selected from the modal
+  const selectFile = useCallback((filePath: string) => {
+    setSelectedFile(filePath);
+  }, []);
 
   const close = useCallback(() => {
     setOpen(false);
-    setSelectedFile(null);
   }, []);
 
   return {
@@ -93,7 +71,6 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     files,
     selectedFile,
     selectFile,
-    fileContent: contentResult,
     hasTree: !!treeResult,
   };
 }

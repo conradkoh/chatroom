@@ -698,9 +698,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             open={fileSelector.open}
             onOpenChange={fileSelector.setOpen}
             files={fileSelector.files}
-            selectedFile={fileSelector.selectedFile}
             onSelectFile={fileSelector.selectFile}
-            fileContent={fileSelector.fileContent ?? null}
           />
 
           {/* Setup modal - only shown during setup mode */}
