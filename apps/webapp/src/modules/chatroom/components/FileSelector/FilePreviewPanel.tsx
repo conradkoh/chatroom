@@ -38,40 +38,48 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
 }: FilePreviewPanelProps) {
   if (!filePath) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Select a file to preview
+      <div className="flex h-full flex-col items-center justify-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          SELECT A FILE TO PREVIEW
+        </span>
       </div>
     );
   }
 
   if (isBinaryFile(filePath)) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <span className="text-sm font-medium">Binary file</span>
-        <span className="text-xs">{filePath}</span>
+      <div className="flex h-full flex-col items-center justify-center gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
+          BINARY FILE
+        </span>
+        <span className="text-[10px] font-mono text-chatroom-text-muted">{filePath}</span>
       </div>
     );
   }
 
   if (isLoading || !content) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-3 py-1.5">
-        <span className="text-xs text-muted-foreground font-mono truncate">{filePath}</span>
+    <div className="h-full overflow-auto flex flex-col">
+      {/* Preview header */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-chatroom-border bg-chatroom-bg-primary px-3 py-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
+          {filePath}
+        </span>
         {content.truncated && (
-          <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2 shrink-0">
-            Truncated
+          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 ml-2 shrink-0">
+            TRUNCATED
           </span>
         )}
       </div>
-      <pre className="p-3 text-xs font-mono text-foreground whitespace-pre overflow-x-auto leading-relaxed">
+      {/* Content */}
+      <pre className="p-3 text-xs font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed flex-1">
         {content.content}
       </pre>
     </div>
