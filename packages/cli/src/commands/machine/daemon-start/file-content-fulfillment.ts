@@ -6,7 +6,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -66,7 +66,18 @@ async function fulfillSingleRequest(
   request: { workingDir: string; filePath: string }
 ): Promise<void> {
   const { workingDir, filePath } = request;
-  const absolutePath = join(workingDir, filePath);
+
+  // Security: prevent path traversal
+  if (filePath.includes('..') || filePath.startsWith('/')) {
+    console.warn(`[${formatTimestamp()}] ⚠️  Rejected path traversal attempt: ${filePath}`);
+    return;
+  }
+
+  const absolutePath = resolve(workingDir, filePath);
+  if (!absolutePath.startsWith(resolve(workingDir))) {
+    console.warn(`[${formatTimestamp()}] ⚠️  Path escapes workspace: ${absolutePath}`);
+    return;
+  }
 
   // Binary file: upload empty content with truncated flag
   if (isBinaryFile(filePath)) {

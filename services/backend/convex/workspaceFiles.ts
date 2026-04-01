@@ -131,6 +131,11 @@ export const requestFileContent = mutation({
       throw new Error('Authentication required');
     }
 
+    // Security: prevent path traversal
+    if (args.filePath.includes('..') || args.filePath.startsWith('/')) {
+      throw new Error('Invalid file path');
+    }
+
     // Check for cached content (fresh if < 5 minutes old)
     const cached = await ctx.db
       .query('chatroom_workspaceFileContent')

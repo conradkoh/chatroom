@@ -93,6 +93,11 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 TRUNCATED
               </span>
             )}
+            {contentResult && (
+              <span className="text-[10px] font-mono text-chatroom-text-muted tabular-nums shrink-0">
+                {contentResult.content.split('\n').length} lines
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
