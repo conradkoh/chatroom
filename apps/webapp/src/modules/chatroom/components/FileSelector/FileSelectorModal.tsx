@@ -44,6 +44,13 @@ function getParentDir(path: string): string {
   return parts.slice(0, -1).join('/');
 }
 
+/** Format file size for display. */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export const FileSelectorModal = memo(function FileSelectorModal({
   open,
   onOpenChange,
@@ -129,6 +136,11 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                   {getParentDir(file.path) && (
                     <span className="text-[10px] text-chatroom-text-muted font-mono truncate max-w-[50%]">
                       {getParentDir(file.path)}
+                    </span>
+                  )}
+                  {file.size != null && (
+                    <span className="text-[10px] text-chatroom-text-muted font-mono shrink-0 tabular-nums">
+                      {formatFileSize(file.size)}
                     </span>
                   )}
                 </CommandItem>
