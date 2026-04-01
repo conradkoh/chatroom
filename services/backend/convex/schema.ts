@@ -1443,6 +1443,27 @@ export default defineSchema({
     fetchedAt: v.number(),
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
+  /**
+   * Pending file content requests.
+   * Frontend creates requests; daemon polls and fulfills them.
+   */
+  chatroom_workspaceFileContentRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
   // ─── Structured Workflows ────────────────────────────────────────────────────
   // DAG-based workflows that agents create and execute step-by-step.
   // Workflows block user handoff until completed or explicitly exited.
