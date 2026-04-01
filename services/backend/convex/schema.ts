@@ -9,6 +9,16 @@ export const agentHarnessValidator = v.union(
   v.literal('claude')
 );
 
+/** Thinking level validator — controls reasoning depth for supported harnesses. */
+export const thinkingLevelValidator = v.union(
+  v.literal('off'),
+  v.literal('minimal'),
+  v.literal('low'),
+  v.literal('medium'),
+  v.literal('high'),
+  v.literal('xhigh')
+);
+
 /**
  * Database schema definition for the application.
  * Defines all tables, their fields, and indexes for optimal querying.
@@ -746,6 +756,8 @@ export default defineSchema({
     agentHarness: v.optional(agentHarnessValidator),
     // Preferred AI model
     model: v.optional(v.string()),
+    // Preferred thinking level (for supported harnesses)
+    thinkingLevel: v.optional(thinkingLevelValidator),
     // Preferred working directory (absolute path on the machine)
     workingDir: v.optional(v.string()),
     // When this preference was last saved
@@ -861,6 +873,7 @@ export default defineSchema({
     machineId: v.optional(v.string()),
     agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
+    thinkingLevel: v.optional(thinkingLevelValidator),
     workingDir: v.optional(v.string()),
 
     // Timestamps
@@ -966,6 +979,7 @@ export default defineSchema({
         agentHarness: agentHarnessValidator,
         model: v.string(),
         workingDir: v.string(),
+        thinkingLevel: v.optional(thinkingLevelValidator),
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),

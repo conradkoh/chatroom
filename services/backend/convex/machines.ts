@@ -7,7 +7,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
-import { agentHarnessValidator } from './schema';
+import { agentHarnessValidator, thinkingLevelValidator } from './schema';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
@@ -698,6 +698,7 @@ export const sendCommand = mutation({
         chatroomId: v.optional(v.id('chatroom_rooms')),
         role: v.optional(v.string()),
         model: v.optional(v.string()),
+        thinkingLevel: v.optional(thinkingLevelValidator),
         // For first-time starts when no agent config exists:
         agentHarness: v.optional(agentHarnessValidator),
         workingDir: v.optional(v.string()),
@@ -745,6 +746,9 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+      const resolvedThinkingLevel =
+        args.payload.thinkingLevel ??
+        (existingConfig?.type === 'remote' ? existingConfig.thinkingLevel : undefined);
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
@@ -763,6 +767,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
+          thinkingLevel: resolvedThinkingLevel,
           reason: 'user.start',
         },
         machine
@@ -1162,6 +1167,7 @@ export const saveAgentPreference = mutation({
     machineId: v.string(),
     agentHarness: agentHarnessValidator,
     model: v.optional(v.string()),
+    thinkingLevel: v.optional(thinkingLevelValidator),
     workingDir: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -1191,6 +1197,7 @@ export const saveAgentPreference = mutation({
       machineId: args.machineId,
       agentHarness: args.agentHarness,
       model: args.model,
+      thinkingLevel: args.thinkingLevel,
       workingDir: args.workingDir,
       updatedAt: now,
     };

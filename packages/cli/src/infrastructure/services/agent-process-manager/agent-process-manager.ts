@@ -28,6 +28,7 @@ export interface AgentSlot {
   pid?: number;
   harness?: AgentHarness;
   model?: string;
+  thinkingLevel?: string;
   workingDir?: string;
   startedAt?: number;
   /** Promise that resolves when a pending spawn or stop completes */
@@ -45,6 +46,7 @@ export interface EnsureRunningOpts {
   role: string;
   agentHarness: AgentHarness;
   model?: string;
+  thinkingLevel?: string;
   workingDir: string;
   reason: string;
 }
@@ -261,6 +263,7 @@ export class AgentProcessManager {
     // Capture slot info before clearing
     const harness = slot.harness;
     const model = slot.model;
+    const thinkingLevel = slot.thinkingLevel;
     const workingDir = slot.workingDir;
 
     // Transition: running → idle
@@ -324,6 +327,7 @@ export class AgentProcessManager {
       role: opts.role,
       agentHarness: harness,
       model,
+      thinkingLevel,
       workingDir,
       reason: 'platform.crash_recovery',
     }).catch((err: Error) => {
@@ -561,6 +565,7 @@ export class AgentProcessManager {
           prompt: initPromptResult.initialMessage,
           systemPrompt: initPromptResult.rolePrompt,
           model: opts.model,
+          thinkingLevel: opts.thinkingLevel,
           context: {
             machineId: this.deps.machineId,
             chatroomId: opts.chatroomId,
@@ -583,6 +588,7 @@ export class AgentProcessManager {
       slot.pid = pid;
       slot.harness = opts.agentHarness;
       slot.model = opts.model;
+      slot.thinkingLevel = opts.thinkingLevel;
       slot.workingDir = opts.workingDir;
       slot.startedAt = this.deps.clock.now();
       slot.pendingOperation = undefined;

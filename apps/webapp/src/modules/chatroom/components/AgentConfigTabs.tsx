@@ -25,8 +25,9 @@ import type {
   MachineInfo,
   AgentConfig,
   SendCommandFn,
+  ThinkingLevel,
 } from '../types/machine';
-import { getHarnessDisplayName, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
+import { THINKING_LEVELS, getHarnessDisplayName, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
 
 import {
   Command,
@@ -58,6 +59,7 @@ export interface AgentPreference {
   machineId: string;
   agentHarness: AgentHarness;
   model?: string;
+  thinkingLevel?: string;
   workingDir?: string;
 }
 
@@ -192,6 +194,7 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
+  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<ThinkingLevel | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -345,6 +348,7 @@ export function useAgentControls({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
+          thinkingLevel: selectedThinkingLevel || undefined,
           agentHarness: selectedHarness,
           workingDir: workingDir.trim() || undefined,
         },
@@ -355,6 +359,7 @@ export function useAgentControls({
         machineId: selectedMachineId,
         agentHarness: selectedHarness,
         model: selectedModel || undefined,
+        thinkingLevel: selectedThinkingLevel || undefined,
         workingDir: workingDir.trim() || undefined,
       });
       setSuccess('Start command sent!');
@@ -414,6 +419,7 @@ export function useAgentControls({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
+          thinkingLevel: selectedThinkingLevel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
         },
@@ -426,7 +432,7 @@ export function useAgentControls({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, selectedThinkingLevel, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -469,10 +475,15 @@ export function useAgentControls({
     setWorkingDir(dir);
   }, []);
 
+  const handleThinkingLevelChange = useCallback((level: ThinkingLevel | null) => {
+    setSelectedThinkingLevel(level);
+  }, []);
+
   return {
     selectedMachineId,
     selectedHarness,
     selectedModel,
+    selectedThinkingLevel,
     workingDir,
     isStarting,
     isStopping,
@@ -498,6 +509,7 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    handleThinkingLevelChange,
   };
 }
 
@@ -522,6 +534,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     selectedMachineId,
     selectedHarness,
     selectedModel,
+    selectedThinkingLevel,
     workingDir,
     isStarting,
     isStopping,
@@ -542,6 +555,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    handleThinkingLevelChange,
   } = controls;
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
@@ -912,6 +926,32 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </div>
             ) : (
               <div className="flex-1" />
+            )}
+
+            {/* Thinking Level — compact selector */}
+            {!isAgentRunning && displayHarness === 'pi' && (
+              <select
+                value={selectedThinkingLevel ?? ''}
+                onChange={(e) => handleThinkingLevelChange((e.target.value as ThinkingLevel) || null)}
+                disabled={isBusy}
+                className="h-7 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-1.5 hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                title="Thinking Level"
+              >
+                <option value="">Think</option>
+                {THINKING_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            )}
+            {isAgentRunning && runningAgentConfig?.thinkingLevel && (
+              <div
+                className="h-7 flex items-center bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-1.5 opacity-50"
+                title="Thinking Level"
+              >
+                {runningAgentConfig.thinkingLevel}
+              </div>
             )}
 
             {/* Action Buttons */}

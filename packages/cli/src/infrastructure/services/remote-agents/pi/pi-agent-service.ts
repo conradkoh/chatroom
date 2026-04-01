@@ -98,7 +98,7 @@ export class PiAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, model } = options;
+    const { systemPrompt, model, thinkingLevel } = options;
 
     // Pi requires at least one user message — fall back to a default trigger when
     // the caller passes an empty prompt (e.g. composeInitMessage returns '').
@@ -114,6 +114,10 @@ export class PiAgentService extends BaseCLIAgentService {
 
     if (systemPrompt) {
       args.push('--system-prompt', systemPrompt);
+    }
+
+    if (thinkingLevel) {
+      args.push('--thinking', thinkingLevel);
     }
 
     const childProcess: ChildProcess = this.deps.spawn(PI_COMMAND, args, {

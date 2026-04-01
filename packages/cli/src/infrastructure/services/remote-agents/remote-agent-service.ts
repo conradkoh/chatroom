@@ -36,6 +36,8 @@ export interface SpawnOptions {
    */
   systemPrompt: string;
   model?: string;
+  /** Thinking level — controls reasoning depth. Only supported by some harnesses (e.g. pi). */
+  thinkingLevel?: string;
   context: SpawnContext;
 }
 

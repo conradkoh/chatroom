@@ -23,6 +23,19 @@ import { v } from 'convex/values';
 export type AgentHarness = 'opencode' | 'pi' | 'cursor' | 'claude';
 
 /**
+ * Thinking level controls the depth of reasoning the AI model uses.
+ *
+ * Not all harnesses support thinking levels. Currently supported by:
+ * - `pi`: Passed as `--thinking <level>` flag
+ *
+ * Harnesses that don't support it simply ignore the setting.
+ */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
+export const thinkingLevelValidator = v.union(...THINKING_LEVELS.map((l) => v.literal(l)));
+
+/**
  * Detected harness version info from a machine's installed toolchain.
  */
 export interface HarnessVersionInfo {

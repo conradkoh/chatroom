@@ -250,6 +250,44 @@ describe('PiAgentService', () => {
       expect(args).not.toContain('--model');
     });
 
+    it('passes --thinking flag when thinkingLevel is specified', async () => {
+      const child = makeChildProcess(42);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        systemPrompt: 'You are a test agent',
+        prompt: 'Hello world',
+        model: 'anthropic/claude-sonnet-4',
+        thinkingLevel: 'high',
+        context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+      });
+
+      const args = spawnFn.mock.calls[0][1] as string[];
+      const thinkingIdx = args.indexOf('--thinking');
+      expect(thinkingIdx).toBeGreaterThan(-1);
+      expect(args[thinkingIdx + 1]).toBe('high');
+    });
+
+    it('omits --thinking flag when thinkingLevel is not specified', async () => {
+      const child = makeChildProcess(42);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        systemPrompt: 'You are a test agent',
+        prompt: 'Hello world',
+        context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+      });
+
+      const args = spawnFn.mock.calls[0][1] as string[];
+      expect(args).not.toContain('--thinking');
+    });
+
     it('sends the prompt as a JSON RPC command over stdin', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);

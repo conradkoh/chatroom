@@ -16,9 +16,12 @@ import type {
   AgentHarness,
   AgentStopReason,
   HarnessVersionInfo,
+  ThinkingLevel,
 } from '@workspace/backend/src/domain/entities/agent';
+import { THINKING_LEVELS } from '@workspace/backend/src/domain/entities/agent';
 
-export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
+export type { AgentHarness, AgentStopReason, HarnessVersionInfo, ThinkingLevel };
+export { THINKING_LEVELS };
 
 export interface MachineInfo {
   machineId: string;
@@ -41,6 +44,7 @@ export interface AgentConfig {
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   daemonConnected: boolean;
   availableHarnesses: AgentHarness[];
   updatedAt: number;
@@ -56,6 +60,7 @@ export type SendCommandArgs =
         chatroomId: Id<'chatroom_rooms'>;
         role: string;
         model?: string;
+        thinkingLevel?: ThinkingLevel;
         agentHarness: AgentHarness;
         workingDir?: string;
       };

@@ -23,6 +23,7 @@ import {
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import type { ThinkingLevel } from '../../entities/agent';
 import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,6 +47,9 @@ export interface StartAgentInput {
   agentHarness: AgentHarness;
   /** Working directory on the machine (absolute path). */
   workingDir: string;
+
+  /** Thinking level for supported harnesses (e.g. 'high'). Optional. */
+  thinkingLevel?: ThinkingLevel;
 
   /**
    * Human-readable reason for this start command.
@@ -87,7 +91,7 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, thinkingLevel, reason } = input;
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 
@@ -117,6 +121,7 @@ export async function startAgent(
       machineId,
       agentHarness: agentHarness as AgentHarness | undefined,
       model,
+      thinkingLevel,
       workingDir,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
@@ -148,6 +153,7 @@ export async function startAgent(
     agentHarness,
     model,
     workingDir,
+    thinkingLevel,
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,

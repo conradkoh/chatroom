@@ -19,6 +19,7 @@ export interface AgentRequestStartEventPayload {
   agentHarness: AgentHarness;
   model: string;
   workingDir: string;
+  thinkingLevel?: string;
   reason: string;
   deadline: number;
 }
@@ -44,6 +45,7 @@ export async function onRequestStartAgent(
     role: event.role,
     agentHarness: event.agentHarness,
     model: event.model,
+    thinkingLevel: event.thinkingLevel,
     workingDir: event.workingDir,
     reason: event.reason as StartAgentReason,
   });
