@@ -8,7 +8,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { internalMutation, mutation, query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 
@@ -243,68 +243,6 @@ export const getFileContent = query({
 
 // ─── File Content Upload (daemon → backend) ─────────────────────────────────
 
-/**
- * Uploads file content from the daemon.
- * Internal mutation — called by daemon after reading the file.
- */
-export const uploadFileContent = internalMutation({
-  args: {
-    machineId: v.string(),
-    workingDir: v.string(),
-    filePath: v.string(),
-    content: v.string(),
-    encoding: v.string(),
-    truncated: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-
-    // Upsert file content
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      filePath: args.filePath,
-      content: args.content,
-      encoding: args.encoding,
-      truncated: args.truncated,
-      fetchedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileContent', data);
-    }
-
-    // Mark the request as done
-    const request = await ctx.db
-      .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    if (request) {
-      await ctx.db.patch(request._id, {
-        status: 'done',
-        updatedAt: now,
-      });
-    }
-  },
-});
 
 // ─── Daemon: Pending File Content Requests ──────────────────────────────────
 

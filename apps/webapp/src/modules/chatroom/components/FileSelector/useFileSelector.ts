@@ -80,14 +80,9 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     }
   }, []);
 
-  const close = useCallback(() => {
-    setOpen(false);
-  }, []);
-
   return {
     open,
     setOpen,
-    close,
     files,
     recentFiles,
     selectedFile,
