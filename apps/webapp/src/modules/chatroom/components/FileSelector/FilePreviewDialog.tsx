@@ -5,6 +5,8 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { Loader2, X } from 'lucide-react';
 import { memo, useCallback, useEffect } from 'react';
 
+import { getFileIcon } from './fileIcons';
+
 import {
   Dialog,
   DialogContent,
@@ -84,6 +86,10 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-chatroom-border px-4 py-2.5 shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
+            {filePath && (() => {
+              const Icon = getFileIcon(filePath);
+              return <Icon className="h-4 w-4 shrink-0 text-chatroom-text-muted" />;
+            })()}
             <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
               {filePath}
             </span>

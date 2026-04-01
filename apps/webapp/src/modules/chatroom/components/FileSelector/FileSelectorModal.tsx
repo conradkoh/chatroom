@@ -1,7 +1,8 @@
 'use client';
 
-import { FileIcon } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
+
+import { getFileIcon } from './fileIcons';
 
 import {
   Command,
@@ -95,7 +96,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                   onSelect={() => handleSelect(file.path)}
                   className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                 >
-                  <FileIcon className="h-3.5 w-3.5 shrink-0 text-chatroom-text-muted" />
+                {(() => {
+                    const Icon = getFileIcon(file.path);
+                    return <Icon className="h-3.5 w-3.5 shrink-0 text-chatroom-text-muted" />;
+                  })()}
                   <span className="text-xs font-bold truncate font-mono flex-1">
                     {getFileName(file.path)}
                   </span>
