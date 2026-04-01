@@ -381,6 +381,7 @@ export const getMachineAgentConfigs = query({
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
         spawnedAt: config.spawnedAt,
+        thinkingLevel: config.thinkingLevel,
       };
     });
 
