@@ -264,6 +264,22 @@ export function useAgentControls({
     return machine?.availableModels[selectedHarness] ?? [];
   }, [selectedMachineId, selectedHarness, connectedMachines]);
 
+  // Machine-level model filter — used to exclude blacklisted models from
+  // automatic selection and the model combobox.
+  const machineModelFilter = useSessionQuery(
+    api.machines.getMachineModelFilters,
+    selectedMachineId && selectedHarness
+      ? { machineId: selectedMachineId, agentHarness: selectedHarness }
+      : 'skip'
+  );
+
+  // Visible models = available models minus those hidden by the filter.
+  // The combobox and automatic model selection use this list.
+  const visibleModels = useMemo(
+    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
+    [availableModelsForHarness, machineModelFilter]
+  );
+
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
   // Because it's computed synchronously in useMemo, switching harness
@@ -274,48 +290,56 @@ export function useAgentControls({
   //   2. Saved machine config model for the same harness (agentType must match)
   //   3. Team config model
   //   4. Saved user preference model (from mount-time snapshot)
-  //   5. First available model for this harness
+  //   5. First visible (non-blacklisted) model for this harness
+  //
+  // Steps 1 validates against the full model list (explicit user choice
+  // is respected even if the model is later hidden — the UI shows a warning).
+  // Steps 2–5 prefer visible models to avoid auto-selecting blacklisted ones.
   const selectedModel = useMemo((): string | null => {
     if (!selectedHarness || availableModelsForHarness.length === 0) {
       return null;
     }
 
     // 1. Per-harness user choice (if still valid in current model list)
+    //    Explicit user choice is respected even if hidden — UI warns.
     const userChoice = userModelByHarness[selectedHarness];
     if (userChoice && availableModelsForHarness.includes(userChoice)) {
       return userChoice;
     }
 
     // 2. Machine config model — only if it's saved under the same harness type
+    //    Prefer visible; fall through if the saved model is now hidden.
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
-    if (config?.model && availableModelsForHarness.includes(config.model)) {
+    if (config?.model && visibleModels.includes(config.model)) {
       return config.model;
     }
 
-    // 3. Team config model
-    if (teamConfigModel && availableModelsForHarness.includes(teamConfigModel)) {
+    // 3. Team config model — only if visible
+    if (teamConfigModel && visibleModels.includes(teamConfigModel)) {
       return teamConfigModel;
     }
 
     // 4. Saved user preference model (from mount-time snapshot — not reactive)
+    //    Only if visible
     const pref = initialPreferenceRef.current;
     if (
       pref &&
       pref.machineId === selectedMachineId &&
       pref.agentHarness === selectedHarness &&
       pref.model &&
-      availableModelsForHarness.includes(pref.model)
+      visibleModels.includes(pref.model)
     ) {
       return pref.model;
     }
 
-    // 5. First available for this harness
-    return availableModelsForHarness[0];
+    // 5. First visible (non-blacklisted) model for this harness
+    return visibleModels[0] ?? availableModelsForHarness[0];
   }, [
     selectedHarness,
     availableModelsForHarness,
+    visibleModels,
     userModelByHarness,
     roleConfigs,
     selectedMachineId,
@@ -486,6 +510,8 @@ export function useAgentControls({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    visibleModels,
+    machineModelFilter,
     isAgentRunning,
     isBusy,
     hasModels,
