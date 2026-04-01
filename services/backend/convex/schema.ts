@@ -1405,6 +1405,44 @@ export default defineSchema({
     .index('by_machine', ['machineId'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
+  // ─── Workspace File Tree ─────────────────────────────────────────────────────
+  // Stores file tree snapshots and on-demand file content per workspace.
+
+  /**
+   * File tree snapshot for a workspace.
+   * Stores the entire tree as a single JSON blob to avoid per-file row overhead.
+   * Keep under Convex's 1MB document limit (~10,000 entries max).
+   */
+  chatroom_workspaceFileTree: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // JSON blob of FileTree (entries array + metadata)
+    treeJson: v.string(),
+
+    // When the tree was last scanned
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * On-demand file content cache.
+   * Stores content for individual files fetched by the frontend.
+   * Content capped at 500KB per file.
+   */
+  chatroom_workspaceFileContent: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    // File content (max 500KB)
+    content: v.string(),
+    encoding: v.string(), // 'utf8'
+    truncated: v.boolean(),
+
+    // When the content was fetched
+    fetchedAt: v.number(),
+  }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
   // ─── Structured Workflows ────────────────────────────────────────────────────
   // DAG-based workflows that agents create and execute step-by-step.
   // Workflows block user handoff until completed or explicitly exited.
