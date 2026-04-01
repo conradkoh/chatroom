@@ -22,8 +22,7 @@ import {
   buildTeamRoleKey,
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
-import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import type { ThinkingLevel } from '../../entities/agent';
+import type { AgentHarness, AgentStartReason, AgentType, ThinkingLevel } from '../../entities/agent';
 import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ export interface AgentPreference {
   machineId: string;
   agentHarness: AgentHarness;
   model?: string;
-  thinkingLevel?: string;
+  thinkingLevel?: ThinkingLevel;
   workingDir?: string;
 }
 

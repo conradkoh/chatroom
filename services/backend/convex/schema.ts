@@ -10,14 +10,8 @@ export const agentHarnessValidator = v.union(
 );
 
 /** Thinking level validator — controls reasoning depth for supported harnesses. */
-export const thinkingLevelValidator = v.union(
-  v.literal('off'),
-  v.literal('minimal'),
-  v.literal('low'),
-  v.literal('medium'),
-  v.literal('high'),
-  v.literal('xhigh')
-);
+import { thinkingLevelValidator } from '../src/domain/entities/agent';
+export { thinkingLevelValidator };
 
 /**
  * Database schema definition for the application.
