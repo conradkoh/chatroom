@@ -12,6 +12,7 @@ import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-sta
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
+import { pushFileTree } from './file-tree-heartbeat.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
@@ -182,6 +183,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         pushGitState(ctx).catch((err: unknown) => {
           console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`);
         });
+        // Push file tree after each successful heartbeat (change-detected, no-op if unchanged)
+        pushFileTree(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  File tree push failed: ${getErrorMessage(err)}`);
+        });
       })
       .catch((err: unknown) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
@@ -200,6 +205,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   pushGitState(ctx).catch(() => {});
+  pushFileTree(ctx).catch(() => {});
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
