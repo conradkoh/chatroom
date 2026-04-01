@@ -9,15 +9,16 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { internalMutation, mutation, query } from './_generated/server';
+import type { QueryCtx, MutationCtx } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function getAuthenticatedUser(
-  ctx: { db: any },
+  ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<{ isAuthenticated: true; userId: any } | { isAuthenticated: false }> {
-  const result = await validateSession(ctx as any, sessionId);
+  const result = await validateSession(ctx, sessionId);
   if (!result.valid) {
     return { isAuthenticated: false };
   }

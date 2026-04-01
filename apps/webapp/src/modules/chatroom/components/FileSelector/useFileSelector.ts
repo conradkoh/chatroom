@@ -13,6 +13,7 @@ export interface FileEntry {
   path: string;
   type: 'file' | 'directory';
   size?: number;
+  modifiedAt?: number;
 }
 
 export function useFileSelector({ machineId, workingDir }: UseFileSelectorOptions) {
