@@ -94,7 +94,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                   key={file.path}
                   value={file.path}
                   onSelect={() => handleSelect(file.path)}
-                  className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                  className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:border-l-2 data-[selected=true]:border-l-chatroom-accent"
                 >
                 {(() => {
                     const Icon = getFileIcon(file.path);
