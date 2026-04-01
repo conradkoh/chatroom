@@ -371,6 +371,9 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // For broadcast messages, this gets set when the message is claimed
     claimedByRole: v.optional(v.string()),
+    // Source platform for messages from external integrations (e.g. "telegram")
+    // Used for loop prevention — messages with a sourcePlatform are not re-forwarded.
+    sourcePlatform: v.optional(v.string()),
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
@@ -1459,4 +1462,28 @@ export default defineSchema({
     .index('by_workflow', ['workflowId'])
     .index('by_workflow_stepKey', ['workflowId', 'stepKey'])
     .index('by_chatroom', ['chatroomId']),
+
+  /** Chat platform integrations (e.g. Telegram, Slack) linked to a chatroom. */
+  chatroom_integrations: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    /** Platform identifier (e.g. "telegram", "slack") */
+    platform: v.string(),
+    /** Platform-specific configuration (bot token, chat ID, etc.) */
+    config: v.object({
+      /** Bot token or API key — sensitive, stored encrypted at rest by Convex */
+      botToken: v.optional(v.string()),
+      /** Platform-specific chat/channel ID to bridge */
+      chatId: v.optional(v.string()),
+      /** Optional webhook URL */
+      webhookUrl: v.optional(v.string()),
+      /** Webhook secret for verifying inbound requests from Telegram */
+      webhookSecret: v.optional(v.string()),
+    }),
+    /** Whether the integration is currently active */
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_platform', ['chatroomId', 'platform']),
 });

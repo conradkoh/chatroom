@@ -1032,6 +1032,32 @@ program
   });
 
 // ============================================================================
+// TELEGRAM COMMANDS (auth required)
+// ============================================================================
+
+const telegramCommand = program.command('telegram').description('Telegram integration commands');
+
+telegramCommand
+  .command('send-message')
+  .description('Send a message to a connected Telegram integration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--integration-id <id>', 'Telegram integration ID')
+  .requiredOption('--message <text>', 'Message to send')
+  .option('--role <role>', 'Sender role label (default: user)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      integrationId: string;
+      message: string;
+      role?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { sendMessage } = await import('./commands/telegram/index.js');
+      await sendMessage(options);
+    }
+  );
+
+// ============================================================================
 // MACHINE COMMANDS (auth required)
 // ============================================================================
 
