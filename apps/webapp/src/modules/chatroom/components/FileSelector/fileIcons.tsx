@@ -79,3 +79,12 @@ export function getFileIcon(path: string): LucideIcon {
   const ext = path.slice(lastDot).toLowerCase();
   return EXTENSION_ICON_MAP[ext] ?? File;
 }
+
+/**
+ * Renders a file type icon for the given path.
+ * Convenience wrapper to avoid IIFE patterns in JSX.
+ */
+export function FileTypeIcon({ path, className }: { path: string; className?: string }) {
+  const Icon = getFileIcon(path);
+  return <Icon className={className} />;
+}
