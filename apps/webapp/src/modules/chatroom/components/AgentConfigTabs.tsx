@@ -18,6 +18,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from '
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -282,60 +283,32 @@ export function useAgentControls({
 
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
-  // Because it's computed synchronously in useMemo, switching harness
-  // is guaranteed to show a model from the NEW harness in the same render.
-  //
-  // Priority within a harness:
-  //   1. User's explicit per-harness choice (userModelByHarness), if still valid
-  //   2. Saved machine config model for the same harness (agentType must match)
-  //   3. Team config model
-  //   4. Saved user preference model (from mount-time snapshot)
-  //   5. First visible (non-blacklisted) model for this harness
-  //
-  // Steps 1 validates against the full model list (explicit user choice
-  // is respected even if the model is later hidden — the UI shows a warning).
-  // Steps 2–5 prefer visible models to avoid auto-selecting blacklisted ones.
+  // Uses the extracted selectModel utility for testability.
   const selectedModel = useMemo((): string | null => {
-    if (!selectedHarness || availableModelsForHarness.length === 0) {
-      return null;
-    }
-
-    // 1. Per-harness user choice (if still valid in current model list)
-    //    Explicit user choice is respected even if hidden — UI warns.
-    const userChoice = userModelByHarness[selectedHarness];
-    if (userChoice && availableModelsForHarness.includes(userChoice)) {
-      return userChoice;
-    }
-
-    // 2. Machine config model — only if it's saved under the same harness type
-    //    Prefer visible; fall through if the saved model is now hidden.
+    // Machine config model — only if it's saved under the same harness type
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
-    if (config?.model && visibleModels.includes(config.model)) {
-      return config.model;
-    }
 
-    // 3. Team config model — only if visible
-    if (teamConfigModel && visibleModels.includes(teamConfigModel)) {
-      return teamConfigModel;
-    }
-
-    // 4. Saved user preference model (from mount-time snapshot — not reactive)
-    //    Only if visible
+    // Saved user preference model (from mount-time snapshot — not reactive)
     const pref = initialPreferenceRef.current;
-    if (
+    const prefModel =
       pref &&
       pref.machineId === selectedMachineId &&
       pref.agentHarness === selectedHarness &&
-      pref.model &&
-      visibleModels.includes(pref.model)
-    ) {
-      return pref.model;
-    }
+      pref.model
+        ? pref.model
+        : undefined;
 
-    // 5. First visible (non-blacklisted) model for this harness
-    return visibleModels[0] ?? availableModelsForHarness[0];
+    return selectModel({
+      selectedHarness,
+      availableModels: availableModelsForHarness,
+      visibleModels,
+      userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
+      machineConfigModel: config?.model ?? undefined,
+      teamConfigModel,
+      preferenceModel: prefModel,
+    });
   }, [
     selectedHarness,
     availableModelsForHarness,
@@ -526,29 +499,6 @@ export function useAgentControls({
     handleModelChange,
     handleWorkingDirChange,
   };
-}
-
-// ─── Model Filter Helper ─────────────────────────────────────────────
-
-/**
- * Returns true if the given model should be hidden based on the machine-level filter.
- * Checks both exact model IDs and provider prefixes (the part before the first '/').
- */
-function isModelHidden(
-  modelId: string,
-  filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
-): boolean {
-  if (!filter) return false;
-  const provider = modelId.split('/')[0];
-  const providerHidden = filter.hiddenProviders.includes(provider);
-  const hasExplicitOverride = filter.hiddenModels.includes(modelId);
-
-  if (providerHidden) {
-    // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
-    return !hasExplicitOverride;
-  }
-  // Provider is visible; hiddenModels contains models to hide
-  return hasExplicitOverride;
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
