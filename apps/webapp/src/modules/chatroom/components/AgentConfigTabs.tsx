@@ -18,6 +18,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from '
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -264,58 +265,54 @@ export function useAgentControls({
     return machine?.availableModels[selectedHarness] ?? [];
   }, [selectedMachineId, selectedHarness, connectedMachines]);
 
+  // Machine-level model filter — used to exclude blacklisted models from
+  // automatic selection and the model combobox.
+  const machineModelFilter = useSessionQuery(
+    api.machines.getMachineModelFilters,
+    selectedMachineId && selectedHarness
+      ? { machineId: selectedMachineId, agentHarness: selectedHarness }
+      : 'skip'
+  );
+
+  // Visible models = available models minus those hidden by the filter.
+  // The combobox and automatic model selection use this list.
+  const visibleModels = useMemo(
+    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
+    [availableModelsForHarness, machineModelFilter]
+  );
+
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
-  // Because it's computed synchronously in useMemo, switching harness
-  // is guaranteed to show a model from the NEW harness in the same render.
-  //
-  // Priority within a harness:
-  //   1. User's explicit per-harness choice (userModelByHarness), if still valid
-  //   2. Saved machine config model for the same harness (agentType must match)
-  //   3. Team config model
-  //   4. Saved user preference model (from mount-time snapshot)
-  //   5. First available model for this harness
+  // Uses the extracted selectModel utility for testability.
   const selectedModel = useMemo((): string | null => {
-    if (!selectedHarness || availableModelsForHarness.length === 0) {
-      return null;
-    }
-
-    // 1. Per-harness user choice (if still valid in current model list)
-    const userChoice = userModelByHarness[selectedHarness];
-    if (userChoice && availableModelsForHarness.includes(userChoice)) {
-      return userChoice;
-    }
-
-    // 2. Machine config model — only if it's saved under the same harness type
+    // Machine config model — only if it's saved under the same harness type
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
-    if (config?.model && availableModelsForHarness.includes(config.model)) {
-      return config.model;
-    }
 
-    // 3. Team config model
-    if (teamConfigModel && availableModelsForHarness.includes(teamConfigModel)) {
-      return teamConfigModel;
-    }
-
-    // 4. Saved user preference model (from mount-time snapshot — not reactive)
+    // Saved user preference model (from mount-time snapshot — not reactive)
     const pref = initialPreferenceRef.current;
-    if (
+    const prefModel =
       pref &&
       pref.machineId === selectedMachineId &&
       pref.agentHarness === selectedHarness &&
-      pref.model &&
-      availableModelsForHarness.includes(pref.model)
-    ) {
-      return pref.model;
-    }
+      pref.model
+        ? pref.model
+        : undefined;
 
-    // 5. First available for this harness
-    return availableModelsForHarness[0];
+    return selectModel({
+      selectedHarness,
+      availableModels: availableModelsForHarness,
+      visibleModels,
+      userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
+      machineConfigModel: config?.model ?? undefined,
+      teamConfigModel,
+      preferenceModel: prefModel,
+    });
   }, [
     selectedHarness,
     availableModelsForHarness,
+    visibleModels,
     userModelByHarness,
     roleConfigs,
     selectedMachineId,
@@ -486,6 +483,8 @@ export function useAgentControls({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    visibleModels,
+    machineModelFilter,
     isAgentRunning,
     isBusy,
     hasModels,
@@ -500,29 +499,6 @@ export function useAgentControls({
     handleModelChange,
     handleWorkingDirChange,
   };
-}
-
-// ─── Model Filter Helper ─────────────────────────────────────────────
-
-/**
- * Returns true if the given model should be hidden based on the machine-level filter.
- * Checks both exact model IDs and provider prefixes (the part before the first '/').
- */
-function isModelHidden(
-  modelId: string,
-  filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
-): boolean {
-  if (!filter) return false;
-  const provider = modelId.split('/')[0];
-  const providerHidden = filter.hiddenProviders.includes(provider);
-  const hasExplicitOverride = filter.hiddenModels.includes(modelId);
-
-  if (providerHidden) {
-    // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
-    return !hasExplicitOverride;
-  }
-  // Provider is visible; hiddenModels contains models to hide
-  return hasExplicitOverride;
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
