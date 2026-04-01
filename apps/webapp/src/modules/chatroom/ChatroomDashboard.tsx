@@ -32,7 +32,7 @@ import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
-import { FileSelectorModal, useFileSelector } from './components/FileSelector';
+import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
 import {
   DropdownMenu,
@@ -699,6 +699,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onOpenChange={fileSelector.setOpen}
             files={fileSelector.files}
             onSelectFile={fileSelector.selectFile}
+          />
+
+          <FilePreviewDialog
+            filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+            machineId={firstWorkspace?.machineId ?? null}
+            workingDir={firstWorkspace?.workingDir ?? null}
+            onClose={() => fileSelector.selectFile('')}
           />
 
           {/* Setup modal - only shown during setup mode */}

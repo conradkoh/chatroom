@@ -57,7 +57,7 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
 
   // When a file is selected from the modal
   const selectFile = useCallback((filePath: string) => {
-    setSelectedFile(filePath);
+    setSelectedFile(filePath || null);
   }, []);
 
   const close = useCallback(() => {
