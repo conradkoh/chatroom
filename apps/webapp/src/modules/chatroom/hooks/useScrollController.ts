@@ -234,10 +234,14 @@ export class ScrollController {
       this.userScrolling = false;
       this.userScrollTimeout = null;
 
-      // After the user stops scrolling, check if they left the bottom
-      if (!this.isAtBottom() && this.pinned) {
+      // After the user stops scrolling, sync pinned state with position
+      const atBottom = this.isAtBottom();
+      if (!atBottom && this.pinned) {
         this.pinned = false;
         this.onPinnedChange(false);
+      } else if (atBottom && !this.pinned) {
+        this.pinned = true;
+        this.onPinnedChange(true);
       }
     }, USER_SCROLL_TIMEOUT_MS);
   };
