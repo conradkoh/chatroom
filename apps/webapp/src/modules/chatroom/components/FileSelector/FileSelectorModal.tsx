@@ -27,6 +27,7 @@ interface FileSelectorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   files: FileEntry[];
+  recentFiles?: string[];
   onSelectFile: (filePath: string) => void;
   isLoading?: boolean;
   hasWorkspace?: boolean;
@@ -55,6 +56,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   open,
   onOpenChange,
   files,
+  recentFiles = [],
   onSelectFile,
   isLoading,
   hasWorkspace,
@@ -118,7 +120,27 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
                   NO FILES FOUND
                 </CommandEmpty>
-            <CommandGroup>
+                {recentFiles.length > 0 && !search && (
+                  <CommandGroup heading="RECENT">
+                    {recentFiles.map((path) => (
+                      <CommandItem
+                        key={`recent:${path}`}
+                        value={path}
+                        onSelect={() => handleSelect(path)}
+                        className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:border-l-2 data-[selected=true]:border-l-chatroom-accent"
+                      >
+                        <FileTypeIcon path={path} className="h-3.5 w-3.5 shrink-0 text-chatroom-text-muted" />
+                        <span className="text-xs font-bold truncate font-mono flex-1">
+                          {getFileName(path)}
+                        </span>
+                        <span className="text-[10px] text-chatroom-text-muted font-mono truncate max-w-[50%]">
+                          {getParentDir(path)}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+            <CommandGroup heading={recentFiles.length > 0 && !search ? 'ALL FILES' : undefined}>
               {files.slice(0, 200).map((file) => (
                 <CommandItem
                   key={file.path}

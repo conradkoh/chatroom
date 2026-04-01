@@ -698,6 +698,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             open={fileSelector.open}
             onOpenChange={fileSelector.setOpen}
             files={fileSelector.files}
+            recentFiles={fileSelector.recentFiles}
             onSelectFile={fileSelector.selectFile}
             isLoading={fileSelector.isLoading}
             hasWorkspace={fileSelector.hasWorkspace}

@@ -56,9 +56,28 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Recently opened files (persisted in localStorage)
+  const [recentFiles, setRecentFiles] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('fileSelector:recent') ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+
   // When a file is selected from the modal
   const selectFile = useCallback((filePath: string) => {
     setSelectedFile(filePath || null);
+    if (filePath) {
+      setRecentFiles((prev) => {
+        const updated = [filePath, ...prev.filter((p) => p !== filePath)].slice(0, 5);
+        try {
+          localStorage.setItem('fileSelector:recent', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
   }, []);
 
   const close = useCallback(() => {
@@ -70,6 +89,7 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     setOpen,
     close,
     files,
+    recentFiles,
     selectedFile,
     selectFile,
     hasTree: !!treeResult,
