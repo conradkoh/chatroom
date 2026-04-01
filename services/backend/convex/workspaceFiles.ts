@@ -299,3 +299,106 @@ export const uploadFileContent = internalMutation({
     }
   },
 });
+
+// ─── Daemon: Pending File Content Requests ──────────────────────────────────
+
+/**
+ * Returns pending file content requests for a machine.
+ * Daemon polls this to discover what files to read.
+ */
+export const getPendingFileContentRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .collect();
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      filePath: r.filePath,
+    }));
+  },
+});
+
+// ─── Daemon: Fulfill File Content ───────────────────────────────────────────
+
+/**
+ * Uploads file content from the daemon (session-authed).
+ * Upserts content and marks the request as done.
+ */
+export const fulfillFileContent = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    content: v.string(),
+    encoding: v.string(),
+    truncated: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    const now = Date.now();
+
+    // Upsert file content
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    const data = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      filePath: args.filePath,
+      content: args.content,
+      encoding: args.encoding,
+      truncated: args.truncated,
+      fetchedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileContent', data);
+    }
+
+    // Mark request as done
+    const request = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch(request._id, {
+        status: 'done' as const,
+        updatedAt: now,
+      });
+    }
+  },
+});

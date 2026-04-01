@@ -13,6 +13,7 @@ import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
 import { pushFileTree } from './file-tree-heartbeat.js';
+import { fulfillFileContentRequests } from './file-content-fulfillment.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
@@ -186,6 +187,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         // Push file tree after each successful heartbeat (change-detected, no-op if unchanged)
         pushFileTree(ctx).catch((err: unknown) => {
           console.warn(`[${formatTimestamp()}] ⚠️  File tree push failed: ${getErrorMessage(err)}`);
+        });
+        // Fulfill any pending file content requests
+        fulfillFileContentRequests(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  File content fulfillment failed: ${getErrorMessage(err)}`);
         });
       })
       .catch((err: unknown) => {
