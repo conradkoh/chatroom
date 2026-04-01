@@ -72,5 +72,7 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     selectedFile,
     selectFile,
     hasTree: !!treeResult,
+    isLoading: treeResult === undefined && !!machineId && !!workingDir,
+    hasWorkspace: !!machineId && !!workingDir,
   };
 }

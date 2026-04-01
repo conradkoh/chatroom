@@ -1,5 +1,6 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
 import { getFileIcon } from './fileIcons';
@@ -27,6 +28,8 @@ interface FileSelectorModalProps {
   onOpenChange: (open: boolean) => void;
   files: FileEntry[];
   onSelectFile: (filePath: string) => void;
+  isLoading?: boolean;
+  hasWorkspace?: boolean;
 }
 
 /** Extract filename from a path for display. */
@@ -46,6 +49,8 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   onOpenChange,
   files,
   onSelectFile,
+  isLoading,
+  hasWorkspace,
 }: FileSelectorModalProps) {
   const [search, setSearch] = useState('');
 
@@ -85,9 +90,27 @@ export const FileSelectorModal = memo(function FileSelectorModal({
             className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none"
           />
           <CommandList className="max-h-[300px]">
-            <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
-              NO FILES FOUND
-            </CommandEmpty>
+            {!hasWorkspace ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
+                  NO WORKSPACE CONNECTED
+                </span>
+                <span className="text-[10px] text-chatroom-text-muted">
+                  Start a daemon to browse files
+                </span>
+              </div>
+            ) : isLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                  LOADING FILE TREE...
+                </span>
+              </div>
+            ) : (
+              <>
+                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
+                  NO FILES FOUND
+                </CommandEmpty>
             <CommandGroup>
               {files.slice(0, 200).map((file) => (
                 <CommandItem
@@ -115,6 +138,8 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
                 SHOWING 200 OF {files.length} FILES
               </div>
+            )}
+              </>
             )}
           </CommandList>
         </Command>
