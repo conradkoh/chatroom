@@ -2,8 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Loader2, X } from 'lucide-react';
-import { memo, useCallback, useEffect } from 'react';
+import { Check, Copy, Loader2, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import { getFileIcon } from './fileIcons';
 
@@ -47,6 +47,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 }: FilePreviewDialogProps) {
   const isOpen = !!filePath;
 
+  const [copied, setCopied] = useState(false);
+
   // Fetch cached content
   const contentResult = useSessionQuery(
     api.workspaceFiles.getFileContent,
@@ -64,6 +66,15 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
       requestContent({ machineId, workingDir, filePath }).catch(() => {});
     }
   }, [filePath, machineId, workingDir, requestContent]);
+
+  const handleCopyPath = useCallback(async () => {
+    if (!filePath) return;
+    try {
+      await navigator.clipboard.writeText(filePath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }, [filePath]);
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -99,12 +110,21 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1 shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={handleCopyPath}
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1"
+              title="Copy file path"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
