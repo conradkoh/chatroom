@@ -141,9 +141,20 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
             </div>
           ) : (
-            <pre className="p-4 text-xs font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
-              {contentResult.content}
-            </pre>
+            <div className="flex overflow-auto">
+              {/* Line numbers */}
+              <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary px-3 py-4 text-right">
+                {contentResult.content.split('\n').map((_, i) => (
+                  <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              {/* Content */}
+              <pre className="flex-1 p-4 text-xs font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
+                {contentResult.content}
+              </pre>
+            </div>
           )}
         </div>
       </DialogContent>
