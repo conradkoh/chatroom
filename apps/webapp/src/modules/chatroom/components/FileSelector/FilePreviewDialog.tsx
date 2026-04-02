@@ -140,7 +140,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 ))}
               </div>
               {/* Content */}
-              <pre className="flex-1 p-4 text-xs font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
+              <pre className="flex-1 p-4 text-[13px] font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
                 {contentResult.content}
               </pre>
             </div>
