@@ -50,7 +50,7 @@ function getWorkflowStatusBadge(status: string) {
       return {
         label: 'Draft',
         classes:
-          'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400',
+          'bg-chatroom-bg-tertiary text-chatroom-text-muted',
       };
     case 'active':
       return {
@@ -71,7 +71,7 @@ function getWorkflowStatusBadge(status: string) {
           'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
       };
     default:
-      return { label: status, classes: 'bg-gray-100 dark:bg-gray-800' };
+      return { label: status, classes: 'bg-chatroom-bg-tertiary' };
   }
 }
 
@@ -136,7 +136,7 @@ function StepCard({
   const emoji = getStepStatusEmoji(step.status);
 
   return (
-    <div className="border border-chatroom-border rounded-md overflow-hidden">
+    <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* Header — always visible */}
       <button
         onClick={onToggle}

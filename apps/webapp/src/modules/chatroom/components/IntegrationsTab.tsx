@@ -116,7 +116,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({
 const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="w-12 h-12 rounded-lg bg-chatroom-bg-tertiary flex items-center justify-center mb-4">
+      <div className="w-12 h-12 rounded-none bg-chatroom-bg-tertiary flex items-center justify-center mb-4">
         <MessageSquare size={24} className="text-chatroom-text-muted" />
       </div>
       <h3 className="text-sm font-bold text-chatroom-text-primary mb-1">
@@ -211,11 +211,11 @@ const IntegrationCard = memo(function IntegrationCard({
   const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
 
   return (
-    <div className="border border-chatroom-border rounded-lg p-4 bg-chatroom-bg-secondary">
+    <div className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary">
       <div className="flex items-center justify-between">
         {/* Left: Platform info */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-chatroom-bg-tertiary flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-none bg-chatroom-bg-tertiary flex items-center justify-center shrink-0">
             <PlatformIcon size={20} className="text-chatroom-text-muted" />
           </div>
           <div className="min-w-0">
@@ -224,7 +224,7 @@ const IntegrationCard = memo(function IntegrationCard({
                 {platformName}
               </span>
               <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
                   integration.enabled
                     ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
                     : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
@@ -443,7 +443,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   }, [botToken, chatroomId, createIntegration]);
 
   return (
-    <div className="border border-chatroom-border rounded-lg bg-chatroom-bg-secondary overflow-hidden">
+    <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
       {/* Wizard Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary/50">
         <div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs text-chatroom-text-muted">
-                <span className="w-5 h-5 rounded-full bg-chatroom-accent/20 text-chatroom-accent flex items-center justify-center text-[10px] font-bold">
+                <span className="w-5 h-5 rounded-none bg-chatroom-accent/20 text-chatroom-accent flex items-center justify-center text-[10px] font-bold">
                   1
                 </span>
                 Create a bot via{' '}
@@ -485,7 +485,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 </a>
               </div>
               <div className="flex items-center gap-2 text-xs text-chatroom-text-muted">
-                <span className="w-5 h-5 rounded-full bg-chatroom-accent/20 text-chatroom-accent flex items-center justify-center text-[10px] font-bold">
+                <span className="w-5 h-5 rounded-none bg-chatroom-accent/20 text-chatroom-accent flex items-center justify-center text-[10px] font-bold">
                   2
                 </span>
                 Paste your bot token below
@@ -544,7 +544,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               </p>
             </div>
 
-            <div className="space-y-3 p-3 rounded-lg bg-chatroom-bg-tertiary text-xs text-chatroom-text-muted">
+            <div className="space-y-3 p-3 rounded-none bg-chatroom-bg-tertiary text-xs text-chatroom-text-muted">
               <p className="font-medium text-chatroom-text-primary">How to find your Chat ID:</p>
               <ul className="list-disc list-inside space-y-1">
                 <li>
@@ -628,8 +628,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         {/* Step: Confirm Bot */}
         {step === 'confirm' && botInfo && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 dark:bg-green-500/10 border border-green-500/20">
-              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 p-3 rounded-none bg-green-500/5 dark:bg-green-500/10 border border-green-500/20">
+              <div className="w-10 h-10 rounded-none bg-green-500/20 flex items-center justify-center">
                 <Bot size={20} className="text-green-500 dark:text-green-400" />
               </div>
               <div>
@@ -646,7 +646,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
             </div>
 
             {chatId.trim() && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-chatroom-bg-tertiary">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-none bg-chatroom-bg-tertiary">
                 <span className="text-xs text-chatroom-text-muted">Chat ID:</span>
                 <span className="text-xs font-mono text-chatroom-text-primary">{chatId.trim()}</span>
               </div>
@@ -693,7 +693,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         {/* Step: Done */}
         {step === 'done' && (
           <div className="space-y-4 text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-none bg-green-500/20 flex items-center justify-center mx-auto">
               <Check size={24} className="text-green-500 dark:text-green-400" />
             </div>
             <div>

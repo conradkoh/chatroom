@@ -206,7 +206,7 @@ export const EventStreamModal = memo(function EventStreamModal({
                 <div className="flex flex-col gap-2 p-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-3 py-2.5">
-                      <div className="w-2 h-2 rounded-full bg-chatroom-bg-tertiary animate-pulse" />
+                      <div className="w-2 h-2 bg-chatroom-bg-tertiary animate-pulse" />
                       <div className="flex-1 space-y-1.5">
                         <div className="h-3 w-3/4 rounded bg-chatroom-bg-tertiary animate-pulse" />
                         <div className="h-2 w-1/2 rounded bg-chatroom-bg-tertiary animate-pulse" />
