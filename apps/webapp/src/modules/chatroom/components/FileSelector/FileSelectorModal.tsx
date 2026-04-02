@@ -45,13 +45,6 @@ function getParentDir(path: string): string {
   return parts.slice(0, -1).join('/');
 }
 
-/** Format file size for display. */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export const FileSelectorModal = memo(function FileSelectorModal({
   open,
   onOpenChange,
@@ -88,17 +81,21 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         <DialogTitle>FILE SELECTOR</DialogTitle>
         <DialogDescription>Search and open workspace files</DialogDescription>
       </DialogHeader>
+      {/* u01: Position at top ~20% of viewport, u02: Fixed width ~600px */}
       <DialogContent
-        className="max-w-lg rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary p-0 shadow-none overflow-hidden"
+        className="w-[600px] max-w-[90vw] rounded-none border border-chatroom-border bg-chatroom-bg-primary p-0 shadow-lg overflow-hidden fixed top-[20%] translate-y-0 left-[50%] translate-x-[-50%]"
+        style={{ maxHeight: '60vh' }}
       >
         <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          {/* u03: Seamless search input with only bottom border, u04: "Go to File..." placeholder */}
           <CommandInput
-            placeholder="Search files..."
+            placeholder="Go to File..."
             value={search}
             onValueChange={setSearch}
-            className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none"
+            className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none border-none h-10 text-sm"
           />
-          <CommandList className="max-h-[300px]">
+          {/* u10: Dynamic list height, max 50vh, at least 5 items visible */}
+          <CommandList className="max-h-[50vh] min-h-[160px]">
             {!hasWorkspace ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
@@ -127,49 +124,51 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                         key={`recent:${path}`}
                         value={path}
                         onSelect={() => handleSelect(path)}
-                        className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:border-l-2 data-[selected=true]:border-l-chatroom-accent"
+                        // u05: Compact 28px height, u07: Full-width solid bg highlight
+                        className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                       >
-                        <FileTypeIcon path={path} className="h-3.5 w-3.5 shrink-0 text-chatroom-text-muted" />
-                        <span className="text-xs font-bold truncate font-mono flex-1">
+                        <FileTypeIcon path={path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                        {/* u06: File name bold, directory lighter, same row */}
+                        <span className="text-sm font-medium truncate flex-1">
                           {getFileName(path)}
                         </span>
-                        <span className="text-[10px] text-chatroom-text-muted font-mono truncate max-w-[50%]">
-                          {getParentDir(path)}
-                        </span>
+                        {getParentDir(path) && (
+                          <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                            {getParentDir(path)}
+                          </span>
+                        )}
                       </CommandItem>
                     ))}
                   </CommandGroup>
                 )}
-            <CommandGroup heading={recentFiles.length > 0 && !search ? 'ALL FILES' : undefined}>
-              {files.slice(0, 200).map((file) => (
-                <CommandItem
-                  key={file.path}
-                  value={file.path}
-                  onSelect={() => handleSelect(file.path)}
-                  className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:border-l-2 data-[selected=true]:border-l-chatroom-accent"
-                >
-                <FileTypeIcon path={file.path} className="h-3.5 w-3.5 shrink-0 text-chatroom-text-muted" />
-                  <span className="text-xs font-bold truncate font-mono flex-1">
-                    {getFileName(file.path)}
-                  </span>
-                  {getParentDir(file.path) && (
-                    <span className="text-[10px] text-chatroom-text-muted font-mono truncate max-w-[50%]">
-                      {getParentDir(file.path)}
-                    </span>
-                  )}
-                  {file.size != null && (
-                    <span className="text-[10px] text-chatroom-text-muted font-mono shrink-0 tabular-nums">
-                      {formatFileSize(file.size)}
-                    </span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            {files.length > 200 && (
-              <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
-                SHOWING 200 OF {files.length} FILES
-              </div>
-            )}
+                <CommandGroup heading={recentFiles.length > 0 && !search ? 'ALL FILES' : undefined}>
+                  {files.slice(0, 200).map((file) => (
+                    <CommandItem
+                      key={file.path}
+                      value={file.path}
+                      onSelect={() => handleSelect(file.path)}
+                      // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
+                      className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                    >
+                      <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                      {/* u06: File name bold, directory lighter */}
+                      <span className="text-sm font-medium truncate flex-1">
+                        {getFileName(file.path)}
+                      </span>
+                      {/* u08: No file size in search list */}
+                      {getParentDir(file.path) && (
+                        <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                          {getParentDir(file.path)}
+                        </span>
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                {files.length > 200 && (
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
+                    SHOWING 200 OF {files.length} FILES
+                  </div>
+                )}
               </>
             )}
           </CommandList>
