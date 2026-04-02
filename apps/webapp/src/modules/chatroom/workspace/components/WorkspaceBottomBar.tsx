@@ -260,7 +260,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
               href={httpsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
               title={remote.url}
             >
               <RemoteIcon size={11} className="shrink-0" />
@@ -323,7 +323,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                 <button
                   type="button"
                   className={cn(
-                    'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-sm transition-colors',
+                    'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-none transition-colors',
                     hasPR
                       ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
                       : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
@@ -346,7 +346,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     onClick={() =>
                       void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir)
                     }
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                   >
                     <SiGithub size={12} className="shrink-0" />
                     Open in GitHub Desktop
@@ -357,7 +357,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
                   >
                     {isGitHubRepo ? (
                       <SiGithub size={12} className="shrink-0" />
@@ -383,7 +383,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
           <button
             type="button"
             onClick={onOpenGitPanel}
-            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer flex items-center"
+            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-none transition-colors cursor-pointer flex items-center"
             title="Open workspace details"
           >
             <InlineDiffStat diffStat={diffStat} showFileCount={true} />
@@ -507,7 +507,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                 <button
                   type="button"
                   onClick={() => setWorkspaceExpanded((prev) => !prev)}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                 >
                   <FolderOpen size={14} className="text-chatroom-text-muted shrink-0" />
                   <span className="text-[12px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate">
@@ -546,7 +546,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                         onSwitchWorkspace(ws.id);
                         setWorkspaceExpanded(false);
                       }}
-                      className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                      className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                     >
                       <FolderOpen size={12} className="shrink-0" />
                       <span className="font-mono uppercase tracking-wider truncate">{getWorkspaceName(ws.workingDir)}</span>
@@ -560,7 +560,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       onClose();
                       onOpenGitPanel();
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                   >
                     <PanelBottomOpen size={12} className="shrink-0" />
                     Open workspace details
@@ -571,7 +571,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       <button
                         type="button"
                         onClick={() => { void sendAction(workspace.machineId, 'open-finder', workspace.workingDir); onClose(); }}
-                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                       >
                         <FolderOpen size={12} className="shrink-0" />
                         Open in Finder
@@ -579,7 +579,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       <button
                         type="button"
                         onClick={() => { void sendAction(workspace.machineId, 'open-vscode', workspace.workingDir); onClose(); }}
-                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                       >
                         <Code2 size={12} className="shrink-0" />
                         Open in VS Code
@@ -599,7 +599,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       <button
                         type="button"
                         onClick={() => setRemoteExpanded((prev) => !prev)}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                       >
                         <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
                         <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
@@ -622,7 +622,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             href={httpsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
                           >
                             <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
                             <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
@@ -650,7 +650,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                               href={httpsUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                              className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
                             >
                               <RemoteIcon size={12} className="shrink-0" />
                               {remote.name}
@@ -676,7 +676,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     <button
                       type="button"
                       onClick={() => setBranchExpanded((prev) => !prev)}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                     >
                       {hasPR ? (
                         <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
@@ -713,7 +713,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                         <button
                           type="button"
                           onClick={() => { void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir); onClose(); }}
-                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors w-full text-left"
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                         >
                           <SiGithub size={12} className="shrink-0" />
                           Open in GitHub Desktop
@@ -724,7 +724,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                           href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-sm transition-colors"
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
                           onClick={onClose}
                         >
                           {isGitHubRepo ? (
@@ -746,7 +746,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     onClose();
                     onOpenGitPanel();
                   }}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-md hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                   title="Open workspace details"
                 >
                   <InlineDiffStat diffStat={diffStat} showFileCount={true} />

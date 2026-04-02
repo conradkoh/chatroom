@@ -111,7 +111,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
 
 const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDiffSection }) {
   return (
-    <div className="border border-chatroom-border rounded-md overflow-hidden">
+    <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* File header */}
       <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-chatroom-text-secondary border-b border-chatroom-border truncate">
         {section.filePath || '(unknown file)'}
