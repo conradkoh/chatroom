@@ -50,6 +50,10 @@ export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<vo
 
   if (requests.length === 0) return;
 
+  console.log(
+    `[${formatTimestamp()}] 📥 Received ${requests.length} pending file content request(s): ${requests.map((r) => r.filePath).join(', ')}`
+  );
+
   for (const request of requests) {
     try {
       await fulfillSingleRequest(ctx, request);
@@ -65,6 +69,7 @@ async function fulfillSingleRequest(
   ctx: DaemonContext,
   request: { workingDir: string; filePath: string }
 ): Promise<void> {
+  const startTime = Date.now();
   const { workingDir, filePath } = request;
 
   // Security: prevent path traversal
@@ -90,6 +95,8 @@ async function fulfillSingleRequest(
       encoding: 'utf8',
       truncated: false,
     });
+    const elapsed = Date.now() - startTime;
+    console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`);
     return;
   }
 
@@ -122,5 +129,6 @@ async function fulfillSingleRequest(
     truncated,
   });
 
-  console.log(`[${formatTimestamp()}] 📄 File content uploaded: ${filePath}`);
+  const elapsed = Date.now() - startTime;
+  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${elapsed}ms)`);
 }
