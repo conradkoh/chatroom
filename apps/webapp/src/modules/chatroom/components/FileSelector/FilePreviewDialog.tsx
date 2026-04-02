@@ -77,7 +77,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
         <DialogDescription>Preview file content</DialogDescription>
       </DialogHeader>
       <DialogContent
-        className="max-w-4xl max-h-[80vh] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary p-0 shadow-none overflow-hidden flex flex-col"
+        className="max-w-5xl w-[80vw] max-h-[80vh] rounded-none border border-chatroom-border bg-chatroom-bg-primary p-0 shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-chatroom-border px-4 py-2.5 shrink-0">
@@ -131,8 +131,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             </div>
           ) : (
             <div className="flex overflow-auto">
-              {/* Line numbers */}
-              <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary px-3 py-4 text-right">
+              {/* Line numbers - u19: fixed 4-char width for up to 9999 lines */}
+              <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
                 {contentResult.content.split('\n').map((_, i) => (
                   <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
                     {i + 1}

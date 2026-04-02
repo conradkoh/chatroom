@@ -81,9 +81,8 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         <DialogTitle>FILE SELECTOR</DialogTitle>
         <DialogDescription>Search and open workspace files</DialogDescription>
       </DialogHeader>
-      {/* u01: Position at top ~20% of viewport, u02: Fixed width ~600px */}
       <DialogContent
-        className="w-[600px] max-w-[90vw] rounded-none border border-chatroom-border bg-chatroom-bg-primary p-0 shadow-lg overflow-hidden fixed top-[20%] translate-y-0 left-[50%] translate-x-[-50%]"
+        className="w-[600px] max-w-[90vw] rounded-none border border-chatroom-border bg-chatroom-bg-primary p-0 shadow-2xl overflow-hidden fixed top-[20%] translate-y-0 left-[50%] translate-x-[-50%]"
         style={{ maxHeight: '60vh' }}
       >
         <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
