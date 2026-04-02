@@ -11,6 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ async function getAuthenticatedUser(
 
 /**
  * Verify that the authenticated user owns the given machine.
- * Returns true if ownership is confirmed, false otherwise.
+ * Used as fallback for endpoints called before workspace registration.
  */
 async function verifyMachineOwnership(
   ctx: QueryCtx | MutationCtx,
@@ -53,6 +54,27 @@ async function verifyMachineOwnership(
     .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
     .first();
   return !!machine && machine.userId === userId;
+}
+
+/**
+ * Check chatroom-based access for a machine.
+ * Falls back to direct machine ownership for daemon calls
+ * where the machine may not yet have workspace registrations.
+ */
+async function requireMachineAccess(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: any
+): Promise<void> {
+  try {
+    await requireChatroomMachineAccess(ctx, machineId, userId);
+    return;
+  } catch {
+    if (await verifyMachineOwnership(ctx, machineId, userId)) {
+      return;
+    }
+    throw new Error('Machine not found or access denied');
+  }
 }
 
 /**
@@ -94,10 +116,7 @@ export const syncFileTree = mutation({
       throw new Error('Authentication required');
     }
 
-    // Verify machine ownership
-    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
-      throw new Error('Machine not found or access denied');
-    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Validate treeJson size to prevent oversized documents
     if (new TextEncoder().encode(args.treeJson).length > MAX_TREE_JSON_BYTES) {
@@ -130,7 +149,7 @@ export const syncFileTree = mutation({
 
 /**
  * Returns the file tree for a workspace.
- * Auth-gated: verifies user owns the machine.
+ * Auth-gated: verifies chatroom membership.
  */
 export const getFileTree = query({
   args: {
@@ -144,12 +163,9 @@ export const getFileTree = query({
       return null;
     }
 
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q: any) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.userId) {
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
       return null;
     }
 
@@ -190,10 +206,7 @@ export const requestFileContent = mutation({
       throw new Error('Authentication required');
     }
 
-    // Verify machine ownership
-    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
-      throw new Error('Machine not found or access denied');
-    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Security: validate file path
     validateFilePath(args.filePath);
@@ -271,12 +284,9 @@ export const getFileContent = query({
       return null;
     }
 
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q: any) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.userId) {
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
       return null;
     }
 
@@ -303,9 +313,6 @@ export const getFileContent = query({
   },
 });
 
-// ─── File Content Upload (daemon → backend) ─────────────────────────────────
-
-
 // ─── Daemon: Pending File Content Requests ──────────────────────────────────
 
 /**
@@ -323,8 +330,9 @@ export const getPendingFileContentRequests = query({
       return [];
     }
 
-    // Verify machine ownership
-    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
       return [];
     }
 
@@ -365,10 +373,7 @@ export const fulfillFileContent = mutation({
       throw new Error('Authentication required');
     }
 
-    // Verify machine ownership
-    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
-      throw new Error('Machine not found or access denied');
-    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Validate content size
     if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {

@@ -11,6 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
@@ -76,6 +77,7 @@ export const listWorkspacesForMachine = query({
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.valid) return [];
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
     return listWorkspacesForMachineUseCase(ctx, { machineId: args.machineId });
   },
 });
@@ -116,6 +118,7 @@ export const getWorkspaceGitState = query({
     if (!session.valid) {
       return { status: 'loading' };
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const row = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -172,6 +175,7 @@ export const getFullDiff = query({
     if (!session.valid) {
       return null;
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const row = await ctx.db
       .query('chatroom_workspaceFullDiff')
@@ -201,6 +205,7 @@ export const getCommitDetail = query({
     if (!session.valid) {
       return null;
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const row = await ctx.db
       .query('chatroom_workspaceCommitDetail')
@@ -227,6 +232,7 @@ export const getMissingCommitShas = query({
   handler: async (ctx, args): Promise<string[]> => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.valid) return [];
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const missing: string[] = [];
     for (const sha of args.shas) {
@@ -259,6 +265,7 @@ export const getPendingRequests = query({
     if (!session.valid) {
       return [];
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const rows = await ctx.db
       .query('chatroom_workspaceDiffRequests')
@@ -339,6 +346,7 @@ export const upsertWorkspaceGitState = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const now = Date.now();
 
@@ -396,6 +404,7 @@ export const upsertFullDiff = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const now = Date.now();
 
@@ -462,6 +471,7 @@ export const upsertCommitDetail = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const now = Date.now();
 
@@ -525,6 +535,7 @@ export const appendMoreCommits = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const existing = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -599,6 +610,7 @@ export const requestFullDiff = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     // Idempotency: check for existing pending request
     const existing = await ctx.db
@@ -647,6 +659,7 @@ export const requestCommitDetail = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     // Idempotency: check for existing pending request for this sha
     const existing = await ctx.db
@@ -696,6 +709,7 @@ export const requestMoreCommits = mutation({
     if (!session.valid) {
       throw new Error('Authentication required');
     }
+    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     // Idempotency: check for existing pending request for this offset
     const existing = await ctx.db

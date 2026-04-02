@@ -12,6 +12,7 @@ import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
+import type * as auth_chatroomMachineAccess from "../auth/chatroomMachineAccess.js";
 import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   artifacts: typeof artifacts;
   attendance: typeof attendance;
   auth: typeof auth;
+  "auth/chatroomMachineAccess": typeof auth_chatroomMachineAccess;
   "auth/cliSessionAuth": typeof auth_cliSessionAuth;
   "auth/google": typeof auth_google;
   backlog: typeof backlog;
