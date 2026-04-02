@@ -709,6 +709,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             machineId={firstWorkspace?.machineId ?? null}
             workingDir={firstWorkspace?.workingDir ?? null}
             onClose={() => fileSelector.selectFile('')}
+            files={fileSelector.files}
+            onSelectFile={fileSelector.selectFile}
           />
 
           {/* Setup modal - only shown during setup mode */}
