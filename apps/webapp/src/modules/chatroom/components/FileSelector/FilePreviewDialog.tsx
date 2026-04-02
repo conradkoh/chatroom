@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu } from 'lucide-react';
+import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
@@ -171,6 +171,8 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
 }) {
   const tree = useMemo(() => sortTree(buildFileTree(files)), [files]);
 
+  const [filter, setFilter] = useState('');
+
   // Auto-expand directories that contain the selected file
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
     if (!selectedPath) return new Set<string>();
@@ -209,19 +211,90 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
     });
   }, []);
 
+  const handleCollapseAll = useCallback(() => {
+    setExpandedDirs(new Set<string>());
+  }, []);
+
+  // Filter tree: when filter is active, show only matching files and their parent dirs
+  const filteredTree = useMemo(() => {
+    if (!filter.trim()) return tree;
+    const lowerFilter = filter.toLowerCase();
+
+    function filterNode(node: TreeNode): TreeNode | null {
+      if (node.type === 'file') {
+        return node.name.toLowerCase().includes(lowerFilter) ? node : null;
+      }
+      // Directory: include if any child matches
+      const filteredChildren = node.children
+        .map(filterNode)
+        .filter((n): n is TreeNode => n !== null);
+      if (filteredChildren.length === 0) return null;
+      return { ...node, children: filteredChildren };
+    }
+
+    return tree.map(filterNode).filter((n): n is TreeNode => n !== null);
+  }, [tree, filter]);
+
+  // When filter is active, auto-expand all directories to show matches
+  const effectiveExpandedDirs = useMemo(() => {
+    if (!filter.trim()) return expandedDirs;
+    const allDirs = new Set<string>();
+    function collectDirs(nodes: TreeNode[]) {
+      for (const node of nodes) {
+        if (node.type === 'directory') {
+          allDirs.add(node.path);
+          collectDirs(node.children);
+        }
+      }
+    }
+    collectDirs(filteredTree);
+    return allDirs;
+  }, [filter, expandedDirs, filteredTree]);
+
   return (
-    <div className="overflow-y-auto py-1">
-      {tree.map((node) => (
-        <TreeItem
-          key={node.path}
-          node={node}
-          depth={0}
-          selectedPath={selectedPath}
-          expandedDirs={expandedDirs}
-          onToggleDir={handleToggleDir}
-          onSelectFile={onSelectFile}
-        />
-      ))}
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-chatroom-border shrink-0">
+        <div className="flex-1 flex items-center gap-1.5 bg-chatroom-bg-hover/50 rounded px-2 py-1">
+          <Search className="h-3 w-3 text-chatroom-text-muted shrink-0" />
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter files..."
+            className="flex-1 bg-transparent text-xs text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none min-w-0"
+          />
+        </div>
+        <button
+          onClick={handleCollapseAll}
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1 shrink-0"
+          title="Collapse all folders"
+        >
+          <ChevronsDownUp className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Tree */}
+      <div className="overflow-y-auto flex-1 py-1">
+        {filteredTree.length === 0 && filter.trim() ? (
+          <div className="px-3 py-4 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+              NO MATCHING FILES
+            </span>
+          </div>
+        ) : (
+          filteredTree.map((node) => (
+            <TreeItem
+              key={node.path}
+              node={node}
+              depth={0}
+              selectedPath={selectedPath}
+              expandedDirs={effectiveExpandedDirs}
+              onToggleDir={handleToggleDir}
+              onSelectFile={onSelectFile}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 });
