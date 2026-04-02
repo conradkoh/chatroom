@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon } from 'lucide-react';
+import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
@@ -317,6 +317,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isOpen = !!filePath;
 
   const [copied, setCopied] = useState(false);
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
 
   const handleCopyPath = useCallback(async () => {
     if (!filePath) return;
@@ -326,6 +327,12 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
       setTimeout(() => setCopied(false), 2000);
     } catch {}
   }, [filePath]);
+
+  // Close mobile tree when selecting a file
+  const handleMobileSelectFile = useCallback((path: string) => {
+    onSelectFile(path);
+    setMobileTreeOpen(false);
+  }, [onSelectFile]);
 
   // Fetch content result for header metadata
   const contentResult = useSessionQuery(
@@ -337,7 +344,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-6xl">
-      {/* Left Panel: File Tree */}
+      {/* Left Panel: File Tree (desktop) */}
       <FixedModalSidebar className="w-64 hidden sm:flex">
         <FixedModalHeader>
           <FixedModalTitle>Files</FixedModalTitle>
@@ -355,6 +362,14 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Mobile tree toggle button */}
+            <button
+              onClick={() => setMobileTreeOpen((prev) => !prev)}
+              className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary p-1 shrink-0"
+              title="Browse files"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             {filePath && (
               <FileTypeIcon path={filePath} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
             )}
@@ -380,13 +395,34 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             </button>
           </div>
         </FixedModalHeader>
-        <FixedModalBody>
-          <FileContentPanel
-            filePath={filePath}
-            machineId={machineId}
-            workingDir={workingDir}
-          />
-        </FixedModalBody>
+        <div className="flex-1 flex min-h-0 relative">
+          {/* Mobile file tree overlay */}
+          {mobileTreeOpen && (
+            <div className="sm:hidden absolute inset-0 z-10 bg-chatroom-bg-primary border-r border-chatroom-border overflow-y-auto">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-chatroom-border">
+                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">Files</span>
+                <button
+                  onClick={() => setMobileTreeOpen(false)}
+                  className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <FileTreeSidebar
+                files={files}
+                selectedPath={filePath}
+                onSelectFile={handleMobileSelectFile}
+              />
+            </div>
+          )}
+          <FixedModalBody>
+            <FileContentPanel
+              filePath={filePath}
+              machineId={machineId}
+              workingDir={workingDir}
+            />
+          </FixedModalBody>
+        </div>
       </FixedModalContent>
     </FixedModal>
   );
