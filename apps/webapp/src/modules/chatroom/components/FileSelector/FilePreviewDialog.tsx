@@ -2,12 +2,15 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search } from 'lucide-react';
+import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2 } from 'lucide-react';
+import Markdown from 'react-markdown';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import remarkGfm from 'remark-gfm';
 
 import { FileTypeIcon } from './fileIcons';
 import { isBinaryFile } from './binaryDetection';
 import type { FileEntry } from './useFileSelector';
+import { proseClassNames } from '../markdown-utils';
 
 import {
   FixedModal,
@@ -299,16 +302,28 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
   );
 });
 
+// ─── Markdown Detection ─────────────────────────────────────────────────────
+
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
+
+function isMarkdownFile(filePath: string): boolean {
+  const lastDot = filePath.lastIndexOf('.');
+  if (lastDot === -1) return false;
+  return MARKDOWN_EXTENSIONS.has(filePath.slice(lastDot).toLowerCase());
+}
+
 // ─── File Content Panel ─────────────────────────────────────────────────────
 
 const FileContentPanel = memo(function FileContentPanel({
   filePath,
   machineId,
   workingDir,
+  previewMode,
 }: {
   filePath: string | null;
   machineId: string | null;
   workingDir: string | null;
+  previewMode: boolean;
 }) {
   // Fetch cached content
   const contentResult = useSessionQuery(
@@ -361,18 +376,30 @@ const FileContentPanel = memo(function FileContentPanel({
 
   return (
     <div className="flex overflow-auto h-full">
-      {/* Line numbers */}
-      <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
-        {contentResult.content.split('\n').map((_: string, i: number) => (
-          <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
-            {i + 1}
+      {previewMode && filePath && isMarkdownFile(filePath) ? (
+        /* Rendered markdown preview */
+        <div className="flex-1 p-6 overflow-auto">
+          <div className={proseClassNames}>
+            <Markdown remarkPlugins={[remarkGfm]}>{contentResult.content}</Markdown>
           </div>
-        ))}
-      </div>
-      {/* Content */}
-      <pre className="flex-1 p-4 text-[13px] font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
-        {contentResult.content}
-      </pre>
+        </div>
+      ) : (
+        /* Raw source with line numbers */
+        <>
+          {/* Line numbers */}
+          <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
+            {contentResult.content.split('\n').map((_: string, i: number) => (
+              <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
+                {i + 1}
+              </div>
+            ))}
+          </div>
+          {/* Content */}
+          <pre className="flex-1 p-4 text-[13px] font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
+            {contentResult.content}
+          </pre>
+        </>
+      )}
     </div>
   );
 });
@@ -391,6 +418,14 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const [copied, setCopied] = useState(false);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
+
+  // Reset preview mode when file changes
+  useEffect(() => {
+    setPreviewMode(false);
+  }, [filePath]);
+
+  const isMarkdown = filePath ? isMarkdownFile(filePath) : false;
 
   const handleCopyPath = useCallback(async () => {
     if (!filePath) return;
@@ -466,6 +501,19 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
+            {isMarkdown && (
+              <button
+                onClick={() => setPreviewMode((prev) => !prev)}
+                className={`p-1 shrink-0 transition-colors ${
+                  previewMode
+                    ? 'text-chatroom-accent'
+                    : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
+                }`}
+                title={previewMode ? 'Show source' : 'Preview markdown'}
+              >
+                {previewMode ? <Code2 className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            )}
           </div>
         </FixedModalHeader>
         <div className="flex-1 flex min-h-0 relative">
@@ -493,6 +541,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               filePath={filePath}
               machineId={machineId}
               workingDir={workingDir}
+              previewMode={previewMode}
             />
           </FixedModalBody>
         </div>
