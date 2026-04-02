@@ -451,7 +451,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   );
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-6xl">
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]" className="sm:!h-[92vh]">
       {/* Left Panel: File Tree (desktop) */}
       <FixedModalSidebar className="w-64 hidden sm:flex">
         <FixedModalHeader>
