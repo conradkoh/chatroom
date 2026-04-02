@@ -16,7 +16,7 @@ interface AttachedWorkflowChipProps {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'draft':
-      return 'text-gray-500 dark:text-gray-400';
+      return 'text-chatroom-text-muted';
     case 'active':
       return 'text-blue-500 dark:text-blue-400';
     case 'completed':
