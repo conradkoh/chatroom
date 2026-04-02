@@ -117,52 +117,66 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
                   NO FILES FOUND
                 </CommandEmpty>
-                {recentFiles.length > 0 && !search && (
-                  <CommandGroup heading="recently opened">
-                    {recentFiles.map((path) => (
+                <CommandGroup>
+                  {/* Recent files section (only when not searching) */}
+                  {recentFiles.length > 0 && !search && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        recently opened
+                      </div>
+                      {recentFiles.map((path) => (
+                        <CommandItem
+                          key={`recent:${path}`}
+                          value={`recent:${path}`}
+                          onSelect={() => handleSelect(path)}
+                          // u05: Compact 28px height, u07: Full-width solid bg highlight
+                          className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                        >
+                          <FileTypeIcon path={path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                          {/* u06: File name bold, directory lighter, same row */}
+                          <span className="text-sm font-medium truncate flex-1">
+                            {getFileName(path)}
+                          </span>
+                          {getParentDir(path) && (
+                            <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                              {getParentDir(path)}
+                            </span>
+                          )}
+                        </CommandItem>
+                      ))}
+                      <div className="px-2 py-1.5 text-xs font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        files
+                      </div>
+                    </>
+                  )}
+                  {/* Full file list (excluding recent files to avoid duplicates) */}
+                  {(() => {
+                    const recentSet = new Set(recentFiles);
+                    const displayFiles = !search && recentFiles.length > 0
+                      ? files.filter((f) => !recentSet.has(f.path))
+                      : files;
+                    return displayFiles.slice(0, 200).map((file) => (
                       <CommandItem
-                        key={`recent:${path}`}
-                        value={path}
-                        onSelect={() => handleSelect(path)}
-                        // u05: Compact 28px height, u07: Full-width solid bg highlight
+                        key={file.path}
+                        value={file.path}
+                        onSelect={() => handleSelect(file.path)}
+                        // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
                         className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                       >
-                        <FileTypeIcon path={path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
-                        {/* u06: File name bold, directory lighter, same row */}
+                        <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                        {/* u06: File name bold, directory lighter */}
                         <span className="text-sm font-medium truncate flex-1">
-                          {getFileName(path)}
+                          {getFileName(file.path)}
                         </span>
-                        {getParentDir(path) && (
+                        {/* u08: No file size in search list */}
+                        {getParentDir(file.path) && (
                           <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
-                            {getParentDir(path)}
+                            {getParentDir(file.path)}
                           </span>
                         )}
                       </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-                <CommandGroup heading={recentFiles.length > 0 && !search ? 'files' : undefined}>
-                  {files.slice(0, 200).map((file) => (
-                    <CommandItem
-                      key={file.path}
-                      value={file.path}
-                      onSelect={() => handleSelect(file.path)}
-                      // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
-                      className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
-                    >
-                      <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
-                      {/* u06: File name bold, directory lighter */}
-                      <span className="text-sm font-medium truncate flex-1">
-                        {getFileName(file.path)}
-                      </span>
-                      {/* u08: No file size in search list */}
-                      {getParentDir(file.path) && (
-                        <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
-                          {getParentDir(file.path)}
-                        </span>
-                      )}
-                    </CommandItem>
-                  ))}
+                    ));
+                  })()}
                 </CommandGroup>
                 {files.length > 200 && (
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
