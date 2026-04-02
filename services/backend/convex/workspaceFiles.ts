@@ -12,6 +12,20 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Max treeJson size: 900KB (stay under Convex's 1MB document limit). */
+const MAX_TREE_JSON_BYTES = 900 * 1024;
+
+/** Max file content size: 512KB. */
+const MAX_CONTENT_BYTES = 512 * 1024;
+
+/** Max pending requests returned per query (prevent unbounded reads). */
+const MAX_PENDING_REQUESTS = 50;
+
+/** Max file path length to prevent abuse. */
+const MAX_FILE_PATH_LENGTH = 1024;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function getAuthenticatedUser(
@@ -23,6 +37,41 @@ async function getAuthenticatedUser(
     return { isAuthenticated: false };
   }
   return { isAuthenticated: true, userId: result.userId };
+}
+
+/**
+ * Verify that the authenticated user owns the given machine.
+ * Returns true if ownership is confirmed, false otherwise.
+ */
+async function verifyMachineOwnership(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: any
+): Promise<boolean> {
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+    .first();
+  return !!machine && machine.userId === userId;
+}
+
+/**
+ * Validate a file path for security.
+ * Rejects path traversal, absolute paths, null bytes, and overly long paths.
+ */
+function validateFilePath(filePath: string): void {
+  if (filePath.length > MAX_FILE_PATH_LENGTH) {
+    throw new Error('File path too long');
+  }
+  if (filePath.includes('..')) {
+    throw new Error('Invalid file path: path traversal not allowed');
+  }
+  if (filePath.startsWith('/')) {
+    throw new Error('Invalid file path: absolute paths not allowed');
+  }
+  if (filePath.includes('\0')) {
+    throw new Error('Invalid file path: null bytes not allowed');
+  }
 }
 
 // ─── File Tree Sync (daemon → backend) ──────────────────────────────────────
@@ -43,6 +92,16 @@ export const syncFileTree = mutation({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.isAuthenticated) {
       throw new Error('Authentication required');
+    }
+
+    // Verify machine ownership
+    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
+      throw new Error('Machine not found or access denied');
+    }
+
+    // Validate treeJson size to prevent oversized documents
+    if (new TextEncoder().encode(args.treeJson).length > MAX_TREE_JSON_BYTES) {
+      throw new Error('File tree too large');
     }
 
     const existing = await ctx.db
@@ -131,10 +190,13 @@ export const requestFileContent = mutation({
       throw new Error('Authentication required');
     }
 
-    // Security: prevent path traversal
-    if (args.filePath.includes('..') || args.filePath.startsWith('/')) {
-      throw new Error('Invalid file path');
+    // Verify machine ownership
+    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
+      throw new Error('Machine not found or access denied');
     }
+
+    // Security: validate file path
+    validateFilePath(args.filePath);
 
     // Check for cached content (fresh if < 5 minutes old)
     const cached = await ctx.db
@@ -261,12 +323,17 @@ export const getPendingFileContentRequests = query({
       return [];
     }
 
+    // Verify machine ownership
+    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
+      return [];
+    }
+
     const requests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
       .withIndex('by_machine_status', (q: any) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
-      .collect();
+      .take(MAX_PENDING_REQUESTS);
 
     return requests.map((r) => ({
       _id: r._id,
@@ -297,6 +364,19 @@ export const fulfillFileContent = mutation({
     if (!auth.isAuthenticated) {
       throw new Error('Authentication required');
     }
+
+    // Verify machine ownership
+    if (!(await verifyMachineOwnership(ctx, args.machineId, auth.userId))) {
+      throw new Error('Machine not found or access denied');
+    }
+
+    // Validate content size
+    if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
+      throw new Error('File content too large');
+    }
+
+    // Validate file path
+    validateFilePath(args.filePath);
 
     const now = Date.now();
 

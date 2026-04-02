@@ -114,8 +114,8 @@ async function fulfillSingleRequest(
       content = buffer.toString('utf8');
     }
   } catch (err) {
-    // File not found or permission denied — upload error content
-    content = `[Error reading file: ${getErrorMessage(err)}]`;
+    // File not found or permission denied — upload generic error content
+    content = '[Error reading file]';
     truncated = false;
   }
 
