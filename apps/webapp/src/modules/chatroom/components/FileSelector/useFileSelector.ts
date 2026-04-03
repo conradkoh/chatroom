@@ -46,7 +46,7 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
       const isMac = navigator.platform.toUpperCase().includes('MAC');
       const triggerKey = isMac ? e.metaKey : e.ctrlKey;
 
-      if (triggerKey && e.key === 'p') {
+      if (triggerKey && !e.shiftKey && e.key === 'p') {
         e.preventDefault(); // Prevent browser print dialog
         setOpen((prev) => !prev);
       }
