@@ -87,6 +87,8 @@ interface MessageFeedProps {
   controller: React.MutableRefObject<ScrollController>;
   isPinned: boolean;
   scrollToBottom: () => void;
+  /** Optional callback to open the event stream from an external trigger (e.g. command palette) */
+  onRegisterOpenEventStream?: (open: () => void) => void;
 }
 
 interface Message {
@@ -1628,6 +1630,7 @@ export const MessageFeed = memo(function MessageFeed({
   controller: scrollController,
   isPinned,
   scrollToBottom,
+  onRegisterOpenEventStream,
 }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
@@ -1668,6 +1671,11 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Event stream panel state
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+
+  // Register event stream open callback for external triggers (e.g. command palette)
+  useEffect(() => {
+    onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
+  }, [onRegisterOpenEventStream]);
 
   // Always fetch just the latest 1 event for the ticker display
   const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {

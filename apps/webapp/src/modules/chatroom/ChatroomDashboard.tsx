@@ -27,11 +27,14 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
+import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
 import {
@@ -42,7 +45,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
+import { openExternalUrl } from '@/lib/navigation';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -361,6 +367,112 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
+  // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
+  // Refs to hold imperative open callbacks registered by child components
+  const openGitPanelRef = useRef<(() => void) | null>(null);
+  const openEventStreamRef = useRef<(() => void) | null>(null);
+  const openBacklogRef = useRef<(() => void) | null>(null);
+  const openPendingReviewRef = useRef<(() => void) | null>(null);
+
+  // Registration callbacks (stable refs, no re-renders)
+  const handleRegisterOpenGitPanel = useCallback((fn: () => void) => {
+    openGitPanelRef.current = fn;
+  }, []);
+
+  const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
+    openEventStreamRef.current = fn;
+  }, []);
+
+  const handleRegisterWorkQueueActions = useCallback(
+    (actions: { openBacklog: () => void; openPendingReview: () => void }) => {
+      openBacklogRef.current = actions.openBacklog;
+      openPendingReviewRef.current = actions.openPendingReview;
+    },
+    []
+  );
+
+  // Command palette open handlers — delegate to child refs
+  const handleCmdOpenSettings = useCallback(
+    (tab: SettingsTab) => {
+      setSettingsInitialTab(tab);
+      setSettingsModalOpen(true);
+    },
+    []
+  );
+
+  const handleCmdOpenGitPanel = useCallback(() => {
+    openGitPanelRef.current?.();
+  }, []);
+
+  const handleCmdOpenEventStream = useCallback(() => {
+    openEventStreamRef.current?.();
+  }, []);
+
+  const handleCmdOpenBacklog = useCallback(() => {
+    openBacklogRef.current?.();
+  }, []);
+
+  const handleCmdOpenPendingReview = useCallback(() => {
+    openPendingReviewRef.current?.();
+  }, []);
+
+  // ─── Workspace context for command palette actions ─────────────────────────
+  const { isConnected: isLocalWorkspace } = useDaemonConnected(firstWorkspace?.machineId ?? null);
+  const sendAction = useSendLocalAction();
+  const gitState = useWorkspaceGit(
+    firstWorkspace?.machineId ?? '',
+    firstWorkspace?.workingDir ?? ''
+  );
+
+  // Derive PR URL from git state
+  const prUrl = useMemo(() => {
+    if (gitState.status !== 'available') return null;
+    const pr = gitState.openPullRequests?.[0];
+    return pr?.url ?? null;
+  }, [gitState]);
+
+  // Action command callbacks — stable, conditionally nulled
+  const handleOpenInVSCode = useCallback(() => {
+    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
+      sendAction(firstWorkspace.machineId, 'open-vscode', firstWorkspace.workingDir);
+    }
+  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+
+  const handleOpenInGitHubDesktop = useCallback(() => {
+    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
+      sendAction(firstWorkspace.machineId, 'open-github-desktop', firstWorkspace.workingDir);
+    }
+  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+
+  const handleOpenPROnGitHub = useCallback(() => {
+    if (prUrl) openExternalUrl(prUrl);
+  }, [prUrl]);
+
+  // Build command palette commands
+  const { openDialog } = useCommandDialog();
+
+  const handleOpenChatroomSwitcher = useCallback(() => {
+    openDialog('switcher');
+  }, [openDialog]);
+
+  const handleOpenFileSelector = useCallback(() => {
+    openDialog('file-selector');
+  }, [openDialog]);
+
+  const commands = useCommandPaletteCommands({
+    onOpenSettings: handleCmdOpenSettings,
+    onOpenEventStream: handleCmdOpenEventStream,
+    onOpenGitPanel: handleCmdOpenGitPanel,
+    onOpenBacklog: handleCmdOpenBacklog,
+    onOpenPendingReview: handleCmdOpenPendingReview,
+    onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
+    onOpenFileSelector: handleOpenFileSelector,
+    onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
+    onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
+    onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
+    onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
+  });
+
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
     () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
@@ -636,6 +748,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   controller={scrollController}
                   isPinned={isPinned}
                   scrollToBottom={scrollToBottom}
+                  onRegisterOpenEventStream={handleRegisterOpenEventStream}
                 />
                 <SendForm
                   chatroomId={chatroomId}
@@ -673,10 +786,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                   onOpenAgents={handleOpenAgents}
                 />
-                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
+                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} onRegisterActions={handleRegisterWorkQueueActions} />
               </div>
             </div>
-            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
+            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />
           </div>
 
           <PromptModal
@@ -726,6 +839,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             chatroomName={displayName}
             onRenameChatroom={handleRenameChatroom}
           />
+
+          {/* Command Palette (Cmd+Shift+P) */}
+          <CommandPalette commands={commands} />
         </>
       </PromptsProvider>
     </AttachmentsProvider>

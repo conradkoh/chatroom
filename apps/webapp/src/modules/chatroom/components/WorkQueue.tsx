@@ -9,7 +9,7 @@ import {
   MoreHorizontal,
   XCircle,
 } from 'lucide-react';
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -40,7 +40,7 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
+export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
@@ -48,6 +48,14 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
+
+  // Register imperative open actions for parent (e.g. command palette)
+  useEffect(() => {
+    onRegisterActions?.({
+      openBacklog: () => setIsBacklogQueueModalOpen(true),
+      openPendingReview: () => setIsPendingReviewModalOpen(true),
+    });
+  }, [onRegisterActions]);
 
   // Query tasks
   const tasks = useSessionQuery(api.tasks.listTasks, {
