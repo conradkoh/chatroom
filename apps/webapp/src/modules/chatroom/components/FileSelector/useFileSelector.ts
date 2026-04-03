@@ -4,6 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+
 interface UseFileSelectorOptions {
   machineId: string | null;
   workingDir: string | null;
@@ -17,7 +19,12 @@ export interface FileEntry {
 }
 
 export function useFileSelector({ machineId, workingDir }: UseFileSelectorOptions) {
-  const [open, setOpen] = useState(false);
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
+  const open = activeDialog === 'file-selector';
+  const setOpen = useCallback(
+    (val: boolean) => (val ? openDialog('file-selector') : closeDialog()),
+    [openDialog, closeDialog]
+  );
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   // Fetch file tree
@@ -46,15 +53,19 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
       const isMac = navigator.platform.toUpperCase().includes('MAC');
       const triggerKey = isMac ? e.metaKey : e.ctrlKey;
 
-      if (triggerKey && e.key === 'p') {
+      if (triggerKey && !e.shiftKey && e.key === 'p') {
         e.preventDefault(); // Prevent browser print dialog
-        setOpen((prev) => !prev);
+        if (open) {
+          closeDialog();
+        } else {
+          openDialog('file-selector');
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [open, openDialog, closeDialog]);
 
   // Recently opened files (persisted in localStorage)
   const [recentFiles, setRecentFiles] = useState<string[]>(() => {

@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 
 import {
   Command,
@@ -14,8 +14,10 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
+import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
@@ -50,13 +52,14 @@ const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus'])
  * - Apply the industrial theme cleanly without fighting Tailwind specificity
  */
 export function ChatroomSwitcher() {
-  const [open, setOpen] = useState(false);
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
+  const open = activeDialog === 'switcher';
+  const setOpen = useCallback(
+    (val: boolean) => (val ? openDialog('switcher') : closeDialog()),
+    [openDialog, closeDialog]
+  );
   const router = useRouter();
   const { chatrooms } = useChatroomListing();
-
-  // Two-finger tap on mobile opens the switcher (same as Cmd+K on desktop)
-  const toggleOpen = useCallback(() => setOpen((prev) => !prev), []);
-  useTwoFingerTap(toggleOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -65,13 +68,17 @@ export function ChatroomSwitcher() {
 
       if (triggerKey && e.key === 'k') {
         e.preventDefault();
-        setOpen((prev) => !prev);
+        if (open) {
+          closeDialog();
+        } else {
+          openDialog('switcher');
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [open, openDialog, closeDialog]);
 
   const handleSelect = (chatroomId: string) => {
     router.push(`/app/chatroom?id=${chatroomId}`);
@@ -84,20 +91,7 @@ export function ChatroomSwitcher() {
         {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
         <DialogPrimitive.Content
           forceMount
-          className={cn(
-            // Position: near top on mobile (20% from top), centered on desktop (50%)
-            'fixed left-[50%] z-50 w-full max-w-lg translate-x-[-50%]',
-            'top-[20%] translate-y-[-20%] sm:top-[50%] sm:translate-y-[-50%]',
-            // Industrial theme: sharp corners, 2px adaptive border, no shadow
-            'rounded-none border-2 border-chatroom-border shadow-none',
-            // Background
-            'bg-chatroom-bg-primary overflow-hidden',
-            // Animation: open instantly (duration-0), close with smooth fade+zoom-out
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-            'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200'
-          )}
+          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
         >
           {/* Accessible title and description (sr-only) */}
           <DialogPrimitive.Title className="sr-only">Switch Chatroom</DialogPrimitive.Title>
@@ -105,12 +99,12 @@ export function ChatroomSwitcher() {
             Search and navigate to a chatroom
           </DialogPrimitive.Description>
 
-          <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
             <CommandInput
               placeholder="Search chatrooms..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
             />
-            <CommandList className="min-h-[300px] h-[300px]">
+            <CommandList className="min-h-[244px] h-[244px]">
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
@@ -124,13 +118,13 @@ export function ChatroomSwitcher() {
                       key={chatroom._id}
                       value={getChatroomDisplayName(chatroom)}
                       onSelect={() => handleSelect(chatroom._id)}
-                      className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
+                      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
                     >
                       {/* Status indicator dot */}
                       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
                       {/* Chatroom name */}
-                      <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
+                      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
                         {getChatroomDisplayName(chatroom)}
                       </span>
 
