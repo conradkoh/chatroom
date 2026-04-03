@@ -104,7 +104,7 @@ export function ChatroomSwitcher() {
               placeholder="Search chatrooms..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
             />
-            <CommandList className="min-h-[300px] h-[300px]">
+            <CommandList className="min-h-[244px] h-[244px]">
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
@@ -124,7 +124,7 @@ export function ChatroomSwitcher() {
                       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
                       {/* Chatroom name */}
-                      <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
+                      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
                         {getChatroomDisplayName(chatroom)}
                       </span>
 

@@ -8,14 +8,14 @@
 /**
  * Classes for DialogPrimitive.Content in command-style dialogs.
  *
- * Position: near top (6% from top), centered horizontally — VSCode-style.
+ * Position: centered at 40% from top — VSCode-style.
  * Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth.
  * Animation: instant open (duration-0), smooth close with fade+zoom-out (duration-200).
  */
 export const COMMAND_DIALOG_CONTENT_CLASSES = [
   // Position: near top (VSCode-style), centered horizontally
   'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
-  'top-[6%] translate-y-0',
+  'top-[40%] translate-y-[-40%]',
   // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
   'rounded-none border-2 border-chatroom-border shadow-lg',
   // Background
@@ -31,4 +31,4 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
  * Classes for cmdk group headings in command-style dialogs.
  */
 export const COMMAND_GROUP_HEADING_CLASSES =
-  '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted';
+  '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-chatroom-text-muted';

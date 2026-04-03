@@ -100,7 +100,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none border-none h-10 text-sm"
             />
             {/* u10: Dynamic list height, max 50vh, at least 5 items visible */}
-            <CommandList className="max-h-[50vh] min-h-[160px]">
+            <CommandList className="max-h-[50vh] min-h-[196px]">
               {!hasWorkspace ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
@@ -126,7 +126,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                     {/* Recent files section (only when not searching) */}
                     {recentFiles.length > 0 && !search && (
                       <>
-                        <div className="px-2 py-1.5 text-xs font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        <div className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted" cmdk-group-heading="">
                           recently opened
                         </div>
                         {recentFiles.map((path) => (
@@ -143,13 +143,13 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                               {getFileName(path)}
                             </span>
                             {getParentDir(path) && (
-                              <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                              <span className="text-sm text-chatroom-text-muted truncate max-w-[50%]">
                                 {getParentDir(path)}
                               </span>
                             )}
                           </CommandItem>
                         ))}
-                        <div className="px-2 py-1.5 text-xs font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        <div className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted" cmdk-group-heading="">
                           files
                         </div>
                       </>
@@ -175,7 +175,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                           </span>
                           {/* u08: No file size in search list */}
                           {getParentDir(file.path) && (
-                            <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                            <span className="text-sm text-chatroom-text-muted truncate max-w-[50%]">
                               {getParentDir(file.path)}
                             </span>
                           )}

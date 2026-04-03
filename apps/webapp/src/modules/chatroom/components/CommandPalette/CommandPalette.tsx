@@ -106,7 +106,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
               placeholder="Type a command..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
             />
-            <CommandList className="min-h-[300px] h-[300px]">
+            <CommandList className="min-h-[244px] h-[244px]">
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No commands found.
               </CommandEmpty>
@@ -131,13 +131,13 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                       )}
 
                       {/* Command label */}
-                      <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
+                      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
                         {command.label}
                       </span>
 
                       {/* Keyboard shortcut */}
                       {command.shortcut && (
-                        <span className="text-[10px] text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">
+                        <span className="text-xs text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">
                           {command.shortcut}
                         </span>
                       )}
