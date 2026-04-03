@@ -118,7 +118,7 @@ export function ChatroomSwitcher() {
                       key={chatroom._id}
                       value={getChatroomDisplayName(chatroom)}
                       onSelect={() => handleSelect(chatroom._id)}
-                      className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
+                      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
                     >
                       {/* Status indicator dot */}
                       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />

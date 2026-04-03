@@ -135,7 +135,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                             value={`recent:${path}`}
                             onSelect={() => handleSelect(path)}
                             // u05: Compact 28px height, u07: Full-width solid bg highlight
-                            className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                            className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                           >
                             <FileTypeIcon path={path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
                             {/* u06: File name bold, directory lighter, same row */}
@@ -166,7 +166,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                           value={file.path}
                           onSelect={() => handleSelect(file.path)}
                           // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
-                          className="flex flex-row items-center gap-2 rounded-none px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                          className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                         >
                           <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
                           {/* u06: File name bold, directory lighter */}

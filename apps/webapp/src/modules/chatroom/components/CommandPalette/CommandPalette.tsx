@@ -121,7 +121,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                       key={command.id}
                       value={command.label}
                       onSelect={() => handleSelect(command)}
-                      className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
+                      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
                     >
                       {/* Command icon */}
                       {command.icon && (
