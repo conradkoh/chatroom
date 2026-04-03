@@ -47,6 +47,7 @@ import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
+import { openExternalUrl } from '@/lib/navigation';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -443,7 +444,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
 
   const handleOpenPROnGitHub = useCallback(() => {
-    if (prUrl) window.open(prUrl, '_blank');
+    if (prUrl) openExternalUrl(prUrl);
   }, [prUrl]);
 
   // Build command palette commands
