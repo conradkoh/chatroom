@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { FileEntry } from './useFileSelector';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
+import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
 
 interface FileSelectorModalProps {
   open: boolean;
@@ -80,18 +81,9 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         <DialogPrimitive.Content
           forceMount
           className={cn(
-            // Position: 20% from top, centered horizontally
-            'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
-            'top-[20%] translate-y-0',
-            // Industrial theme: sharp corners, 2px adaptive border, no shadow
-            'rounded-none border-2 border-chatroom-border shadow-none',
-            // Background
-            'bg-chatroom-bg-primary overflow-hidden',
-            // Animation: open instantly (duration-0), close with smooth fade+zoom-out
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-            'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200'
+            ...COMMAND_DIALOG_CONTENT_CLASSES,
+            // Override width for file selector (wider than default max-w-lg)
+            'w-[600px] max-w-[90vw]'
           )}
           style={{ maxHeight: '60vh' }}
         >

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
+import { COMMAND_DIALOG_CONTENT_CLASSES, COMMAND_GROUP_HEADING_CLASSES } from '../shared/commandDialogStyles';
 import type { CommandItem } from './types';
 
 interface CommandPaletteProps {
@@ -74,20 +75,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
         {/* No overlay — command palette is a quick-picker, not a blocking modal. */}
         <DialogPrimitive.Content
           forceMount
-          className={cn(
-            // Position: near top on mobile (20% from top), centered on desktop (50%)
-            'fixed left-[50%] z-50 w-full max-w-lg translate-x-[-50%]',
-            'top-[20%] translate-y-0',
-            // Industrial theme: sharp corners, 2px adaptive border, no shadow
-            'rounded-none border-2 border-chatroom-border shadow-none',
-            // Background
-            'bg-chatroom-bg-primary overflow-hidden',
-            // Animation: open instantly (duration-0), close with smooth fade+zoom-out
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-            'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200'
-          )}
+          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
         >
           {/* Accessible title and description (sr-only) */}
           <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
@@ -108,7 +96,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                 <CommandGroup
                   key={category}
                   heading={category}
-                  className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
+                  className={COMMAND_GROUP_HEADING_CLASSES}
                 >
                   {items.map((command) => (
                     <CommandItemUI

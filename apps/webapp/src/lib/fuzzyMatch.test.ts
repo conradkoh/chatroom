@@ -60,6 +60,20 @@ describe('fuzzyMatch', () => {
     const score = fuzzyMatch('CP', 'CommandPalette');
     expect(score).toBeGreaterThan(0);
   });
+
+  it('returns 0 when query is longer than target', () => {
+    expect(fuzzyMatch('abcdefgh', 'abc')).toBe(0);
+  });
+
+  it('matches special characters like .ts in file extensions', () => {
+    expect(fuzzyMatch('.ts', 'fuzzyMatch.ts')).toBeGreaterThan(0);
+    expect(fuzzyMatch('.tsx', 'Component.tsx')).toBeGreaterThan(0);
+  });
+
+  it('matches single character queries', () => {
+    expect(fuzzyMatch('c', 'CommandPalette')).toBeGreaterThan(0);
+    expect(fuzzyMatch('z', 'abc')).toBe(0);
+  });
 });
 
 describe('fuzzyFilter', () => {
