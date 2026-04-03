@@ -28,6 +28,7 @@ import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
@@ -448,12 +449,24 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [prUrl]);
 
   // Build command palette commands
+  const { openDialog } = useCommandDialog();
+
+  const handleOpenChatroomSwitcher = useCallback(() => {
+    openDialog('switcher');
+  }, [openDialog]);
+
+  const handleOpenFileSelector = useCallback(() => {
+    openDialog('file-selector');
+  }, [openDialog]);
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
     onOpenGitPanel: handleCmdOpenGitPanel,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
+    onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
+    onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,

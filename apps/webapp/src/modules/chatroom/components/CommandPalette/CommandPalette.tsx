@@ -12,6 +12,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
@@ -43,6 +44,13 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
     (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
     [openDialog, closeDialog]
   );
+
+  // Two-finger tap on mobile opens the command palette
+  const toggleOpen = useCallback(
+    () => (open ? closeDialog() : openDialog('command-palette')),
+    [open, openDialog, closeDialog]
+  );
+  useTwoFingerTap(toggleOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -3,8 +3,10 @@
 import { useMemo } from 'react';
 import {
   Activity,
+  ArrowRightLeft,
   ClipboardCheck,
   Code2,
+  FileSearch,
   GitBranch,
   GitPullRequest,
   ListTodo,
@@ -23,6 +25,9 @@ interface UseCommandPaletteCommandsProps {
   onOpenGitPanel: () => void;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
+  /** Navigation callbacks */
+  onOpenChatroomSwitcher: () => void;
+  onOpenFileSelector: () => void;
   /** Workspace action callbacks — conditionally available */
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
@@ -42,6 +47,8 @@ export function useCommandPaletteCommands({
   onOpenGitPanel,
   onOpenBacklog,
   onOpenPendingReview,
+  onOpenChatroomSwitcher,
+  onOpenFileSelector,
   onOpenInVSCode,
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
@@ -50,7 +57,27 @@ export function useCommandPaletteCommands({
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
 
-    // ─── Actions (shown first, conditionally included) ───
+    // ─── Navigate (shown first) ──────────────────────────
+    commands.push(
+      {
+        id: 'nav-switch-chatroom',
+        label: 'Switch Chatroom',
+        icon: <ArrowRightLeft size={14} />,
+        category: 'Navigate',
+        shortcut: '⌘K',
+        action: onOpenChatroomSwitcher,
+      },
+      {
+        id: 'nav-go-to-file',
+        label: 'Go to File',
+        icon: <FileSearch size={14} />,
+        category: 'Navigate',
+        shortcut: '⌘P',
+        action: onOpenFileSelector,
+      }
+    );
+
+    // ─── Actions (conditionally included) ────────────────
     if (onOpenInVSCode) {
       commands.push({
         id: 'action-open-vscode',
@@ -137,6 +164,8 @@ export function useCommandPaletteCommands({
     onOpenGitPanel,
     onOpenBacklog,
     onOpenPendingReview,
+    onOpenChatroomSwitcher,
+    onOpenFileSelector,
     onOpenInVSCode,
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,

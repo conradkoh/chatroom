@@ -14,7 +14,6 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
@@ -61,13 +60,6 @@ export function ChatroomSwitcher() {
   );
   const router = useRouter();
   const { chatrooms } = useChatroomListing();
-
-  // Two-finger tap on mobile opens the switcher (same as Cmd+K on desktop)
-  const toggleOpen = useCallback(
-    () => (open ? closeDialog() : openDialog('switcher')),
-    [open, openDialog, closeDialog]
-  );
-  useTwoFingerTap(toggleOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
