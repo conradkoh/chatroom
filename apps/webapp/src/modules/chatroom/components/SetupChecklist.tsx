@@ -68,7 +68,7 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
     <div className="flex flex-col gap-2 p-4 border border-chatroom-border bg-chatroom-bg-surface">
       <div className="flex items-center gap-2">
         <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-chatroom-text-muted">
-          <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
+          <span className="w-1.5 h-1.5 bg-chatroom-status-warning " />
         </span>
         <span className="text-sm font-semibold text-chatroom-text-primary">{label}</span>
       </div>
@@ -235,7 +235,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                   key={role}
                   className="flex items-center gap-2 px-4 py-3 border-b border-chatroom-border last:border-b-0"
                 >
-                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse rounded-full" />
+                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse " />
                   <span className="text-xs font-medium text-chatroom-text-muted uppercase tracking-wide">
                     {role}
                   </span>

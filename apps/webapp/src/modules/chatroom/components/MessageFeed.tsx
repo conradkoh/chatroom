@@ -99,6 +99,8 @@ interface Message {
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
   taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  // Source platform for messages from external integrations (e.g. 'telegram')
+  sourcePlatform?: string;
   // Feature metadata (only for new_feature classification)
   featureTitle?: string;
   featureDescription?: string;
@@ -381,6 +383,11 @@ const TaskHeader = memo(function TaskHeader({
                     {classificationBadge.label}
                   </span>
                 )}
+                {message.sourcePlatform === 'telegram' && (
+                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
+                    ✈️
+                  </span>
+                )}
                 <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
                   {getDisplayText()}
                 </span>
@@ -504,7 +511,7 @@ const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskPro
 
           {/* Expanded: full progress history - overlays as a floating panel */}
           {isExpanded && (
-            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-b-md bg-chatroom-bg-tertiary">
+            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-none bg-chatroom-bg-tertiary">
               <TaskProgressHistory chatroomId={chatroomId} taskId={message.taskId} />
             </div>
           )}
@@ -1328,6 +1335,11 @@ const MessageItem = memo(function MessageItem({
           {/* Right: Sender → Target - User always rendered in gold */}
           <div className="flex items-center gap-x-1.5">
             <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+            {message.sourcePlatform === 'telegram' && (
+              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
+                ✈️ Telegram
+              </span>
+            )}
             {message.targetRole && (
               <>
                 <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
@@ -1585,6 +1597,7 @@ const LatestEventTicker = memo(function LatestEventTicker({
       </button>
     );
   }
+  const workflowDetail = getWorkflowEventDetail(event);
   return (
     <button
       onClick={onClick}
@@ -1594,9 +1607,9 @@ const LatestEventTicker = memo(function LatestEventTicker({
         {formatEventType(event.type)}
       </span>
       {/* Workflow-specific detail (step count, step name, etc.) */}
-      {getWorkflowEventDetail(event) && (
+      {workflowDetail && (
         <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
-          {getWorkflowEventDetail(event)}
+          {workflowDetail}
         </span>
       )}
       {'role' in event && event.role && (
@@ -2012,7 +2025,7 @@ export const MessageFeed = memo(function MessageFeed({
       {!isPinned && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-none shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={16} />

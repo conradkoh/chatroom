@@ -371,6 +371,9 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // For broadcast messages, this gets set when the message is claimed
     claimedByRole: v.optional(v.string()),
+    // Source platform for messages from external integrations (e.g. "telegram")
+    // Used for loop prevention — messages with a sourcePlatform are not re-forwarded.
+    sourcePlatform: v.optional(v.string()),
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
@@ -1097,6 +1100,7 @@ export default defineSchema({
         workflowKey: v.string(),
         workflowId: v.id('chatroom_workflows'),
         stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
         completedBy: v.optional(v.string()),
         timestamp: v.number(),
       }),
@@ -1107,6 +1111,7 @@ export default defineSchema({
         workflowKey: v.string(),
         workflowId: v.id('chatroom_workflows'),
         stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
         cancelledBy: v.optional(v.string()),
         reason: v.string(),
         timestamp: v.number(),
@@ -1155,11 +1160,14 @@ export default defineSchema({
         workflowKey: v.string(),
         workflowId: v.id('chatroom_workflows'),
         stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
         assigneeRole: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Daemon local action request (open-vscode, open-finder, etc.) sent via Convex
       // instead of direct localhost HTTP to work around Safari mixed-content blocking.
+      // NOTE: When adding new action types, also update the canonical TypeScript type
+      // in config/localActions.ts (LocalActionType).
       v.object({
         type: v.literal('daemon.localAction'),
         machineId: v.string(),
@@ -1397,6 +1405,65 @@ export default defineSchema({
     .index('by_machine', ['machineId'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
+  // ─── Workspace File Tree ─────────────────────────────────────────────────────
+  // Stores file tree snapshots and on-demand file content per workspace.
+
+  /**
+   * File tree snapshot for a workspace.
+   * Stores the entire tree as a single JSON blob to avoid per-file row overhead.
+   * Keep under Convex's 1MB document limit (~10,000 entries max).
+   */
+  chatroom_workspaceFileTree: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // JSON blob of FileTree (entries array + metadata)
+    treeJson: v.string(),
+
+    // When the tree was last scanned
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * On-demand file content cache.
+   * Stores content for individual files fetched by the frontend.
+   * Content capped at 500KB per file.
+   */
+  chatroom_workspaceFileContent: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    // File content (max 500KB)
+    content: v.string(),
+    encoding: v.string(), // 'utf8'
+    truncated: v.boolean(),
+
+    // When the content was fetched
+    fetchedAt: v.number(),
+  }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * Pending file content requests.
+   * Frontend creates requests; daemon polls and fulfills them.
+   */
+  chatroom_workspaceFileContentRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
   // ─── Structured Workflows ────────────────────────────────────────────────────
   // DAG-based workflows that agents create and execute step-by-step.
   // Workflows block user handoff until completed or explicitly exited.
@@ -1454,4 +1521,28 @@ export default defineSchema({
     .index('by_workflow', ['workflowId'])
     .index('by_workflow_stepKey', ['workflowId', 'stepKey'])
     .index('by_chatroom', ['chatroomId']),
+
+  /** Chat platform integrations (e.g. Telegram, Slack) linked to a chatroom. */
+  chatroom_integrations: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    /** Platform identifier (e.g. "telegram", "slack") */
+    platform: v.string(),
+    /** Platform-specific configuration (bot token, chat ID, etc.) */
+    config: v.object({
+      /** Bot token or API key — sensitive, stored encrypted at rest by Convex */
+      botToken: v.optional(v.string()),
+      /** Platform-specific chat/channel ID to bridge */
+      chatId: v.optional(v.string()),
+      /** Optional webhook URL */
+      webhookUrl: v.optional(v.string()),
+      /** Webhook secret for verifying inbound requests from Telegram */
+      webhookSecret: v.optional(v.string()),
+    }),
+    /** Whether the integration is currently active */
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_platform', ['chatroomId', 'platform']),
 });

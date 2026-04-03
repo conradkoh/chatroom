@@ -16,8 +16,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-/** Supported local action types. */
-export type LocalActionType = 'open-vscode' | 'open-finder' | 'open-github-desktop';
+import type { LocalActionType } from '@workspace/backend/config/localActions';
+export type { LocalActionType };
 
 /**
  * Returns a callback to send a local action to a machine's daemon via Convex.

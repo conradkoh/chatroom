@@ -10,11 +10,6 @@ import type { DiffStat, GitCommit, GitPullRequest } from '@workspace/backend/src
 // Re-export backend domain types so existing consumers don't break.
 export type { DiffStat, GitCommit, GitPullRequest };
 
-// ─── Primitive Types ─────────────────────────────────────────────────────────
-
-/** @deprecated Use `DiffStat` from the backend domain types. Alias kept for backward compatibility. */
-export type GitDiffStat = DiffStat;
-
 // ─── Discriminated Union Results ─────────────────────────────────────────────
 
 /**
@@ -38,7 +33,7 @@ export type GitBranchResult =
  * - `error`: unexpected failure
  */
 export type GitDiffStatResult =
-  | { status: 'available'; diffStat: GitDiffStat }
+  | { status: 'available'; diffStat: DiffStat }
   | { status: 'not_found' }
   | { status: 'no_commits' }
   | { status: 'error'; message: string };

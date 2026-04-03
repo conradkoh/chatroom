@@ -93,6 +93,24 @@ program
   });
 
 // ============================================================================
+// TOOL COMMANDS (no auth required — agents run tools locally)
+// ============================================================================
+
+const toolCommand = program.command('tool').description('Built-in tools for agent workflows');
+
+toolCommand
+  .command('parse-pdf')
+  .description('Parse a PDF file and extract text content to a temp file')
+  .requiredOption('--input <path-or-url>', 'PDF file path or URL')
+  .option('--working-dir <dir>', 'Working directory for output', process.cwd())
+  .action(async (options: { input: string; workingDir: string }) => {
+    const { parsePdf } = await import('./tools/parse-pdf/index.js');
+    const result = await parsePdf(options.input, options.workingDir);
+    console.log(result.message);
+    process.exit(result.success ? 0 : 1);
+  });
+
+// ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)
 // ============================================================================
 
@@ -1012,6 +1030,32 @@ program
     const { getSystemPrompt } = await import('./commands/get-system-prompt/index.js');
     await getSystemPrompt(options.chatroomId, { role: options.role });
   });
+
+// ============================================================================
+// TELEGRAM COMMANDS (auth required)
+// ============================================================================
+
+const telegramCommand = program.command('telegram').description('Telegram integration commands');
+
+telegramCommand
+  .command('send-message')
+  .description('Send a message to a connected Telegram integration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--integration-id <id>', 'Telegram integration ID')
+  .requiredOption('--message <text>', 'Message to send')
+  .option('--role <role>', 'Sender role label (default: user)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      integrationId: string;
+      message: string;
+      role?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { sendMessage } = await import('./commands/telegram/index.js');
+      await sendMessage(options);
+    }
+  );
 
 // ============================================================================
 // MACHINE COMMANDS (auth required)

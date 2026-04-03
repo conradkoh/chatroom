@@ -1,0 +1,433 @@
+/**
+ * Convex functions for workspace file tree and on-demand file content.
+ *
+ * - File tree: daemon syncs a JSON blob of the file tree per workspace
+ * - File content: frontend requests content; daemon fulfills; cached in DB
+ */
+
+import { v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
+
+import { mutation, query } from './_generated/server';
+import type { QueryCtx, MutationCtx } from './_generated/server';
+import { validateSession } from './auth/cliSessionAuth';
+import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Max treeJson size: 900KB (stay under Convex's 1MB document limit). */
+const MAX_TREE_JSON_BYTES = 900 * 1024;
+
+/** Max file content size: 512KB. */
+const MAX_CONTENT_BYTES = 512 * 1024;
+
+/** Max pending requests returned per query (prevent unbounded reads). */
+const MAX_PENDING_REQUESTS = 50;
+
+/** Max file path length to prevent abuse. */
+const MAX_FILE_PATH_LENGTH = 1024;
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function getAuthenticatedUser(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: string
+): Promise<{ isAuthenticated: true; userId: any } | { isAuthenticated: false }> {
+  const result = await validateSession(ctx, sessionId);
+  if (!result.valid) {
+    return { isAuthenticated: false };
+  }
+  return { isAuthenticated: true, userId: result.userId };
+}
+
+/**
+ * Verify that the authenticated user owns the given machine.
+ * Used as fallback for endpoints called before workspace registration.
+ */
+async function verifyMachineOwnership(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: any
+): Promise<boolean> {
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+    .first();
+  return !!machine && machine.userId === userId;
+}
+
+/**
+ * Check chatroom-based access for a machine.
+ * Falls back to direct machine ownership for daemon calls
+ * where the machine may not yet have workspace registrations.
+ */
+async function requireMachineAccess(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: any
+): Promise<void> {
+  try {
+    await requireChatroomMachineAccess(ctx, machineId, userId);
+    return;
+  } catch {
+    if (await verifyMachineOwnership(ctx, machineId, userId)) {
+      return;
+    }
+    throw new Error('Machine not found or access denied');
+  }
+}
+
+/**
+ * Validate a file path for security.
+ * Rejects path traversal, absolute paths, null bytes, and overly long paths.
+ */
+function validateFilePath(filePath: string): void {
+  if (filePath.length > MAX_FILE_PATH_LENGTH) {
+    throw new Error('File path too long');
+  }
+  if (filePath.includes('..')) {
+    throw new Error('Invalid file path: path traversal not allowed');
+  }
+  if (filePath.startsWith('/')) {
+    throw new Error('Invalid file path: absolute paths not allowed');
+  }
+  if (filePath.includes('\0')) {
+    throw new Error('Invalid file path: null bytes not allowed');
+  }
+}
+
+// ─── File Tree Sync (daemon → backend) ──────────────────────────────────────
+
+/**
+ * Upserts the file tree for a workspace.
+ * Called by the daemon after scanning the working directory.
+ */
+export const syncFileTree = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    treeJson: v.string(),
+    scannedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Validate treeJson size to prevent oversized documents
+    if (new TextEncoder().encode(args.treeJson).length > MAX_TREE_JSON_BYTES) {
+      throw new Error('File tree too large');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    const data = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      treeJson: args.treeJson,
+      scannedAt: args.scannedAt,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTree', data);
+    }
+  },
+});
+
+// ─── File Tree Query (frontend) ─────────────────────────────────────────────
+
+/**
+ * Returns the file tree for a workspace.
+ * Auth-gated: verifies chatroom membership.
+ */
+export const getFileTree = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const tree = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (!tree) {
+      return null;
+    }
+
+    return {
+      treeJson: tree.treeJson,
+      scannedAt: tree.scannedAt,
+    };
+  },
+});
+
+// ─── File Content Request (frontend → daemon) ──────────────────────────────
+
+/**
+ * Requests file content for a specific file.
+ * Returns cached content if fresh, otherwise creates a pending request.
+ */
+export const requestFileContent = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Security: validate file path
+    validateFilePath(args.filePath);
+
+    // Check for cached content (fresh if < 5 minutes old)
+    const cached = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    if (cached && Date.now() - cached.fetchedAt < FIVE_MINUTES) {
+      return { status: 'cached' as const };
+    }
+
+    // Check for existing pending request
+    const existingRequest = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (existingRequest && existingRequest.status === 'pending') {
+      return { status: 'pending' as const };
+    }
+
+    const now = Date.now();
+
+    if (existingRequest) {
+      // Re-use existing request row
+      await ctx.db.patch(existingRequest._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileContentRequests', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        filePath: args.filePath,
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return { status: 'requested' as const };
+  },
+});
+
+// ─── File Content Query (frontend) ──────────────────────────────────────────
+
+/**
+ * Returns cached file content if available.
+ */
+export const getFileContent = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const content = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (!content) {
+      return null;
+    }
+
+    return {
+      content: content.content,
+      encoding: content.encoding,
+      truncated: content.truncated,
+      fetchedAt: content.fetchedAt,
+    };
+  },
+});
+
+// ─── Daemon: Pending File Content Requests ──────────────────────────────────
+
+/**
+ * Returns pending file content requests for a machine.
+ * Daemon polls this to discover what files to read.
+ */
+export const getPendingFileContentRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return [];
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      filePath: r.filePath,
+    }));
+  },
+});
+
+// ─── Daemon: Fulfill File Content ───────────────────────────────────────────
+
+/**
+ * Uploads file content from the daemon (session-authed).
+ * Upserts content and marks the request as done.
+ */
+export const fulfillFileContent = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    content: v.string(),
+    encoding: v.string(),
+    truncated: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Validate content size
+    if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
+      throw new Error('File content too large');
+    }
+
+    // Validate file path
+    validateFilePath(args.filePath);
+
+    const now = Date.now();
+
+    // Upsert file content
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    const data = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      filePath: args.filePath,
+      content: args.content,
+      encoding: args.encoding,
+      truncated: args.truncated,
+      fetchedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileContent', data);
+    }
+
+    // Mark request as done
+    const request = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch(request._id, {
+        status: 'done' as const,
+        updatedAt: now,
+      });
+    }
+  },
+});

@@ -12,6 +12,8 @@ import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-sta
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
+import { pushFileTree } from './file-tree-heartbeat.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
@@ -72,27 +74,30 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
+/** Consolidates the four dedup maps into a single container. */
+interface DedupTracker {
+  commandIds: Map<string, number>;
+  pingIds: Map<string, number>;
+  gitRefreshIds: Map<string, number>;
+  localActionIds: Map<string, number>;
+}
+
 /**
  * Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth.
  */
-function evictStaleDedupEntries(
-  processedCommandIds: Map<string, number>,
-  processedPingIds: Map<string, number>,
-  processedGitRefreshIds: Map<string, number>,
-  processedLocalActionIds: Map<string, number>
-): void {
+function evictStaleDedupEntries(tracker: DedupTracker): void {
   const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
-  for (const [id, ts] of processedCommandIds) {
-    if (ts < evictBefore) processedCommandIds.delete(id);
+  for (const [id, ts] of tracker.commandIds) {
+    if (ts < evictBefore) tracker.commandIds.delete(id);
   }
-  for (const [id, ts] of processedPingIds) {
-    if (ts < evictBefore) processedPingIds.delete(id);
+  for (const [id, ts] of tracker.pingIds) {
+    if (ts < evictBefore) tracker.pingIds.delete(id);
   }
-  for (const [id, ts] of processedGitRefreshIds) {
-    if (ts < evictBefore) processedGitRefreshIds.delete(id);
+  for (const [id, ts] of tracker.gitRefreshIds) {
+    if (ts < evictBefore) tracker.gitRefreshIds.delete(id);
   }
-  for (const [id, ts] of processedLocalActionIds) {
-    if (ts < evictBefore) processedLocalActionIds.delete(id);
+  for (const [id, ts] of tracker.localActionIds) {
+    if (ts < evictBefore) tracker.localActionIds.delete(id);
   }
 }
 
@@ -103,27 +108,24 @@ function evictStaleDedupEntries(
 async function dispatchCommandEvent(
   ctx: DaemonContext,
   event: CommandEvent,
-  processedCommandIds: Map<string, number>,
-  processedPingIds: Map<string, number>,
-  processedGitRefreshIds: Map<string, number>,
-  processedLocalActionIds: Map<string, number>
+  tracker: DedupTracker
 ): Promise<void> {
   const eventId = event._id.toString();
 
   if (event.type === 'agent.requestStart') {
-    // Deadline-filtered — use processedCommandIds for session dedup
-    if (processedCommandIds.has(eventId)) return;
-    processedCommandIds.set(eventId, Date.now());
+    // Deadline-filtered — use commandIds for session dedup
+    if (tracker.commandIds.has(eventId)) return;
+    tracker.commandIds.set(eventId, Date.now());
     await onRequestStartAgent(ctx, event);
   } else if (event.type === 'agent.requestStop') {
-    // Deadline-filtered — use processedCommandIds for session dedup
-    if (processedCommandIds.has(eventId)) return;
-    processedCommandIds.set(eventId, Date.now());
+    // Deadline-filtered — use commandIds for session dedup
+    if (tracker.commandIds.has(eventId)) return;
+    tracker.commandIds.set(eventId, Date.now());
     await onRequestStopAgent(ctx, event);
   } else if (event.type === 'daemon.ping') {
     // Session dedup — prevents re-ponging the same ping twice in one daemon run
-    if (processedPingIds.has(eventId)) return;
-    processedPingIds.set(eventId, Date.now());
+    if (tracker.pingIds.has(eventId)) return;
+    tracker.pingIds.set(eventId, Date.now());
 
     // Respond to ping with a pong via mutation
     handlePing();
@@ -134,8 +136,8 @@ async function dispatchCommandEvent(
     });
   } else if (event.type === 'daemon.gitRefresh') {
     // Session dedup — don't re-process same refresh event twice in one daemon run
-    if (processedGitRefreshIds.has(eventId)) return;
-    processedGitRefreshIds.set(eventId, Date.now());
+    if (tracker.gitRefreshIds.has(eventId)) return;
+    tracker.gitRefreshIds.set(eventId, Date.now());
 
     // Clear in-memory state hash to bypass change detection on next push
     const stateKey = makeGitStateKey(ctx.machineId, event.workingDir);
@@ -146,8 +148,8 @@ async function dispatchCommandEvent(
     await pushGitState(ctx);
   } else if (event.type === 'daemon.localAction') {
     // Session dedup — don't re-process same local action event twice in one daemon run
-    if (processedLocalActionIds.has(eventId)) return;
-    processedLocalActionIds.set(eventId, Date.now());
+    if (tracker.localActionIds.has(eventId)) return;
+    tracker.localActionIds.set(eventId, Date.now());
 
     console.log(`[${formatTimestamp()}] 🖥️  Local action: ${event.action} → ${event.workingDir}`);
     const result = await executeLocalAction(event.action, event.workingDir);
@@ -182,6 +184,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         pushGitState(ctx).catch((err: unknown) => {
           console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`);
         });
+        // Push file tree after each successful heartbeat (change-detected, no-op if unchanged)
+        pushFileTree(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  File tree push failed: ${getErrorMessage(err)}`);
+        });
+        // File content requests are now handled by the reactive subscription
+        // (file-content-subscription.ts) for near-instant response times.
       })
       .catch((err: unknown) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
@@ -197,9 +205,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Started after wsClient is initialized (see below).
   let gitSubscriptionHandle: ReturnType<typeof startGitRequestSubscription> | null = null;
 
+  // ── File Content Subscription ──────────────────────────────────────
+  // Reactive subscription for on-demand file content requests.
+  // Replaces the heartbeat-based polling for near-instant file previews.
+  let fileContentSubscriptionHandle: ReturnType<typeof startFileContentSubscription> | null = null;
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   pushGitState(ctx).catch(() => {});
+  pushFileTree(ctx).catch(() => {});
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
@@ -209,6 +223,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     // Stop git request subscription
     if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
+
+    // Stop file content subscription
+    if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
 
     await onDaemonShutdown(ctx);
 
@@ -232,6 +249,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Now that wsClient is ready, start the reactive git request subscription.
   gitSubscriptionHandle = startGitRequestSubscription(ctx, wsClient);
 
+  // ── File Content Subscription ──────────────────────────────────────
+  // Now that wsClient is ready, start the reactive file content subscription.
+  fileContentSubscriptionHandle = startFileContentSubscription(ctx, wsClient);
+
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
 
@@ -246,10 +267,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Session-scoped dedup maps — prevent double-processing within a single daemon run.
   // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
   // are evicted at the start of each batch to bound memory growth.
-  const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
-  const processedPingIds = new Map<string, number>(); // daemon.ping
-  const processedGitRefreshIds = new Map<string, number>(); // daemon.gitRefresh
-  const processedLocalActionIds = new Map<string, number>(); // daemon.localAction
+  const dedupTracker: DedupTracker = {
+    commandIds: new Map<string, number>(),   // agent.requestStart / agent.requestStop
+    pingIds: new Map<string, number>(),       // daemon.ping
+    gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
+    localActionIds: new Map<string, number>(), // daemon.localAction
+  };
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
@@ -260,21 +283,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     async (result) => {
       if (!result.events || result.events.length === 0) return;
 
-      evictStaleDedupEntries(processedCommandIds, processedPingIds, processedGitRefreshIds, processedLocalActionIds);
+      evictStaleDedupEntries(dedupTracker);
 
       for (const event of result.events) {
         try {
           console.log(
             `[${formatTimestamp()}] 📡 Stream command event: ${event.type} (id: ${event._id})`
           );
-          await dispatchCommandEvent(
-            ctx,
-            event,
-            processedCommandIds,
-            processedPingIds,
-            processedGitRefreshIds,
-            processedLocalActionIds
-          );
+          await dispatchCommandEvent(ctx, event, dedupTracker);
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${getErrorMessage(err)}`

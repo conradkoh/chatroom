@@ -12,6 +12,7 @@ import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
+import type * as auth_chatroomMachineAccess from "../auth/chatroomMachineAccess.js";
 import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
@@ -25,6 +26,15 @@ import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
+import type * as http from "../http.js";
+import type * as integrations from "../integrations.js";
+import type * as integrations_index from "../integrations/index.js";
+import type * as integrations_telegram_actions from "../integrations/telegram/actions.js";
+import type * as integrations_telegram_api from "../integrations/telegram/api.js";
+import type * as integrations_telegram_index from "../integrations/telegram/index.js";
+import type * as integrations_telegram_internal from "../integrations/telegram/internal.js";
+import type * as integrations_telegram_types from "../integrations/telegram/types.js";
+import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
@@ -45,6 +55,7 @@ import type * as tasks from "../tasks.js";
 import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as workflows from "../workflows.js";
+import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -58,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   artifacts: typeof artifacts;
   attendance: typeof attendance;
   auth: typeof auth;
+  "auth/chatroomMachineAccess": typeof auth_chatroomMachineAccess;
   "auth/cliSessionAuth": typeof auth_cliSessionAuth;
   "auth/google": typeof auth_google;
   backlog: typeof backlog;
@@ -71,6 +83,15 @@ declare const fullApi: ApiFromModules<{
   discussions: typeof discussions;
   events: typeof events;
   guidelines: typeof guidelines;
+  http: typeof http;
+  integrations: typeof integrations;
+  "integrations/index": typeof integrations_index;
+  "integrations/telegram/actions": typeof integrations_telegram_actions;
+  "integrations/telegram/api": typeof integrations_telegram_api;
+  "integrations/telegram/index": typeof integrations_telegram_index;
+  "integrations/telegram/internal": typeof integrations_telegram_internal;
+  "integrations/telegram/types": typeof integrations_telegram_types;
+  "integrations/types": typeof integrations_types;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/hierarchy": typeof lib_hierarchy;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
@@ -91,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/taskDelivery": typeof tasks_taskDelivery;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   workflows: typeof workflows;
+  workspaceFiles: typeof workspaceFiles;
   workspaces: typeof workspaces;
 }>;
 

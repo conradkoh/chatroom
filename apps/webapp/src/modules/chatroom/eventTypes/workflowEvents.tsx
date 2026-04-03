@@ -102,7 +102,7 @@ function renderStepCompletedCell(event: WorkflowStepCompletedEvent, isSelected: 
       type="workflow.stepCompleted"
       badgeText="Step ✅"
       badgeColor="success"
-      primaryInfo={event.stepKey}
+      primaryInfo={event.stepDescription ?? event.stepKey}
       secondaryInfo={event.completedBy ?? ''}
       timestamp={event.timestamp}
       isSelected={isSelected}
@@ -135,7 +135,7 @@ function renderStepCancelledCell(event: WorkflowStepCancelledEvent, isSelected: 
       type="workflow.stepCancelled"
       badgeText="Step ❌"
       badgeColor="error"
-      primaryInfo={event.stepKey}
+      primaryInfo={event.stepDescription ?? event.stepKey}
       secondaryInfo={event.cancelledBy ?? ''}
       timestamp={event.timestamp}
       isSelected={isSelected}
@@ -277,7 +277,7 @@ function renderStepStartedCell(event: WorkflowStepStartedEvent, isSelected: bool
       type="workflow.stepStarted"
       badgeText="Step ▶️"
       badgeColor="info"
-      primaryInfo={event.stepKey}
+      primaryInfo={event.stepDescription ?? event.stepKey}
       secondaryInfo={event.assigneeRole ?? ''}
       timestamp={event.timestamp}
       isSelected={isSelected}

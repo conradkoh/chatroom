@@ -36,25 +36,4 @@ export function readFileContent(filePath: string, optionName: string): string {
   }
 }
 
-/**
- * @deprecated Use readFileContent instead. This function is kept for backward compatibility.
- * Resolves content from either a direct string or a file path.
- */
-export function resolveContent(
-  content: string | undefined,
-  filePath: string | undefined,
-  optionName: string
-): string | undefined {
-  // Both provided - error
-  if (content && filePath) {
-    throw new Error(`Cannot specify both --${optionName} and --${optionName}-file`);
-  }
 
-  // File path provided - read from file
-  if (filePath) {
-    return readFileContent(filePath, `${optionName}-file`);
-  }
-
-  // Direct content or undefined
-  return content;
-}

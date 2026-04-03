@@ -17,8 +17,10 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Supported local action types. */
-export type LocalActionType = 'open-vscode' | 'open-finder' | 'open-github-desktop';
+import type { LocalActionType } from '@workspace/backend/config/localActions.js';
+
+/** Re-export from the canonical backend config definition. */
+export type { LocalActionType };
 
 /** Result of executing a local action. */
 export type LocalActionResult =
