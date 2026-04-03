@@ -39,4 +39,6 @@ export interface WorkQueueProps {
   chatroomId: string;
   /** Lifecycle data from the parent — used to derive needsPromotion without a separate checkQueueHealth subscription */
   lifecycle?: TeamLifecycle | null;
+  /** Optional ref to expose imperative open actions to parent (e.g. command palette) */
+  onRegisterActions?: (actions: { openBacklog: () => void; openPendingReview: () => void }) => void;
 }

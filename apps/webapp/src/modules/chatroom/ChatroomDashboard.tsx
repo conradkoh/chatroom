@@ -27,6 +27,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
+import { CommandPalette, useCommandPaletteCommands } from './components/CommandPalette';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
@@ -361,6 +362,65 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
+  // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
+  // Refs to hold imperative open callbacks registered by child components
+  const openGitPanelRef = useRef<(() => void) | null>(null);
+  const openEventStreamRef = useRef<(() => void) | null>(null);
+  const openBacklogRef = useRef<(() => void) | null>(null);
+  const openPendingReviewRef = useRef<(() => void) | null>(null);
+
+  // Registration callbacks (stable refs, no re-renders)
+  const handleRegisterOpenGitPanel = useCallback((fn: () => void) => {
+    openGitPanelRef.current = fn;
+  }, []);
+
+  const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
+    openEventStreamRef.current = fn;
+  }, []);
+
+  const handleRegisterWorkQueueActions = useCallback(
+    (actions: { openBacklog: () => void; openPendingReview: () => void }) => {
+      openBacklogRef.current = actions.openBacklog;
+      openPendingReviewRef.current = actions.openPendingReview;
+    },
+    []
+  );
+
+  // Command palette open handlers — delegate to child refs
+  const handleCmdOpenSettings = useCallback(
+    (tab: string) => {
+      setSettingsInitialTab(tab as 'setup' | 'team' | 'machine' | 'agents' | 'integrations');
+      setSettingsModalOpen(true);
+    },
+    []
+  );
+
+  const handleCmdOpenGitPanel = useCallback(() => {
+    openGitPanelRef.current?.();
+  }, []);
+
+  const handleCmdOpenEventStream = useCallback(() => {
+    openEventStreamRef.current?.();
+  }, []);
+
+  const handleCmdOpenBacklog = useCallback(() => {
+    openBacklogRef.current?.();
+  }, []);
+
+  const handleCmdOpenPendingReview = useCallback(() => {
+    openPendingReviewRef.current?.();
+  }, []);
+
+  // Build command palette commands
+  const commands = useCommandPaletteCommands({
+    chatroomId,
+    onOpenSettings: handleCmdOpenSettings,
+    onOpenEventStream: handleCmdOpenEventStream,
+    onOpenGitPanel: handleCmdOpenGitPanel,
+    onOpenBacklog: handleCmdOpenBacklog,
+    onOpenPendingReview: handleCmdOpenPendingReview,
+  });
+
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
     () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
@@ -636,6 +696,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   controller={scrollController}
                   isPinned={isPinned}
                   scrollToBottom={scrollToBottom}
+                  onRegisterOpenEventStream={handleRegisterOpenEventStream}
                 />
                 <SendForm
                   chatroomId={chatroomId}
@@ -673,10 +734,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                   onOpenAgents={handleOpenAgents}
                 />
-                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
+                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} onRegisterActions={handleRegisterWorkQueueActions} />
               </div>
             </div>
-            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
+            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />
           </div>
 
           <PromptModal
@@ -726,6 +787,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             chatroomName={displayName}
             onRenameChatroom={handleRenameChatroom}
           />
+
+          {/* Command Palette (Cmd+Shift+P) */}
+          <CommandPalette commands={commands} />
         </>
       </PromptsProvider>
     </AttachmentsProvider>
