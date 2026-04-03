@@ -1,7 +1,17 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Activity, ClipboardCheck, GitBranch, ListTodo, Settings } from 'lucide-react';
+import {
+  Activity,
+  ClipboardCheck,
+  Code2,
+  GitBranch,
+  GitPullRequest,
+  ListTodo,
+  PanelBottomOpen,
+  Settings,
+} from 'lucide-react';
+import { SiGithub } from 'react-icons/si';
 
 import type { CommandItem } from './types';
 
@@ -12,13 +22,18 @@ interface UseCommandPaletteCommandsProps {
   onOpenGitPanel: () => void;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
+  /** Workspace action callbacks — conditionally available */
+  onOpenInVSCode?: (() => void) | null;
+  onOpenInGitHubDesktop?: (() => void) | null;
+  onOpenPROnGitHub?: (() => void) | null;
+  onOpenWorkspaceDetails?: (() => void) | null;
 }
 
 /**
  * Hook that builds the list of commands for the command palette.
  *
- * Currently provides panel navigation commands. Additional command categories
- * (e.g. chatroom actions, navigation) can be added here in future phases.
+ * Provides panel navigation commands and workspace action commands.
+ * Action commands are conditionally included based on workspace availability.
  */
 export function useCommandPaletteCommands({
   onOpenSettings,
@@ -26,9 +41,14 @@ export function useCommandPaletteCommands({
   onOpenGitPanel,
   onOpenBacklog,
   onOpenPendingReview,
+  onOpenInVSCode,
+  onOpenInGitHubDesktop,
+  onOpenPROnGitHub,
+  onOpenWorkspaceDetails,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
-  return useMemo<CommandItem[]>(
-    () => [
+  return useMemo<CommandItem[]>(() => {
+    const commands: CommandItem[] = [
+      // ─── Panels ──────────────────────────────────────────
       {
         id: 'panel-git',
         label: 'Show Git Panel',
@@ -64,7 +84,59 @@ export function useCommandPaletteCommands({
         category: 'Panels',
         action: onOpenBacklog,
       },
-    ],
-    [onOpenSettings, onOpenEventStream, onOpenGitPanel, onOpenBacklog, onOpenPendingReview]
-  );
+    ];
+
+    // ─── Actions (conditionally included) ────────────────
+    if (onOpenInVSCode) {
+      commands.push({
+        id: 'action-open-vscode',
+        label: 'Open in VS Code',
+        icon: <Code2 size={14} />,
+        category: 'Actions',
+        action: onOpenInVSCode,
+      });
+    }
+
+    if (onOpenInGitHubDesktop) {
+      commands.push({
+        id: 'action-open-github-desktop',
+        label: 'PR: Open in GitHub Desktop',
+        icon: <SiGithub size={14} />,
+        category: 'Actions',
+        action: onOpenInGitHubDesktop,
+      });
+    }
+
+    if (onOpenPROnGitHub) {
+      commands.push({
+        id: 'action-open-pr-github',
+        label: 'PR: Open on GitHub',
+        icon: <GitPullRequest size={14} />,
+        category: 'Actions',
+        action: onOpenPROnGitHub,
+      });
+    }
+
+    if (onOpenWorkspaceDetails) {
+      commands.push({
+        id: 'action-open-workspace-details',
+        label: 'Open Workspace Details',
+        icon: <PanelBottomOpen size={14} />,
+        category: 'Actions',
+        action: onOpenWorkspaceDetails,
+      });
+    }
+
+    return commands;
+  }, [
+    onOpenSettings,
+    onOpenEventStream,
+    onOpenGitPanel,
+    onOpenBacklog,
+    onOpenPendingReview,
+    onOpenInVSCode,
+    onOpenInGitHubDesktop,
+    onOpenPROnGitHub,
+    onOpenWorkspaceDetails,
+  ]);
 }

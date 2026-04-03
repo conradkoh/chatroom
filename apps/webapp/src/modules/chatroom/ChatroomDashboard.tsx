@@ -33,6 +33,7 @@ import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
 import {
@@ -43,6 +44,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
@@ -411,6 +414,38 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openPendingReviewRef.current?.();
   }, []);
 
+  // ─── Workspace context for command palette actions ─────────────────────────
+  const { isConnected: isLocalWorkspace } = useDaemonConnected(firstWorkspace?.machineId ?? null);
+  const sendAction = useSendLocalAction();
+  const gitState = useWorkspaceGit(
+    firstWorkspace?.machineId ?? '',
+    firstWorkspace?.workingDir ?? ''
+  );
+
+  // Derive PR URL from git state
+  const prUrl = useMemo(() => {
+    if (gitState.status !== 'available') return null;
+    const pr = gitState.openPullRequests?.[0];
+    return pr?.url ?? null;
+  }, [gitState]);
+
+  // Action command callbacks — stable, conditionally nulled
+  const handleOpenInVSCode = useCallback(() => {
+    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
+      sendAction(firstWorkspace.machineId, 'open-vscode', firstWorkspace.workingDir);
+    }
+  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+
+  const handleOpenInGitHubDesktop = useCallback(() => {
+    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
+      sendAction(firstWorkspace.machineId, 'open-github-desktop', firstWorkspace.workingDir);
+    }
+  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+
+  const handleOpenPROnGitHub = useCallback(() => {
+    if (prUrl) window.open(prUrl, '_blank');
+  }, [prUrl]);
+
   // Build command palette commands
   const commands = useCommandPaletteCommands({
     chatroomId,
@@ -419,6 +454,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenGitPanel: handleCmdOpenGitPanel,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
+    onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
+    onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
+    onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
+    onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
   });
 
   // Memoize the team entry point
