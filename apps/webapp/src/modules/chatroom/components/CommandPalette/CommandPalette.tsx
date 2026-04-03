@@ -14,6 +14,8 @@ import {
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
+
 import type { CommandItem } from './types';
 
 interface CommandPaletteProps {
@@ -93,7 +95,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
             Search and execute a command
           </DialogPrimitive.Description>
 
-          <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
             <CommandInput
               placeholder="Type a command..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"

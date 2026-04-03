@@ -23,6 +23,8 @@ import {
 
 import type { FileEntry } from './useFileSelector';
 
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
+
 interface FileSelectorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -86,7 +88,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         className="w-[600px] max-w-[90vw] rounded-none border border-chatroom-border bg-chatroom-bg-primary p-0 shadow-2xl overflow-hidden fixed top-[20%] translate-y-0 left-[50%] translate-x-[-50%] data-[state=open]:duration-0 data-[state=closed]:duration-100"
         style={{ maxHeight: '60vh' }}
       >
-        <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
+        <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
           {/* u03: Seamless search input with only bottom border, u04: "Go to File..." placeholder */}
           <CommandInput
             placeholder="Go to File..."
