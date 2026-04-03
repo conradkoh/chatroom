@@ -83,8 +83,11 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   }, [commands]);
 
   const handleSelect = (command: CommandItem) => {
-    command.action();
-    setOpen(false);
+    // Close the palette first, then execute the action in the next frame.
+    // This prevents race conditions where openDialog('switcher') is immediately
+    // overwritten by closeDialog() in the same React batch.
+    closeDialog();
+    setTimeout(() => command.action(), 0);
   };
 
   return (
