@@ -6,6 +6,7 @@ import { PageSpinner } from '@/components/ui/spinner';
 import { AuthErrorBoundary } from '@/modules/auth/AuthErrorBoundary';
 import { RequireLogin } from '@/modules/auth/RequireLogin';
 import { ChatroomSwitcher } from '@/modules/chatroom/components/ChatroomSwitcher';
+import { CommandPalette } from '@/modules/chatroom/components/CommandPalette';
 import { GlobalNotificationListener } from '@/modules/chatroom/components/GlobalNotificationListener';
 import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
 
@@ -32,6 +33,7 @@ export default function AppLayout({
       <AuthErrorBoundary>
         <ChatroomListingProvider>
           <ChatroomSwitcher />
+          <CommandPalette commands={[]} />
           <GlobalNotificationListener />
           <Suspense fallback={<PageSpinner />}>{children}</Suspense>
         </ChatroomListingProvider>
