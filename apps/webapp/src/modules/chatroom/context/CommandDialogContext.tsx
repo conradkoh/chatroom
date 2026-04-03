@@ -1,5 +1,12 @@
 'use client';
 
+/**
+ * Shared context for mutual exclusivity across command-style dialogs.
+ *
+ * Only one command dialog (Cmd+K switcher, Cmd+P file selector, Cmd+Shift+P
+ * command palette) can be open at a time. Opening one auto-closes any other.
+ */
+
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 
 export type CommandDialogType = 'switcher' | 'file-selector' | 'command-palette' | null;
