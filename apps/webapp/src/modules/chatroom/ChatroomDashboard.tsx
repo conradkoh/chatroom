@@ -27,7 +27,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
-import { CommandPalette, useCommandPaletteCommands } from './components/CommandPalette';
+import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
@@ -392,8 +392,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Command palette open handlers — delegate to child refs
   const handleCmdOpenSettings = useCallback(
-    (tab: string) => {
-      setSettingsInitialTab(tab as 'setup' | 'team' | 'machine' | 'agents' | 'integrations');
+    (tab: SettingsTab) => {
+      setSettingsInitialTab(tab);
       setSettingsModalOpen(true);
     },
     []

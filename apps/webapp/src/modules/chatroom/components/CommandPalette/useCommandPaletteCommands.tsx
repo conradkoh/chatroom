@@ -15,8 +15,10 @@ import { SiGithub } from 'react-icons/si';
 
 import type { CommandItem } from './types';
 
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'integrations';
+
 interface UseCommandPaletteCommandsProps {
-  onOpenSettings: (tab: string) => void;
+  onOpenSettings: (tab: SettingsTab) => void;
   onOpenEventStream: () => void;
   onOpenGitPanel: () => void;
   onOpenBacklog: () => void;
