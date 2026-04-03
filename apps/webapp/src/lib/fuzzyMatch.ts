@@ -18,17 +18,10 @@ export function fuzzyMatch(query: string, target: string): number {
   const q = query.toLowerCase();
   const t = target.toLowerCase();
 
-  // Quick check: all query characters must exist in target (in order)
-  let qi = 0;
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) qi++;
-  }
-  if (qi < q.length) return 0; // not all characters matched
-
-  // Score the match with bonuses
+  // Single pass: match characters in order and score simultaneously
   let score = 0;
   let consecutive = 0;
-  qi = 0;
+  let qi = 0;
 
   for (let ti = 0; ti < t.length && qi < q.length; ti++) {
     if (t[ti] === q[qi]) {
@@ -60,7 +53,8 @@ export function fuzzyMatch(query: string, target: string): number {
     }
   }
 
-  return score;
+  // All query characters must have matched
+  return qi === q.length ? score : 0;
 }
 
 /**

@@ -16,7 +16,6 @@ import { SiGithub } from 'react-icons/si';
 import type { CommandItem } from './types';
 
 interface UseCommandPaletteCommandsProps {
-  chatroomId: string;
   onOpenSettings: (tab: string) => void;
   onOpenEventStream: () => void;
   onOpenGitPanel: () => void;

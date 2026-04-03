@@ -449,7 +449,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Build command palette commands
   const commands = useCommandPaletteCommands({
-    chatroomId,
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
     onOpenGitPanel: handleCmdOpenGitPanel,
