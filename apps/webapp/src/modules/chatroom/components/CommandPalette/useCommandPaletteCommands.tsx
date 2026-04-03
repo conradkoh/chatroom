@@ -47,46 +47,9 @@ export function useCommandPaletteCommands({
   onOpenWorkspaceDetails,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
-    const commands: CommandItem[] = [
-      // ─── Panels ──────────────────────────────────────────
-      {
-        id: 'panel-git',
-        label: 'Show Git Panel',
-        icon: <GitBranch size={14} />,
-        category: 'Panels',
-        action: onOpenGitPanel,
-      },
-      {
-        id: 'panel-configuration',
-        label: 'Show Configuration',
-        icon: <Settings size={14} />,
-        category: 'Panels',
-        action: () => onOpenSettings('setup'),
-      },
-      {
-        id: 'panel-event-stream',
-        label: 'Show Event Stream',
-        icon: <Activity size={14} />,
-        category: 'Panels',
-        action: onOpenEventStream,
-      },
-      {
-        id: 'panel-pending-review',
-        label: 'Show Pending Review',
-        icon: <ClipboardCheck size={14} />,
-        category: 'Panels',
-        action: onOpenPendingReview,
-      },
-      {
-        id: 'panel-backlog',
-        label: 'Show Backlog',
-        icon: <ListTodo size={14} />,
-        category: 'Panels',
-        action: onOpenBacklog,
-      },
-    ];
+    const commands: CommandItem[] = [];
 
-    // ─── Actions (conditionally included) ────────────────
+    // ─── Actions (shown first, conditionally included) ───
     if (onOpenInVSCode) {
       commands.push({
         id: 'action-open-vscode',
@@ -126,6 +89,45 @@ export function useCommandPaletteCommands({
         action: onOpenWorkspaceDetails,
       });
     }
+
+    // ─── Panels ──────────────────────────────────────────
+    commands.push(
+      {
+        id: 'panel-git',
+        label: 'Show Git Panel',
+        icon: <GitBranch size={14} />,
+        category: 'Panels',
+        action: onOpenGitPanel,
+      },
+      {
+        id: 'panel-configuration',
+        label: 'Show Configuration',
+        icon: <Settings size={14} />,
+        category: 'Panels',
+        action: () => onOpenSettings('setup'),
+      },
+      {
+        id: 'panel-event-stream',
+        label: 'Show Event Stream',
+        icon: <Activity size={14} />,
+        category: 'Panels',
+        action: onOpenEventStream,
+      },
+      {
+        id: 'panel-pending-review',
+        label: 'Show Pending Review',
+        icon: <ClipboardCheck size={14} />,
+        category: 'Panels',
+        action: onOpenPendingReview,
+      },
+      {
+        id: 'panel-backlog',
+        label: 'Show Backlog',
+        icon: <ListTodo size={14} />,
+        category: 'Panels',
+        action: onOpenBacklog,
+      }
+    );
 
     return commands;
   }, [
