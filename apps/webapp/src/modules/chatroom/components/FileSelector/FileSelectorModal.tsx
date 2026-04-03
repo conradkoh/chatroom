@@ -82,8 +82,6 @@ export const FileSelectorModal = memo(function FileSelectorModal({
           forceMount
           className={cn(
             ...COMMAND_DIALOG_CONTENT_CLASSES,
-            // Override width for file selector (wider than default max-w-lg)
-            'w-[600px] max-w-[90vw]'
           )}
           style={{ maxHeight: '60vh' }}
         >

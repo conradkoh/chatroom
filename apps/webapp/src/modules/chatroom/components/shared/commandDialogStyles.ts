@@ -14,7 +14,7 @@
  */
 export const COMMAND_DIALOG_CONTENT_CLASSES = [
   // Position: near top (VSCode-style), centered horizontally
-  'fixed left-[50%] z-50 w-full max-w-lg translate-x-[-50%]',
+  'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
   'top-[6%] translate-y-0',
   // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
   'rounded-none border-2 border-chatroom-border shadow-lg',
