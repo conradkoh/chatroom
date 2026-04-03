@@ -72,7 +72,7 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
       {/* Dirty indicator */}
       {isDirty && (
         <span
-          className="inline-block shrink-0 rounded-full bg-chatroom-status-warning"
+          className="inline-block shrink-0 bg-chatroom-status-warning"
           style={{ width: 6, height: 6 }}
           title="Uncommitted changes"
         />

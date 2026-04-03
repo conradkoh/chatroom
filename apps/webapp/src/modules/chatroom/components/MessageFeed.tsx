@@ -511,7 +511,7 @@ const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskPro
 
           {/* Expanded: full progress history - overlays as a floating panel */}
           {isExpanded && (
-            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-b-md bg-chatroom-bg-tertiary">
+            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-none bg-chatroom-bg-tertiary">
               <TaskProgressHistory chatroomId={chatroomId} taskId={message.taskId} />
             </div>
           )}
@@ -2025,7 +2025,7 @@ export const MessageFeed = memo(function MessageFeed({
       {!isPinned && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-none shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={16} />

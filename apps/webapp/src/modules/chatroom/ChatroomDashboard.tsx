@@ -32,6 +32,7 @@ import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
 import {
   DropdownMenu,
@@ -352,6 +353,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Workspace bar data
   const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+
+  // File selector (Cmd+P)
+  const firstWorkspace = chatroomWorkspaces.find((ws) => ws.machineId);
+  const fileSelector = useFileSelector({
+    machineId: firstWorkspace?.machineId ?? null,
+    workingDir: firstWorkspace?.workingDir ?? null,
+  });
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
@@ -684,6 +692,25 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             currentTeamId={chatroom?.teamId}
             currentTeamRoles={teamRoles}
             initialTab={settingsInitialTab}
+          />
+
+          <FileSelectorModal
+            open={fileSelector.open}
+            onOpenChange={fileSelector.setOpen}
+            files={fileSelector.files}
+            recentFiles={fileSelector.recentFiles}
+            onSelectFile={fileSelector.selectFile}
+            isLoading={fileSelector.isLoading}
+            hasWorkspace={fileSelector.hasWorkspace}
+          />
+
+          <FilePreviewDialog
+            filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+            machineId={firstWorkspace?.machineId ?? null}
+            workingDir={firstWorkspace?.workingDir ?? null}
+            onClose={() => fileSelector.selectFile('')}
+            files={fileSelector.files}
+            onSelectFile={fileSelector.selectFile}
           />
 
           {/* Setup modal - only shown during setup mode */}

@@ -12,6 +12,8 @@ import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-sta
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
+import { pushFileTree } from './file-tree-heartbeat.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
@@ -182,6 +184,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         pushGitState(ctx).catch((err: unknown) => {
           console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`);
         });
+        // Push file tree after each successful heartbeat (change-detected, no-op if unchanged)
+        pushFileTree(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  File tree push failed: ${getErrorMessage(err)}`);
+        });
+        // File content requests are now handled by the reactive subscription
+        // (file-content-subscription.ts) for near-instant response times.
       })
       .catch((err: unknown) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
@@ -197,9 +205,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Started after wsClient is initialized (see below).
   let gitSubscriptionHandle: ReturnType<typeof startGitRequestSubscription> | null = null;
 
+  // ── File Content Subscription ──────────────────────────────────────
+  // Reactive subscription for on-demand file content requests.
+  // Replaces the heartbeat-based polling for near-instant file previews.
+  let fileContentSubscriptionHandle: ReturnType<typeof startFileContentSubscription> | null = null;
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   pushGitState(ctx).catch(() => {});
+  pushFileTree(ctx).catch(() => {});
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
@@ -209,6 +223,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     // Stop git request subscription
     if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
+
+    // Stop file content subscription
+    if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
 
     await onDaemonShutdown(ctx);
 
@@ -231,6 +248,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Git Request Subscription ──────────────────────────────────────────
   // Now that wsClient is ready, start the reactive git request subscription.
   gitSubscriptionHandle = startGitRequestSubscription(ctx, wsClient);
+
+  // ── File Content Subscription ──────────────────────────────────────
+  // Now that wsClient is ready, start the reactive file content subscription.
+  fileContentSubscriptionHandle = startFileContentSubscription(ctx, wsClient);
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
