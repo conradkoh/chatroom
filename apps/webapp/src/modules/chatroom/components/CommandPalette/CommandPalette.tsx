@@ -77,7 +77,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
           className={cn(
             // Position: near top on mobile (20% from top), centered on desktop (50%)
             'fixed left-[50%] z-50 w-full max-w-lg translate-x-[-50%]',
-            'top-[20%] translate-y-[-20%] sm:top-[50%] sm:translate-y-[-50%]',
+            'top-[20%] translate-y-0',
             // Industrial theme: sharp corners, 2px adaptive border, no shadow
             'rounded-none border-2 border-chatroom-border shadow-none',
             // Background
