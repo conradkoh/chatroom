@@ -8,6 +8,7 @@ import { RequireLogin } from '@/modules/auth/RequireLogin';
 import { ChatroomSwitcher } from '@/modules/chatroom/components/ChatroomSwitcher';
 import { GlobalNotificationListener } from '@/modules/chatroom/components/GlobalNotificationListener';
 import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
+import { CommandDialogProvider } from '@/modules/chatroom/context/CommandDialogContext';
 
 /**
  * Authenticated application layout.
@@ -31,9 +32,11 @@ export default function AppLayout({
     <RequireLogin>
       <AuthErrorBoundary>
         <ChatroomListingProvider>
-          <ChatroomSwitcher />
-          <GlobalNotificationListener />
-          <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+          <CommandDialogProvider>
+            <ChatroomSwitcher />
+            <GlobalNotificationListener />
+            <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+          </CommandDialogProvider>
         </ChatroomListingProvider>
       </AuthErrorBoundary>
     </RequireLogin>

@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 
 import {
   Command,
@@ -18,6 +18,7 @@ import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
@@ -52,12 +53,20 @@ const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus'])
  * - Apply the industrial theme cleanly without fighting Tailwind specificity
  */
 export function ChatroomSwitcher() {
-  const [open, setOpen] = useState(false);
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
+  const open = activeDialog === 'switcher';
+  const setOpen = useCallback(
+    (val: boolean) => (val ? openDialog('switcher') : closeDialog()),
+    [openDialog, closeDialog]
+  );
   const router = useRouter();
   const { chatrooms } = useChatroomListing();
 
   // Two-finger tap on mobile opens the switcher (same as Cmd+K on desktop)
-  const toggleOpen = useCallback(() => setOpen((prev) => !prev), []);
+  const toggleOpen = useCallback(
+    () => (open ? closeDialog() : openDialog('switcher')),
+    [open, openDialog, closeDialog]
+  );
   useTwoFingerTap(toggleOpen);
 
   useEffect(() => {
@@ -67,13 +76,17 @@ export function ChatroomSwitcher() {
 
       if (triggerKey && e.key === 'k') {
         e.preventDefault();
-        setOpen((prev) => !prev);
+        if (open) {
+          closeDialog();
+        } else {
+          openDialog('switcher');
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [open, openDialog, closeDialog]);
 
   const handleSelect = (chatroomId: string) => {
     router.push(`/app/chatroom?id=${chatroomId}`);

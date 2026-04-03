@@ -1,7 +1,7 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 
 import {
   Command,
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
 import { COMMAND_DIALOG_CONTENT_CLASSES, COMMAND_GROUP_HEADING_CLASSES } from '../shared/commandDialogStyles';
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import type { CommandItem } from './types';
 
 interface CommandPaletteProps {
@@ -36,7 +37,12 @@ interface CommandPaletteProps {
  * - Apply the industrial theme cleanly without fighting Tailwind specificity
  */
 export function CommandPalette({ commands }: CommandPaletteProps) {
-  const [open, setOpen] = useState(false);
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
+  const open = activeDialog === 'command-palette';
+  const setOpen = useCallback(
+    (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
+    [openDialog, closeDialog]
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -45,13 +51,17 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
 
       if (triggerKey && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        setOpen((prev) => !prev);
+        if (open) {
+          closeDialog();
+        } else {
+          openDialog('command-palette');
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [open, openDialog, closeDialog]);
 
   // Group commands by category
   const groupedCommands = useMemo(() => {
