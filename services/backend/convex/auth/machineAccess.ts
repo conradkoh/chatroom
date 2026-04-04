@@ -10,7 +10,7 @@ import type { Id } from '../_generated/dataModel';
 import {
   verifyMachineOwnership as verifyMachineOwnershipCore,
   type MachineAccessDeps,
-} from '../../src/domain/usecase/auth/machine-access';
+} from '../../src/domain/usecase/auth/extensions/machine-access';
 
 /**
  * Create Convex-backed dependencies for machine ownership checks.

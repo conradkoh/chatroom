@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { isSystemAdmin } from '../../../src/domain/usecase/auth/access-control';
-import { getAuthUserOptional } from '../../auth/getAuthUser';
+import { isSystemAdmin } from '../../../modules/auth/accessControl';
+import { getAuthUserOptional } from '../../../modules/auth/getAuthUser';
 import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { action, internalMutation, mutation, query } from '../../_generated/server';

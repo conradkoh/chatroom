@@ -1,4 +1,4 @@
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import type { Doc } from '../../convex/_generated/dataModel';
 
 /**
  * Access level utility functions for user authorization.

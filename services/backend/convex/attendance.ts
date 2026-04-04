@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import { getAuthUserOptional } from './auth/getAuthUser';
+import { getAuthUserOptional } from '../modules/auth/getAuthUser';
 
 // Hardcoded attendance key
 const ATTENDANCE_KEY = 'default-attendance';

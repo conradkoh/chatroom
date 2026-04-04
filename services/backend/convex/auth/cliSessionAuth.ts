@@ -7,11 +7,11 @@ import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import {
   validateSession as validateSessionPure,
   type ValidateSessionDeps,
-} from '../../src/domain/usecase/auth/validate-session';
+} from '../../src/domain/usecase/auth/extensions/validate-session';
 import {
   checkChatroomAccess as checkChatroomAccessPure,
   type ChatroomAccessDeps,
-} from '../../src/domain/usecase/auth/chatroom-access';
+} from '../../src/domain/usecase/auth/extensions/chatroom-access';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
