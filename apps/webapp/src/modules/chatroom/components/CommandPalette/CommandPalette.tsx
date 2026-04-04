@@ -15,10 +15,9 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 
-import { fuzzyFilter } from '@/lib/fuzzyMatch';
-
 import { COMMAND_DIALOG_CONTENT_CLASSES, COMMAND_GROUP_HEADING_CLASSES } from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandItem } from './types';
 
 interface CommandPaletteProps {
@@ -44,6 +43,9 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
     (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
     [openDialog, closeDialog]
   );
+
+  // Frécency-boosted ranking
+  const { rankedFilter, trackUsage } = useCommandRanking();
 
   // Two-finger tap on mobile opens the command palette
   const toggleOpen = useCallback(
@@ -83,6 +85,8 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   }, [commands]);
 
   const handleSelect = (command: CommandItem) => {
+    // Track usage for frécency ranking
+    trackUsage(command.label);
     // Close the palette first, then execute the action in the next frame.
     // This prevents race conditions where openDialog('switcher') is immediately
     // overwritten by closeDialog() in the same React batch.
@@ -104,7 +108,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
             Search and execute a command
           </DialogPrimitive.Description>
 
-          <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <Command filter={rankedFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
             <CommandInput
               placeholder="Type a command..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
