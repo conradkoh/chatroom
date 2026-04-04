@@ -10,13 +10,14 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { CommandBrowser } from './CommandBrowser';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
+import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,11 +67,31 @@ export function ProcessManager({
   onSelectRun,
 }: ProcessManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [favoritesVersion, setFavoritesVersion] = useState(0);
+  const favoritesStore = useMemo(() => getCommandFavoritesStore(), []);
 
   // Reset search when closing
   useEffect(() => {
     if (!open) setSearchQuery('');
   }, [open]);
+
+  // Get current favorites (recomputed when version changes)
+  const favorites = useMemo(
+    () => favoritesStore.getAll(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [favoritesStore, favoritesVersion]
+  );
+
+  const handleToggleFavorite = useCallback(
+    (commandName: string) => {
+      favoritesStore.toggle(commandName);
+      setFavoritesVersion((v) => v + 1);
+    },
+    [favoritesStore]
+  );
+
+  // Selected command for detail view (when not running)
+  const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
 
   // Group commands by category (extract prefix before ':')
   const groupedCommands = groupCommandsByCategory(commands, searchQuery);
@@ -82,6 +103,12 @@ export function ProcessManager({
   const recentRuns = runs.filter(
     (r) => r.status !== 'running' && r.status !== 'pending'
   ).slice(0, 10);
+
+  // Favorite commands
+  const favoriteCommands = useMemo(
+    () => commands.filter((c) => favorites.has(c.name)),
+    [commands, favorites]
+  );
 
   const handleRunCommand = useCallback(
     (cmd: RunnableCommand) => {
@@ -140,7 +167,25 @@ export function ProcessManager({
 
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto">
-                {/* Running Processes (always at top) */}
+                {/* Favorites (always at top) */}
+                {favoriteCommands.length > 0 && !searchQuery && (
+                  <div className="border-b border-chatroom-border">
+                    <div className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-yellow-500">
+                      ⭐ Favorites
+                    </div>
+                    {favoriteCommands.map((cmd) => (
+                      <button
+                        key={`fav-${cmd.name}`}
+                        onClick={() => setSelectedCommand(cmd)}
+                        className="w-full flex items-center gap-2 px-4 py-1 text-xs text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+                      >
+                        <span className="truncate">{cmd.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Running Processes */}
                 {runningProcesses.length > 0 && (
                   <ProcessList
                     title={`Running (${runningProcesses.length})`}
@@ -156,6 +201,9 @@ export function ProcessManager({
                 <CommandBrowser
                   groups={groupedCommands}
                   onRun={handleRunCommand}
+                  favorites={favorites}
+                  onToggleFavorite={handleToggleFavorite}
+                  onSelect={(cmd) => setSelectedCommand(cmd)}
                 />
 
                 {/* Recent Runs */}
@@ -172,18 +220,29 @@ export function ProcessManager({
               </div>
             </div>
 
-            {/* Right panel — Terminal output */}
+            {/* Right panel — Terminal output or command detail */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              <OutputPanel
-                run={activeRunOutput.run}
-                chunks={activeRunOutput.chunks}
-                onStop={() => {
-                  if (activeRunOutput.run) onStopCommand(activeRunOutput.run._id);
-                }}
-                onRestart={() => {
-                  if (activeRunOutput.run) handleRestartCommand(activeRunOutput.run);
-                }}
-              />
+              {activeRunOutput.run ? (
+                <OutputPanel
+                  run={activeRunOutput.run}
+                  chunks={activeRunOutput.chunks}
+                  onStop={() => {
+                    if (activeRunOutput.run) onStopCommand(activeRunOutput.run._id);
+                  }}
+                  onRestart={() => {
+                    if (activeRunOutput.run) handleRestartCommand(activeRunOutput.run);
+                  }}
+                />
+              ) : selectedCommand ? (
+                <CommandDetailPanel
+                  command={selectedCommand}
+                  isFavorite={favorites.has(selectedCommand.name)}
+                  onRun={() => handleRunCommand(selectedCommand)}
+                  onToggleFavorite={() => handleToggleFavorite(selectedCommand.name)}
+                />
+              ) : (
+                <OutputPanel run={null} chunks={[]} onStop={() => {}} onRestart={() => {}} />
+              )}
             </div>
           </div>
         </DialogPrimitive.Content>
@@ -211,19 +270,101 @@ function groupCommandsByCategory(
       )
     : commands;
 
-  // Group by category prefix (e.g., "pnpm:", "turbo:", "chatroom-cli:")
+  // Group by workspace:
+  // - "pnpm: test" → Root
+  // - "turbo: build" → Root  
+  // - "turbo: build (chatroom-cli)" → chatroom-cli
+  // - "chatroom-cli: build" → chatroom-cli
   const groups = new Map<string, RunnableCommand[]>();
 
   for (const cmd of filtered) {
-    const colonIdx = cmd.name.indexOf(':');
-    const category = colonIdx > 0 ? cmd.name.slice(0, colonIdx).trim() : 'Other';
-    const existing = groups.get(category) ?? [];
+    let workspace = 'Root';
+
+    // Check for filtered turbo command: "turbo: task (package-name)"
+    const parenMatch = cmd.name.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      workspace = parenMatch[1];
+    } else {
+      // Check for package script: "package-name: script"
+      const colonIdx = cmd.name.indexOf(':');
+      if (colonIdx > 0) {
+        const prefix = cmd.name.slice(0, colonIdx).trim();
+        // Root-level prefixes (package manager names and turbo)
+        const rootPrefixes = ['pnpm', 'npm', 'yarn', 'bun', 'turbo'];
+        if (!rootPrefixes.includes(prefix)) {
+          workspace = prefix;
+        }
+      }
+    }
+
+    const existing = groups.get(workspace) ?? [];
     existing.push(cmd);
-    groups.set(category, existing);
+    groups.set(workspace, existing);
   }
 
-  return Array.from(groups.entries()).map(([label, cmds]) => ({
+  // Sort: Root first, then alphabetically
+  const sorted = Array.from(groups.entries()).sort(([a], [b]) => {
+    if (a === 'Root') return -1;
+    if (b === 'Root') return 1;
+    return a.localeCompare(b);
+  });
+
+  return sorted.map(([label, cmds]) => ({
     label,
     commands: cmds,
   }));
+}
+
+// ─── Command Detail Panel ───────────────────────────────────────────────────
+
+function CommandDetailPanel({
+  command,
+  isFavorite,
+  onRun,
+  onToggleFavorite,
+}: {
+  command: RunnableCommand;
+  isFavorite: boolean;
+  onRun: () => void;
+  onToggleFavorite: () => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="max-w-md w-full space-y-4">
+        <div className="text-center">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+            {command.name}
+          </h3>
+          <p className="text-xs text-chatroom-text-muted mt-1">
+            Source: {command.source}
+          </p>
+        </div>
+
+        <div className="bg-black/60 rounded p-3">
+          <code className="text-xs font-mono text-green-400 break-all">
+            $ {command.script}
+          </code>
+        </div>
+
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={onRun}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          >
+            ▶ Run
+          </button>
+          <button
+            onClick={onToggleFavorite}
+            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
+              isFavorite
+                ? 'text-yellow-500 hover:bg-yellow-500/10'
+                : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+            }`}
+          >
+            {isFavorite ? '★ Favorited' : '☆ Favorite'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
