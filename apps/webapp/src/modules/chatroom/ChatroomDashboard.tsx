@@ -919,6 +919,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onRunCommand={handleRunFromProcessManager}
             onStopCommand={(runId) => commandRunner.stopCommand(runId)}
             onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+            onClearRun={() => commandRunner.setActiveRunId(null)}
           />
         </>
       </PromptsProvider>

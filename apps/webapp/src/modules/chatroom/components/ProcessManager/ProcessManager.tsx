@@ -52,6 +52,7 @@ export interface ProcessManagerProps {
   onRunCommand: (commandName: string, script: string) => void;
   onStopCommand: (runId: string) => void;
   onSelectRun: (runId: string) => void;
+  onClearRun: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ export function ProcessManager({
   onRunCommand,
   onStopCommand,
   onSelectRun,
+  onClearRun,
 }: ProcessManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -176,7 +178,10 @@ export function ProcessManager({
                     {favoriteCommands.map((cmd) => (
                       <button
                         key={`fav-${cmd.name}`}
-                        onClick={() => setSelectedCommand(cmd)}
+                        onClick={() => {
+                          onClearRun();
+                          setSelectedCommand(cmd);
+                        }}
                         className="w-full flex items-center gap-2 px-4 py-1 text-xs text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
                       >
                         <span className="truncate">{cmd.name}</span>
@@ -191,7 +196,7 @@ export function ProcessManager({
                     title={`Running (${runningProcesses.length})`}
                     runs={runningProcesses}
                     onStop={onStopCommand}
-                    onSelect={onSelectRun}
+                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -203,7 +208,10 @@ export function ProcessManager({
                   onRun={handleRunCommand}
                   favorites={favorites}
                   onToggleFavorite={handleToggleFavorite}
-                  onSelect={(cmd) => setSelectedCommand(cmd)}
+                  onSelect={(cmd) => {
+                    onClearRun();
+                    setSelectedCommand(cmd);
+                  }}
                 />
 
                 {/* Recent Runs */}
@@ -212,7 +220,7 @@ export function ProcessManager({
                     title="Recent"
                     runs={recentRuns}
                     onStop={onStopCommand}
-                    onSelect={onSelectRun}
+                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
