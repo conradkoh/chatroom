@@ -211,7 +211,7 @@ export function ProcessManager({
                             }`}
                             title={cmd.script}
                           >
-                            {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name)}
+                            {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name, cmd.script)}
                           </button>
                         );
                       })}
@@ -288,12 +288,23 @@ function extractScriptName(commandName: string): string {
 }
 
 /** Get a compact display name including the tool prefix (e.g., 'pnpm:dev', 'turbo:build'). */
-function getCompactDisplayName(commandName: string): string {
+function getCompactDisplayName(commandName: string, script: string): string {
+  const scriptName = extractScriptName(commandName);
   const colonIdx = commandName.indexOf(':');
   if (colonIdx <= 0) return commandName;
   const tool = commandName.slice(0, colonIdx).trim();
-  const script = extractScriptName(commandName);
-  return `${tool}:${script}`;
+
+  // If the tool is a known PM or 'turbo', use it directly
+  const knownTools = ['pnpm', 'npm', 'yarn', 'bun', 'turbo'];
+  if (knownTools.includes(tool)) {
+    return `${tool}:${scriptName}`;
+  }
+
+  // For package-scoped commands (e.g., '@workspace/webapp: build'),
+  // infer the PM from the script prefix
+  const pmMatch = script.match(/^(pnpm|npm|npx|yarn|bun)\b/);
+  const pm = pmMatch ? (pmMatch[1] === 'npx' ? 'turbo' : pmMatch[1]) : 'run';
+  return `${pm}:${scriptName}`;
 }
 
 interface WorkspaceGroup {
