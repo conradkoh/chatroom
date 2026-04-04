@@ -148,11 +148,12 @@ export async function onCommandRun(
     return;
   }
 
-  // Spawn the process
+  // Spawn the process using a new process group so we can kill the entire tree
   const child = spawn('sh', ['-c', script], {
     cwd: workingDir,
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true, // Creates a new process group
   });
 
   const tracked: RunningProcess = {
@@ -267,12 +268,30 @@ export async function onCommandStop(
 
   console.log(`[${formatTimestamp()}] 🛑 Stopping command run: ${runIdStr}`);
 
-  // Send SIGTERM first, then SIGKILL after 5 seconds
-  tracked.process.kill('SIGTERM');
+  // Kill the entire process group (negative PID) to ensure all child processes are terminated
+  const pid = tracked.process.pid;
+  if (pid) {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch {
+      // Process group may already be dead
+      tracked.process.kill('SIGTERM');
+    }
+  } else {
+    tracked.process.kill('SIGTERM');
+  }
 
   setTimeout(() => {
     if (tracked.process.killed) return;
     console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${runIdStr}`);
-    tracked.process.kill('SIGKILL');
+    if (pid) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch {
+        tracked.process.kill('SIGKILL');
+      }
+    } else {
+      tracked.process.kill('SIGKILL');
+    }
   }, 5_000);
 }
