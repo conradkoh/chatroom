@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Settings,
   Square,
+  Terminal,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 
@@ -46,6 +47,8 @@ interface UseCommandPaletteCommandsProps {
   onStopCommand?: (runId: string) => void;
   /** Callback to restart a command (re-run same command) */
   onRestartCommand?: (commandName: string, script: string) => void;
+  /** Callback to open the Process Manager */
+  onOpenProcessManager?: () => void;
 }
 
 /**
@@ -71,6 +74,7 @@ export function useCommandPaletteCommands({
   commandRuns,
   onStopCommand,
   onRestartCommand,
+  onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
@@ -208,6 +212,17 @@ export function useCommandPaletteCommands({
       }
     );
 
+    // ─── Process Manager ────────────────────────────────
+    if (onOpenProcessManager) {
+      commands.push({
+        id: 'panel-process-manager',
+        label: 'Open Process Manager',
+        icon: <Terminal size={14} />,
+        category: 'Panels',
+        action: onOpenProcessManager,
+      });
+    }
+
     // ─── Run Script (dynamically discovered) ────────
     if (runnableCommands && onRunCommand) {
       for (const cmd of runnableCommands) {
@@ -239,5 +254,6 @@ export function useCommandPaletteCommands({
     commandRuns,
     onStopCommand,
     onRestartCommand,
+    onOpenProcessManager,
   ]);
 }

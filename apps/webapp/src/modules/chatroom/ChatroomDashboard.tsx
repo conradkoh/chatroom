@@ -28,6 +28,7 @@ import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
@@ -258,6 +259,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Terminal output panel state
   const [terminalOpen, setTerminalOpen] = useState(false);
 
+  // Process Manager state
+  const [processManagerOpen, setProcessManagerOpen] = useState(false);
+
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
 
@@ -479,6 +483,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [commandRunner]
   );
 
+  // Handler to open Process Manager from command palette
+  const handleOpenProcessManager = useCallback(() => {
+    setProcessManagerOpen(true);
+  }, []);
+
+  // Handler to run a command from Process Manager (opens PM, not terminal)
+  const handleRunFromProcessManager = useCallback(
+    (commandName: string, script: string) => {
+      commandRunner.runCommand(commandName, script);
+    },
+    [commandRunner]
+  );
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
@@ -496,6 +513,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     commandRuns: commandRunner.runs as any[],
     onStopCommand: (runId: string) => commandRunner.stopCommand(runId),
     onRestartCommand: handleRunCommand,
+    onOpenProcessManager: handleOpenProcessManager,
   });
 
   // Memoize the team entry point
@@ -889,6 +907,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 }
               }
             }}
+          />
+
+          {/* Process Manager */}
+          <ProcessManager
+            open={processManagerOpen}
+            onOpenChange={setProcessManagerOpen}
+            commands={commandRunner.commands as any[]}
+            runs={commandRunner.runs as any[]}
+            activeRunOutput={commandRunner.activeRunOutput as any}
+            onRunCommand={handleRunFromProcessManager}
+            onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+            onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
           />
         </>
       </PromptsProvider>
