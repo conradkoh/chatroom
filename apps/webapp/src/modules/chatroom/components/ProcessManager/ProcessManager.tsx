@@ -107,12 +107,6 @@ export function ProcessManager({
     (r) => r.status !== 'running' && r.status !== 'pending'
   ).slice(0, 10);
 
-  // Favorite commands
-  const favoriteCommands = useMemo(
-    () => commands.filter((c) => favorites.has(c.name)),
-    [commands, favorites]
-  );
-
   const handleRunCommand = useCallback(
     (cmd: RunnableCommand) => {
       onRunCommand(cmd.name, cmd.script);
@@ -170,27 +164,6 @@ export function ProcessManager({
 
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto">
-                {/* Favorites (always at top) */}
-                {favoriteCommands.length > 0 && !searchQuery && (
-                  <div className="border-b border-chatroom-border">
-                    <div className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-yellow-500">
-                      ⭐ Favorites
-                    </div>
-                    {favoriteCommands.map((cmd) => (
-                      <button
-                        key={`fav-${cmd.name}`}
-                        onClick={() => {
-                          onClearRun();
-                          setSelectedCommand(cmd);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-1 text-xs text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
-                      >
-                        <span className="truncate">{cmd.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Running Processes */}
                 {runningProcesses.length > 0 && (
                   <ProcessList
@@ -218,21 +191,28 @@ export function ProcessManager({
                       <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
                       <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
                     </button>
-                    {/* Quick commands as inline buttons */}
+                    {/* Quick commands + favorites as inline buttons */}
                     <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-                      {ws.quickCommands.map((cmd) => (
-                        <button
-                          key={cmd.name}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRunCommand(cmd);
-                          }}
-                          className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white transition-colors"
-                          title={cmd.script}
-                        >
-                          {extractScriptName(cmd.name)}
-                        </button>
-                      ))}
+                      {getVisibleCommands(ws, favorites).map((cmd) => {
+                        const isFav = favorites.has(cmd.name);
+                        return (
+                          <button
+                            key={cmd.name}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRunCommand(cmd);
+                            }}
+                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              isFav
+                                ? 'text-yellow-500 bg-yellow-500/10 hover:bg-blue-600 hover:text-white'
+                                : 'text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white'
+                            }`}
+                            title={cmd.script}
+                          >
+                            {isFav ? '★ ' : ''}{extractScriptName(cmd.name)}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -467,4 +447,21 @@ function WorkspaceDetailPanel({
       </div>
     </div>
   );
+}
+
+// ─── Visible Commands Helper ────────────────────────────────────────────────
+
+/** Get commands visible in the sidebar: quick commands + favorites for this workspace. */
+function getVisibleCommands(ws: WorkspaceGroup, favorites: Set<string>): RunnableCommand[] {
+  const quickSet = new Set(ws.quickCommands.map((c) => c.name));
+  const visible: RunnableCommand[] = [...ws.quickCommands];
+
+  // Add favorites that aren't already in quick commands
+  for (const cmd of ws.allCommands) {
+    if (favorites.has(cmd.name) && !quickSet.has(cmd.name)) {
+      visible.push(cmd);
+    }
+  }
+
+  return visible;
 }
