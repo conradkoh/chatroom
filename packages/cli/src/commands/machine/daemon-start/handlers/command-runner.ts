@@ -263,6 +263,21 @@ export async function onCommandStop(
 
   if (!tracked) {
     console.log(`[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr}`);
+    // Process not tracked locally (e.g., daemon restarted). Update status to 'stopped'
+    // so the UI doesn't show it as running forever.
+    try {
+      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: ctx.sessionId as SessionId,
+        machineId: ctx.machineId,
+        runId: event.runId,
+        status: 'stopped' as any,
+      });
+      console.log(`[${formatTimestamp()}] 📝 Marked orphaned run as stopped: ${runIdStr}`);
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️ Failed to mark orphaned run as stopped: ${getErrorMessage(err)}`
+      );
+    }
     return;
   }
 
