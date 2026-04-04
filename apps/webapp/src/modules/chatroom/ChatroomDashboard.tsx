@@ -28,6 +28,7 @@ import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
@@ -254,6 +255,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'agents' | 'integrations' | undefined>(undefined);
 
+  // Terminal output panel state
+  const [terminalOpen, setTerminalOpen] = useState(false);
+
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
 
@@ -470,6 +474,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleRunCommand = useCallback(
     (commandName: string, script: string) => {
       commandRunner.runCommand(commandName, script);
+      setTerminalOpen(true);
     },
     [commandRunner]
   );
@@ -859,6 +864,20 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
           {/* Command Palette (Cmd+Shift+P) */}
           <CommandPalette commands={commands} />
+
+          {/* Terminal Output Panel */}
+          <TerminalOutputPanel
+            open={terminalOpen}
+            onOpenChange={setTerminalOpen}
+            commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
+            status={commandRunner.activeRunOutput.run?.status ?? null}
+            output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
+            onStop={() => {
+              if (commandRunner.activeRunId) {
+                commandRunner.stopCommand(commandRunner.activeRunId);
+              }
+            }}
+          />
         </>
       </PromptsProvider>
     </AttachmentsProvider>
