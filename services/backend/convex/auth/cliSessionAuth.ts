@@ -4,6 +4,10 @@ import { ConvexError } from 'convex/values';
 
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
+import {
+  validateSession as validateSessionPure,
+  type ValidateSessionDeps,
+} from '../../src/domain/usecase/auth/validate-session';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -14,12 +18,6 @@ export interface ValidatedSession {
   sessionType: 'cli' | 'web';
 }
 
-/** Authenticated chatroom access result containing session and chatroom document. */
-export interface AuthenticatedChatroomAccess {
-  session: ValidatedSession;
-  chatroom: Doc<'chatroom_rooms'>;
-}
-
 export interface ValidationError {
   valid: false;
   reason: string;
@@ -27,69 +25,40 @@ export interface ValidationError {
 
 export type SessionValidationResult = ({ valid: true } & ValidatedSession) | ValidationError;
 
-/** Validates a CLI session and returns user information. */
-async function validateCliSession(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<SessionValidationResult> {
-  const session = await ctx.db
-    .query('cliSessions')
-    .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-    .unique();
-
-  if (!session) {
-    return { valid: false, reason: 'CLI session not found' };
-  }
-
-  if (!session.isActive) {
-    return { valid: false, reason: 'CLI session revoked' };
-  }
-
-  if (session.expiresAt && Date.now() > session.expiresAt) {
-    return { valid: false, reason: 'CLI session expired' };
-  }
-
-  // Get user info
-  const user = await ctx.db.get('users', session.userId);
-  if (!user) {
-    return { valid: false, reason: 'User not found' };
-  }
-
-  return {
-    valid: true,
-    sessionId,
-    userId: session.userId,
-    userName: user.name,
-    sessionType: 'cli',
-  };
+/** Authenticated chatroom access result containing session and chatroom document. */
+export interface AuthenticatedChatroomAccess {
+  session: ValidatedSession;
+  chatroom: Doc<'chatroom_rooms'>;
 }
 
-/** Validates a web session and returns user information. */
-async function validateWebSession(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<SessionValidationResult> {
-  const session = await ctx.db
-    .query('sessions')
-    .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-    .unique();
-
-  if (!session) {
-    return { valid: false, reason: 'Web session not found' };
-  }
-
-  // Get user info
-  const user = await ctx.db.get('users', session.userId);
-  if (!user) {
-    return { valid: false, reason: 'User not found' };
-  }
-
+/** Builds ValidateSessionDeps from Convex DB context. */
+function buildValidateSessionDeps(ctx: QueryCtx | MutationCtx): ValidateSessionDeps {
   return {
-    valid: true,
-    sessionId,
-    userId: session.userId,
-    userName: user.name,
-    sessionType: 'web',
+    queryCliSession: async (sessionId: string) => {
+      const session = await ctx.db
+        .query('cliSessions')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!session) return null;
+      return {
+        userId: session.userId as string,
+        isActive: session.isActive,
+        expiresAt: session.expiresAt,
+      };
+    },
+    queryWebSession: async (sessionId: string) => {
+      const session = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!session) return null;
+      return { userId: session.userId as string };
+    },
+    getUser: async (userId: string) => {
+      const user = await ctx.db.get('users', userId as Id<'users'>);
+      if (!user) return null;
+      return { id: user._id as string, name: user.name };
+    },
   };
 }
 
@@ -98,20 +67,15 @@ export async function validateSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<SessionValidationResult> {
-  // Try CLI session first
-  const cliResult = await validateCliSession(ctx, sessionId);
-  if (cliResult.valid) {
-    return cliResult;
+  const deps = buildValidateSessionDeps(ctx);
+  const result = await validateSessionPure(deps, sessionId);
+  if (!result.valid) {
+    return result;
   }
-
-  // Fall back to web session
-  const webResult = await validateWebSession(ctx, sessionId);
-  if (webResult.valid) {
-    return webResult;
-  }
-
-  // Both failed - return a combined error
-  return { valid: false, reason: 'Session not found or invalid' };
+  return {
+    ...result,
+    userId: result.userId as Id<'users'>,
+  };
 }
 
 /** Checks if a user has access to a chatroom and returns the chatroom document. */
