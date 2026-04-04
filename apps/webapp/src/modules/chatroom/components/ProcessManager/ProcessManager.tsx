@@ -211,7 +211,7 @@ export function ProcessManager({
                             }`}
                             title={cmd.script}
                           >
-                            {isFav ? '★ ' : ''}{extractScriptName(cmd.name)}
+                            {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name)}
                           </button>
                         );
                       })}
@@ -285,6 +285,15 @@ function extractScriptName(commandName: string): string {
   const parenIdx = scriptPart.indexOf('(');
   if (parenIdx > 0) scriptPart = scriptPart.slice(0, parenIdx).trim();
   return scriptPart;
+}
+
+/** Get a compact display name including the tool prefix (e.g., 'pnpm:dev', 'turbo:build'). */
+function getCompactDisplayName(commandName: string): string {
+  const colonIdx = commandName.indexOf(':');
+  if (colonIdx <= 0) return commandName;
+  const tool = commandName.slice(0, colonIdx).trim();
+  const script = extractScriptName(commandName);
+  return `${tool}:${script}`;
 }
 
 interface WorkspaceGroup {
