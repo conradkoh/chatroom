@@ -17,6 +17,7 @@ import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
+import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { discoverModels } from './init.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -81,6 +82,8 @@ interface DedupTracker {
   pingIds: Map<string, number>;
   gitRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
+  commandRunIds: Map<string, number>;
+  commandStopIds: Map<string, number>;
 }
 
 /**
@@ -100,6 +103,12 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   for (const [id, ts] of tracker.localActionIds) {
     if (ts < evictBefore) tracker.localActionIds.delete(id);
   }
+  for (const [id, ts] of tracker.commandRunIds) {
+    if (ts < evictBefore) tracker.commandRunIds.delete(id);
+  }
+  for (const [id, ts] of tracker.commandStopIds) {
+    if (ts < evictBefore) tracker.commandStopIds.delete(id);
+  }
 }
 
 /**
@@ -112,6 +121,9 @@ async function dispatchCommandEvent(
   tracker: DedupTracker
 ): Promise<void> {
   const eventId = event._id.toString();
+  // Cast to string for comparison — new event types (command.run, command.stop) may not
+  // be reflected in the inferred union until `npx convex dev` regenerates types.
+  const eventType = event.type as string;
 
   if (event.type === 'agent.requestStart') {
     // Deadline-filtered — use commandIds for session dedup
@@ -157,6 +169,16 @@ async function dispatchCommandEvent(
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     }
+  } else if (eventType === 'command.run') {
+    // Session dedup — don't re-process same command run event twice
+    if (tracker.commandRunIds.has(eventId)) return;
+    tracker.commandRunIds.set(eventId, Date.now());
+    await onCommandRun(ctx, event as any);
+  } else if (eventType === 'command.stop') {
+    // Session dedup — don't re-process same command stop event twice
+    if (tracker.commandStopIds.has(eventId)) return;
+    tracker.commandStopIds.set(eventId, Date.now());
+    await onCommandStop(ctx, event as any);
   }
 }
 
@@ -278,6 +300,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     pingIds: new Map<string, number>(),       // daemon.ping
     gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
     localActionIds: new Map<string, number>(), // daemon.localAction
+    commandRunIds: new Map<string, number>(),    // command.run
+    commandStopIds: new Map<string, number>(),   // command.stop
   };
 
   wsClient.onUpdate(
