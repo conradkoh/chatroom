@@ -14,9 +14,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
+import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
 import { verifyMachineOwnership } from './auth/machineAccess';
 
@@ -30,19 +29,6 @@ const MAX_OUTPUT_CHUNK_BYTES = 100 * 1024;
 
 /** Max output chunks per run (to bound storage). */
 const MAX_OUTPUT_CHUNKS_PER_RUN = 1000;
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-async function getAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-) {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    throw new ConvexError('Not authenticated');
-  }
-  return result;
-}
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -65,7 +51,7 @@ export const syncCommands = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
     const isOwner = await verifyMachineOwnership(ctx, args.machineId, auth.userId);
     if (!isOwner) throw new ConvexError('Not authorized for this machine');
 
@@ -114,7 +100,7 @@ export const runCommand = mutation({
     script: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
     await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     // Security: Verify the command exists in the synced commands for this workspace.
@@ -175,7 +161,7 @@ export const stopCommand = mutation({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
     await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     const run = await ctx.db.get(args.runId);
@@ -215,7 +201,7 @@ export const updateRunStatus = mutation({
     exitCode: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
     const isOwner = await verifyMachineOwnership(ctx, args.machineId, auth.userId);
     if (!isOwner) throw new ConvexError('Not authorized for this machine');
 
@@ -264,7 +250,7 @@ export const appendOutput = mutation({
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
     const isOwner = await verifyMachineOwnership(ctx, args.machineId, auth.userId);
     if (!isOwner) throw new ConvexError('Not authorized for this machine');
 
@@ -304,8 +290,8 @@ export const listCommands = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await validateSession(ctx, args.sessionId);
-    if (!auth.valid) return [];
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
     await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     return await ctx.db
@@ -328,8 +314,8 @@ export const listRuns = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await validateSession(ctx, args.sessionId);
-    if (!auth.valid) return [];
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
     await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     const runs = await ctx.db
@@ -354,8 +340,8 @@ export const getRunOutput = query({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    const auth = await validateSession(ctx, args.sessionId);
-    if (!auth.valid) return { chunks: [], run: null };
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { chunks: [], run: null };
 
     const run = await ctx.db.get(args.runId);
     if (!run) return { chunks: [], run: null };

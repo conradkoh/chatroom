@@ -10,7 +10,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
+import { getAuthenticatedUser } from './auth/authenticatedUser';
 import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
 import { verifyMachineOwnership } from './auth/machineAccess';
 
@@ -29,17 +29,6 @@ const MAX_PENDING_REQUESTS = 50;
 const MAX_FILE_PATH_LENGTH = 1024;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-async function getAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<{ isAuthenticated: true; userId: any } | { isAuthenticated: false }> {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    return { isAuthenticated: false };
-  }
-  return { isAuthenticated: true, userId: result.userId };
-}
 
 /**
  * Verify that the authenticated user owns the given machine.

@@ -6,7 +6,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
+import { getAuthenticatedUser } from './auth/authenticatedUser';
 import { agentHarnessValidator } from './schema';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
@@ -59,26 +59,6 @@ function validateWorkingDir(workingDir: string): void {
   }
 }
 
-/** Discriminated union of authentication results from getAuthenticatedUser. */
-type AuthResult =
-  | { isAuthenticated: true; user: Doc<'users'> }
-  | { isAuthenticated: false; user: null };
-
-/** Returns the authenticated user from a session, or null if unauthenticated. */
-async function getAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<AuthResult> {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    return { isAuthenticated: false, user: null };
-  }
-  const user = await ctx.db.get('users', result.userId);
-  if (!user) {
-    return { isAuthenticated: false, user: null };
-  }
-  return { isAuthenticated: true, user };
-}
 
 /**
  * Look up a machine by its machineId. Throws if not found.
