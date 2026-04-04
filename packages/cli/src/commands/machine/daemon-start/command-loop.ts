@@ -13,6 +13,7 @@ import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
 import { pushFileTree } from './file-tree-heartbeat.js';
+import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
@@ -188,6 +189,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         pushFileTree(ctx).catch((err: unknown) => {
           console.warn(`[${formatTimestamp()}] ⚠️  File tree push failed: ${getErrorMessage(err)}`);
         });
+        // Sync workspace commands (change-detected, no-op if unchanged)
+        pushCommands(ctx).catch((err: unknown) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
+        });
         // File content requests are now handled by the reactive subscription
         // (file-content-subscription.ts) for near-instant response times.
       })
@@ -214,6 +219,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // data right away without waiting 30s for the first heartbeat.
   pushGitState(ctx).catch(() => {});
   pushFileTree(ctx).catch(() => {});
+  pushCommands(ctx).catch(() => {});
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
