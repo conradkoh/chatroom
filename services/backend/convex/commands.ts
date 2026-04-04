@@ -17,6 +17,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -295,6 +296,7 @@ export const listCommands = query({
   handler: async (ctx, args) => {
     const auth = await validateSession(ctx, args.sessionId);
     if (!auth.valid) return [];
+    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     return await ctx.db
       .query('chatroom_runnableCommands')
@@ -318,6 +320,7 @@ export const listRuns = query({
   handler: async (ctx, args) => {
     const auth = await validateSession(ctx, args.sessionId);
     if (!auth.valid) return [];
+    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     const runs = await ctx.db
       .query('chatroom_commandRuns')
@@ -346,6 +349,9 @@ export const getRunOutput = query({
 
     const run = await ctx.db.get(args.runId);
     if (!run) return { chunks: [], run: null };
+
+    // Verify the caller has access to this machine through chatroom membership
+    await requireChatroomMachineAccess(ctx, run.machineId, auth.userId);
 
     const chunks = await ctx.db
       .query('chatroom_commandOutput')
