@@ -200,7 +200,9 @@ export function ProcessManager({
                             key={cmd.name}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRunCommand(cmd);
+                              onClearRun();
+                              setSelectedCommand(cmd);
+                              setSelectedWorkspace(null);
                             }}
                             className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                               isFav
