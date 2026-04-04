@@ -20,6 +20,7 @@ import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
 import type * as cleanupTasks from "../cleanupTasks.js";
 import type * as cliAuth from "../cliAuth.js";
+import type * as commands from "../commands.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   checklists: typeof checklists;
   cleanupTasks: typeof cleanupTasks;
   cliAuth: typeof cliAuth;
+  commands: typeof commands;
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;

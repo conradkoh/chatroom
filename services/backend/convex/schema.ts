@@ -1178,6 +1178,23 @@ export default defineSchema({
         ),
         workingDir: v.string(),
         timestamp: v.number(),
+      }),
+      // Request to run a command on a machine (dispatched from web UI)
+      v.object({
+        type: v.literal('command.run'),
+        machineId: v.string(),
+        workingDir: v.string(),
+        commandName: v.string(),
+        script: v.string(),
+        runId: v.id('chatroom_commandRuns'),
+        timestamp: v.number(),
+      }),
+      // Request to stop a running command on a machine
+      v.object({
+        type: v.literal('command.stop'),
+        machineId: v.string(),
+        runId: v.id('chatroom_commandRuns'),
+        timestamp: v.number(),
       })
     )
   )
@@ -1545,4 +1562,60 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_platform', ['chatroomId', 'platform']),
+
+  // ─── Command Runner ─────────────────────────────────────────────────────────
+  // Synced commands discovered from package.json scripts and turbo.json tasks.
+
+  /**
+   * Available commands discovered from workspace package.json/turbo.json.
+   * Synced by the daemon during heartbeat.
+   */
+  chatroom_runnableCommands: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    name: v.string(),
+    script: v.string(),
+    source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+    /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') */
+    workspace: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Command execution runs. Tracks lifecycle of a spawned command process.
+   */
+  chatroom_commandRuns: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    commandName: v.string(),
+    script: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('stopped')
+    ),
+    pid: v.optional(v.number()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    exitCode: v.optional(v.number()),
+    requestedBy: v.id('users'),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
+    .index('by_status', ['status']),
+
+  /**
+   * Buffered output chunks for command runs.
+   * Daemon flushes accumulated stdout/stderr every few seconds to limit DB writes.
+   */
+  chatroom_commandOutput: defineTable({
+    runId: v.id('chatroom_commandRuns'),
+    content: v.string(),
+    chunkIndex: v.number(),
+    timestamp: v.number(),
+  })
+    .index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
 });

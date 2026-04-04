@@ -28,8 +28,11 @@ import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { ProcessManager } from './components/ProcessManager';
+import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
@@ -253,6 +256,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'agents' | 'integrations' | undefined>(undefined);
 
+  // Terminal output panel state
+  const [terminalOpen, setTerminalOpen] = useState(false);
+
+  // Process Manager state
+  const [processManagerOpen, setProcessManagerOpen] = useState(false);
+
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
 
@@ -367,6 +376,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
+  // Command runner (for Cmd+Shift+P "Run Script" commands)
+  const commandRunner = useCommandRunner({
+    machineId: firstWorkspace?.machineId ?? null,
+    workingDir: firstWorkspace?.workingDir ?? null,
+  });
+
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
   const openGitPanelRef = useRef<(() => void) | null>(null);
@@ -459,6 +474,28 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openDialog('file-selector');
   }, [openDialog]);
 
+  // Handler to run a command from the command palette
+  const handleRunCommand = useCallback(
+    (commandName: string, script: string) => {
+      commandRunner.runCommand(commandName, script);
+      setTerminalOpen(true);
+    },
+    [commandRunner]
+  );
+
+  // Handler to open Process Manager from command palette
+  const handleOpenProcessManager = useCallback(() => {
+    setProcessManagerOpen(true);
+  }, []);
+
+  // Handler to run a command from Process Manager (opens PM, not terminal)
+  const handleRunFromProcessManager = useCallback(
+    (commandName: string, script: string) => {
+      commandRunner.runCommand(commandName, script);
+    },
+    [commandRunner]
+  );
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
@@ -471,6 +508,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
+    runnableCommands: commandRunner.commands,
+    onRunCommand: handleRunCommand,
+    commandRuns: commandRunner.runs as any[],
+    onStopCommand: (runId: string) => commandRunner.stopCommand(runId),
+    onRestartCommand: handleRunCommand,
+    onOpenProcessManager: handleOpenProcessManager,
   });
 
   // Memoize the team entry point
@@ -842,6 +885,42 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
           {/* Command Palette (Cmd+Shift+P) */}
           <CommandPalette commands={commands} />
+
+          {/* Terminal Output Panel */}
+          <TerminalOutputPanel
+            open={terminalOpen}
+            onOpenChange={setTerminalOpen}
+            commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
+            status={commandRunner.activeRunOutput.run?.status ?? null}
+            output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
+            onStop={() => {
+              if (commandRunner.activeRunId) {
+                commandRunner.stopCommand(commandRunner.activeRunId);
+              }
+            }}
+            onRestart={() => {
+              const run = commandRunner.activeRunOutput.run;
+              if (run) {
+                const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
+                if (cmd) {
+                  handleRunCommand(cmd.name, cmd.script);
+                }
+              }
+            }}
+          />
+
+          {/* Process Manager */}
+          <ProcessManager
+            open={processManagerOpen}
+            onOpenChange={setProcessManagerOpen}
+            commands={commandRunner.commands as any[]}
+            runs={commandRunner.runs as any[]}
+            activeRunOutput={commandRunner.activeRunOutput as any}
+            onRunCommand={handleRunFromProcessManager}
+            onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+            onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+            onClearRun={() => commandRunner.setActiveRunId(null)}
+          />
         </>
       </PromptsProvider>
     </AttachmentsProvider>

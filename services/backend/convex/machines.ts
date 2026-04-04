@@ -450,6 +450,7 @@ export const getCommandEvents = query({
     // 5b. Local action events (open-vscode, open-finder, etc.)
     // Time-filtered to avoid replaying stale actions on daemon restart.
     const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
+    const COMMAND_EVENT_TTL_MS = 60_000; // 1 minute
     const localActionEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
@@ -459,8 +460,28 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    // 6. Command runner events (command.run / command.stop)
+    // Time-filtered to avoid replaying stale commands on daemon restart.
+    const commandRunEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.run')
+      )
+      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
+      .order('asc')
+      .collect();
+
+    const commandStopEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.stop')
+      )
+      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
+      .order('asc')
+      .collect();
+
     // 7. Merge and sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents].sort((a, b) =>
+    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents, ...commandRunEvents, ...commandStopEvents].sort((a, b) =>
       a._creationTime < b._creationTime ? -1 : 1
     );
 
