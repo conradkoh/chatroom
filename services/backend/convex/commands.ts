@@ -242,7 +242,12 @@ export const updateRunStatus = mutation({
       throw new ConvexError(`Invalid state transition: ${run.status} → ${args.status}`);
     }
 
-    const update: Record<string, any> = { status: args.status };
+    const update: {
+      status: typeof args.status;
+      pid?: number;
+      exitCode?: number;
+      completedAt?: number;
+    } = { status: args.status };
 
     if (args.pid !== undefined) update.pid = args.pid;
     if (args.exitCode !== undefined) update.exitCode = args.exitCode;
