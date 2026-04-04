@@ -30,6 +30,7 @@ import { AttachmentsProvider } from './context/AttachmentsContext';
 import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
@@ -367,6 +368,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
+  // Command runner (for Cmd+Shift+P "Run Script" commands)
+  const commandRunner = useCommandRunner({
+    machineId: firstWorkspace?.machineId ?? null,
+    workingDir: firstWorkspace?.workingDir ?? null,
+  });
+
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
   const openGitPanelRef = useRef<(() => void) | null>(null);
@@ -459,6 +466,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openDialog('file-selector');
   }, [openDialog]);
 
+  // Handler to run a command from the command palette
+  const handleRunCommand = useCallback(
+    (commandName: string, script: string) => {
+      commandRunner.runCommand(commandName, script);
+    },
+    [commandRunner]
+  );
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
@@ -471,6 +486,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
+    runnableCommands: commandRunner.commands,
+    onRunCommand: handleRunCommand,
   });
 
   // Memoize the team entry point

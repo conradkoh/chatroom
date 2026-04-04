@@ -11,6 +11,7 @@ import {
   GitPullRequest,
   ListTodo,
   PanelBottomOpen,
+  Play,
   Settings,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
@@ -33,6 +34,10 @@ interface UseCommandPaletteCommandsProps {
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
+  /** Runnable commands discovered from workspace package.json/turbo.json */
+  runnableCommands?: Array<{ name: string; script: string; source: string }>;
+  /** Callback when user selects a runnable command */
+  onRunCommand?: (commandName: string, script: string) => void;
 }
 
 /**
@@ -53,6 +58,8 @@ export function useCommandPaletteCommands({
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
   onOpenWorkspaceDetails,
+  runnableCommands,
+  onRunCommand,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
@@ -157,6 +164,19 @@ export function useCommandPaletteCommands({
       }
     );
 
+    // ─── Run Script (dynamically discovered) ────────
+    if (runnableCommands && onRunCommand) {
+      for (const cmd of runnableCommands) {
+        commands.push({
+          id: `run-${cmd.source}-${cmd.name}`,
+          label: cmd.name,
+          icon: <Play size={14} />,
+          category: 'Run Script',
+          action: () => onRunCommand(cmd.name, cmd.script),
+        });
+      }
+    }
+
     return commands;
   }, [
     onOpenSettings,
@@ -170,5 +190,7 @@ export function useCommandPaletteCommands({
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
     onOpenWorkspaceDetails,
+    runnableCommands,
+    onRunCommand,
   ]);
 }
