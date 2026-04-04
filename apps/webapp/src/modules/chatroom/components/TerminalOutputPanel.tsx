@@ -127,7 +127,7 @@ export function TerminalOutputPanel({
           {/* Terminal output area */}
           <pre
             ref={scrollRef}
-            className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-all"
+            className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
           >
             {output || (status === 'pending' ? 'Waiting for process to start...\n' : '')}
             {isRunning && (

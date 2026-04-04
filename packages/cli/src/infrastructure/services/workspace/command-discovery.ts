@@ -19,6 +19,10 @@ export interface DiscoveredCommand {
   source: 'package.json' | 'turbo.json';
 }
 
+/** Max length for command name and script to prevent abuse. */
+const MAX_NAME_LENGTH = 256;
+const MAX_SCRIPT_LENGTH = 4096;
+
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
 /**
@@ -36,7 +40,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
 
     if (pkg.scripts && typeof pkg.scripts === 'object') {
       for (const [name, script] of Object.entries(pkg.scripts)) {
-        if (typeof script === 'string') {
+        if (typeof script === 'string' && name.length <= MAX_NAME_LENGTH && script.length <= MAX_SCRIPT_LENGTH) {
           commands.push({
             name: `npm: ${name}`,
             script,
@@ -57,11 +61,13 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
 
     if (turbo.tasks && typeof turbo.tasks === 'object') {
       for (const taskName of Object.keys(turbo.tasks)) {
-        commands.push({
-          name: `turbo: ${taskName}`,
-          script: `turbo run ${taskName}`,
-          source: 'turbo.json',
-        });
+        if (taskName.length <= MAX_NAME_LENGTH) {
+          commands.push({
+            name: `turbo: ${taskName}`,
+            script: `turbo run ${taskName}`,
+            source: 'turbo.json',
+          });
+        }
       }
     }
   } catch {

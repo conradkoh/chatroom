@@ -187,6 +187,7 @@ export const stopCommand = mutation({
 
     const run = await ctx.db.get(args.runId);
     if (!run) throw new ConvexError('Run not found');
+    if (run.machineId !== args.machineId) throw new ConvexError('Run does not belong to this machine');
     if (run.status !== 'running' && run.status !== 'pending') {
       throw new ConvexError('Command is not running');
     }
@@ -227,6 +228,17 @@ export const updateRunStatus = mutation({
 
     const run = await ctx.db.get(args.runId);
     if (!run) throw new ConvexError('Run not found');
+    if (run.machineId !== args.machineId) throw new ConvexError('Run does not belong to this machine');
+
+    // State transition validation: only allow valid forward transitions
+    const validTransitions: Record<string, string[]> = {
+      pending: ['running', 'failed', 'stopped'],
+      running: ['completed', 'failed', 'stopped'],
+    };
+    const allowed = validTransitions[run.status];
+    if (!allowed || !allowed.includes(args.status)) {
+      throw new ConvexError(`Invalid state transition: ${run.status} → ${args.status}`);
+    }
 
     const update: Record<string, any> = { status: args.status };
 
@@ -262,13 +274,13 @@ export const appendOutput = mutation({
       throw new ConvexError(`Output chunk too large (max ${MAX_OUTPUT_CHUNK_BYTES} bytes)`);
     }
 
-    // Check chunk count limit
-    const existingCount = await ctx.db
+    // Check chunk count limit (use .take() instead of .collect() to avoid loading all chunks)
+    const existingChunks = await ctx.db
       .query('chatroom_commandOutput')
       .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
-      .collect();
+      .take(MAX_OUTPUT_CHUNKS_PER_RUN);
 
-    if (existingCount.length >= MAX_OUTPUT_CHUNKS_PER_RUN) {
+    if (existingChunks.length >= MAX_OUTPUT_CHUNKS_PER_RUN) {
       // Silently drop — don't fail the daemon flush
       return;
     }

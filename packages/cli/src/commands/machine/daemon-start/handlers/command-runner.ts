@@ -41,6 +41,28 @@ const MAX_BUFFER_SIZE = 100 * 1024;
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
+ * Report a run as failed to the backend. Used when validation fails before spawn.
+ */
+async function reportRunFailed(
+  ctx: DaemonContext,
+  runId: any,
+  reason: string
+): Promise<void> {
+  try {
+    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: ctx.sessionId as SessionId,
+      machineId: ctx.machineId,
+      runId,
+      status: 'failed' as any,
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to report run failure (${reason}): ${getErrorMessage(err)}`
+    );
+  }
+}
+
+/**
  * Flush buffered output to the backend.
  * Resets the buffer after a successful flush.
  */
@@ -115,12 +137,14 @@ export async function onCommandRun(
   // Security: Validate working directory exists and is an absolute path
   if (!workingDir.startsWith('/')) {
     console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`);
+    await reportRunFailed(ctx, runId, 'Working directory is not an absolute path');
     return;
   }
   try {
     await access(workingDir);
   } catch {
     console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`);
+    await reportRunFailed(ctx, runId, 'Working directory not found');
     return;
   }
 
