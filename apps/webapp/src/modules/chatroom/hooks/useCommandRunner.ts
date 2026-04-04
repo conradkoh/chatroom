@@ -36,7 +36,7 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
 
   const activeRunOutput = useSessionQuery(
     api.commands.getRunOutput,
-    activeRunId ? { runId: activeRunId } : 'skip'
+    activeRunId ? { runId: activeRunId as any } : 'skip'
   );
 
   // Mutations
