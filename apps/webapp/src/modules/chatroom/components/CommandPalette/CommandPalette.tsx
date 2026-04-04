@@ -45,7 +45,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   );
 
   // Frécency-boosted ranking
-  const { rankedFilter, trackUsage } = useCommandRanking();
+  const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
 
   // Two-finger tap on mobile opens the command palette
   const toggleOpen = useCallback(
@@ -147,6 +147,14 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                         <span className="text-xs text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">
                           {command.shortcut}
                         </span>
+                      )}
+
+                      {/* Frécency indicator — subtle dot for frequently used commands */}
+                      {(frecencyScores.get(command.label) ?? 0) > 0 && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-blue-500/60 flex-shrink-0"
+                          title="Recently used"
+                        />
                       )}
                     </CommandItemUI>
                   ))}
