@@ -12,7 +12,7 @@ import {
   type ChatroomMembershipDeps,
   type ChatroomRef,
   type WorkspaceRef,
-} from '../../../src/domain/auth/chatroomMembershipAuth';
+} from '../../../src/domain/usecase/auth/chatroom-membership';
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────
 

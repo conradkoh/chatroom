@@ -8,6 +8,10 @@ import {
   validateSession as validateSessionPure,
   type ValidateSessionDeps,
 } from '../../src/domain/usecase/auth/validate-session';
+import {
+  checkChatroomAccess as checkChatroomAccessPure,
+  type ChatroomAccessDeps,
+} from '../../src/domain/usecase/auth/chatroom-access';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -88,16 +92,22 @@ export async function checkChatroomAccess(
 > {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
-  if (!chatroom) {
-    return { hasAccess: false, reason: 'Chatroom not found' };
+  const deps: ChatroomAccessDeps = {
+    getChatroom: async (id: string) => {
+      const doc = await ctx.db.get('chatroom_rooms', id as Id<'chatroom_rooms'>);
+      if (!doc) return null;
+      return { id: doc._id as string, ownerId: doc.ownerId as string };
+    },
+  };
+
+  const result = await checkChatroomAccessPure(deps, chatroomId as string, userId as string);
+
+  if (!result.hasAccess) {
+    return { hasAccess: false, reason: result.reason };
   }
 
-  // Check if user is the owner
-  if (chatroom.ownerId === userId) {
-    return { hasAccess: true, chatroom };
-  }
-
-  return { hasAccess: false, reason: 'Access denied: You do not own this chatroom' };
+  // Return the full chatroom doc for backward compatibility
+  return { hasAccess: true, chatroom: chatroom! };
 }
 
 /** Validates session and chatroom access, returning both session info and chatroom document. */

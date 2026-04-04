@@ -10,7 +10,7 @@ import type { Id } from '../_generated/dataModel';
 import {
   checkChatroomMembershipForMachine,
   type ChatroomMembershipDeps,
-} from '../../src/domain/auth/chatroomMembershipAuth';
+} from '../../src/domain/usecase/auth/chatroom-membership';
 
 /**
  * Create Convex-backed dependencies for chatroom membership checks.

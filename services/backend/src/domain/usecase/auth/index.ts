@@ -13,3 +13,18 @@ export {
   type WebSessionRecord,
   type UserRecord,
 } from './validate-session.js';
+export {
+  checkChatroomAccess,
+  type ChatroomAccessDeps,
+  type ChatroomAccessResult,
+  type ChatroomAccessGranted,
+  type ChatroomAccessDenied,
+  type ChatroomRecord,
+} from './chatroom-access.js';
+export {
+  checkChatroomMembershipForMachine,
+  type ChatroomMembershipDeps,
+  type MembershipCheckResult,
+  type ChatroomRef,
+  type WorkspaceRef,
+} from './chatroom-membership.js';
