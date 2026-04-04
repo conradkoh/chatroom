@@ -2,8 +2,10 @@
  * Command Discovery — scans workspace package.json and turbo.json for available commands.
  *
  * Discovers:
- * - package.json "scripts" entries (run via detected package manager)
- * - turbo.json "tasks" entries (run via detected package manager's turbo)
+ * - Root package.json "scripts" entries (run via detected package manager)
+ * - Root turbo.json "tasks" entries (run via detected package manager's turbo)
+ * - Monorepo sub-package scripts (run via --filter / workspace syntax)
+ * - Per-package turbo task variants (run via --filter)
  *
  * Detects the package manager from lockfiles:
  * - pnpm-lock.yaml → pnpm
@@ -17,6 +19,8 @@
 import { access } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import { resolveWorkspacePackages } from './workspace-resolver.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -62,20 +66,21 @@ export async function detectPackageManager(workingDir: string): Promise<PackageM
   return 'npm'; // Default fallback
 }
 
+// ─── Command Prefix Helpers ─────────────────────────────────────────────────
+
 /**
  * Get the command prefix for running package.json scripts.
  * e.g. "pnpm run", "yarn run", "bun run", "npm run"
  */
-function getScriptRunPrefix(pm: PackageManager): string {
+export function getScriptRunPrefix(pm: PackageManager): string {
   return `${pm} run`;
 }
 
 /**
  * Get the command prefix for running turbo tasks.
  * Uses the package manager to invoke turbo (avoids requiring global install).
- * e.g. "pnpm turbo run", "npx turbo run", "yarn turbo run", "bun turbo run"
  */
-function getTurboRunPrefix(pm: PackageManager): string {
+export function getTurboRunPrefix(pm: PackageManager): string {
   switch (pm) {
     case 'pnpm':
       return 'pnpm turbo run';
@@ -89,11 +94,45 @@ function getTurboRunPrefix(pm: PackageManager): string {
   }
 }
 
+/**
+ * Get the command for running a script in a specific workspace package.
+ * Uses the package manager's filter/workspace syntax.
+ */
+export function getFilteredScriptCommand(
+  pm: PackageManager,
+  packageName: string,
+  scriptName: string
+): string {
+  switch (pm) {
+    case 'pnpm':
+      return `pnpm --filter ${packageName} run ${scriptName}`;
+    case 'yarn':
+      return `yarn workspace ${packageName} run ${scriptName}`;
+    case 'bun':
+      return `bun --filter ${packageName} run ${scriptName}`;
+    case 'npm':
+    default:
+      return `npm --workspace=${packageName} run ${scriptName}`;
+  }
+}
+
+/**
+ * Get the command for running a turbo task filtered to a specific package.
+ */
+export function getFilteredTurboCommand(
+  pm: PackageManager,
+  packageName: string,
+  taskName: string
+): string {
+  const prefix = getTurboRunPrefix(pm);
+  return `${prefix} ${taskName} --filter=${packageName}`;
+}
+
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
 /**
  * Discover available commands from a workspace directory.
- * Reads package.json scripts and turbo.json tasks.
+ * Reads package.json scripts and turbo.json tasks from root and all sub-packages.
  * Detects the package manager from lockfiles to use the correct runner.
  */
 export async function discoverCommands(workingDir: string): Promise<DiscoveredCommand[]> {
@@ -102,7 +141,10 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   const scriptPrefix = getScriptRunPrefix(pm);
   const turboPrefix = getTurboRunPrefix(pm);
 
-  // 1. Parse package.json scripts
+  // Collect turbo task names for per-package variants
+  const turboTaskNames: string[] = [];
+
+  // 1. Parse root package.json scripts
   try {
     const pkgPath = join(workingDir, 'package.json');
     const pkgContent = await readFile(pkgPath, 'utf-8');
@@ -123,7 +165,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     // package.json doesn't exist or is invalid — skip
   }
 
-  // 2. Parse turbo.json tasks
+  // 2. Parse turbo.json tasks (root-level, all packages)
   try {
     const turboPath = join(workingDir, 'turbo.json');
     const turboContent = await readFile(turboPath, 'utf-8');
@@ -132,6 +174,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     if (turbo.tasks && typeof turbo.tasks === 'object') {
       for (const taskName of Object.keys(turbo.tasks)) {
         if (taskName.length <= MAX_NAME_LENGTH) {
+          turboTaskNames.push(taskName);
           commands.push({
             name: `turbo: ${taskName}`,
             script: `${turboPrefix} ${taskName}`,
@@ -142,6 +185,35 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     }
   } catch {
     // turbo.json doesn't exist or is invalid — skip
+  }
+
+  // 3. Discover workspace packages for monorepo support
+  const workspacePackages = await resolveWorkspacePackages(workingDir, pm);
+
+  for (const pkg of workspacePackages) {
+    // 3a. Per-package turbo task variants (filtered)
+    for (const taskName of turboTaskNames) {
+      commands.push({
+        name: `turbo: ${taskName} (${pkg.name})`,
+        script: getFilteredTurboCommand(pm, pkg.name, taskName),
+        source: 'turbo.json',
+      });
+    }
+
+    // 3b. Per-package script commands
+    for (const [scriptName, scriptValue] of Object.entries(pkg.scripts)) {
+      if (
+        typeof scriptValue === 'string' &&
+        scriptName.length <= MAX_NAME_LENGTH &&
+        scriptValue.length <= MAX_SCRIPT_LENGTH
+      ) {
+        commands.push({
+          name: `${pkg.name}: ${scriptName}`,
+          script: getFilteredScriptCommand(pm, pkg.name, scriptName),
+          source: 'package.json',
+        });
+      }
+    }
   }
 
   return commands;
