@@ -8,14 +8,14 @@
 /**
  * Classes for DialogPrimitive.Content in command-style dialogs.
  *
- * Position: centered at 40% from top — VSCode-style.
+ * Position: 10% from top on mobile, 40% on desktop — VSCode-style.
  * Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth.
  * Animation: instant open (duration-0), smooth close with fade+zoom-out (duration-200).
  */
 export const COMMAND_DIALOG_CONTENT_CLASSES = [
-  // Position: near top (VSCode-style), centered horizontally
+  // Position: near top on mobile (10%), centered on desktop (40%)
   'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
-  'top-[40%] translate-y-[-40%]',
+  'top-[10%] translate-y-[-10%] sm:top-[40%] sm:translate-y-[-40%]',
   // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
   'rounded-none border-2 border-chatroom-border shadow-lg',
   // Background
