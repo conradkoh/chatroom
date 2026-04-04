@@ -10,7 +10,7 @@
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { join, basename, resolve } from 'node:path';
 
 import type { PackageManager } from './command-discovery.js';
 
@@ -36,6 +36,11 @@ async function resolveGlobPattern(rootDir: string, pattern: string): Promise<str
   // Strip trailing slash if present
   const cleaned = pattern.replace(/\/+$/, '');
 
+  // Security: reject patterns with path traversal
+  if (cleaned.includes('..')) {
+    return [];
+  }
+
   if (cleaned.endsWith('/*')) {
     // Glob pattern: list subdirectories
     const parentDir = join(rootDir, cleaned.slice(0, -2));
@@ -44,7 +49,11 @@ async function resolveGlobPattern(rootDir: string, pattern: string): Promise<str
       const dirs: string[] = [];
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          dirs.push(join(parentDir, entry.name));
+          const dirPath = join(parentDir, entry.name);
+          // Security: ensure resolved path stays within root
+          if (resolve(dirPath).startsWith(resolve(rootDir))) {
+            dirs.push(dirPath);
+          }
         }
       }
       return dirs;
@@ -55,6 +64,8 @@ async function resolveGlobPattern(rootDir: string, pattern: string): Promise<str
     // Literal path
     const dir = join(rootDir, cleaned);
     try {
+      // Security: ensure resolved path stays within root
+      if (!resolve(dir).startsWith(resolve(rootDir))) return [];
       const s = await stat(dir);
       if (s.isDirectory()) return [dir];
     } catch {

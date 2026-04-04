@@ -124,6 +124,7 @@ export const runCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     // Security: Verify the command exists in the synced commands for this workspace.
     // This prevents arbitrary command injection — only pre-discovered scripts can be run.
@@ -183,7 +184,8 @@ export const stopCommand = mutation({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
 
     const run = await ctx.db.get(args.runId);
     if (!run) throw new ConvexError('Run not found');
