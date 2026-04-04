@@ -14,7 +14,6 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { CommandBrowser } from './CommandBrowser';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
@@ -25,6 +24,7 @@ export interface RunnableCommand {
   name: string;
   script: string;
   source: string;
+  workspace?: string;
 }
 
 export interface CommandRun {
@@ -94,9 +94,10 @@ export function ProcessManager({
 
   // Selected command for detail view (when not running)
   const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceGroup | null>(null);
 
-  // Group commands by category (extract prefix before ':')
-  const groupedCommands = groupCommandsByCategory(commands, searchQuery);
+  // Group commands by workspace
+  const workspaceGroups = groupCommandsByWorkspace(commands, searchQuery);
 
   // Separate running and recent runs
   const runningProcesses = runs.filter(
@@ -203,16 +204,38 @@ export function ProcessManager({
                 )}
 
                 {/* Command Browser */}
-                <CommandBrowser
-                  groups={groupedCommands}
-                  onRun={handleRunCommand}
-                  favorites={favorites}
-                  onToggleFavorite={handleToggleFavorite}
-                  onSelect={(cmd) => {
-                    onClearRun();
-                    setSelectedCommand(cmd);
-                  }}
-                />
+                {/* Workspace sections with quick commands */}
+                {workspaceGroups.map((ws) => (
+                  <div key={ws.path} className="border-b border-chatroom-border/50">
+                    <button
+                      onClick={() => {
+                        onClearRun();
+                        setSelectedWorkspace(ws);
+                        setSelectedCommand(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors"
+                    >
+                      <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
+                      <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
+                    </button>
+                    {/* Quick commands as inline buttons */}
+                    <div className="flex flex-wrap gap-1 px-3 pb-1.5">
+                      {ws.quickCommands.map((cmd) => (
+                        <button
+                          key={cmd.name}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRunCommand(cmd);
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white transition-colors"
+                          title={cmd.script}
+                        >
+                          {extractScriptName(cmd.name)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
                 {/* Recent Runs */}
                 {recentRuns.length > 0 && (
@@ -228,7 +251,7 @@ export function ProcessManager({
               </div>
             </div>
 
-            {/* Right panel — Terminal output or command detail */}
+            {/* Right panel — Terminal output, command detail, or workspace detail */}
             <div className="flex-1 flex flex-col overflow-hidden">
               {activeRunOutput.run ? (
                 <OutputPanel
@@ -240,6 +263,13 @@ export function ProcessManager({
                   onRestart={() => {
                     if (activeRunOutput.run) handleRestartCommand(activeRunOutput.run);
                   }}
+                />
+              ) : selectedWorkspace ? (
+                <WorkspaceDetailPanel
+                  workspace={selectedWorkspace}
+                  favorites={favorites}
+                  onRun={handleRunCommand}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               ) : selectedCommand ? (
                 <CommandDetailPanel
@@ -261,15 +291,33 @@ export function ProcessManager({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-interface CommandGroup {
-  label: string;
-  commands: RunnableCommand[];
+/** The 4 default quick commands shown in the sidebar. */
+const QUICK_COMMAND_NAMES = new Set(['dev', 'start', 'test', 'build']);
+
+/** Check if a command name contains a quick command (e.g., 'pnpm: dev' → 'dev'). */
+function extractScriptName(commandName: string): string {
+  // Handle patterns like "pnpm: dev", "turbo: build", "@workspace/webapp: dev"
+  const colonIdx = commandName.indexOf(':');
+  let scriptPart = colonIdx > 0 ? commandName.slice(colonIdx + 1).trim() : commandName;
+  // Handle "turbo: build (chatroom-cli)" → "build"
+  const parenIdx = scriptPart.indexOf('(');
+  if (parenIdx > 0) scriptPart = scriptPart.slice(0, parenIdx).trim();
+  return scriptPart;
 }
 
-function groupCommandsByCategory(
+interface WorkspaceGroup {
+  /** Relative path (e.g., '.', 'apps/webapp') */
+  path: string;
+  /** Quick commands (dev/start/test/build) for sidebar display */
+  quickCommands: RunnableCommand[];
+  /** All commands for this workspace */
+  allCommands: RunnableCommand[];
+}
+
+function groupCommandsByWorkspace(
   commands: RunnableCommand[],
   searchQuery: string
-): CommandGroup[] {
+): WorkspaceGroup[] {
   // Filter by search query
   const filtered = searchQuery
     ? commands.filter((c) =>
@@ -278,49 +326,31 @@ function groupCommandsByCategory(
       )
     : commands;
 
-  // Group by workspace:
-  // - "pnpm: test" → Root
-  // - "turbo: build" → Root  
-  // - "turbo: build (chatroom-cli)" → chatroom-cli
-  // - "chatroom-cli: build" → chatroom-cli
+  // Group by workspace path
   const groups = new Map<string, RunnableCommand[]>();
 
   for (const cmd of filtered) {
-    let workspace = 'Root';
-
-    // Check for filtered turbo command: "turbo: task (package-name)"
-    const parenMatch = cmd.name.match(/\(([^)]+)\)/);
-    if (parenMatch) {
-      workspace = parenMatch[1];
-    } else {
-      // Check for package script: "package-name: script"
-      const colonIdx = cmd.name.indexOf(':');
-      if (colonIdx > 0) {
-        const prefix = cmd.name.slice(0, colonIdx).trim();
-        // Root-level prefixes (package manager names and turbo)
-        const rootPrefixes = ['pnpm', 'npm', 'yarn', 'bun', 'turbo'];
-        if (!rootPrefixes.includes(prefix)) {
-          workspace = prefix;
-        }
-      }
-    }
-
-    const existing = groups.get(workspace) ?? [];
+    const ws = cmd.workspace ?? '.';
+    const existing = groups.get(ws) ?? [];
     existing.push(cmd);
-    groups.set(workspace, existing);
+    groups.set(ws, existing);
   }
 
-  // Sort: Root first, then alphabetically
-  const sorted = Array.from(groups.entries()).sort(([a], [b]) => {
-    if (a === 'Root') return -1;
-    if (b === 'Root') return 1;
-    return a.localeCompare(b);
+  // Build workspace groups with quick commands
+  const result: WorkspaceGroup[] = [];
+  for (const [path, cmds] of groups) {
+    const quickCommands = cmds.filter((c) => QUICK_COMMAND_NAMES.has(extractScriptName(c.name)));
+    result.push({ path, quickCommands, allCommands: cmds });
+  }
+
+  // Sort: '.' (root) first, then alphabetical
+  result.sort((a, b) => {
+    if (a.path === '.') return -1;
+    if (b.path === '.') return 1;
+    return a.path.localeCompare(b.path);
   });
 
-  return sorted.map(([label, cmds]) => ({
-    label,
-    commands: cmds,
-  }));
+  return result;
 }
 
 // ─── Command Detail Panel ───────────────────────────────────────────────────
@@ -372,6 +402,68 @@ function CommandDetailPanel({
             {isFavorite ? '★ Favorited' : '☆ Favorite'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Workspace Detail Panel ─────────────────────────────────────────────────
+
+function WorkspaceDetailPanel({
+  workspace,
+  favorites,
+  onRun,
+  onToggleFavorite,
+}: {
+  workspace: WorkspaceGroup;
+  favorites: Set<string>;
+  onRun: (cmd: RunnableCommand) => void;
+  onToggleFavorite: (name: string) => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="px-4 py-2 border-b border-chatroom-border">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+          {workspace.path === '.' ? 'Root' : workspace.path}
+        </h3>
+        <p className="text-[10px] text-chatroom-text-muted mt-0.5">
+          {workspace.allCommands.length} commands available
+        </p>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {workspace.allCommands.map((cmd) => {
+          const scriptName = extractScriptName(cmd.name);
+          const isFav = favorites.has(cmd.name);
+          return (
+            <div
+              key={cmd.name}
+              className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
+            >
+              <button
+                onClick={() => onToggleFavorite(cmd.name)}
+                className={`flex-shrink-0 transition-colors ${
+                  isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
+                }`}
+              >
+                ★
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider">
+                  {scriptName}
+                </div>
+                <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
+                  {cmd.script}
+                </div>
+              </div>
+              <button
+                onClick={() => onRun(cmd)}
+                className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              >
+                Run
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

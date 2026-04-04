@@ -1576,6 +1576,8 @@ export default defineSchema({
     name: v.string(),
     script: v.string(),
     source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+    /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') */
+    workspace: v.optional(v.string()),
     syncedAt: v.number(),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir']),

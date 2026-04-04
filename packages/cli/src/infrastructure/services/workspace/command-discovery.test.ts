@@ -144,33 +144,33 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'pnpm: test',
       script: 'pnpm run test',
-      source: 'package.json',
+      source: 'package.json', workspace: '.',
     });
 
     // Root turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build',
       script: 'pnpm turbo run build',
-      source: 'turbo.json',
+      source: 'turbo.json', workspace: '.',
     });
 
     // Filtered turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build (my-cli)',
       script: 'pnpm turbo run build --filter=my-cli',
-      source: 'turbo.json',
+      source: 'turbo.json', workspace: 'packages/cli',
     });
 
     // Per-package script commands
     expect(commands).toContainEqual({
       name: 'my-cli: build',
       script: 'pnpm --filter my-cli run build',
-      source: 'package.json',
+      source: 'package.json', workspace: 'packages/cli',
     });
     expect(commands).toContainEqual({
       name: 'my-cli: test',
       script: 'pnpm --filter my-cli run test',
-      source: 'package.json',
+      source: 'package.json', workspace: 'packages/cli',
     });
   });
 
@@ -196,21 +196,21 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'yarn: lint',
       script: 'yarn run lint',
-      source: 'package.json',
+      source: 'package.json', workspace: '.',
     });
 
     // Turbo filtered
     expect(commands).toContainEqual({
       name: 'turbo: build (@my/web)',
       script: 'yarn turbo run build --filter=@my/web',
-      source: 'turbo.json',
+      source: 'turbo.json', workspace: 'apps/web',
     });
 
     // Per-package
     expect(commands).toContainEqual({
       name: '@my/web: dev',
       script: 'yarn workspace @my/web run dev',
-      source: 'package.json',
+      source: 'package.json', workspace: 'apps/web',
     });
   });
 
@@ -226,7 +226,7 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'npm: start',
       script: 'npm run start',
-      source: 'package.json',
+      source: 'package.json', workspace: '.',
     });
 
     // No workspace-specific commands
