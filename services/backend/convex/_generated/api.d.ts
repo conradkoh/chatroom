@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as auth_chatroomMachineAccess from "../auth/chatroomMachineAccess.js";
 import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
+import type * as auth_machineAccess from "../auth/machineAccess.js";
 import type * as backlog from "../backlog.js";
 import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   "auth/chatroomMachineAccess": typeof auth_chatroomMachineAccess;
   "auth/cliSessionAuth": typeof auth_cliSessionAuth;
   "auth/google": typeof auth_google;
+  "auth/machineAccess": typeof auth_machineAccess;
   backlog: typeof backlog;
   chatrooms: typeof chatrooms;
   checklists: typeof checklists;

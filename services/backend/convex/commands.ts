@@ -18,6 +18,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
+import { verifyMachineOwnership } from './auth/machineAccess';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -41,18 +42,6 @@ async function getAuthenticatedUser(
     throw new ConvexError('Not authenticated');
   }
   return result;
-}
-
-async function verifyMachineOwnership(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  userId: any
-): Promise<boolean> {
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
-    .first();
-  return !!machine && machine.userId === userId;
 }
 
 // ─── Mutations ──────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
+import { verifyMachineOwnership } from './auth/machineAccess';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -44,17 +45,6 @@ async function getAuthenticatedUser(
  * Verify that the authenticated user owns the given machine.
  * Used as fallback for endpoints called before workspace registration.
  */
-async function verifyMachineOwnership(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  userId: any
-): Promise<boolean> {
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
-    .first();
-  return !!machine && machine.userId === userId;
-}
 
 /**
  * Check chatroom-based access for a machine.
