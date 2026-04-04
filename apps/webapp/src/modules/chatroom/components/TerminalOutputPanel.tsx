@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Square, X, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Square, X, Loader2, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 
@@ -22,6 +22,7 @@ interface TerminalOutputPanelProps {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | null;
   output: string;
   onStop: () => void;
+  onRestart?: () => void;
 }
 
 function StatusBadge({ status }: { status: TerminalOutputPanelProps['status'] }) {
@@ -73,6 +74,7 @@ export function TerminalOutputPanel({
   status,
   output,
   onStop,
+  onRestart,
 }: TerminalOutputPanelProps) {
   const scrollRef = useRef<HTMLPreElement>(null);
 
@@ -111,6 +113,16 @@ export function TerminalOutputPanel({
                 >
                   <Square size={12} />
                   Stop
+                </button>
+              )}
+              {!isRunning && onRestart && (
+                <button
+                  onClick={onRestart}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                  title="Restart command"
+                >
+                  <RefreshCw size={12} />
+                  Restart
                 </button>
               )}
               <DialogPrimitive.Close className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1">

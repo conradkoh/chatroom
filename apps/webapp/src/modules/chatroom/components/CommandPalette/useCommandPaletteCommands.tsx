@@ -12,7 +12,9 @@ import {
   ListTodo,
   PanelBottomOpen,
   Play,
+  RefreshCw,
   Settings,
+  Square,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 
@@ -38,6 +40,12 @@ interface UseCommandPaletteCommandsProps {
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
   /** Callback when user selects a runnable command */
   onRunCommand?: (commandName: string, script: string) => void;
+  /** Currently running/recently stopped command runs */
+  commandRuns?: Array<{ commandName: string; status: string; _id: string }>;
+  /** Callback to stop a running command */
+  onStopCommand?: (runId: string) => void;
+  /** Callback to restart a command (re-run same command) */
+  onRestartCommand?: (commandName: string, script: string) => void;
 }
 
 /**
@@ -60,9 +68,45 @@ export function useCommandPaletteCommands({
   onOpenWorkspaceDetails,
   runnableCommands,
   onRunCommand,
+  commandRuns,
+  onStopCommand,
+  onRestartCommand,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
+
+    // ─── Running Commands (shown first, at top) ────────
+    if (commandRuns && onStopCommand) {
+      const runningRuns = commandRuns.filter((r) => r.status === 'running' || r.status === 'pending');
+      for (const run of runningRuns) {
+        commands.push({
+          id: `running-stop-${run._id}`,
+          label: `Stop: ${run.commandName}`,
+          icon: <Square size={14} />,
+          category: 'Running',
+          action: () => onStopCommand(run._id),
+        });
+      }
+    }
+
+    // ─── Recently Stopped (restart) ─────────────────────
+    if (commandRuns && onRestartCommand && runnableCommands) {
+      const stoppedRuns = commandRuns
+        .filter((r) => r.status === 'stopped' || r.status === 'completed' || r.status === 'failed')
+        .slice(0, 5);
+      for (const run of stoppedRuns) {
+        const cmd = runnableCommands.find((c) => c.name === run.commandName);
+        if (cmd) {
+          commands.push({
+            id: `restart-${run._id}`,
+            label: `Restart: ${run.commandName}`,
+            icon: <RefreshCw size={14} />,
+            category: 'Recently Stopped',
+            action: () => onRestartCommand(cmd.name, cmd.script),
+          });
+        }
+      }
+    }
 
     // ─── Navigate (shown first) ──────────────────────────
     commands.push(
@@ -192,5 +236,8 @@ export function useCommandPaletteCommands({
     onOpenWorkspaceDetails,
     runnableCommands,
     onRunCommand,
+    commandRuns,
+    onStopCommand,
+    onRestartCommand,
   ]);
 }

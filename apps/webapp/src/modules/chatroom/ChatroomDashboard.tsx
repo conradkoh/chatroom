@@ -493,6 +493,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onRunCommand: handleRunCommand,
+    commandRuns: commandRunner.runs as any[],
+    onStopCommand: (runId: string) => commandRunner.stopCommand(runId),
+    onRestartCommand: handleRunCommand,
   });
 
   // Memoize the team entry point
@@ -875,6 +878,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onStop={() => {
               if (commandRunner.activeRunId) {
                 commandRunner.stopCommand(commandRunner.activeRunId);
+              }
+            }}
+            onRestart={() => {
+              const run = commandRunner.activeRunOutput.run;
+              if (run) {
+                const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
+                if (cmd) {
+                  handleRunCommand(cmd.name, cmd.script);
+                }
               }
             }}
           />
