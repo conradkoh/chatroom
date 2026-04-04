@@ -265,11 +265,15 @@ export async function addBacklog(
     return;
   }
 
+  // Parse structured delimiters (---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---)
+  // If delimiters are present, extract and format. Otherwise, use raw content.
+  const parsedContent = parseBacklogContent(options.content);
+
   try {
     const itemId = await d.backend.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      content: options.content.trim(),
+      content: parsedContent,
       createdBy: options.role,
     });
 
@@ -776,6 +780,78 @@ function getStatusEmoji(status: TaskStatus | BacklogItemStatus): string {
     default:
       return '⚫';
   }
+}
+
+// ─── Backlog Content Parser ─────────────────────────────────────────────────
+
+/**
+ * Parse backlog content that may contain structured delimiters.
+ * If delimiters (---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---) are found,
+ * extract the sections and format as clean plain text.
+ * If no delimiters found, return content as-is.
+ */
+export function parseBacklogContent(raw: string): string {
+  const trimmed = raw.trim();
+
+  // Check if content contains any structured delimiters
+  if (!trimmed.includes('---TITLE---') && !trimmed.includes('---DESCRIPTION---') && !trimmed.includes('---TECH_SPECS---')) {
+    return trimmed;
+  }
+
+  // Extract sections using delimiter markers
+  const sections: { title?: string; description?: string; techSpecs?: string } = {};
+  let currentSection: 'title' | 'description' | 'techSpecs' | null = null;
+  const lines: string[] = [];
+
+  for (const line of trimmed.split('\n')) {
+    const stripped = line.trim();
+    if (stripped === '---TITLE---') {
+      currentSection = 'title';
+      continue;
+    } else if (stripped === '---DESCRIPTION---') {
+      currentSection = 'description';
+      continue;
+    } else if (stripped === '---TECH_SPECS---') {
+      currentSection = 'techSpecs';
+      continue;
+    }
+
+    if (currentSection) {
+      if (!sections[currentSection]) {
+        sections[currentSection] = line;
+      } else {
+        sections[currentSection] += '\n' + line;
+      }
+    } else {
+      lines.push(line);
+    }
+  }
+
+  // Build formatted output
+  const parts: string[] = [];
+
+  if (sections.title?.trim()) {
+    parts.push(sections.title.trim());
+  }
+
+  if (sections.description?.trim()) {
+    if (parts.length > 0) parts.push('');
+    parts.push(sections.description.trim());
+  }
+
+  if (sections.techSpecs?.trim()) {
+    if (parts.length > 0) parts.push('');
+    parts.push('Technical Notes:');
+    parts.push(sections.techSpecs.trim());
+  }
+
+  // Include any content before delimiters
+  if (lines.length > 0 && lines.some((l) => l.trim())) {
+    if (parts.length > 0) parts.push('');
+    parts.push(...lines);
+  }
+
+  return parts.join('\n').trim() || trimmed;
 }
 
 // ─── Content Hash Helper ───────────────────────────────────────────────────

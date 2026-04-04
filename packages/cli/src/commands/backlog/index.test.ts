@@ -14,6 +14,7 @@ import {
   exportBacklog,
   importBacklog,
   computeContentHash,
+  parseBacklogContent,
   type BacklogExportFile,
 } from './index.js';
 
@@ -517,5 +518,55 @@ describe('importBacklog', () => {
     expect(readCall[0]).toContain('.chatroom');
     expect(readCall[0]).toContain('exports');
     expect(readCall[0]).toContain('backlog-export.json');
+  });
+});
+
+
+// ─── parseBacklogContent Tests ──────────────────────────────────────────────
+
+describe('parseBacklogContent', () => {
+  it('returns plain text content unchanged', () => {
+    expect(parseBacklogContent('This is a simple backlog item')).toBe(
+      'This is a simple backlog item'
+    );
+  });
+
+  it('parses all three delimiters', () => {
+    const input = `---TITLE---
+Fix the login bug
+---DESCRIPTION---
+Users cannot log in on mobile
+---TECH_SPECS---
+Check auth middleware`;
+
+    const result = parseBacklogContent(input);
+    expect(result).toContain('Fix the login bug');
+    expect(result).toContain('Users cannot log in on mobile');
+    expect(result).toContain('Technical Notes:');
+    expect(result).toContain('Check auth middleware');
+    expect(result).not.toContain('---TITLE---');
+    expect(result).not.toContain('---DESCRIPTION---');
+    expect(result).not.toContain('---TECH_SPECS---');
+  });
+
+  it('handles title only', () => {
+    const input = `---TITLE---
+My Feature`;
+    const result = parseBacklogContent(input);
+    expect(result).toBe('My Feature');
+  });
+
+  it('handles multiline description', () => {
+    const input = `---TITLE---
+Feature X
+---DESCRIPTION---
+Line 1
+Line 2
+Line 3`;
+    const result = parseBacklogContent(input);
+    expect(result).toContain('Feature X');
+    expect(result).toContain('Line 1');
+    expect(result).toContain('Line 2');
+    expect(result).toContain('Line 3');
   });
 });
