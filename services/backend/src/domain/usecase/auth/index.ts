@@ -28,3 +28,10 @@ export {
   type ChatroomRef,
   type WorkspaceRef,
 } from './chatroom-membership.js';
+export {
+  getAccessLevel,
+  isSystemAdmin,
+  hasAccessLevel,
+  getUserAccessLevel,
+  type AccessLevel,
+} from './access-control.js';

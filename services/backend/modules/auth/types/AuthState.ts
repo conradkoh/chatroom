@@ -1,5 +1,5 @@
 import type { Doc } from '../../../convex/_generated/dataModel';
-import type { AccessLevel } from '../accessControl';
+import type { AccessLevel } from '../../../src/domain/usecase/auth/access-control';
 
 /**
  * Authentication state type representing user session status and information.

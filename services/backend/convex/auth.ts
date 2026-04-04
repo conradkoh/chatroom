@@ -5,7 +5,7 @@ import { featureFlags } from '../config/featureFlags';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
-import { getAccessLevel, isSystemAdmin } from '../modules/auth/accessControl';
+import { getAccessLevel, isSystemAdmin } from '../src/domain/usecase/auth/access-control';
 import { generateLoginCode, getCodeExpirationTime, isCodeExpired } from '../modules/auth/codeUtils';
 import type { AuthState } from '../modules/auth/types/AuthState';
 
