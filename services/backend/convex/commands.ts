@@ -124,6 +124,25 @@ export const runCommand = mutation({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
 
+    // Security: Verify the command exists in the synced commands for this workspace.
+    // This prevents arbitrary command injection — only pre-discovered scripts can be run.
+    const existingCmd = await ctx.db
+      .query('chatroom_runnableCommands')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('name'), args.commandName),
+          q.eq(q.field('script'), args.script)
+        )
+      )
+      .first();
+
+    if (!existingCmd) {
+      throw new ConvexError('Command not found in synced commands. Only discovered scripts can be run.');
+    }
+
     const now = Date.now();
 
     // Create the run record

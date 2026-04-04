@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { access } from 'node:fs/promises';
 
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
@@ -110,6 +111,18 @@ export async function onCommandRun(
   }
 
   console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
+
+  // Security: Validate working directory exists and is an absolute path
+  if (!workingDir.startsWith('/')) {
+    console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`);
+    return;
+  }
+  try {
+    await access(workingDir);
+  } catch {
+    console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`);
+    return;
+  }
 
   // Spawn the process
   const child = spawn('sh', ['-c', script], {
