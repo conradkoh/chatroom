@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   checkChatroomMembershipForMachine,
-  type ChatroomMembershipDeps,
+  type CheckChatroomMembershipDeps,
   type ChatroomRef,
   type WorkspaceRef,
 } from '../../../src/domain/usecase/auth/extensions/chatroom-membership';
@@ -19,7 +19,7 @@ import {
 function createMockDeps(
   workspaces: WorkspaceRef[],
   chatrooms: ChatroomRef[]
-): ChatroomMembershipDeps {
+): CheckChatroomMembershipDeps {
   return {
     getWorkspacesForMachine: async (machineId: string) =>
       workspaces.filter((w) => w.machineId === machineId),
@@ -38,7 +38,7 @@ describe('checkChatroomMembershipForMachine', () => {
     );
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-1' });
+    expect(result).toEqual({ ok: true, chatroomId: 'chatroom-1' });
   });
 
   test('denies access when user does not own any chatroom the machine is in', async () => {
@@ -48,7 +48,7 @@ describe('checkChatroomMembershipForMachine', () => {
     );
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   test('denies access when machine has no workspace registrations', async () => {
@@ -56,7 +56,7 @@ describe('checkChatroomMembershipForMachine', () => {
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
     expect(result).toEqual({
-      authorized: false,
+      ok: false,
       reason: 'Machine has no workspace registrations',
     });
   });
@@ -74,7 +74,7 @@ describe('checkChatroomMembershipForMachine', () => {
     );
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-2' });
+    expect(result).toEqual({ ok: true, chatroomId: 'chatroom-2' });
   });
 
   test('handles missing chatroom gracefully', async () => {
@@ -84,12 +84,12 @@ describe('checkChatroomMembershipForMachine', () => {
     );
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   test('deduplicates chatroom IDs from multiple workspaces', async () => {
     let getChatroomCallCount = 0;
-    const deps: ChatroomMembershipDeps = {
+    const deps: CheckChatroomMembershipDeps = {
       getWorkspacesForMachine: async () => [
         { chatroomId: 'chatroom-1', machineId: 'machine-1' },
         { chatroomId: 'chatroom-1', machineId: 'machine-1' }, // duplicate
@@ -102,7 +102,7 @@ describe('checkChatroomMembershipForMachine', () => {
     };
 
     const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(true);
+    expect(result.ok).toBe(true);
     // Should only query each chatroom once despite 3 workspace registrations
     expect(getChatroomCallCount).toBe(1);
   });
@@ -118,6 +118,6 @@ describe('checkChatroomMembershipForMachine', () => {
 
     // machine-2 is in a chatroom owned by user-1
     const result = await checkChatroomMembershipForMachine(deps, 'machine-2', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-1' });
+    expect(result).toEqual({ ok: true, chatroomId: 'chatroom-1' });
   });
 });

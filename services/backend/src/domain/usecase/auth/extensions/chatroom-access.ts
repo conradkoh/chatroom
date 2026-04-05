@@ -14,25 +14,34 @@ export interface ChatroomRecord {
 }
 
 /** Database access for chatroom access checks. */
-export interface ChatroomAccessDeps {
+export interface CheckChatroomAccessDeps {
   getChatroom: (chatroomId: string) => Promise<ChatroomRecord | null>;
 }
 
 /** Successful chatroom access result. */
-export interface ChatroomAccessGranted {
-  hasAccess: true;
+export interface ChatroomAccessSuccess {
+  ok: true;
   chatroomId: string;
   ownerId: string;
 }
 
 /** Failed chatroom access result. */
-export interface ChatroomAccessDenied {
-  hasAccess: false;
+export interface ChatroomAccessFailure {
+  ok: false;
   reason: string;
 }
 
 /** Result of checking chatroom access. */
-export type ChatroomAccessResult = ChatroomAccessGranted | ChatroomAccessDenied;
+export type ChatroomAccessResult = ChatroomAccessSuccess | ChatroomAccessFailure;
+
+// ─── Deprecated aliases ─────────────────────────────────────────────────────
+
+/** @deprecated Use CheckChatroomAccessDeps */
+export type ChatroomAccessDeps = CheckChatroomAccessDeps;
+/** @deprecated Use ChatroomAccessSuccess */
+export type ChatroomAccessGranted = ChatroomAccessSuccess;
+/** @deprecated Use ChatroomAccessFailure */
+export type ChatroomAccessDenied = ChatroomAccessFailure;
 
 // ─── Core Logic ─────────────────────────────────────────────────────────────
 
@@ -42,19 +51,19 @@ export type ChatroomAccessResult = ChatroomAccessGranted | ChatroomAccessDenied;
  * Currently checks ownership only. Future: extend with membership/invite checks.
  */
 export async function checkChatroomAccess(
-  deps: ChatroomAccessDeps,
+  deps: CheckChatroomAccessDeps,
   chatroomId: string,
   userId: string
 ): Promise<ChatroomAccessResult> {
   const chatroom = await deps.getChatroom(chatroomId);
 
   if (!chatroom) {
-    return { hasAccess: false, reason: 'Chatroom not found' };
+    return { ok: false, reason: 'Chatroom not found' };
   }
 
   if (chatroom.ownerId === userId) {
-    return { hasAccess: true, chatroomId, ownerId: chatroom.ownerId };
+    return { ok: true, chatroomId, ownerId: chatroom.ownerId };
   }
 
-  return { hasAccess: false, reason: 'Access denied: You do not own this chatroom' };
+  return { ok: false, reason: 'Access denied: You do not own this chatroom' };
 }

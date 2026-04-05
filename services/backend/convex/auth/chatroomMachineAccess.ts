@@ -9,13 +9,13 @@ import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import {
   checkChatroomMembershipForMachine,
-  type ChatroomMembershipDeps,
+  type CheckChatroomMembershipDeps,
 } from '../../src/domain/usecase/auth/extensions/chatroom-membership';
 
 /**
  * Create Convex-backed dependencies for chatroom membership checks.
  */
-function createConvexDeps(ctx: QueryCtx | MutationCtx): ChatroomMembershipDeps {
+function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckChatroomMembershipDeps {
   return {
     getWorkspacesForMachine: async (machineId: string) => {
       const workspaces = await ctx.db
@@ -68,7 +68,7 @@ export async function requireChatroomMachineAccess(
 ): Promise<void> {
   const deps = createConvexDeps(ctx);
   const result = await checkChatroomMembershipForMachine(deps, machineId, userId as string);
-  if (!result.authorized) {
+  if (!result.ok) {
     throw new Error(`Access denied: ${result.reason}`);
   }
 }
@@ -83,5 +83,9 @@ export async function checkChatroomMachineAccess(
   userId: Id<'users'>
 ): Promise<{ authorized: true; chatroomId: string } | { authorized: false; reason: string }> {
   const deps = createConvexDeps(ctx);
-  return checkChatroomMembershipForMachine(deps, machineId, userId as string);
+  const result = await checkChatroomMembershipForMachine(deps, machineId, userId as string);
+  if (result.ok) {
+    return { authorized: true, chatroomId: result.chatroomId };
+  }
+  return { authorized: false, reason: result.reason };
 }

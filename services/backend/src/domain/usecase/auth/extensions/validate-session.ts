@@ -26,58 +26,69 @@ export interface UserRecord {
 }
 
 /** Database access for session validation. */
-export interface ValidateSessionDeps {
+export interface CheckSessionDeps {
   queryCliSession: (sessionId: string) => Promise<CliSessionRecord | null>;
   queryWebSession: (sessionId: string) => Promise<WebSessionRecord | null>;
   getUser: (userId: string) => Promise<UserRecord | null>;
 }
 
-/** Successful session validation result. */
-export interface ValidatedSession {
-  valid: true;
+/** Successful session check result. */
+export interface SessionCheckSuccess {
+  ok: true;
   sessionId: string;
   userId: string;
   userName?: string;
   sessionType: 'cli' | 'web';
 }
 
-/** Failed session validation result. */
-export interface ValidationError {
-  valid: false;
+/** Failed session check result. */
+export interface SessionCheckFailure {
+  ok: false;
   reason: string;
 }
 
-/** Result of validating a session — either success or failure. */
-export type SessionValidationResult = ValidatedSession | ValidationError;
+/** Result of checking a session — either success or failure. */
+export type SessionCheckResult = SessionCheckSuccess | SessionCheckFailure;
+
+// ─── Deprecated aliases (for backward compatibility) ────────────────────────
+
+/** @deprecated Use CheckSessionDeps */
+export type ValidateSessionDeps = CheckSessionDeps;
+/** @deprecated Use SessionCheckResult */
+export type SessionValidationResult = SessionCheckResult;
+/** @deprecated Use SessionCheckSuccess */
+export type ValidatedSession = SessionCheckSuccess;
+/** @deprecated Use SessionCheckFailure */
+export type ValidationError = SessionCheckFailure;
 
 // ─── Core Logic ─────────────────────────────────────────────────────────────
 
-/** Validates a CLI session and returns user information. */
-async function validateCliSession(
-  deps: ValidateSessionDeps,
+/** Checks a CLI session and returns user information. */
+async function checkCliSession(
+  deps: CheckSessionDeps,
   sessionId: string
-): Promise<SessionValidationResult> {
+): Promise<SessionCheckResult> {
   const session = await deps.queryCliSession(sessionId);
 
   if (!session) {
-    return { valid: false, reason: 'CLI session not found' };
+    return { ok: false, reason: 'CLI session not found' };
   }
 
   if (!session.isActive) {
-    return { valid: false, reason: 'CLI session revoked' };
+    return { ok: false, reason: 'CLI session revoked' };
   }
 
   if (session.expiresAt && Date.now() > session.expiresAt) {
-    return { valid: false, reason: 'CLI session expired' };
+    return { ok: false, reason: 'CLI session expired' };
   }
 
   const user = await deps.getUser(session.userId);
   if (!user) {
-    return { valid: false, reason: 'User not found' };
+    return { ok: false, reason: 'User not found' };
   }
 
   return {
-    valid: true,
+    ok: true,
     sessionId,
     userId: session.userId,
     userName: user.name,
@@ -85,24 +96,24 @@ async function validateCliSession(
   };
 }
 
-/** Validates a web session and returns user information. */
-async function validateWebSession(
-  deps: ValidateSessionDeps,
+/** Checks a web session and returns user information. */
+async function checkWebSession(
+  deps: CheckSessionDeps,
   sessionId: string
-): Promise<SessionValidationResult> {
+): Promise<SessionCheckResult> {
   const session = await deps.queryWebSession(sessionId);
 
   if (!session) {
-    return { valid: false, reason: 'Web session not found' };
+    return { ok: false, reason: 'Web session not found' };
   }
 
   const user = await deps.getUser(session.userId);
   if (!user) {
-    return { valid: false, reason: 'User not found' };
+    return { ok: false, reason: 'User not found' };
   }
 
   return {
-    valid: true,
+    ok: true,
     sessionId,
     userId: session.userId,
     userName: user.name,
@@ -110,23 +121,26 @@ async function validateWebSession(
   };
 }
 
-/** Validates a session, trying CLI session first then web session. */
-export async function validateSession(
-  deps: ValidateSessionDeps,
+/** Checks a session, trying CLI session first then web session. */
+export async function checkSession(
+  deps: CheckSessionDeps,
   sessionId: string
-): Promise<SessionValidationResult> {
+): Promise<SessionCheckResult> {
   // Try CLI session first
-  const cliResult = await validateCliSession(deps, sessionId);
-  if (cliResult.valid) {
+  const cliResult = await checkCliSession(deps, sessionId);
+  if (cliResult.ok) {
     return cliResult;
   }
 
   // Fall back to web session
-  const webResult = await validateWebSession(deps, sessionId);
-  if (webResult.valid) {
+  const webResult = await checkWebSession(deps, sessionId);
+  if (webResult.ok) {
     return webResult;
   }
 
   // Both failed - return a combined error
-  return { valid: false, reason: 'Session not found or invalid' };
+  return { ok: false, reason: 'Session not found or invalid' };
 }
+
+/** @deprecated Use checkSession */
+export const validateSession = checkSession;

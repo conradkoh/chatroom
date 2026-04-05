@@ -23,21 +23,36 @@ export interface WorkspaceRef {
   machineId: string;
 }
 
+/** Successful membership check result. */
+export interface MembershipCheckSuccess {
+  ok: true;
+  chatroomId: string;
+}
+
+/** Failed membership check result. */
+export interface MembershipCheckFailure {
+  ok: false;
+  reason: string;
+}
+
 /** Result of a chatroom membership check. */
-export type MembershipCheckResult =
-  | { authorized: true; chatroomId: string }
-  | { authorized: false; reason: string };
+export type MembershipCheckResult = MembershipCheckSuccess | MembershipCheckFailure;
 
 /**
  * Data access interface for chatroom membership checks.
  * Injected at call site — enables pure-function testing.
  */
-export interface ChatroomMembershipDeps {
+export interface CheckChatroomMembershipDeps {
   /** Find all workspace registrations for a given machineId. */
   getWorkspacesForMachine: (machineId: string) => Promise<WorkspaceRef[]>;
   /** Look up a chatroom by ID. */
   getChatroom: (chatroomId: string) => Promise<ChatroomRef | null>;
 }
+
+// ─── Deprecated aliases ─────────────────────────────────────────────────────
+
+/** @deprecated Use CheckChatroomMembershipDeps */
+export type ChatroomMembershipDeps = CheckChatroomMembershipDeps;
 
 // ─── Core Logic (pure) ──────────────────────────────────────────────────────
 
@@ -50,10 +65,10 @@ export interface ChatroomMembershipDeps {
  * @param deps - Injected data access functions
  * @param machineId - The machine to check access for
  * @param userId - The user requesting access
- * @returns Authorization result with the matching chatroomId or rejection reason
+ * @returns Check result with the matching chatroomId or rejection reason
  */
 export async function checkChatroomMembershipForMachine(
-  deps: ChatroomMembershipDeps,
+  deps: CheckChatroomMembershipDeps,
   machineId: string,
   userId: string
 ): Promise<MembershipCheckResult> {
@@ -61,7 +76,7 @@ export async function checkChatroomMembershipForMachine(
   const workspaces = await deps.getWorkspacesForMachine(machineId);
 
   if (workspaces.length === 0) {
-    return { authorized: false, reason: 'Machine has no workspace registrations' };
+    return { ok: false, reason: 'Machine has no workspace registrations' };
   }
 
   // 2. Deduplicate chatroom IDs
@@ -74,9 +89,9 @@ export async function checkChatroomMembershipForMachine(
 
     // Currently: owner check. Future: extend with membership/invite checks.
     if (chatroom.ownerId === userId) {
-      return { authorized: true, chatroomId };
+      return { ok: true, chatroomId };
     }
   }
 
-  return { authorized: false, reason: 'User does not have access to any chatroom with this machine' };
+  return { ok: false, reason: 'User does not have access to any chatroom with this machine' };
 }

@@ -5,12 +5,12 @@ import { ConvexError } from 'convex/values';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import {
-  validateSession as validateSessionPure,
-  type ValidateSessionDeps,
+  checkSession as checkSessionPure,
+  type CheckSessionDeps,
 } from '../../src/domain/usecase/auth/extensions/validate-session';
 import {
   checkChatroomAccess as checkChatroomAccessPure,
-  type ChatroomAccessDeps,
+  type CheckChatroomAccessDeps,
 } from '../../src/domain/usecase/auth/extensions/chatroom-access';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
@@ -35,8 +35,8 @@ export interface AuthenticatedChatroomAccess {
   chatroom: Doc<'chatroom_rooms'>;
 }
 
-/** Builds ValidateSessionDeps from Convex DB context. */
-function buildValidateSessionDeps(ctx: QueryCtx | MutationCtx): ValidateSessionDeps {
+/** Builds CheckSessionDeps from Convex DB context. */
+function buildCheckSessionDeps(ctx: QueryCtx | MutationCtx): CheckSessionDeps {
   return {
     queryCliSession: async (sessionId: string) => {
       const session = await ctx.db
@@ -71,14 +71,17 @@ export async function validateSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<SessionValidationResult> {
-  const deps = buildValidateSessionDeps(ctx);
-  const result = await validateSessionPure(deps, sessionId);
-  if (!result.valid) {
-    return result;
+  const deps = buildCheckSessionDeps(ctx);
+  const result = await checkSessionPure(deps, sessionId);
+  if (!result.ok) {
+    return { valid: false, reason: result.reason };
   }
   return {
-    ...result,
+    valid: true,
+    sessionId: result.sessionId,
     userId: result.userId as Id<'users'>,
+    userName: result.userName,
+    sessionType: result.sessionType,
   };
 }
 
@@ -92,7 +95,7 @@ export async function checkChatroomAccess(
 > {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
-  const deps: ChatroomAccessDeps = {
+  const deps: CheckChatroomAccessDeps = {
     getChatroom: async (id: string) => {
       const doc = await ctx.db.get('chatroom_rooms', id as Id<'chatroom_rooms'>);
       if (!doc) return null;
@@ -102,7 +105,7 @@ export async function checkChatroomAccess(
 
   const result = await checkChatroomAccessPure(deps, chatroomId as string, userId as string);
 
-  if (!result.hasAccess) {
+  if (!result.ok) {
     return { hasAccess: false, reason: result.reason };
   }
 

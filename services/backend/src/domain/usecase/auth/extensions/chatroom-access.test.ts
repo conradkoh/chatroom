@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   checkChatroomAccess,
-  type ChatroomAccessDeps,
+  type CheckChatroomAccessDeps,
 } from './chatroom-access';
 
-function createMockDeps(overrides: Partial<ChatroomAccessDeps> = {}): ChatroomAccessDeps {
+function createMockDeps(overrides: Partial<CheckChatroomAccessDeps> = {}): CheckChatroomAccessDeps {
   return {
     getChatroom: async () => null,
     ...overrides,
@@ -12,36 +12,36 @@ function createMockDeps(overrides: Partial<ChatroomAccessDeps> = {}): ChatroomAc
 }
 
 describe('checkChatroomAccess', () => {
-  it('grants access when user is the chatroom owner', async () => {
+  it('returns ok when user is the chatroom owner', async () => {
     const deps = createMockDeps({
       getChatroom: async () => ({ id: 'chatroom-1', ownerId: 'user-1' }),
     });
 
     const result = await checkChatroomAccess(deps, 'chatroom-1', 'user-1');
-    expect(result.hasAccess).toBe(true);
-    if (result.hasAccess) {
+    expect(result.ok).toBe(true);
+    if (result.ok) {
       expect(result.chatroomId).toBe('chatroom-1');
     }
   });
 
-  it('denies access when user is not the owner', async () => {
+  it('returns not ok when user is not the owner', async () => {
     const deps = createMockDeps({
       getChatroom: async () => ({ id: 'chatroom-1', ownerId: 'user-2' }),
     });
 
     const result = await checkChatroomAccess(deps, 'chatroom-1', 'user-1');
-    expect(result.hasAccess).toBe(false);
-    if (!result.hasAccess) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.reason).toContain('Access denied');
     }
   });
 
-  it('denies access when chatroom not found', async () => {
+  it('returns not ok when chatroom not found', async () => {
     const deps = createMockDeps();
 
     const result = await checkChatroomAccess(deps, 'nonexistent', 'user-1');
-    expect(result.hasAccess).toBe(false);
-    if (!result.hasAccess) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.reason).toBe('Chatroom not found');
     }
   });
