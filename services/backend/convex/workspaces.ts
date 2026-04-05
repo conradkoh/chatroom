@@ -10,8 +10,9 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import { str } from './utils/types';
 import { validateSession } from './auth/cliSessionAuth';
-import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
+import { checkAccess, requireAccess } from './auth/accessCheck';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
@@ -19,6 +20,8 @@ import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
+
+/** Convert a Convex Id to a plain string for the pure-function layer. */
 
 /**
  * Registers (or reactivates) a workspace for a chatroom.
@@ -37,7 +40,23 @@ export const registerWorkspace = mutation({
     registeredBy: v.string(),
   },
   handler: async (ctx, args) => {
-    await validateSession(ctx, args.sessionId);
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) throw new Error('Authentication required');
+
+    // Verify the user owns the machine being registered
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+
+    // Verify the user has access to the chatroom
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'write-access',
+    });
+
     return registerWorkspaceUseCase(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
@@ -59,7 +78,20 @@ export const removeWorkspace = mutation({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    await validateSession(ctx, args.sessionId);
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) throw new Error('Authentication required');
+
+    // Look up the workspace to verify access
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) throw new Error('Workspace not found');
+
+    // Verify the user has write-access to the machine this workspace belongs to
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: workspace.machineId },
+      permission: 'write-access',
+    });
+
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
 });
@@ -76,8 +108,8 @@ export const listWorkspacesForMachine = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    if (!session.ok) return [];
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
     return listWorkspacesForMachineUseCase(ctx, { machineId: args.machineId });
   },
 });
@@ -94,7 +126,15 @@ export const listWorkspacesForChatroom = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
+    if (!session.ok) return [];
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) return [];
+
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
   },
 });
@@ -115,10 +155,10 @@ export const getWorkspaceGitState = query({
   },
   handler: async (ctx, args): Promise<WorkspaceGitState> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return { status: 'loading' };
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const row = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -172,10 +212,10 @@ export const getFullDiff = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return null;
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const row = await ctx.db
       .query('chatroom_workspaceFullDiff')
@@ -202,10 +242,10 @@ export const getCommitDetail = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return null;
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const row = await ctx.db
       .query('chatroom_workspaceCommitDetail')
@@ -231,8 +271,8 @@ export const getMissingCommitShas = query({
   },
   handler: async (ctx, args): Promise<string[]> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    if (!session.ok) return [];
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const missing: string[] = [];
     for (const sha of args.shas) {
@@ -262,10 +302,10 @@ export const getPendingRequests = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return [];
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const rows = await ctx.db
       .query('chatroom_workspaceDiffRequests')
@@ -343,10 +383,10 @@ export const upsertWorkspaceGitState = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const now = Date.now();
 
@@ -401,10 +441,10 @@ export const upsertFullDiff = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const now = Date.now();
 
@@ -468,10 +508,10 @@ export const upsertCommitDetail = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const now = Date.now();
 
@@ -532,10 +572,10 @@ export const appendMoreCommits = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const existing = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -579,7 +619,7 @@ export const updateRequestStatus = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
 
@@ -607,10 +647,10 @@ export const requestFullDiff = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     // Idempotency: check for existing pending request
     const existing = await ctx.db
@@ -656,10 +696,10 @@ export const requestCommitDetail = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     // Idempotency: check for existing pending request for this sha
     const existing = await ctx.db
@@ -706,10 +746,10 @@ export const requestMoreCommits = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     // Idempotency: check for existing pending request for this offset
     const existing = await ctx.db

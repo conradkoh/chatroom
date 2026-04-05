@@ -10,8 +10,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
-import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
+import { getAuthenticatedUser } from './auth/authenticatedUser';
+import { requireAccess } from './auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -29,32 +29,10 @@ const MAX_FILE_PATH_LENGTH = 1024;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function getAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<{ isAuthenticated: true; userId: any } | { isAuthenticated: false }> {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    return { isAuthenticated: false };
-  }
-  return { isAuthenticated: true, userId: result.userId };
-}
-
 /**
  * Verify that the authenticated user owns the given machine.
  * Used as fallback for endpoints called before workspace registration.
  */
-async function verifyMachineOwnership(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  userId: any
-): Promise<boolean> {
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
-    .first();
-  return !!machine && machine.userId === userId;
-}
 
 /**
  * Check chatroom-based access for a machine.
@@ -66,15 +44,12 @@ async function requireMachineAccess(
   machineId: string,
   userId: any
 ): Promise<void> {
-  try {
-    await requireChatroomMachineAccess(ctx, machineId, userId);
-    return;
-  } catch {
-    if (await verifyMachineOwnership(ctx, machineId, userId)) {
-      return;
-    }
-    throw new Error('Machine not found or access denied');
-  }
+  // write-access includes owner fallback — a machine owner always has at least write-access
+  await requireAccess(ctx, {
+    accessor: { type: 'user', id: userId },
+    resource: { type: 'machine', id: machineId },
+    permission: 'write-access',
+  });
 }
 
 /**
@@ -112,7 +87,7 @@ export const syncFileTree = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -159,7 +134,7 @@ export const getFileTree = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return null;
     }
 
@@ -202,7 +177,7 @@ export const requestFileContent = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -280,7 +255,7 @@ export const getFileContent = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return null;
     }
 
@@ -326,7 +301,7 @@ export const getPendingFileContentRequests = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return [];
     }
 
@@ -369,7 +344,7 @@ export const fulfillFileContent = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
