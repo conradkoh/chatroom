@@ -11,7 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getAuthenticatedUser } from './auth/authenticatedUser';
-import { checkAccess } from './auth/accessCheck';
+import { requireAccess } from './auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -44,23 +44,12 @@ async function requireMachineAccess(
   machineId: string,
   userId: any
 ): Promise<void> {
-  // Try write-access first (chatroom membership)
-  const writeResult = await checkAccess(ctx, {
+  // write-access includes owner fallback — a machine owner always has at least write-access
+  await requireAccess(ctx, {
     accessor: { type: 'user', id: userId },
     resource: { type: 'machine', id: machineId },
     permission: 'write-access',
   });
-  if (writeResult.ok) return;
-
-  // Fall back to direct machine ownership for daemon calls
-  const ownerResult = await checkAccess(ctx, {
-    accessor: { type: 'user', id: userId },
-    resource: { type: 'machine', id: machineId },
-    permission: 'owner',
-  });
-  if (ownerResult.ok) return;
-
-  throw new Error('Machine not found or access denied');
 }
 
 /**
