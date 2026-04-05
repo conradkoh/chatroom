@@ -16,8 +16,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
-import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
-import { checkMachineOwnership } from './auth/machineAccess';
+import { checkAccess, requireAccess } from './auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -52,7 +51,7 @@ export const syncCommands = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkMachineOwnership(ctx, args.machineId, auth.userId);
+    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
     if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
 
     if (args.commands.length > MAX_COMMANDS_PER_SYNC) {
@@ -101,7 +100,7 @@ export const runCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     // Security: Verify the command exists in the synced commands for this workspace.
     // This prevents arbitrary command injection — only pre-discovered scripts can be run.
@@ -162,7 +161,7 @@ export const stopCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const run = await ctx.db.get(args.runId);
     if (!run) throw new ConvexError('Run not found');
@@ -202,7 +201,7 @@ export const updateRunStatus = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkMachineOwnership(ctx, args.machineId, auth.userId);
+    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
     if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
 
     const run = await ctx.db.get(args.runId);
@@ -251,7 +250,7 @@ export const appendOutput = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkMachineOwnership(ctx, args.machineId, auth.userId);
+    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
     if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
 
     if (args.content.length > MAX_OUTPUT_CHUNK_BYTES) {
@@ -292,7 +291,7 @@ export const listCommands = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
-    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     return await ctx.db
       .query('chatroom_runnableCommands')
@@ -316,7 +315,7 @@ export const listRuns = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
-    await requireChatroomMachineAccess(ctx, args.machineId, auth.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
     const runs = await ctx.db
       .query('chatroom_commandRuns')
@@ -347,7 +346,7 @@ export const getRunOutput = query({
     if (!run) return { chunks: [], run: null };
 
     // Verify the caller has access to this machine through chatroom membership
-    await requireChatroomMachineAccess(ctx, run.machineId, auth.userId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: run.machineId }, permission: 'write-access' });
 
     const chunks = await ctx.db
       .query('chatroom_commandOutput')

@@ -11,8 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getAuthenticatedUser } from './auth/authenticatedUser';
-import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
-import { checkMachineOwnership } from './auth/machineAccess';
+import { checkAccess } from './auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -45,16 +44,23 @@ async function requireMachineAccess(
   machineId: string,
   userId: any
 ): Promise<void> {
-  try {
-    await requireChatroomMachineAccess(ctx, machineId, userId);
-    return;
-  } catch {
-    const ownerCheck = await checkMachineOwnership(ctx, machineId, userId);
-    if (ownerCheck.ok) {
-      return;
-    }
-    throw new Error('Machine not found or access denied');
-  }
+  // Try write-access first (chatroom membership)
+  const writeResult = await checkAccess(ctx, {
+    accessor: { type: 'user', id: userId },
+    resource: { type: 'machine', id: machineId },
+    permission: 'write-access',
+  });
+  if (writeResult.ok) return;
+
+  // Fall back to direct machine ownership for daemon calls
+  const ownerResult = await checkAccess(ctx, {
+    accessor: { type: 'user', id: userId },
+    resource: { type: 'machine', id: machineId },
+    permission: 'owner',
+  });
+  if (ownerResult.ok) return;
+
+  throw new Error('Machine not found or access denied');
 }
 
 /**

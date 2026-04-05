@@ -9,9 +9,8 @@ import {
   type CheckSessionDeps,
 } from '../../src/domain/usecase/auth/extensions/validate-session';
 import {
-  checkChatroomAccess as checkChatroomAccessPure,
-  type CheckChatroomAccessDeps,
-} from '../../src/domain/usecase/auth/extensions/chatroom-access';
+  checkAccess as checkAccessUnified,
+} from './accessCheck';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -95,15 +94,11 @@ export async function checkChatroomAccess(
 > {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
-  const deps: CheckChatroomAccessDeps = {
-    getChatroom: async (id: string) => {
-      const doc = await ctx.db.get('chatroom_rooms', id as Id<'chatroom_rooms'>);
-      if (!doc) return null;
-      return { id: doc._id as string, ownerId: doc.ownerId as string };
-    },
-  };
-
-  const result = await checkChatroomAccessPure(deps, chatroomId as string, userId as string);
+  const result = await checkAccessUnified(ctx, {
+    accessor: { type: 'user', id: userId as string },
+    resource: { type: 'chatroom', id: chatroomId as string },
+    permission: 'owner',
+  });
 
   if (!result.ok) {
     return { ok: false, reason: result.reason };
