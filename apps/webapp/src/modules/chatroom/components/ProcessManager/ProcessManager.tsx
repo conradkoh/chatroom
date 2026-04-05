@@ -586,42 +586,65 @@ function WorkspaceDetailPanel({
         </p>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {workspace.allCommands.map((cmd) => {
-          const scriptName = extractScriptName(cmd.name);
-          const isFav = favorites.has(cmd.name);
-          return (
-            <div
-              key={cmd.name}
-              className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
-            >
-              <button
-                onClick={() => onToggleFavorite(cmd.name)}
-                className={`flex-shrink-0 transition-colors ${
-                  isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
-                }`}
-              >
-                ★
-              </button>
+        {(() => {
+          const favCmds = workspace.allCommands.filter((c) => favorites.has(c.name));
+          const otherCmds = workspace.allCommands.filter((c) => !favorites.has(c.name));
+          const hasFavorites = favCmds.length > 0;
+
+          const renderCommand = (cmd: RunnableCommand) => {
+            const scriptName = extractScriptName(cmd.name);
+            const isFav = favorites.has(cmd.name);
+            return (
               <div
-                className="flex-1 min-w-0 cursor-pointer"
-                onClick={() => onSelectCommand(cmd)}
+                key={cmd.name}
+                className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
               >
-                <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:text-blue-400">
-                  {scriptName}
+                <button
+                  onClick={() => onToggleFavorite(cmd.name)}
+                  className={`flex-shrink-0 transition-colors ${
+                    isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
+                  }`}
+                >
+                  ★
+                </button>
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => onSelectCommand(cmd)}
+                >
+                  <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:text-blue-400">
+                    {scriptName}
+                  </div>
+                  <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
+                    {cmd.script}
+                  </div>
                 </div>
-                <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
-                  {cmd.script}
-                </div>
+                <button
+                  onClick={() => onRun(cmd)}
+                  className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                >
+                  Run
+                </button>
               </div>
-              <button
-                onClick={() => onRun(cmd)}
-                className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-              >
-                Run
-              </button>
-            </div>
+            );
+          };
+
+          return (
+            <>
+              {hasFavorites && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
+                    ★ Favorites
+                  </div>
+                  {favCmds.map(renderCommand)}
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    All Commands
+                  </div>
+                </>
+              )}
+              {otherCmds.map(renderCommand)}
+            </>
           );
-        })}
+        })()}
       </div>
     </div>
   );
