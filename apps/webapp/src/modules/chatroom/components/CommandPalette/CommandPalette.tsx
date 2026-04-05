@@ -1,7 +1,7 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import {
   Command,
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { COMMAND_DIALOG_CONTENT_CLASSES, COMMAND_GROUP_HEADING_CLASSES } from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import type { CommandItem } from './types';
 
 interface CommandPaletteProps {
@@ -39,6 +40,9 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   );
 
   const [searchValue, setSearchValue] = useState('');
+  const searchValueRef = useRef(searchValue);
+  searchValueRef.current = searchValue;
+  const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
 
   // Frécency-boosted ranking
   const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
@@ -127,6 +131,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
       <DialogPortal>
         <DialogPrimitive.Content
           forceMount
+          onEscapeKeyDown={onEscapeKeyDown}
           className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
         >
           <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
@@ -138,6 +143,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
             <CommandInput
               placeholder="Type a command..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+              value={searchValue}
               onValueChange={setSearchValue}
             />
             <CommandList className="min-h-[244px] h-[244px]">

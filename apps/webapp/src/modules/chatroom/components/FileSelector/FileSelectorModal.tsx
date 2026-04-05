@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Loader2 } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useRef } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
 
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { FileEntry } from './useFileSelector';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
 
 interface FileSelectorModalProps {
@@ -54,6 +55,9 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   hasWorkspace,
 }: FileSelectorModalProps) {
   const [search, setSearch] = useState('');
+  const searchRef = useRef(search);
+  searchRef.current = search;
+  const onEscapeKeyDown = useEscapeToClear(searchRef, () => setSearch(''));
 
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
@@ -80,6 +84,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         {/* No overlay — file selector is a quick-picker, not a blocking modal. */}
         <DialogPrimitive.Content
           forceMount
+          onEscapeKeyDown={onEscapeKeyDown}
           className={cn(
             ...COMMAND_DIALOG_CONTENT_CLASSES,
           )}

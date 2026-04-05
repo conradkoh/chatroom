@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 
 import {
   Command,
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
@@ -61,6 +62,16 @@ export function ChatroomSwitcher() {
   const router = useRouter();
   const { chatrooms } = useChatroomListing();
 
+  const [searchValue, setSearchValue] = useState('');
+  const searchValueRef = useRef(searchValue);
+  searchValueRef.current = searchValue;
+  const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
+
+  // Reset search when closing
+  useEffect(() => {
+    if (!open) setSearchValue('');
+  }, [open]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().includes('MAC');
@@ -91,6 +102,7 @@ export function ChatroomSwitcher() {
         {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
         <DialogPrimitive.Content
           forceMount
+          onEscapeKeyDown={onEscapeKeyDown}
           className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
         >
           {/* Accessible title and description (sr-only) */}
@@ -103,6 +115,8 @@ export function ChatroomSwitcher() {
             <CommandInput
               placeholder="Search chatrooms..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+              value={searchValue}
+              onValueChange={setSearchValue}
             />
             <CommandList className="min-h-[244px] h-[244px]">
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
