@@ -91,10 +91,12 @@ export function ProcessManager({
       const cmd = commands.find((c) => c.name === initialSelectedCommand);
       if (cmd) {
         setSelectedCommand(cmd);
-        // Find the workspace group for this command
+        // Clear workspace selection so CommandDetailPanel takes priority
+        setSelectedWorkspace(null);
+        // Track the workspace for back navigation
         const groups = groupCommandsByWorkspace(commands, '');
         const ws = groups.find((g) => g.allCommands.some((c: RunnableCommand) => c.name === cmd.name));
-        if (ws) setSelectedWorkspace(ws);
+        if (ws) setPreviousWorkspace(ws);
       }
     }
   }, [open, initialSelectedCommand, commands]);
