@@ -6,10 +6,12 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
+import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { checkAccess, requireAccess } from './auth/accessCheck';
 import { agentHarnessValidator } from './schema';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
+import { str } from './utils/types';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
@@ -22,6 +24,8 @@ import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-as
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
+
+/** Convert a Convex Id to a plain string for the pure-function layer. */
 
 /** Validates an absolute working directory path, rejecting unsafe characters. */
 function validateWorkingDir(workingDir: string): void {
@@ -59,26 +63,6 @@ function validateWorkingDir(workingDir: string): void {
   }
 }
 
-/** Discriminated union of authentication results from getAuthenticatedUser. */
-type AuthResult =
-  | { isAuthenticated: true; user: Doc<'users'> }
-  | { isAuthenticated: false; user: null };
-
-/** Returns the authenticated user from a session, or null if unauthenticated. */
-async function getAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<AuthResult> {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    return { isAuthenticated: false, user: null };
-  }
-  const user = await ctx.db.get('users', result.userId);
-  if (!user) {
-    return { isAuthenticated: false, user: null };
-  }
-  return { isAuthenticated: true, user };
-}
 
 /**
  * Look up a machine by its machineId. Throws if not found.
@@ -132,7 +116,7 @@ export const register = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -190,7 +174,7 @@ export const setMachineAlias = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
@@ -227,7 +211,7 @@ export const refreshCapabilities = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -267,7 +251,7 @@ export const listMachines = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return { machines: [] };
     }
     const user = auth.user;
@@ -302,7 +286,7 @@ export const getDaemonStatus = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return { connected: false, lastSeenAt: null };
     }
 
@@ -330,7 +314,7 @@ export const getMachineAgentConfigs = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return { configs: [] };
     }
     const user = auth.user;
@@ -397,7 +381,7 @@ export const getCommandEvents = query({
   handler: async (ctx, args) => {
     // 1. Auth check
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return { events: [] };
+    if (!auth.ok) return { events: [] };
 
     // 2. Machine ownership check
     const machine = await ctx.db
@@ -450,6 +434,7 @@ export const getCommandEvents = query({
     // 5b. Local action events (open-vscode, open-finder, etc.)
     // Time-filtered to avoid replaying stale actions on daemon restart.
     const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
+    const COMMAND_EVENT_TTL_MS = 60_000; // 1 minute
     const localActionEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
@@ -459,8 +444,28 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    // 6. Command runner events (command.run / command.stop)
+    // Time-filtered to avoid replaying stale commands on daemon restart.
+    const commandRunEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.run')
+      )
+      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
+      .order('asc')
+      .collect();
+
+    const commandStopEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.stop')
+      )
+      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
+      .order('asc')
+      .collect();
+
     // 7. Merge and sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents].sort((a, b) =>
+    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents, ...commandRunEvents, ...commandStopEvents].sort((a, b) =>
       a._creationTime < b._creationTime ? -1 : 1
     );
 
@@ -477,7 +482,7 @@ export const getDaemonPongEvent = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return null;
+    if (!auth.ok) return null;
 
     const machine = await ctx.db
       .query('chatroom_machines')
@@ -515,11 +520,15 @@ export const getLatestAgentEvent = query({
   handler: async (ctx, args) => {
     // Auth check
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return null;
+    if (!auth.ok) return null;
 
     // Verify chatroom access
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) return null;
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return null;
 
     // Fetch the latest event for this chatroom+role using the index
     const event = await ctx.db
@@ -548,11 +557,12 @@ export const getLatestAgentEventsForChatroom = query({
   handler: async (ctx, args) => {
     // Auth check
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return {};
+    if (!auth.ok) return {};
 
-    // Verify chatroom access
+    // Verify chatroom access (single lookup — also used for teamId below)
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) return {};
+    if (chatroom.ownerId !== auth.userId) return {};
 
     // Fetch latest event + team config for each role in parallel
     const results = await Promise.all(
@@ -606,7 +616,7 @@ export const updateDaemonStatus = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -629,7 +639,7 @@ export const daemonHeartbeat = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -662,7 +672,7 @@ export const sendLocalAction = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -708,7 +718,7 @@ export const sendCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -807,7 +817,7 @@ export const updateSpawnedAgent = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
@@ -916,7 +926,7 @@ export const recordAgentExited = mutation({
   handler: async (ctx, args) => {
     // 1. Auth + machine ownership check
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    if (!auth.ok) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // 2. Delegate to the agentExited use case (event insert + PID-gated cleanup + participant update)
@@ -955,7 +965,7 @@ export const recordAgentRegistered = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -989,7 +999,7 @@ export const ackPing = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -1025,7 +1035,7 @@ export const requestGitRefresh = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -1060,7 +1070,7 @@ export const saveTeamAgentConfig = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -1140,7 +1150,7 @@ export const getTeamAgentConfigs = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
+    if (!auth.ok) return [];
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
 
@@ -1166,7 +1176,7 @@ export const saveAgentPreference = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -1213,6 +1223,16 @@ export const getMachineModelFilters = query({
     agentHarness: agentHarnessValidator,
   },
   handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return null;
+
     const filter = await ctx.db
       .query('chatroom_machineModelFilters')
       .withIndex('by_machine_harness', (q) =>
@@ -1233,9 +1253,16 @@ export const upsertMachineModelFilters = mutation({
     hiddenProviders: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+
     const existing = await ctx.db
       .query('chatroom_machineModelFilters')
-      .withIndex('by_machine_harness', (q) =>
+      .withIndex('by_machine_harness', (q: any) =>
         q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
       )
       .unique();
@@ -1264,7 +1291,7 @@ export const listRemoteAgentRunningStatus = query({
   args: { ...SessionIdArg },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
+    if (!auth.ok) return [];
 
     const userMachines = await ctx.db
       .query('chatroom_machines')
@@ -1329,7 +1356,14 @@ export const getAgentRestartMetrics = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
+    if (!auth.ok) return [];
+
+    const machineAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!machineAccessResult.ok) return [];
 
     let startHour = Math.floor(args.startTime / 3_600_000) * 3_600_000;
     const endHour = Math.floor(args.endTime / 3_600_000) * 3_600_000;
@@ -1400,7 +1434,14 @@ export const getAgentRestartSummary = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return { count1h: 0, count24h: 0 };
+    if (!auth.ok) return { count1h: 0, count24h: 0 };
+
+    const machineAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!machineAccessResult.ok) return { count1h: 0, count24h: 0 };
 
     const now = Date.now();
     const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
@@ -1437,7 +1478,14 @@ export const getAgentRestartSummaryByRole = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return { count1h: 0, count24h: 0 };
+    if (!auth.ok) return { count1h: 0, count24h: 0 };
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) return { count1h: 0, count24h: 0 };
 
     const now = Date.now();
     const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
@@ -1476,7 +1524,16 @@ export const getAgentRestartSummariesByRoles = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
+      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+    }
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) {
       return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
     }
 
@@ -1527,7 +1584,7 @@ export const getAgentStatus = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return null;
+    if (!auth.ok) return null;
 
     return getAgentStatusForChatroom(ctx, {
       chatroomId: args.chatroomId,
@@ -1545,7 +1602,7 @@ export const getAgentStartConfig = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return null;
+    if (!auth.ok) return null;
 
     return getAgentConfigForStart(ctx, {
       chatroomId: args.chatroomId,
@@ -1562,7 +1619,7 @@ export const listAgentOverview = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
+    if (!auth.ok) return [];
 
     return listChatroomAgentOverview(ctx, {
       userId: auth.user._id,
@@ -1590,7 +1647,7 @@ export const getAssignedTasks = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return { tasks: [] };
+    if (!auth.ok) return { tasks: [] };
 
     return getAssignedTasksForMachine(ctx, {
       machineId: args.machineId,
@@ -1615,7 +1672,7 @@ export const emitAgentStartFailed = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    if (!auth.ok) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     await ctx.db.insert('chatroom_eventStream', {
@@ -1666,7 +1723,7 @@ export const emitRestartLimitReached = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    if (!auth.ok) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     await ctx.db.insert('chatroom_eventStream', {
@@ -1699,7 +1756,7 @@ export const clearAllSpawnedPids = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    if (!auth.ok) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // Find all configs for this machine that have a spawnedAgentPid

@@ -1,62 +1,78 @@
 /**
  * Unit tests for chatroom membership authorization.
  *
- * Tests the pure `checkChatroomMembershipForMachine` function
- * using injected mock dependencies (no real DB needed).
+ * Tests the unified `checkAccess` function for machine write-access
+ * (which checks chatroom membership) using injected mock dependencies.
+ *
+ * Migrated from the old `checkChatroomMembershipForMachine` tests.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import {
-  checkChatroomMembershipForMachine,
-  type ChatroomMembershipDeps,
-  type ChatroomRef,
-  type WorkspaceRef,
-} from '../../../src/domain/auth/chatroomMembershipAuth';
+  checkAccess,
+  type CheckAccessDeps,
+  type Accessor,
+  type Resource,
+} from '../../../src/domain/usecase/auth/extensions/check-access';
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────
+
+interface ChatroomRef {
+  id: string;
+  ownerId: string;
+}
+
+interface WorkspaceRef {
+  chatroomId: string;
+  machineId: string;
+}
 
 function createMockDeps(
   workspaces: WorkspaceRef[],
   chatrooms: ChatroomRef[]
-): ChatroomMembershipDeps {
+): CheckAccessDeps {
   return {
+    getMachineByMachineId: async () => null,
     getWorkspacesForMachine: async (machineId: string) =>
       workspaces.filter((w) => w.machineId === machineId),
     getChatroom: async (chatroomId: string) =>
-      chatrooms.find((c) => c._id === chatroomId) ?? null,
+      chatrooms.find((c) => c.id === chatroomId) ?? null,
   };
 }
 
+const USER_1: Accessor = { type: 'user', id: 'user-1' };
+const MACHINE_1: Resource = { type: 'machine', id: 'machine-1' };
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-describe('checkChatroomMembershipForMachine', () => {
+describe('checkAccess — machine write-access (chatroom membership)', () => {
   test('grants access when user owns a chatroom the machine is registered in', async () => {
     const deps = createMockDeps(
       [{ chatroomId: 'chatroom-1', machineId: 'machine-1' }],
-      [{ _id: 'chatroom-1', ownerId: 'user-1' }]
+      [{ id: 'chatroom-1', ownerId: 'user-1' }]
     );
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-1' });
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 
   test('denies access when user does not own any chatroom the machine is in', async () => {
     const deps = createMockDeps(
       [{ chatroomId: 'chatroom-1', machineId: 'machine-1' }],
-      [{ _id: 'chatroom-1', ownerId: 'other-user' }]
+      [{ id: 'chatroom-1', ownerId: 'other-user' }]
     );
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(false);
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    expect(result.ok).toBe(false);
   });
 
   test('denies access when machine has no workspace registrations', async () => {
     const deps = createMockDeps([], []);
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
     expect(result).toEqual({
-      authorized: false,
+      ok: false,
       reason: 'Machine has no workspace registrations',
     });
   });
@@ -68,13 +84,13 @@ describe('checkChatroomMembershipForMachine', () => {
         { chatroomId: 'chatroom-2', machineId: 'machine-1' },
       ],
       [
-        { _id: 'chatroom-1', ownerId: 'other-user' },
-        { _id: 'chatroom-2', ownerId: 'user-1' },
+        { id: 'chatroom-1', ownerId: 'other-user' },
+        { id: 'chatroom-2', ownerId: 'user-1' },
       ]
     );
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-2' });
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 
   test('handles missing chatroom gracefully', async () => {
@@ -83,13 +99,14 @@ describe('checkChatroomMembershipForMachine', () => {
       [] // chatroom not found
     );
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(false);
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    expect(result.ok).toBe(false);
   });
 
   test('deduplicates chatroom IDs from multiple workspaces', async () => {
     let getChatroomCallCount = 0;
-    const deps: ChatroomMembershipDeps = {
+    const deps: CheckAccessDeps = {
+      getMachineByMachineId: async () => null,
       getWorkspacesForMachine: async () => [
         { chatroomId: 'chatroom-1', machineId: 'machine-1' },
         { chatroomId: 'chatroom-1', machineId: 'machine-1' }, // duplicate
@@ -97,12 +114,12 @@ describe('checkChatroomMembershipForMachine', () => {
       ],
       getChatroom: async (chatroomId: string) => {
         getChatroomCallCount++;
-        return { _id: chatroomId, ownerId: 'user-1' };
+        return { id: chatroomId, ownerId: 'user-1' };
       },
     };
 
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-1', 'user-1');
-    expect(result.authorized).toBe(true);
+    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    expect(result.ok).toBe(true);
     // Should only query each chatroom once despite 3 workspace registrations
     expect(getChatroomCallCount).toBe(1);
   });
@@ -113,11 +130,11 @@ describe('checkChatroomMembershipForMachine', () => {
         { chatroomId: 'chatroom-1', machineId: 'machine-1' },
         { chatroomId: 'chatroom-1', machineId: 'machine-2' },
       ],
-      [{ _id: 'chatroom-1', ownerId: 'user-1' }]
+      [{ id: 'chatroom-1', ownerId: 'user-1' }]
     );
 
-    // machine-2 is in a chatroom owned by user-1
-    const result = await checkChatroomMembershipForMachine(deps, 'machine-2', 'user-1');
-    expect(result).toEqual({ authorized: true, chatroomId: 'chatroom-1' });
+    const machine2: Resource = { type: 'machine', id: 'machine-2' };
+    const result = await checkAccess(deps, { accessor: USER_1, resource: machine2, permission: 'write-access' });
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 });

@@ -12,9 +12,11 @@ import {
   ListTodo,
   PanelBottomOpen,
   Settings,
+  Terminal,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 
+import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import type { CommandItem } from './types';
 
 export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'integrations';
@@ -33,6 +35,12 @@ interface UseCommandPaletteCommandsProps {
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
+  /** Runnable commands for matching favorites to scripts */
+  runnableCommands?: Array<{ name: string; script: string; source: string }>;
+  /** Callback to open the Process Manager with a specific command selected */
+  onOpenProcessManagerWithCommand?: (commandName: string) => void;
+  /** Callback to open the Process Manager */
+  onOpenProcessManager?: () => void;
 }
 
 /**
@@ -53,9 +61,30 @@ export function useCommandPaletteCommands({
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
   onOpenWorkspaceDetails,
+  runnableCommands,
+  onOpenProcessManagerWithCommand,
+  onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
+
+    // ─── Favorites (favourited commands from process manager) ────────
+    if (runnableCommands && onOpenProcessManagerWithCommand) {
+      const favoritesStore = getCommandFavoritesStore();
+      const favorites = favoritesStore.getAll();
+
+      for (const cmd of runnableCommands) {
+        if (favorites.has(cmd.name)) {
+          commands.push({
+            id: `fav-${cmd.name}`,
+            label: cmd.name,
+            icon: <Terminal size={14} />,
+            category: 'Commands',
+            action: () => onOpenProcessManagerWithCommand(cmd.name),
+          });
+        }
+      }
+    }
 
     // ─── Navigate (shown first) ──────────────────────────
     commands.push(
@@ -91,7 +120,7 @@ export function useCommandPaletteCommands({
     if (onOpenInGitHubDesktop) {
       commands.push({
         id: 'action-open-github-desktop',
-        label: 'PR: Open in GitHub Desktop',
+        label: 'Open in GitHub Desktop',
         icon: <SiGithub size={14} />,
         category: 'Actions',
         action: onOpenInGitHubDesktop,
@@ -157,6 +186,17 @@ export function useCommandPaletteCommands({
       }
     );
 
+    // ─── Process Manager ────────────────────────────────
+    if (onOpenProcessManager) {
+      commands.push({
+        id: 'panel-process-manager',
+        label: 'Open Process Manager',
+        icon: <Terminal size={14} />,
+        category: 'Panels',
+        action: onOpenProcessManager,
+      });
+    }
+
     return commands;
   }, [
     onOpenSettings,
@@ -170,5 +210,8 @@ export function useCommandPaletteCommands({
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
     onOpenWorkspaceDetails,
+    runnableCommands,
+    onOpenProcessManagerWithCommand,
+    onOpenProcessManager,
   ]);
 }
