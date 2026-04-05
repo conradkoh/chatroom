@@ -7,6 +7,7 @@
 
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import { str } from '../utils/types';
 import {
   checkAccess as checkAccessCore,
   requireAccess as requireAccessCore,
@@ -17,9 +18,6 @@ import {
 } from '../../src/domain/usecase/auth/extensions/check-access';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
-function str(id: Id<any> | string): string {
-  return id as string;
-}
 
 /**
  * Create Convex-backed dependencies for unified access checks.

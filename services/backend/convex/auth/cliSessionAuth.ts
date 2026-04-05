@@ -9,12 +9,10 @@ import {
   type CheckSessionDeps,
 } from '../../src/domain/usecase/auth/extensions/validate-session';
 import type { Doc, Id } from '../_generated/dataModel';
+import { str } from '../utils/types';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
-function str(id: Id<any> | string): string {
-  return id as string;
-}
 
 export interface ValidatedSession {
   sessionId: string;

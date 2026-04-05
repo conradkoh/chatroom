@@ -10,7 +10,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import type { Id } from './_generated/dataModel';
+import { str } from './utils/types';
 import { validateSession } from './auth/cliSessionAuth';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
@@ -22,9 +22,6 @@ import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '.
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
-function str(id: Id<any> | string): string {
-  return id as string;
-}
 
 /**
  * Registers (or reactivates) a workspace for a chatroom.

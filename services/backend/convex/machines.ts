@@ -11,6 +11,7 @@ import { checkAccess, requireAccess } from './auth/accessCheck';
 import { agentHarnessValidator } from './schema';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
+import { str } from './utils/types';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
@@ -25,9 +26,6 @@ import { onAgentExited } from '../src/events/agent/on-agent-exited';
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
-function str(id: Id<any> | string): string {
-  return id as string;
-}
 
 /** Validates an absolute working directory path, rejecting unsafe characters. */
 function validateWorkingDir(workingDir: string): void {
