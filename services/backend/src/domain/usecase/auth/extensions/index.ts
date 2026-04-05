@@ -3,18 +3,11 @@
  * These extend the upstream auth functionality in modules/auth/.
  *
  * All functions follow a consistent pattern:
- * - Verb: `check` (e.g., checkSession, checkChatroomAccess)
- * - Deps: `Check<Domain>Deps` interface for DI
+ * - Verb: `check` / `require` (e.g., checkSession, checkAccess, requireAccess)
+ * - Deps: dependency interface for DI
  * - Result: `{ ok: true, ...data } | { ok: false, reason: string }`
  */
 
-export {
-  checkMachineOwnership,
-  type CheckMachineOwnershipDeps,
-  type MachineOwnershipResult,
-  type MachineOwnershipSuccess,
-  type MachineOwnershipFailure,
-} from './machine-access.js';
 export {
   checkSession,
   type CheckSessionDeps,
@@ -25,23 +18,6 @@ export {
   type WebSessionRecord,
   type UserRecord,
 } from './validate-session.js';
-export {
-  checkChatroomAccess,
-  type CheckChatroomAccessDeps,
-  type ChatroomAccessResult,
-  type ChatroomAccessSuccess,
-  type ChatroomAccessFailure,
-  type ChatroomRecord,
-} from './chatroom-access.js';
-export {
-  checkChatroomMembershipForMachine,
-  type CheckChatroomMembershipDeps,
-  type MembershipCheckResult,
-  type MembershipCheckSuccess,
-  type MembershipCheckFailure,
-  type ChatroomRef,
-  type WorkspaceRef,
-} from './chatroom-membership.js';
 export {
   checkAccess,
   requireAccess,
