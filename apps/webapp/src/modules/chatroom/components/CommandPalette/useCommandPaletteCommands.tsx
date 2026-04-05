@@ -80,7 +80,7 @@ export function useCommandPaletteCommands({
             id: `fav-${cmd.name}`,
             label: cmd.name,
             icon: <Star size={14} />,
-            category: 'Favorites',
+            category: 'Commands',
             action: () => onOpenProcessManagerWithCommand(cmd.name),
           });
         }
