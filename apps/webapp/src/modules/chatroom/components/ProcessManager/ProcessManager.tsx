@@ -82,6 +82,7 @@ export function ProcessManager({
       setSelectedCommand(null);
       setSelectedWorkspace(null);
       setPreviousWorkspace(null);
+      setPreviousCommand(null);
     }
   }, [open]);
 
@@ -119,6 +120,7 @@ export function ProcessManager({
   const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceGroup | null>(null);
   const [previousWorkspace, setPreviousWorkspace] = useState<WorkspaceGroup | null>(null);
+  const [previousCommand, setPreviousCommand] = useState<RunnableCommand | null>(null);
 
   // Group commands by workspace
   const workspaceGroups = groupCommandsByWorkspace(commands, searchQuery);
@@ -194,7 +196,7 @@ export function ProcessManager({
                     title={`Running (${runningProcesses.length})`}
                     runs={runningProcesses}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -249,7 +251,7 @@ export function ProcessManager({
                     title="Recent"
                     runs={recentRuns}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -269,6 +271,13 @@ export function ProcessManager({
                   onRestart={() => {
                     if (activeRunOutput.run) handleRestartCommand(activeRunOutput.run);
                   }}
+                  onClose={() => {
+                    onClearRun();
+                    if (previousCommand) {
+                      setSelectedCommand(previousCommand);
+                      setPreviousCommand(null);
+                    }
+                  }}
                 />
               ) : selectedWorkspace ? (
                 <WorkspaceDetailPanel
@@ -281,6 +290,7 @@ export function ProcessManager({
                     setSelectedCommand(cmd);
                     setSelectedWorkspace(null);
                   }}
+                  onClose={() => setSelectedWorkspace(null)}
                 />
               ) : selectedCommand ? (
                 <CommandDetailPanel
@@ -289,13 +299,17 @@ export function ProcessManager({
                   runs={runs}
                   onRun={() => handleRunCommand(selectedCommand)}
                   onStop={onStopCommand}
-                  onSelectRun={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                  onSelectRun={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); onSelectRun(runId); }}
                   onToggleFavorite={() => handleToggleFavorite(selectedCommand.name)}
-                  onBack={previousWorkspace ? () => {
-                    setSelectedWorkspace(previousWorkspace);
-                    setSelectedCommand(null);
-                    setPreviousWorkspace(null);
-                  } : undefined}
+                  onBack={() => {
+                    if (previousWorkspace) {
+                      setSelectedWorkspace(previousWorkspace);
+                      setSelectedCommand(null);
+                      setPreviousWorkspace(null);
+                    } else {
+                      setSelectedCommand(null);
+                    }
+                  }}
                 />
               ) : (
                 <OutputPanel run={null} chunks={[]} onStop={() => {}} onRestart={() => {}} />
@@ -544,20 +558,30 @@ function WorkspaceDetailPanel({
   onRun,
   onToggleFavorite,
   onSelectCommand,
+  onClose,
 }: {
   workspace: WorkspaceGroup;
   favorites: Set<string>;
   onRun: (cmd: RunnableCommand) => void;
   onToggleFavorite: (name: string) => void;
   onSelectCommand: (cmd: RunnableCommand) => void;
+  onClose: () => void;
 }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-4 py-2 border-b border-chatroom-border">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-          {workspace.path === '.' ? 'Root' : workspace.path}
-        </h3>
-        <p className="text-[10px] text-chatroom-text-muted mt-0.5">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary text-xs font-bold uppercase tracking-wider transition-colors"
+          >
+            ← Back
+          </button>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+            {workspace.path === '.' ? 'Root' : workspace.path}
+          </h3>
+        </div>
+        <p className="text-[10px] text-chatroom-text-muted mt-0.5 ml-12">
           {workspace.allCommands.length} commands available
         </p>
       </div>
