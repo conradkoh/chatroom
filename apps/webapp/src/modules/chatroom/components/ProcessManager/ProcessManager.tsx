@@ -501,7 +501,7 @@ function CommandDetailPanel({
                   <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
                   <button
                     onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-primary truncate hover:underline"
+                    className="flex-1 text-left text-xs text-chatroom-text-primary truncate hover:text-blue-400"
                   >
                     PID {run.pid ?? '...'} — {run.status}
                   </button>
@@ -536,7 +536,7 @@ function CommandDetailPanel({
                   }`} />
                   <button
                     onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-muted truncate hover:underline"
+                    className="flex-1 text-left text-xs text-chatroom-text-muted truncate hover:text-blue-400"
                   >
                     {run.status}{run.exitCode !== undefined ? ` (exit ${run.exitCode})` : ''}
                   </button>
@@ -606,7 +606,7 @@ function WorkspaceDetailPanel({
                 className="flex-1 min-w-0 cursor-pointer"
                 onClick={() => onSelectCommand(cmd)}
               >
-                <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:underline">
+                <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:text-blue-400">
                   {scriptName}
                 </div>
                 <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
