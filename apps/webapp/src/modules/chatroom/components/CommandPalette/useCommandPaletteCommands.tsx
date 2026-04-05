@@ -146,7 +146,7 @@ export function useCommandPaletteCommands({
     if (onOpenInGitHubDesktop) {
       commands.push({
         id: 'action-open-github-desktop',
-        label: 'PR: Open in GitHub Desktop',
+        label: 'Open in GitHub Desktop',
         icon: <SiGithub size={14} />,
         category: 'Actions',
         action: onOpenInGitHubDesktop,
