@@ -28,7 +28,33 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): MachineAccessDeps {
   };
 }
 
+/** Result type for machine ownership check. */
+export type MachineOwnershipResult = { ok: true } | { ok: false; reason: string };
+
 /**
+ * Check that the authenticated user owns the given machine.
+ *
+ * @param ctx - Convex query/mutation context
+ * @param machineId - The machine to check
+ * @param userId - The user to verify ownership for
+ * @returns { ok: true } if the user owns the machine, { ok: false, reason } otherwise
+ */
+export async function checkMachineOwnership(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: Id<'users'>
+): Promise<MachineOwnershipResult> {
+  const deps = createConvexDeps(ctx);
+  const owns = await verifyMachineOwnershipCore(deps, machineId, userId as string);
+  if (owns) {
+    return { ok: true };
+  }
+  return { ok: false, reason: 'User does not own this machine' };
+}
+
+/**
+ * @deprecated Use {@link checkMachineOwnership} instead. This function returns a plain boolean.
+ *
  * Verify that the authenticated user owns the given machine.
  *
  * @param ctx - Convex query/mutation context

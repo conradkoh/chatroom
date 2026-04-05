@@ -23,11 +23,11 @@ export interface ValidatedSession {
 }
 
 export interface ValidationError {
-  valid: false;
+  ok: false;
   reason: string;
 }
 
-export type SessionValidationResult = ({ valid: true } & ValidatedSession) | ValidationError;
+export type SessionValidationResult = ({ ok: true } & ValidatedSession) | ValidationError;
 
 /** Authenticated chatroom access result containing session and chatroom document. */
 export interface AuthenticatedChatroomAccess {
@@ -74,10 +74,10 @@ export async function validateSession(
   const deps = buildCheckSessionDeps(ctx);
   const result = await checkSessionPure(deps, sessionId);
   if (!result.ok) {
-    return { valid: false, reason: result.reason };
+    return { ok: false, reason: result.reason };
   }
   return {
-    valid: true,
+    ok: true,
     sessionId: result.sessionId,
     userId: result.userId as Id<'users'>,
     userName: result.userName,
@@ -91,7 +91,7 @@ export async function checkChatroomAccess(
   chatroomId: Id<'chatroom_rooms'>,
   userId: Id<'users'>
 ): Promise<
-  { hasAccess: true; chatroom: Doc<'chatroom_rooms'> } | { hasAccess: false; reason: string }
+  { ok: true; chatroom: Doc<'chatroom_rooms'> } | { ok: false; reason: string }
 > {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
@@ -106,11 +106,11 @@ export async function checkChatroomAccess(
   const result = await checkChatroomAccessPure(deps, chatroomId as string, userId as string);
 
   if (!result.ok) {
-    return { hasAccess: false, reason: result.reason };
+    return { ok: false, reason: result.reason };
   }
 
   // Return the full chatroom doc for backward compatibility
-  return { hasAccess: true, chatroom: chatroom! };
+  return { ok: true, chatroom: chatroom! };
 }
 
 /** Validates session and chatroom access, returning both session info and chatroom document. */
@@ -121,7 +121,7 @@ export async function requireChatroomAccess(
 ): Promise<AuthenticatedChatroomAccess> {
   // Validate session (tries CLI session, then web session)
   const sessionResult = await validateSession(ctx, sessionId);
-  if (!sessionResult.valid) {
+  if (!sessionResult.ok) {
     throw new ConvexError({
       code: 'AUTH_FAILED',
       message: `Authentication failed: ${sessionResult.reason}`,
@@ -130,7 +130,7 @@ export async function requireChatroomAccess(
 
   // Check chatroom access - now returns the chatroom document
   const accessResult = await checkChatroomAccess(ctx, chatroomId, sessionResult.userId);
-  if (!accessResult.hasAccess) {
+  if (!accessResult.ok) {
     throw new ConvexError({
       code: 'ACCESS_DENIED',
       message: accessResult.reason,

@@ -7,11 +7,11 @@ import { validateSession } from './cliSessionAuth';
 
 /** Discriminated union for authentication results. */
 export type AuthResult =
-  | { isAuthenticated: true; user: Doc<'users'>; userId: Id<'users'> }
-  | { isAuthenticated: false; user: null; userId: null };
+  | { ok: true; user: Doc<'users'>; userId: Id<'users'> }
+  | { ok: false; reason: string };
 
 /** Authenticated result (non-null user and userId). */
-export type AuthenticatedResult = Extract<AuthResult, { isAuthenticated: true }>;
+export type AuthenticatedResult = Extract<AuthResult, { ok: true }>;
 
 /**
  * Resolve the authenticated user from a session ID.
@@ -25,14 +25,14 @@ export async function getAuthenticatedUser(
   sessionId: string
 ): Promise<AuthResult> {
   const result = await validateSession(ctx, sessionId);
-  if (!result.valid) {
-    return { isAuthenticated: false, user: null, userId: null };
+  if (!result.ok) {
+    return { ok: false, reason: result.reason };
   }
   const user = await ctx.db.get(result.userId);
   if (!user) {
-    return { isAuthenticated: false, user: null, userId: null };
+    return { ok: false, reason: 'User not found' };
   }
-  return { isAuthenticated: true, user, userId: result.userId };
+  return { ok: true, user, userId: result.userId };
 }
 
 /**
@@ -47,7 +47,7 @@ export async function requireAuthenticatedUser(
   sessionId: string
 ): Promise<AuthenticatedResult> {
   const auth = await getAuthenticatedUser(ctx, sessionId);
-  if (!auth.isAuthenticated) {
+  if (!auth.ok) {
     throw new ConvexError('Not authenticated');
   }
   return auth;

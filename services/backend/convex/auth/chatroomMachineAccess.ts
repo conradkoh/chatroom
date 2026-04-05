@@ -81,11 +81,11 @@ export async function checkChatroomMachineAccess(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
   userId: Id<'users'>
-): Promise<{ authorized: true; chatroomId: string } | { authorized: false; reason: string }> {
+): Promise<{ ok: true; chatroomId: string } | { ok: false; reason: string }> {
   const deps = createConvexDeps(ctx);
   const result = await checkChatroomMembershipForMachine(deps, machineId, userId as string);
   if (result.ok) {
-    return { authorized: true, chatroomId: result.chatroomId };
+    return { ok: true, chatroomId: result.chatroomId };
   }
-  return { authorized: false, reason: result.reason };
+  return { ok: false, reason: result.reason };
 }
