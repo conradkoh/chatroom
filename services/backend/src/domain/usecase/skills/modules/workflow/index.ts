@@ -54,7 +54,23 @@ Reads content from stdin with sections:
 ${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<assignee-role>
 [List each chatroom skill activation command, one per line. Available: software-engineering, code-review]
 ---REQUIREMENTS---
-[Specific, verifiable outcomes]
+[Specific, verifiable outcomes. When files are created or modified, include:
+- Exact file paths
+- High-level interfaces (function signatures, exported types)
+See FILE_STRUCTURE section below for detailed file specifications.]
+---FILE_STRUCTURE--- (optional, include when step creates/modifies files)
+[Exact folder structure and files, with each file's purpose and interface]
+
+Example:
+  src/domain/services/
+    payment-service.ts
+      - Purpose: Handles payment processing
+      - Exports: PaymentService class
+      - Interface: processPayment(amount: number, currency: string): Promise<PaymentResult>
+      - Interface: refund(transactionId: string): Promise<RefundResult>
+    payment-types.ts
+      - Purpose: Shared types for payment domain
+      - Exports: PaymentResult, RefundResult, PaymentStatus
 ---WARNINGS---
 [Optional: things to avoid]
 \`\`\`
@@ -101,6 +117,7 @@ Cancels the entire workflow.
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 - Specify clear requirements so step completion can be objectively verified
+- When a step involves creating or modifying files, include the exact folder structure and high-level interfaces in the specification (use the FILE_STRUCTURE section)
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
 - Exit the workflow with a reason if the plan needs to change
