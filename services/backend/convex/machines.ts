@@ -24,6 +24,11 @@ import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
+/** Convert a Convex Id to a plain string for the pure-function layer. */
+function str(id: Id<any> | string): string {
+  return id as string;
+}
+
 /** Validates an absolute working directory path, rejecting unsafe characters. */
 function validateWorkingDir(workingDir: string): void {
   if (!workingDir || workingDir.trim().length === 0) {
@@ -522,7 +527,7 @@ export const getLatestAgentEvent = query({
     // Verify chatroom access
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'read-access',
     });
     if (!accessResult.ok) return null;
@@ -556,16 +561,10 @@ export const getLatestAgentEventsForChatroom = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return {};
 
-    // Verify chatroom access
-    const accessResult = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
-      permission: 'read-access',
-    });
-    if (!accessResult.ok) return {};
-
+    // Verify chatroom access (single lookup — also used for teamId below)
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) return {};
+    if (chatroom.ownerId !== auth.userId) return {};
 
     // Fetch latest event + team config for each role in parallel
     const results = await Promise.all(
@@ -1485,7 +1484,7 @@ export const getAgentRestartSummaryByRole = query({
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'read-access',
     });
     if (!chatroomAccessResult.ok) return { count1h: 0, count24h: 0 };
@@ -1533,7 +1532,7 @@ export const getAgentRestartSummariesByRoles = query({
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'read-access',
     });
     if (!chatroomAccessResult.ok) {

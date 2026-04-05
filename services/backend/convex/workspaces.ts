@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { validateSession } from './auth/cliSessionAuth';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
@@ -19,6 +20,11 @@ import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
+
+/** Convert a Convex Id to a plain string for the pure-function layer. */
+function str(id: Id<any> | string): string {
+  return id as string;
+}
 
 /**
  * Registers (or reactivates) a workspace for a chatroom.
@@ -50,7 +56,7 @@ export const registerWorkspace = mutation({
     // Verify the user has access to the chatroom
     await requireAccess(ctx, {
       accessor: { type: 'user', id: session.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'write-access',
     });
 
@@ -127,7 +133,7 @@ export const listWorkspacesForChatroom = query({
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: session.userId },
-      resource: { type: 'chatroom', id: args.chatroomId as string },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'read-access',
     });
     if (!chatroomAccessResult.ok) return [];

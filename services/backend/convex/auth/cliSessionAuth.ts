@@ -8,11 +8,13 @@ import {
   checkSession as checkSessionPure,
   type CheckSessionDeps,
 } from '../../src/domain/usecase/auth/extensions/validate-session';
-import {
-  checkAccess as checkAccessUnified,
-} from './accessCheck';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+
+/** Convert a Convex Id to a plain string for the pure-function layer. */
+function str(id: Id<any> | string): string {
+  return id as string;
+}
 
 export interface ValidatedSession {
   sessionId: string;
@@ -44,7 +46,7 @@ function buildCheckSessionDeps(ctx: QueryCtx | MutationCtx): CheckSessionDeps {
         .unique();
       if (!session) return null;
       return {
-        userId: session.userId as string,
+        userId: str(session.userId),
         isActive: session.isActive,
         expiresAt: session.expiresAt,
       };
@@ -55,12 +57,12 @@ function buildCheckSessionDeps(ctx: QueryCtx | MutationCtx): CheckSessionDeps {
         .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
         .unique();
       if (!session) return null;
-      return { userId: session.userId as string };
+      return { userId: str(session.userId) };
     },
     getUser: async (userId: string) => {
       const user = await ctx.db.get('users', userId as Id<'users'>);
       if (!user) return null;
-      return { id: user._id as string, name: user.name };
+      return { id: str(user._id), name: user.name };
     },
   };
 }
@@ -94,18 +96,15 @@ export async function checkChatroomAccess(
 > {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
-  const result = await checkAccessUnified(ctx, {
-    accessor: { type: 'user', id: userId as string },
-    resource: { type: 'chatroom', id: chatroomId as string },
-    permission: 'owner',
-  });
-
-  if (!result.ok) {
-    return { ok: false, reason: result.reason };
+  if (!chatroom) {
+    return { ok: false, reason: 'Chatroom not found' };
   }
 
-  // Return the full chatroom doc for backward compatibility
-  return { ok: true, chatroom: chatroom! };
+  if (chatroom.ownerId !== userId) {
+    return { ok: false, reason: 'Access denied: You do not own this chatroom' };
+  }
+
+  return { ok: true, chatroom };
 }
 
 /** Validates session and chatroom access, returning both session info and chatroom document. */

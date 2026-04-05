@@ -16,6 +16,11 @@ import {
   type Permission,
 } from '../../src/domain/usecase/auth/extensions/check-access';
 
+/** Convert a Convex Id to a plain string for the pure-function layer. */
+function str(id: Id<any> | string): string {
+  return id as string;
+}
+
 /**
  * Create Convex-backed dependencies for unified access checks.
  */
@@ -27,14 +32,14 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
         .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
         .first();
       if (!machine) return null;
-      return { userId: machine.userId as string };
+      return { userId: str(machine.userId) };
     },
     getChatroom: async (chatroomId: string) => {
       const chatroom = await ctx.db.get(chatroomId as Id<'chatroom_rooms'>);
       if (!chatroom) return null;
       return {
-        id: chatroom._id as string,
-        ownerId: chatroom.ownerId as string,
+        id: str(chatroom._id),
+        ownerId: str(chatroom.ownerId),
       };
     },
     getWorkspacesForMachine: async (machineId: string) => {
@@ -45,7 +50,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
       return workspaces
         .filter((w) => !w.removedAt)
         .map((w) => ({
-          chatroomId: w.chatroomId as string,
+          chatroomId: str(w.chatroomId),
           machineId: w.machineId,
         }));
     },
