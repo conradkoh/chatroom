@@ -12,7 +12,6 @@ import {
   ListTodo,
   PanelBottomOpen,
   Settings,
-  Star,
   Terminal,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
@@ -79,7 +78,7 @@ export function useCommandPaletteCommands({
           commands.push({
             id: `fav-${cmd.name}`,
             label: cmd.name,
-            icon: <Star size={14} />,
+            icon: <Terminal size={14} />,
             category: 'Commands',
             action: () => onOpenProcessManagerWithCommand(cmd.name),
           });

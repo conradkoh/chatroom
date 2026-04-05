@@ -11,7 +11,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
@@ -82,6 +82,7 @@ export function ProcessManager({
       setSelectedCommand(null);
       setSelectedWorkspace(null);
       setPreviousWorkspace(null);
+      setPreviousCommand(null);
     }
   }, [open]);
 
@@ -91,10 +92,12 @@ export function ProcessManager({
       const cmd = commands.find((c) => c.name === initialSelectedCommand);
       if (cmd) {
         setSelectedCommand(cmd);
-        // Find the workspace group for this command
+        // Clear workspace selection so CommandDetailPanel takes priority
+        setSelectedWorkspace(null);
+        // Track the workspace for back navigation
         const groups = groupCommandsByWorkspace(commands, '');
         const ws = groups.find((g) => g.allCommands.some((c: RunnableCommand) => c.name === cmd.name));
-        if (ws) setSelectedWorkspace(ws);
+        if (ws) setPreviousWorkspace(ws);
       }
     }
   }, [open, initialSelectedCommand, commands]);
@@ -117,6 +120,7 @@ export function ProcessManager({
   const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceGroup | null>(null);
   const [previousWorkspace, setPreviousWorkspace] = useState<WorkspaceGroup | null>(null);
+  const [previousCommand, setPreviousCommand] = useState<RunnableCommand | null>(null);
 
   // Group commands by workspace
   const workspaceGroups = groupCommandsByWorkspace(commands, searchQuery);
@@ -192,7 +196,7 @@ export function ProcessManager({
                     title={`Running (${runningProcesses.length})`}
                     runs={runningProcesses}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -247,7 +251,7 @@ export function ProcessManager({
                     title="Recent"
                     runs={recentRuns}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -267,6 +271,13 @@ export function ProcessManager({
                   onRestart={() => {
                     if (activeRunOutput.run) handleRestartCommand(activeRunOutput.run);
                   }}
+                  onClose={() => {
+                    onClearRun();
+                    if (previousCommand) {
+                      setSelectedCommand(previousCommand);
+                      setPreviousCommand(null);
+                    }
+                  }}
                 />
               ) : selectedWorkspace ? (
                 <WorkspaceDetailPanel
@@ -279,6 +290,7 @@ export function ProcessManager({
                     setSelectedCommand(cmd);
                     setSelectedWorkspace(null);
                   }}
+                  onClose={() => setSelectedWorkspace(null)}
                 />
               ) : selectedCommand ? (
                 <CommandDetailPanel
@@ -287,13 +299,17 @@ export function ProcessManager({
                   runs={runs}
                   onRun={() => handleRunCommand(selectedCommand)}
                   onStop={onStopCommand}
-                  onSelectRun={(runId) => { setSelectedCommand(null); onSelectRun(runId); }}
+                  onSelectRun={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); onSelectRun(runId); }}
                   onToggleFavorite={() => handleToggleFavorite(selectedCommand.name)}
-                  onBack={previousWorkspace ? () => {
-                    setSelectedWorkspace(previousWorkspace);
-                    setSelectedCommand(null);
-                    setPreviousWorkspace(null);
-                  } : undefined}
+                  onBack={() => {
+                    if (previousWorkspace) {
+                      setSelectedWorkspace(previousWorkspace);
+                      setSelectedCommand(null);
+                      setPreviousWorkspace(null);
+                    } else {
+                      setSelectedCommand(null);
+                    }
+                  }}
                 />
               ) : (
                 <OutputPanel run={null} chunks={[]} onStop={() => {}} onRestart={() => {}} />
@@ -422,22 +438,24 @@ function CommandDetailPanel({
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-chatroom-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           {onBack && (
             <button
               onClick={onBack}
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary text-xs font-bold uppercase tracking-wider transition-colors"
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
             >
-              ← Back
+              <ChevronLeft size={18} />
             </button>
           )}
-          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {command.name}
-          </h3>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {command.name}
+            </h3>
+            <p className="text-xs text-chatroom-text-muted mt-0.5">
+              Source: {command.source}
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-chatroom-text-muted mt-1">
-          Source: {command.source}
-        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -485,7 +503,7 @@ function CommandDetailPanel({
                   <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
                   <button
                     onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-primary truncate hover:underline"
+                    className="flex-1 text-left text-xs text-chatroom-text-primary truncate hover:text-blue-400"
                   >
                     PID {run.pid ?? '...'} — {run.status}
                   </button>
@@ -520,7 +538,7 @@ function CommandDetailPanel({
                   }`} />
                   <button
                     onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-muted truncate hover:underline"
+                    className="flex-1 text-left text-xs text-chatroom-text-muted truncate hover:text-blue-400"
                   >
                     {run.status}{run.exitCode !== undefined ? ` (exit ${run.exitCode})` : ''}
                   </button>
@@ -542,60 +560,95 @@ function WorkspaceDetailPanel({
   onRun,
   onToggleFavorite,
   onSelectCommand,
+  onClose,
 }: {
   workspace: WorkspaceGroup;
   favorites: Set<string>;
   onRun: (cmd: RunnableCommand) => void;
   onToggleFavorite: (name: string) => void;
   onSelectCommand: (cmd: RunnableCommand) => void;
+  onClose: () => void;
 }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-4 py-2 border-b border-chatroom-border">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-          {workspace.path === '.' ? 'Root' : workspace.path}
-        </h3>
-        <p className="text-[10px] text-chatroom-text-muted mt-0.5">
-          {workspace.allCommands.length} commands available
-        </p>
+        <div className="flex items-start gap-2">
+          <button
+            onClick={onClose}
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {workspace.path === '.' ? 'Root' : workspace.path}
+            </h3>
+            <p className="text-[10px] text-chatroom-text-muted mt-0.5">
+              {workspace.allCommands.length} commands available
+            </p>
+          </div>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {workspace.allCommands.map((cmd) => {
-          const scriptName = extractScriptName(cmd.name);
-          const isFav = favorites.has(cmd.name);
-          return (
-            <div
-              key={cmd.name}
-              className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
-            >
-              <button
-                onClick={() => onToggleFavorite(cmd.name)}
-                className={`flex-shrink-0 transition-colors ${
-                  isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
-                }`}
-              >
-                ★
-              </button>
+        {(() => {
+          const favCmds = workspace.allCommands.filter((c) => favorites.has(c.name));
+          const otherCmds = workspace.allCommands.filter((c) => !favorites.has(c.name));
+          const hasFavorites = favCmds.length > 0;
+
+          const renderCommand = (cmd: RunnableCommand) => {
+            const scriptName = extractScriptName(cmd.name);
+            const isFav = favorites.has(cmd.name);
+            return (
               <div
-                className="flex-1 min-w-0 cursor-pointer"
-                onClick={() => onSelectCommand(cmd)}
+                key={cmd.name}
+                className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
               >
-                <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:underline">
-                  {scriptName}
+                <button
+                  onClick={() => onToggleFavorite(cmd.name)}
+                  className={`flex-shrink-0 transition-colors ${
+                    isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
+                  }`}
+                >
+                  ★
+                </button>
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => onSelectCommand(cmd)}
+                >
+                  <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider hover:text-blue-400">
+                    {scriptName}
+                  </div>
+                  <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
+                    {cmd.script}
+                  </div>
                 </div>
-                <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
-                  {cmd.script}
-                </div>
+                <button
+                  onClick={() => onRun(cmd)}
+                  className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                >
+                  Run
+                </button>
               </div>
-              <button
-                onClick={() => onRun(cmd)}
-                className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-              >
-                Run
-              </button>
-            </div>
+            );
+          };
+
+          return (
+            <>
+              {hasFavorites && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
+                    ★ Favorites
+                  </div>
+                  {favCmds.map(renderCommand)}
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    All Commands
+                  </div>
+                </>
+              )}
+              {otherCmds.map(renderCommand)}
+            </>
           );
-        })}
+        })()}
       </div>
     </div>
   );

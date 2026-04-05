@@ -13,6 +13,7 @@ interface OutputPanelProps {
   chunks: OutputChunk[];
   onStop: () => void;
   onRestart: () => void;
+  onClose?: () => void;
 }
 
 function StatusBadge({ status }: { status: CommandRun['status'] }) {
@@ -34,7 +35,7 @@ function StatusBadge({ status }: { status: CommandRun['status'] }) {
   );
 }
 
-export function OutputPanel({ run, chunks, onStop, onRestart }: OutputPanelProps) {
+export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputPanelProps) {
   const scrollRef = useRef<HTMLPreElement>(null);
   const output = chunks.map((c) => c.content).join('');
 
@@ -85,6 +86,15 @@ export function OutputPanel({ run, chunks, onStop, onRestart }: OutputPanelProps
             >
               <RefreshCw size={12} />
               Restart
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors ml-1"
+              title="Close output"
+            >
+              ✕
             </button>
           )}
         </div>
