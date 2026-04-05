@@ -11,7 +11,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
@@ -438,22 +438,24 @@ function CommandDetailPanel({
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-chatroom-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           {onBack && (
             <button
               onClick={onBack}
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary text-xs font-bold uppercase tracking-wider transition-colors"
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
             >
-              ← Back
+              <ChevronLeft size={18} />
             </button>
           )}
-          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {command.name}
-          </h3>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {command.name}
+            </h3>
+            <p className="text-xs text-chatroom-text-muted mt-0.5">
+              Source: {command.source}
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-chatroom-text-muted mt-1">
-          Source: {command.source}
-        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -570,20 +572,22 @@ function WorkspaceDetailPanel({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-4 py-2 border-b border-chatroom-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <button
             onClick={onClose}
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary text-xs font-bold uppercase tracking-wider transition-colors"
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
           >
-            ← Back
+            <ChevronLeft size={18} />
           </button>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {workspace.path === '.' ? 'Root' : workspace.path}
-          </h3>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {workspace.path === '.' ? 'Root' : workspace.path}
+            </h3>
+            <p className="text-[10px] text-chatroom-text-muted mt-0.5">
+              {workspace.allCommands.length} commands available
+            </p>
+          </div>
         </div>
-        <p className="text-[10px] text-chatroom-text-muted mt-0.5 ml-12">
-          {workspace.allCommands.length} commands available
-        </p>
       </div>
       <div className="flex-1 overflow-y-auto">
         {(() => {
