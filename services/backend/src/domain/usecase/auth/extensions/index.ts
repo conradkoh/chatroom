@@ -42,3 +42,15 @@ export {
   type ChatroomRef,
   type WorkspaceRef,
 } from './chatroom-membership.js';
+export {
+  checkAccess,
+  requireAccess,
+  type Permission,
+  type Accessor,
+  type Resource,
+  type CheckAccessParams,
+  type AccessGranted,
+  type AccessDenied,
+  type AccessResult,
+  type CheckAccessDeps,
+} from './check-access.js';
