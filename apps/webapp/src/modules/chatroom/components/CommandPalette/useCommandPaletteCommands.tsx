@@ -11,14 +11,13 @@ import {
   GitPullRequest,
   ListTodo,
   PanelBottomOpen,
-  Play,
-  RefreshCw,
   Settings,
-  Square,
+  Star,
   Terminal,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 
+import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import type { CommandItem } from './types';
 
 export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'integrations';
@@ -37,16 +36,10 @@ interface UseCommandPaletteCommandsProps {
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
-  /** Runnable commands discovered from workspace package.json/turbo.json */
+  /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
-  /** Callback when user selects a runnable command */
-  onRunCommand?: (commandName: string, script: string) => void;
-  /** Currently running/recently stopped command runs */
-  commandRuns?: Array<{ commandName: string; status: string; _id: string }>;
-  /** Callback to stop a running command */
-  onStopCommand?: (runId: string) => void;
-  /** Callback to restart a command (re-run same command) */
-  onRestartCommand?: (commandName: string, script: string) => void;
+  /** Callback to open the Process Manager with a specific command selected */
+  onOpenProcessManagerWithCommand?: (commandName: string) => void;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
 }
@@ -70,43 +63,25 @@ export function useCommandPaletteCommands({
   onOpenPROnGitHub,
   onOpenWorkspaceDetails,
   runnableCommands,
-  onRunCommand,
-  commandRuns,
-  onStopCommand,
-  onRestartCommand,
+  onOpenProcessManagerWithCommand,
   onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
 
-    // ─── Running Commands (shown first, at top) ────────
-    if (commandRuns && onStopCommand) {
-      const runningRuns = commandRuns.filter((r) => r.status === 'running' || r.status === 'pending');
-      for (const run of runningRuns) {
-        commands.push({
-          id: `running-stop-${run._id}`,
-          label: `Stop: ${run.commandName}`,
-          icon: <Square size={14} />,
-          category: 'Running',
-          action: () => onStopCommand(run._id),
-        });
-      }
-    }
+    // ─── Favorites (favourited commands from process manager) ────────
+    if (runnableCommands && onOpenProcessManagerWithCommand) {
+      const favoritesStore = getCommandFavoritesStore();
+      const favorites = favoritesStore.getAll();
 
-    // ─── Recently Stopped (restart) ─────────────────────
-    if (commandRuns && onRestartCommand && runnableCommands) {
-      const stoppedRuns = commandRuns
-        .filter((r) => r.status === 'stopped' || r.status === 'completed' || r.status === 'failed')
-        .slice(0, 5);
-      for (const run of stoppedRuns) {
-        const cmd = runnableCommands.find((c) => c.name === run.commandName);
-        if (cmd) {
+      for (const cmd of runnableCommands) {
+        if (favorites.has(cmd.name)) {
           commands.push({
-            id: `restart-${run._id}`,
-            label: `Restart: ${run.commandName}`,
-            icon: <RefreshCw size={14} />,
-            category: 'Recently Stopped',
-            action: () => onRestartCommand(cmd.name, cmd.script),
+            id: `fav-${cmd.name}`,
+            label: cmd.name,
+            icon: <Star size={14} />,
+            category: 'Favorites',
+            action: () => onOpenProcessManagerWithCommand(cmd.name),
           });
         }
       }
@@ -223,19 +198,6 @@ export function useCommandPaletteCommands({
       });
     }
 
-    // ─── Run Script (dynamically discovered) ────────
-    if (runnableCommands && onRunCommand) {
-      for (const cmd of runnableCommands) {
-        commands.push({
-          id: `run-${cmd.source}-${cmd.name}`,
-          label: cmd.name,
-          icon: <Play size={14} />,
-          category: 'Run Script',
-          action: () => onRunCommand(cmd.name, cmd.script),
-        });
-      }
-    }
-
     return commands;
   }, [
     onOpenSettings,
@@ -250,10 +212,7 @@ export function useCommandPaletteCommands({
     onOpenPROnGitHub,
     onOpenWorkspaceDetails,
     runnableCommands,
-    onRunCommand,
-    commandRuns,
-    onStopCommand,
-    onRestartCommand,
+    onOpenProcessManagerWithCommand,
     onOpenProcessManager,
   ]);
 }
