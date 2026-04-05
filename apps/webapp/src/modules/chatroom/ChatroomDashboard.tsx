@@ -261,6 +261,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Process Manager state
   const [processManagerOpen, setProcessManagerOpen] = useState(false);
+  const [processManagerInitialCommand, setProcessManagerInitialCommand] = useState<string | null>(null);
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
@@ -485,6 +486,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
+    setProcessManagerInitialCommand(null);
+    setProcessManagerOpen(true);
+  }, []);
+
+  // Handler to open Process Manager with a specific command pre-selected
+  const handleOpenProcessManagerWithCommand = useCallback((commandName: string) => {
+    setProcessManagerInitialCommand(commandName);
     setProcessManagerOpen(true);
   }, []);
 
@@ -509,10 +517,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
-    onRunCommand: handleRunCommand,
-    commandRuns: commandRunner.runs as any[],
-    onStopCommand: (runId: string) => commandRunner.stopCommand(runId),
-    onRestartCommand: handleRunCommand,
+    onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onOpenProcessManager: handleOpenProcessManager,
   });
 
@@ -920,6 +925,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onStopCommand={(runId) => commandRunner.stopCommand(runId)}
             onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
             onClearRun={() => commandRunner.setActiveRunId(null)}
+            initialSelectedCommand={processManagerInitialCommand}
           />
         </>
       </PromptsProvider>

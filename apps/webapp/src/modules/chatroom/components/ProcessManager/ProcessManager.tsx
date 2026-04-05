@@ -53,6 +53,8 @@ export interface ProcessManagerProps {
   onStopCommand: (runId: string) => void;
   onSelectRun: (runId: string) => void;
   onClearRun: () => void;
+  /** Pre-selected command name — opens with this command's details panel */
+  initialSelectedCommand?: string | null;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -67,6 +69,7 @@ export function ProcessManager({
   onStopCommand,
   onSelectRun,
   onClearRun,
+  initialSelectedCommand,
 }: ProcessManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -74,8 +77,26 @@ export function ProcessManager({
 
   // Reset search when closing
   useEffect(() => {
-    if (!open) setSearchQuery('');
+    if (!open) {
+      setSearchQuery('');
+      setSelectedCommand(null);
+      setSelectedWorkspace(null);
+    }
   }, [open]);
+
+  // Pre-select a command when opening with initialSelectedCommand
+  useEffect(() => {
+    if (open && initialSelectedCommand && commands.length > 0) {
+      const cmd = commands.find((c) => c.name === initialSelectedCommand);
+      if (cmd) {
+        setSelectedCommand(cmd);
+        // Find the workspace group for this command
+        const groups = groupCommandsByWorkspace(commands, '');
+        const ws = groups.find((g) => g.allCommands.some((c: RunnableCommand) => c.name === cmd.name));
+        if (ws) setSelectedWorkspace(ws);
+      }
+    }
+  }, [open, initialSelectedCommand, commands]);
 
   // Get current favorites (recomputed when version changes)
   const favorites = useMemo(
