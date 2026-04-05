@@ -28,11 +28,6 @@ export interface MachineOwnershipFailure {
 /** Result of checking machine ownership. */
 export type MachineOwnershipResult = MachineOwnershipSuccess | MachineOwnershipFailure;
 
-// ─── Deprecated aliases ─────────────────────────────────────────────────────
-
-/** @deprecated Use CheckMachineOwnershipDeps */
-export type MachineAccessDeps = CheckMachineOwnershipDeps;
-
 // ─── Core Logic ─────────────────────────────────────────────────────────────
 
 /**
@@ -59,14 +54,4 @@ export async function checkMachineOwnership(
   }
 
   return { ok: true, machineId, userId };
-}
-
-/** @deprecated Use checkMachineOwnership */
-export async function verifyMachineOwnership(
-  deps: CheckMachineOwnershipDeps,
-  machineId: string,
-  userId: string
-): Promise<boolean> {
-  const result = await checkMachineOwnership(deps, machineId, userId);
-  return result.ok;
 }

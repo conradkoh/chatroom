@@ -49,11 +49,6 @@ export interface CheckChatroomMembershipDeps {
   getChatroom: (chatroomId: string) => Promise<ChatroomRef | null>;
 }
 
-// ─── Deprecated aliases ─────────────────────────────────────────────────────
-
-/** @deprecated Use CheckChatroomMembershipDeps */
-export type ChatroomMembershipDeps = CheckChatroomMembershipDeps;
-
 // ─── Core Logic (pure) ──────────────────────────────────────────────────────
 
 /**

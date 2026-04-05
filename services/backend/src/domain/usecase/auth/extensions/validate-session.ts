@@ -50,17 +50,6 @@ export interface SessionCheckFailure {
 /** Result of checking a session — either success or failure. */
 export type SessionCheckResult = SessionCheckSuccess | SessionCheckFailure;
 
-// ─── Deprecated aliases (for backward compatibility) ────────────────────────
-
-/** @deprecated Use CheckSessionDeps */
-export type ValidateSessionDeps = CheckSessionDeps;
-/** @deprecated Use SessionCheckResult */
-export type SessionValidationResult = SessionCheckResult;
-/** @deprecated Use SessionCheckSuccess */
-export type ValidatedSession = SessionCheckSuccess;
-/** @deprecated Use SessionCheckFailure */
-export type ValidationError = SessionCheckFailure;
-
 // ─── Core Logic ─────────────────────────────────────────────────────────────
 
 /** Checks a CLI session and returns user information. */
@@ -141,6 +130,3 @@ export async function checkSession(
   // Both failed - return a combined error
   return { ok: false, reason: 'Session not found or invalid' };
 }
-
-/** @deprecated Use checkSession */
-export const validateSession = checkSession;

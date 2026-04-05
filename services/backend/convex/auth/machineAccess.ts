@@ -1,21 +1,21 @@
 /**
  * Machine Access — Convex adapter for machine ownership verification.
  *
- * Wires the pure verifyMachineOwnership function to the Convex database.
+ * Wires the pure checkMachineOwnership function to the Convex database.
  * Provides a one-liner for Convex query/mutation handlers.
  */
 
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import {
-  verifyMachineOwnership as verifyMachineOwnershipCore,
-  type MachineAccessDeps,
+  checkMachineOwnership as checkMachineOwnershipCore,
+  type CheckMachineOwnershipDeps,
 } from '../../src/domain/usecase/auth/extensions/machine-access';
 
 /**
  * Create Convex-backed dependencies for machine ownership checks.
  */
-function createConvexDeps(ctx: QueryCtx | MutationCtx): MachineAccessDeps {
+function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckMachineOwnershipDeps {
   return {
     getMachineByMachineId: async (machineId: string) => {
       const machine = await ctx.db
@@ -45,28 +45,9 @@ export async function checkMachineOwnership(
   userId: Id<'users'>
 ): Promise<MachineOwnershipResult> {
   const deps = createConvexDeps(ctx);
-  const owns = await verifyMachineOwnershipCore(deps, machineId, userId as string);
-  if (owns) {
+  const result = await checkMachineOwnershipCore(deps, machineId, userId as string);
+  if (result.ok) {
     return { ok: true };
   }
-  return { ok: false, reason: 'User does not own this machine' };
-}
-
-/**
- * @deprecated Use {@link checkMachineOwnership} instead. This function returns a plain boolean.
- *
- * Verify that the authenticated user owns the given machine.
- *
- * @param ctx - Convex query/mutation context
- * @param machineId - The machine to check
- * @param userId - The user to verify ownership for
- * @returns true if the user owns the machine
- */
-export async function verifyMachineOwnership(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  userId: Id<'users'>
-): Promise<boolean> {
-  const deps = createConvexDeps(ctx);
-  return verifyMachineOwnershipCore(deps, machineId, userId as string);
+  return { ok: false, reason: result.reason };
 }

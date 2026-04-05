@@ -54,7 +54,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckChatroomMembershipD
  *   args: { ...SessionIdArg, machineId: v.string() },
  *   handler: async (ctx, args) => {
  *     const session = await validateSession(ctx, args.sessionId);
- *     if (!session.valid) return null;
+ *     if (!session.ok) return null;
  *     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
  *     // ... proceed with authorized access
  *   },

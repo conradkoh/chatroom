@@ -34,15 +34,6 @@ export interface ChatroomAccessFailure {
 /** Result of checking chatroom access. */
 export type ChatroomAccessResult = ChatroomAccessSuccess | ChatroomAccessFailure;
 
-// ─── Deprecated aliases ─────────────────────────────────────────────────────
-
-/** @deprecated Use CheckChatroomAccessDeps */
-export type ChatroomAccessDeps = CheckChatroomAccessDeps;
-/** @deprecated Use ChatroomAccessSuccess */
-export type ChatroomAccessGranted = ChatroomAccessSuccess;
-/** @deprecated Use ChatroomAccessFailure */
-export type ChatroomAccessDenied = ChatroomAccessFailure;
-
 // ─── Core Logic ─────────────────────────────────────────────────────────────
 
 /**

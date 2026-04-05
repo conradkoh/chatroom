@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   checkMachineOwnership,
-  verifyMachineOwnership,
   type CheckMachineOwnershipDeps,
 } from './machine-access';
 
@@ -46,25 +45,5 @@ describe('checkMachineOwnership', () => {
     if (!result.ok) {
       expect(result.reason).toBe('Machine not found');
     }
-  });
-});
-
-describe('verifyMachineOwnership (deprecated)', () => {
-  it('returns true when user owns the machine', async () => {
-    const deps = createMockDeps({
-      getMachineByMachineId: async () => ({ userId: 'user-1' }),
-    });
-
-    const result = await verifyMachineOwnership(deps, 'machine-1', 'user-1');
-    expect(result).toBe(true);
-  });
-
-  it('returns false when user does not own the machine', async () => {
-    const deps = createMockDeps({
-      getMachineByMachineId: async () => ({ userId: 'other-user' }),
-    });
-
-    const result = await verifyMachineOwnership(deps, 'machine-1', 'user-1');
-    expect(result).toBe(false);
   });
 });
