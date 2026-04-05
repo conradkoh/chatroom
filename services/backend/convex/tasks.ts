@@ -1026,7 +1026,7 @@ export const getTasksByIds = query({
   handler: async (ctx, args) => {
     // Validate session using the standard helper
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 

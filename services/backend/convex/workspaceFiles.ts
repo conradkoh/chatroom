@@ -12,7 +12,7 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getAuthenticatedUser } from './auth/authenticatedUser';
 import { requireChatroomMachineAccess } from './auth/chatroomMachineAccess';
-import { verifyMachineOwnership } from './auth/machineAccess';
+import { checkMachineOwnership } from './auth/machineAccess';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -49,7 +49,8 @@ async function requireMachineAccess(
     await requireChatroomMachineAccess(ctx, machineId, userId);
     return;
   } catch {
-    if (await verifyMachineOwnership(ctx, machineId, userId)) {
+    const ownerCheck = await checkMachineOwnership(ctx, machineId, userId);
+    if (ownerCheck.ok) {
       return;
     }
     throw new Error('Machine not found or access denied');
@@ -91,7 +92,7 @@ export const syncFileTree = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -138,7 +139,7 @@ export const getFileTree = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return null;
     }
 
@@ -181,7 +182,7 @@ export const requestFileContent = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 
@@ -259,7 +260,7 @@ export const getFileContent = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return null;
     }
 
@@ -305,7 +306,7 @@ export const getPendingFileContentRequests = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       return [];
     }
 
@@ -348,7 +349,7 @@ export const fulfillFileContent = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
+    if (!auth.ok) {
       throw new Error('Authentication required');
     }
 

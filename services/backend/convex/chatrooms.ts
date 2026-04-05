@@ -18,7 +18,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     // Validate session
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }
 
@@ -55,7 +55,7 @@ export const listByUser = query({
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -83,7 +83,7 @@ export const listByUserWithStatus = query({
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -369,7 +369,7 @@ export const listFavoriteIds = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -389,7 +389,7 @@ export const listUnreadStatus = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -462,7 +462,7 @@ export const listParticipantPresence = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 

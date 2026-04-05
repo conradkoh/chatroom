@@ -76,7 +76,7 @@ export const listWorkspacesForMachine = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
+    if (!session.ok) return [];
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
     return listWorkspacesForMachineUseCase(ctx, { machineId: args.machineId });
   },
@@ -94,7 +94,7 @@ export const listWorkspacesForChatroom = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
+    if (!session.ok) return [];
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
   },
 });
@@ -115,7 +115,7 @@ export const getWorkspaceGitState = query({
   },
   handler: async (ctx, args): Promise<WorkspaceGitState> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return { status: 'loading' };
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -172,7 +172,7 @@ export const getFullDiff = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return null;
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -202,7 +202,7 @@ export const getCommitDetail = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return null;
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -231,7 +231,7 @@ export const getMissingCommitShas = query({
   },
   handler: async (ctx, args): Promise<string[]> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) return [];
+    if (!session.ok) return [];
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
 
     const missing: string[] = [];
@@ -262,7 +262,7 @@ export const getPendingRequests = query({
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       return [];
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -343,7 +343,7 @@ export const upsertWorkspaceGitState = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -401,7 +401,7 @@ export const upsertFullDiff = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -468,7 +468,7 @@ export const upsertCommitDetail = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -532,7 +532,7 @@ export const appendMoreCommits = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -579,7 +579,7 @@ export const updateRequestStatus = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
 
@@ -607,7 +607,7 @@ export const requestFullDiff = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -656,7 +656,7 @@ export const requestCommitDetail = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
@@ -706,7 +706,7 @@ export const requestMoreCommits = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
-    if (!session.valid) {
+    if (!session.ok) {
       throw new Error('Authentication required');
     }
     await requireChatroomMachineAccess(ctx, args.machineId, session.userId);
