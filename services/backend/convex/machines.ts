@@ -6,7 +6,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { getAuthenticatedUser } from './auth/authenticatedUser';
+import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { checkAccess, requireAccess } from './auth/accessCheck';
 import { agentHarnessValidator } from './schema';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
@@ -519,8 +520,12 @@ export const getLatestAgentEvent = query({
     if (!auth.ok) return null;
 
     // Verify chatroom access
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) return null;
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return null;
 
     // Fetch the latest event for this chatroom+role using the index
     const event = await ctx.db
@@ -552,6 +557,13 @@ export const getLatestAgentEventsForChatroom = query({
     if (!auth.ok) return {};
 
     // Verify chatroom access
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return {};
+
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) return {};
 
@@ -1214,6 +1226,16 @@ export const getMachineModelFilters = query({
     agentHarness: agentHarnessValidator,
   },
   handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return null;
+
     const filter = await ctx.db
       .query('chatroom_machineModelFilters')
       .withIndex('by_machine_harness', (q) =>
@@ -1234,9 +1256,16 @@ export const upsertMachineModelFilters = mutation({
     hiddenProviders: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+
     const existing = await ctx.db
       .query('chatroom_machineModelFilters')
-      .withIndex('by_machine_harness', (q) =>
+      .withIndex('by_machine_harness', (q: any) =>
         q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
       )
       .unique();
@@ -1332,6 +1361,13 @@ export const getAgentRestartMetrics = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
 
+    const machineAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!machineAccessResult.ok) return [];
+
     let startHour = Math.floor(args.startTime / 3_600_000) * 3_600_000;
     const endHour = Math.floor(args.endTime / 3_600_000) * 3_600_000;
 
@@ -1403,6 +1439,13 @@ export const getAgentRestartSummary = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return { count1h: 0, count24h: 0 };
 
+    const machineAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'read-access',
+    });
+    if (!machineAccessResult.ok) return { count1h: 0, count24h: 0 };
+
     const now = Date.now();
     const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
     const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
@@ -1439,6 +1482,13 @@ export const getAgentRestartSummaryByRole = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return { count1h: 0, count24h: 0 };
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) return { count1h: 0, count24h: 0 };
 
     const now = Date.now();
     const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
@@ -1478,6 +1528,15 @@ export const getAgentRestartSummariesByRoles = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) {
+      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+    }
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) {
       return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
     }
 

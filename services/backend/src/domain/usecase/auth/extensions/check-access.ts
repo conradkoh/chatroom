@@ -112,7 +112,13 @@ async function checkMachineAccess(
     return checkMachineOwner(deps, accessor, machineId);
   }
 
-  // write-access and read-access use the same logic for now
+  // write-access and read-access: owner always has access
+  const ownerResult = await checkMachineOwner(deps, accessor, machineId);
+  if (ownerResult.ok) {
+    return { ok: true, permission };
+  }
+
+  // Also check via chatroom membership
   return checkMachineWriteAccess(deps, accessor, machineId);
 }
 

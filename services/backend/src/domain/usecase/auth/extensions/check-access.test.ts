@@ -115,6 +115,15 @@ describe('checkAccess — machine + write-access', () => {
     const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
     expect(result.ok).toBe(false);
   });
+
+  it('grants access when user is machine owner (even without chatroom membership)', async () => {
+    const deps = createMockDeps({
+      getMachineByMachineId: async () => ({ userId: 'user-a' }),
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
+  });
 });
 
 // ─── Machine + Read-Access ──────────────────────────────────────────────────
@@ -123,7 +132,7 @@ describe('checkAccess — machine + read-access', () => {
   const resource: Resource = { type: 'machine', id: 'machine-1' };
   const permission: Permission = 'read-access';
 
-  it('grants access (same as write-access for now)', async () => {
+  it('grants access via chatroom membership', async () => {
     const deps = createMockDeps({
       getWorkspacesForMachine: async () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
       getChatroom: async () => ({ id: 'chat-1', ownerId: 'user-a' }),
@@ -138,6 +147,15 @@ describe('checkAccess — machine + read-access', () => {
 
     const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
     expect(result.ok).toBe(false);
+  });
+
+  it('grants access when user is machine owner (even without chatroom membership)', async () => {
+    const deps = createMockDeps({
+      getMachineByMachineId: async () => ({ userId: 'user-a' }),
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+    expect(result).toEqual({ ok: true, permission: 'read-access' });
   });
 });
 

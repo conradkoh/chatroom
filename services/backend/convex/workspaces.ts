@@ -11,7 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
-import { requireAccess } from './auth/accessCheck';
+import { checkAccess, requireAccess } from './auth/accessCheck';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
@@ -37,7 +37,23 @@ export const registerWorkspace = mutation({
     registeredBy: v.string(),
   },
   handler: async (ctx, args) => {
-    await validateSession(ctx, args.sessionId);
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) throw new Error('Authentication required');
+
+    // Verify the user owns the machine being registered
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+
+    // Verify the user has access to the chatroom
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'write-access',
+    });
+
     return registerWorkspaceUseCase(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
@@ -59,7 +75,20 @@ export const removeWorkspace = mutation({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    await validateSession(ctx, args.sessionId);
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) throw new Error('Authentication required');
+
+    // Look up the workspace to verify access
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) throw new Error('Workspace not found');
+
+    // Verify the user has write-access to the machine this workspace belongs to
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: workspace.machineId },
+      permission: 'write-access',
+    });
+
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
 });
@@ -95,6 +124,14 @@ export const listWorkspacesForChatroom = query({
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return [];
+
+    const chatroomAccessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'chatroom', id: args.chatroomId as string },
+      permission: 'read-access',
+    });
+    if (!chatroomAccessResult.ok) return [];
+
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
   },
 });
