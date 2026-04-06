@@ -55,7 +55,8 @@ Reads content from stdin with sections:
 ${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<assignee-role>
 Available: software-engineering, code-review
 ---REQUIREMENTS---
-[Specific, verifiable outcomes. When files are created or modified, include:
+[Specific, verifiable outcomes. If this step creates or modifies files, you MUST include the FILE_STRUCTURE section.
+When files are created or modified, include:
 - Exact file paths
 - High-level interfaces (function signatures, exported types)
 See FILE_STRUCTURE section below for detailed file specifications.]
