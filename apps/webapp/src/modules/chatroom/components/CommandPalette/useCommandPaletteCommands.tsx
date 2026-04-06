@@ -159,7 +159,7 @@ export function useCommandPaletteCommands({
     if (onOpenPRReview) {
       commands.push({
         id: 'action-pr-review-diff',
-        label: 'PR: Review Diff',
+        label: 'PR: Review PRs',
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
         action: onOpenPRReview,
