@@ -185,15 +185,10 @@ async function fetchCurrentContext(
   // We count only messages created after the context to avoid collecting the entire
   // chatroom history. This is efficient even for large chatrooms because we filter
   // by creation time and only need to count the recent subset.
+  // Compute messages since context using atomic counter (no scan needed)
   let messagesSinceContext = 0;
-  if (context.messageCountAtCreation != null) {
-    // Use indexed query filtered by creation time to count only recent messages
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .filter((q) => q.gte(q.field('_creationTime'), context.createdAt))
-      .collect();
-    messagesSinceContext = recentMessages.length;
+  if (context.messageCountAtCreation != null && chatroom?.messageCount != null) {
+    messagesSinceContext = Math.max(0, chatroom.messageCount - context.messageCountAtCreation);
   }
 
   // Fetch trigger message if available
