@@ -21,6 +21,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { adjustTaskCount } from './task-counts';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -90,6 +91,9 @@ export async function createTask(
         attachedTaskIds: args.attachedTaskIds,
       }),
   });
+
+  // Update materialized task counts
+  await adjustTaskCount(ctx, args.chatroomId, 'pending', 1);
 
   // Note: Agent restart for pending tasks is now handled by the daemon's task monitor.
   // No backend scheduling needed here.

@@ -28,6 +28,7 @@
  */
 
 import { promoteNextTask } from './promote-next-task';
+import { adjustTaskCountsForTransition } from './task-counts';
 import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -94,8 +95,17 @@ export async function transitionTask(
   overrides?: Partial<Task>,
   options?: TransitionTaskOptions
 ): Promise<void> {
+  // 0. Read old status before transition for counter adjustment
+  const taskBeforeTransition = await ctx.db.get(taskId);
+  const oldStatus = taskBeforeTransition?.status;
+
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
+
+  // 1b. Update materialized task counts
+  if (taskBeforeTransition && oldStatus) {
+    await adjustTaskCountsForTransition(ctx, taskBeforeTransition.chatroomId, oldStatus, newStatus);
+  }
 
   // 2. Write event to chatroom_eventStream based on new status.
   //    Re-fetch the task to get current fields (assignedTo, chatroomId).

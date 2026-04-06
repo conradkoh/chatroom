@@ -22,6 +22,7 @@ import {
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
@@ -268,6 +269,9 @@ async function _sendMessageHandler(
         }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
+
+      // Update materialized queue count
+      await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
 
       // Update chatroom lastActivityAt
       await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -1122,6 +1126,9 @@ export const deleteQueuedMessage = mutation({
 
     // Delete the queue record
     await ctx.db.delete('chatroom_messageQueue', args.queuedMessageId);
+
+    // Update materialized queue count
+    await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
 
     return { success: true };
   },

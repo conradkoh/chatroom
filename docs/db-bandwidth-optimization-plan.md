@@ -11,7 +11,7 @@
 ## Phase 1: Tier 1 Quick Wins (~25 GB savings)
 
 ### Fix 1: Separate Machine Liveness Table
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** daemonHeartbeat (1.5GB + ~15GB cascade), listMachines (2GB), listWorkspacesForChatroom (1.3GB)
 - **Root cause:** `daemonHeartbeat` writes `lastSeenAt`/`daemonConnected` to `chatroom_machines`, triggering all machine-reading subscriptions
 - **Fix:** Create `chatroom_machineLiveness` table with `lastSeenAt`, `daemonConnected`. Move heartbeat writes there. Static machine queries no longer re-trigger.

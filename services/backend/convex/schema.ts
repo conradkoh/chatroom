@@ -440,6 +440,23 @@ export default defineSchema({
    * On promotion, the message is copied to chatroom_messages and a task is created.
    * This ensures messages appear in chat history in task processing order.
    */
+  /**
+   * Materialized task counts per chatroom.
+   * Updated atomically by task/backlog/queue mutations to avoid expensive full-table scans.
+   * Falls back to computed counts if no record exists (migration safety).
+   */
+  chatroom_taskCounts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    pending: v.number(),
+    acknowledged: v.number(),
+    inProgress: v.number(),
+    completed: v.number(),
+    queueSize: v.number(),
+    backlogCount: v.number(),
+    pendingReviewCount: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId']),
+
   chatroom_messageQueue: defineTable({
     // Which chatroom this queued message belongs to
     chatroomId: v.id('chatroom_rooms'),

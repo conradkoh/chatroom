@@ -957,23 +957,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10036;chatroom_rooms" --role="reviewer"
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10036;chatroom_rooms" --role="reviewer"
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10036;chatroom_rooms" --role="reviewer" --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10039;chatroom_rooms" --role="reviewer" --type=<remote|custom>
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10036;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
 
@@ -1105,7 +1105,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10036;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1119,7 +1119,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10036;chatroom_rooms" --role="reviewer" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10039;chatroom_rooms" --role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -1131,25 +1131,25 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10036;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10036;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10039;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
-      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10036;chatroom_rooms" --role="reviewer"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10036;chatroom_rooms" --role="reviewer"\`
+      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10036;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -1161,17 +1161,17 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 TASK
       ============================================================
-      Task ID: 10047;chatroom_tasks
-      Origin Message ID: 10046;chatroom_messages
+      Task ID: 10051;chatroom_tasks
+      Origin Message ID: 10050;chatroom_messages
       From: builder
 
       ## Context
-      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10036;chatroom_rooms" --role="reviewer"\`
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
       ## Task
       To read this task and mark it as in_progress, run:
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10036;chatroom_rooms" --role="reviewer" --task-id="10047;chatroom_tasks"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"
       \`\`\`
 
       Classification: NEW_FEATURE
@@ -1181,13 +1181,13 @@ ${taskDeliveryPrompt.fullCliOutput}
       ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
          handed off from builder — start work immediately.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10036;chatroom_rooms" --role="reviewer" --task-id="10047;chatroom_tasks"\`
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"\`
       2. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
          Run: pnpm typecheck && pnpm test
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10036;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1197,7 +1197,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10036;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10036;chatroom_rooms" --role="reviewer"\` for current task.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current task.
       ============================================================
       "
     `);
