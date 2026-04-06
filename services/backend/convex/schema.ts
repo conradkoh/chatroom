@@ -818,6 +818,21 @@ export default defineSchema({
     .index('by_userId', ['userId']),
 
   /**
+   * Machine liveness data — volatile fields separated from the main machine record
+   * to prevent heartbeat-triggered cascading re-evaluations.
+   *
+   * Updated by daemonHeartbeat on every heartbeat. Queries that only need static
+   * machine info (hostname, harnesses, etc.) read from chatroom_machines and
+   * won't re-trigger when liveness data changes.
+   */
+  chatroom_machineLiveness: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    daemonConnected: v.boolean(),
+  })
+    .index('by_machineId', ['machineId']),
+
+  /**
    * Model visibility filters for a machine's harness.
    * Machine-level — shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.

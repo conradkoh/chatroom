@@ -261,19 +261,35 @@ export const listMachines = query({
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect();
 
+    // Join with liveness table for volatile data
+    const machineIds = machines.map((m) => m.machineId);
+    const livenessMap = new Map<string, { lastSeenAt: number; daemonConnected: boolean }>();
+    for (const machineId of machineIds) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machineId, { lastSeenAt: liveness.lastSeenAt, daemonConnected: liveness.daemonConnected });
+      }
+    }
+
     return {
-      machines: machines.map((m) => ({
-        machineId: m.machineId,
-        hostname: m.hostname,
-        alias: m.alias,
-        os: m.os,
-        availableHarnesses: m.availableHarnesses,
-        harnessVersions: m.harnessVersions ?? {},
-        availableModels: m.availableModels ?? {},
-        daemonConnected: m.daemonConnected,
-        lastSeenAt: m.lastSeenAt,
-        registeredAt: m.registeredAt,
-      })),
+      machines: machines.map((m) => {
+        const liveness = livenessMap.get(m.machineId);
+        return {
+          machineId: m.machineId,
+          hostname: m.hostname,
+          alias: m.alias,
+          os: m.os,
+          availableHarnesses: m.availableHarnesses,
+          harnessVersions: m.harnessVersions ?? {},
+          availableModels: m.availableModels ?? {},
+          daemonConnected: liveness?.daemonConnected ?? m.daemonConnected,
+          lastSeenAt: liveness?.lastSeenAt ?? m.lastSeenAt,
+          registeredAt: m.registeredAt,
+        };
+      }),
     };
   },
 });
@@ -299,9 +315,15 @@ export const getDaemonStatus = query({
       return { connected: false, lastSeenAt: null };
     }
 
+    // Read liveness from dedicated table (fallback to main machine doc)
+    const liveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
     return {
-      connected: machine.daemonConnected,
-      lastSeenAt: machine.lastSeenAt,
+      connected: liveness?.daemonConnected ?? machine.daemonConnected,
+      lastSeenAt: liveness?.lastSeenAt ?? machine.lastSeenAt,
     };
   },
 });
@@ -332,6 +354,18 @@ export const getMachineAgentConfigs = query({
       .collect();
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
+    // Read liveness data from dedicated table
+    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    for (const machine of userMachines) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+      }
+    }
+
     const allConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -352,6 +386,7 @@ export const getMachineAgentConfigs = query({
 
     const configsWithMachine = userConfigs.map((config) => {
       const machine = userMachineMap.get(config.machineId!);
+      const liveness = livenessMap.get(config.machineId!);
       return {
         machineId: config.machineId!,
         hostname: machine?.hostname ?? 'Unknown',
@@ -360,7 +395,7 @@ export const getMachineAgentConfigs = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
-        daemonConnected: machine?.daemonConnected ?? false,
+        daemonConnected: liveness?.daemonConnected ?? machine?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
@@ -622,10 +657,31 @@ export const updateDaemonStatus = mutation({
     const user = auth.user;
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
-    await ctx.db.patch('chatroom_machines', machine._id, {
+    const now = Date.now();
+
+    await ctx.db.patch(machine._id, {
       daemonConnected: args.connected,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
     });
+
+    // Also update liveness table
+    const existingLiveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (existingLiveness) {
+      await ctx.db.patch(existingLiveness._id, {
+        lastSeenAt: now,
+        daemonConnected: args.connected,
+      });
+    } else {
+      await ctx.db.insert('chatroom_machineLiveness', {
+        machineId: args.machineId,
+        lastSeenAt: now,
+        daemonConnected: args.connected,
+      });
+    }
 
     return { success: true };
   },
@@ -645,10 +701,35 @@ export const daemonHeartbeat = mutation({
     const user = auth.user;
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
-    await ctx.db.patch('chatroom_machines', machine._id, {
-      lastSeenAt: Date.now(),
-      daemonConnected: true, // Self-healing: recover from transient disconnect (Plan 026)
-    });
+    const now = Date.now();
+
+    // Write liveness data to dedicated table (upsert)
+    const existingLiveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (existingLiveness) {
+      await ctx.db.patch(existingLiveness._id, {
+        lastSeenAt: now,
+        daemonConnected: true,
+      });
+    } else {
+      await ctx.db.insert('chatroom_machineLiveness', {
+        machineId: args.machineId,
+        lastSeenAt: now,
+        daemonConnected: true,
+      });
+    }
+
+    // Only update main machine doc if daemon connectivity state changed
+    // This prevents unnecessary re-evaluations of queries reading chatroom_machines
+    if (!machine.daemonConnected) {
+      await ctx.db.patch(machine._id, {
+        lastSeenAt: now,
+        daemonConnected: true,
+      });
+    }
 
     return { success: true };
   },
