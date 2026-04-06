@@ -13,6 +13,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+
+import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
@@ -21,19 +23,8 @@ import { useEscapeToClear } from '../../hooks/useEscapeToClear';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface RunnableCommand {
-  name: string;
-  script: string;
-  source: string;
-  /** @deprecated Use subWorkspace instead */
-  workspace?: string;
-  /** Structured sub-workspace info within the monorepo */
-  subWorkspace?: {
-    type: string;
-    path: string;
-    name: string;
-  };
-}
+/** A runnable command from the backend. */
+export type RunnableCommand = Doc<'chatroom_runnableCommands'>;
 
 export interface CommandRun {
   _id: string;
