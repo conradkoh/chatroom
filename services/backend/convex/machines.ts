@@ -286,8 +286,8 @@ export const listMachines = query({
           availableHarnesses: m.availableHarnesses,
           harnessVersions: m.harnessVersions ?? {},
           availableModels: m.availableModels ?? {},
-          daemonConnected: liveness?.daemonConnected ?? m.daemonConnected,
-          lastSeenAt: liveness?.lastSeenAt ?? m.lastSeenAt,
+          daemonConnected: liveness?.daemonConnected ?? false,
+          lastSeenAt: liveness?.lastSeenAt ?? 0,
           registeredAt: m.registeredAt,
         };
       }),
@@ -323,8 +323,8 @@ export const getDaemonStatus = query({
       .first();
 
     return {
-      connected: liveness?.daemonConnected ?? machine.daemonConnected,
-      lastSeenAt: liveness?.lastSeenAt ?? machine.lastSeenAt,
+      connected: liveness?.daemonConnected ?? false,
+      lastSeenAt: liveness?.lastSeenAt ?? 0,
     };
   },
 });
@@ -396,7 +396,7 @@ export const getMachineAgentConfigs = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
-        daemonConnected: liveness?.daemonConnected ?? machine?.daemonConnected ?? false,
+        daemonConnected: liveness?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
@@ -1769,7 +1769,7 @@ export const getAgentPanelData = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
-        daemonConnected: liveness?.daemonConnected ?? machine?.daemonConnected ?? false,
+        daemonConnected: liveness?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
@@ -1788,8 +1788,8 @@ export const getAgentPanelData = query({
         availableHarnesses: m.availableHarnesses,
         harnessVersions: m.harnessVersions ?? {},
         availableModels: m.availableModels ?? {},
-        daemonConnected: liveness?.daemonConnected ?? m.daemonConnected,
-        lastSeenAt: liveness?.lastSeenAt ?? m.lastSeenAt,
+        daemonConnected: liveness?.daemonConnected ?? false,
+        lastSeenAt: liveness?.lastSeenAt ?? 0,
         registeredAt: m.registeredAt,
       };
     });
