@@ -1,5 +1,9 @@
 /**
- * Workspace Resolver — discovers workspace packages in a monorepo.
+ * Sub-Workspace Resolver — discovers sub-workspace packages (monorepo packages) within a project.
+ *
+ * NOTE: "Sub-workspace" refers to package manager workspace packages (e.g., apps/webapp,
+ * packages/cli) within a monorepo. This is distinct from a "chatroom workspace" which
+ * refers to the project root / workingDir.
  *
  * Supports:
  * - pnpm: reads `pnpm-workspace.yaml`

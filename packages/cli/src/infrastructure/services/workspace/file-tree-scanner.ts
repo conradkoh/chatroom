@@ -1,6 +1,10 @@
 /**
  * File tree scanner for workspace directories.
  *
+ * NOTE: "workspace" here refers to a chatroom workspace (the workingDir / project root),
+ * not a package manager sub-workspace (e.g., monorepo packages). For sub-workspace
+ * resolution, see workspace-resolver.ts.
+ *
  * Uses `git ls-files` for fast scanning that respects .gitignore.
  * Falls back to tracked + untracked files approach.
  * Produces a flat array of FileTreeEntry objects.

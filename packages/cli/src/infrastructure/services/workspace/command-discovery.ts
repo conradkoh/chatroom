@@ -28,7 +28,7 @@ export interface DiscoveredCommand {
   name: string;
   script: string;
   source: 'package.json' | 'turbo.json';
-  /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
+  /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli'). Refers to package manager workspace packages, not the chatroom workspace (workingDir). */
   subWorkspace: string;
 }
 
