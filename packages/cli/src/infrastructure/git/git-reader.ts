@@ -569,6 +569,59 @@ export async function getOpenPRsForBranch(
   }
 }
 
+/**
+ * Get all pull requests (open, closed, merged) for the repository using `gh pr list`.
+ * Returns up to 20 most recent PRs.
+ */
+export async function getAllPRs(
+  cwd: string
+): Promise<GitPullRequest[]> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr list --limit 20 --state all --json number,title,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergedAt,closedAt,isDraft${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return [];
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(
+        (item: unknown): item is Record<string, unknown> =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as Record<string, unknown>).number === 'number' &&
+          typeof (item as Record<string, unknown>).title === 'string'
+      )
+      .map((item) => ({
+        number: item.number as number,
+        title: item.title as string,
+        url: (item.url as string) ?? '',
+        headRefName: (item.headRefName as string) ?? '',
+        baseRefName: (item.baseRefName as string) ?? 'main',
+        state: (item.state as string) ?? 'OPEN',
+        author: (item.author as Record<string, unknown>)?.login as string | undefined,
+        createdAt: item.createdAt as string | undefined,
+        updatedAt: item.updatedAt as string | undefined,
+        mergedAt: (item.mergedAt as string | null) ?? null,
+        closedAt: (item.closedAt as string | null) ?? null,
+        isDraft: (item.isDraft as boolean) ?? false,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Git Remotes ────────────────────────────────────────────────────────────
 
 /** A single git remote entry (from `git remote -v`). */

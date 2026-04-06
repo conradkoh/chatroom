@@ -1004,7 +1004,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                 machineId={activeWorkspace.machineId}
                 workingDir={activeWorkspace.workingDir}
                 chatroomId={chatroomId}
-                initialTab={gitInitialTab as 'diff' | 'log' | 'pr-review' | undefined}
+                initialTab={gitInitialTab as 'prs' | 'diff' | 'log' | 'pr-review' | undefined}
               />
             )}
           </FixedModalBody>

@@ -24,8 +24,22 @@ export interface GitPullRequest {
   url: string;
   /** The head branch name that the PR was opened from. */
   headRefName: string;
-  /** PR state (e.g. 'OPEN'). */
+  /** The base branch name the PR targets (e.g. 'main'). */
+  baseRefName?: string;
+  /** PR state (e.g. 'OPEN', 'CLOSED', 'MERGED'). */
   state: string;
+  /** Author login name. */
+  author?: string;
+  /** ISO timestamp when the PR was created. */
+  createdAt?: string;
+  /** ISO timestamp when the PR was last updated. */
+  updatedAt?: string;
+  /** ISO timestamp when the PR was merged (null if not merged). */
+  mergedAt?: string | null;
+  /** ISO timestamp when the PR was closed (null if not closed). */
+  closedAt?: string | null;
+  /** Whether the PR is a draft. */
+  isDraft?: boolean;
 }
 
 /** A single commit entry from the git log. */
@@ -67,6 +81,8 @@ export type WorkspaceGitState =
       hasMoreCommits: boolean;
       /** Open pull requests for the current branch. Empty if none or gh unavailable. */
       openPullRequests: GitPullRequest[];
+      /** All pull requests (open, closed, merged) for the repository. Up to 20 most recent. */
+      allPullRequests?: GitPullRequest[];
       /** Configured git remotes (e.g. origin, upstream). */
       remotes: GitRemote[];
       /** Number of commits ahead of the upstream tracking branch (unpushed). 0 if no upstream. */

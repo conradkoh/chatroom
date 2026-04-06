@@ -421,7 +421,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, []);
 
   const handleCmdOpenPRReview = useCallback(() => {
-    openGitPanelRef.current?.('pr-review');
+    openGitPanelRef.current?.('prs');
   }, []);
 
   const handleCmdOpenEventStream = useCallback(() => {
