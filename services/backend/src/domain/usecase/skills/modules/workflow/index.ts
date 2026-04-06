@@ -80,20 +80,44 @@ ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> -
 - Each operation must be idempotent using a client-provided idempotency key
 - Write unit tests covering: successful charge, declined card, partial refund, duplicate idempotency key
 - Minimum 90% code coverage for the service module
----FILE_STRUCTURE---
-src/domain/services/
-  payment-service.ts
-    - Purpose: Core payment processing logic
-    - Exports: PaymentService class
-    - Interface: processPayment(params: ChargeParams): Promise<PaymentResult>
-    - Interface: refund(params: RefundParams): Promise<RefundResult>
-  payment-types.ts
-    - Purpose: Shared types for the payment domain
-    - Exports: ChargeParams, RefundParams, PaymentResult, RefundResult, PaymentStatus
-src/domain/services/__tests__/
-  payment-service.test.ts
-    - Purpose: Unit tests for PaymentService
-    - Tests: successful charge, declined card, partial refund, duplicate idempotency key
+
+File structure:
+  src/domain/services/payment-service.ts — Core payment processing logic
+  src/domain/services/payment-types.ts — Shared types for the payment domain
+  src/domain/services/__tests__/payment-service.test.ts — Unit tests
+
+Key interfaces:
+\`\`\`typescript
+interface ChargeParams {
+  amount: number; // in cents
+  currency: string;
+  idempotencyKey: string;
+}
+
+interface RefundParams {
+  transactionId: string;
+  amount?: number; // partial refund in cents, omit for full refund
+}
+
+interface PaymentResult {
+  transactionId: string;
+  status: PaymentStatus;
+  chargedAmount: number;
+}
+
+interface RefundResult {
+  refundId: string;
+  status: PaymentStatus;
+  refundedAmount: number;
+}
+
+type PaymentStatus = 'succeeded' | 'failed' | 'pending';
+
+class PaymentService {
+  processPayment(params: ChargeParams): Promise<PaymentResult>;
+  refund(params: RefundParams): Promise<RefundResult>;
+}
+\`\`\`
 ---WARNINGS---
 - Do NOT store raw card numbers — use Stripe tokens only
 - Do NOT use floating point for monetary amounts
