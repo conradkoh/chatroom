@@ -206,7 +206,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       For architecture/SOLID guidance, activate the \`software-engineering\` skill.
 
       **When to use a workflow:**
-      Single-step tasks (one file fix, a question, running a command) → do directly. **2+ steps → MUST use a workflow.** Aim for 2–7 steps per workflow; each step should be independently verifiable.
+      **Every task delegated to builder MUST use a workflow** — no exceptions. Questions and tasks the planner handles alone don't need one. Aim for 2–7 steps per workflow; each step should be independently verifiable.
 
       **Workflow process:**
 
