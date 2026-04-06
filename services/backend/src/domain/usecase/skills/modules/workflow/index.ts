@@ -55,13 +55,11 @@ Reads content from stdin with sections:
 ${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<assignee-role>
 Available: software-engineering, code-review
 ---REQUIREMENTS---
-[Specific, verifiable outcomes. If this step creates or modifies files, you MUST include the FILE_STRUCTURE section.
+[Specific, verifiable outcomes.
 When files are created or modified, include:
-- Exact file paths
-- High-level interfaces (function signatures, exported types)
-See FILE_STRUCTURE section below for detailed file specifications.]
----FILE_STRUCTURE--- (include when step creates/modifies files)
-[Exact folder structure and files, with each file's purpose and interface]
+- Exact file paths and folder structure
+- Purpose of each file
+- High-level interfaces (function signatures, exported types, TypeScript interfaces for key objects)]
 ---WARNINGS---
 [Optional: things to avoid]
 \`\`\`
@@ -148,7 +146,7 @@ Cancels the entire workflow.
 ### Specification Quality
 - Every step must be specified before it can be completed
 - Specify clear requirements so step completion can be objectively verified
-- When a step involves creating or modifying files, include the exact folder structure and high-level interfaces in the specification (use the FILE_STRUCTURE section)
+- When a step involves creating or modifying files, include the exact folder structure, file purposes, and high-level interfaces directly in the REQUIREMENTS section
 
 ### Operations
 - Use the status command to monitor progress
