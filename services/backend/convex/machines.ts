@@ -727,15 +727,6 @@ export const daemonHeartbeat = mutation({
       });
     }
 
-    // Only update main machine doc if daemon connectivity state changed
-    // This prevents unnecessary re-evaluations of queries reading chatroom_machines
-    if (!machine.daemonConnected) {
-      await ctx.db.patch(machine._id, {
-        lastSeenAt: now,
-        daemonConnected: true,
-      });
-    }
-
     return { success: true };
   },
 });
