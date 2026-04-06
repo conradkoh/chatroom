@@ -25,7 +25,10 @@ export interface RunnableCommand {
   name: string;
   script: string;
   source: string;
+  /** @deprecated Use subWorkspace instead */
   workspace?: string;
+  /** Relative sub-workspace path within the monorepo */
+  subWorkspace?: string;
 }
 
 export interface CommandRun {
@@ -388,7 +391,7 @@ function groupCommandsByWorkspace(
   const groups = new Map<string, RunnableCommand[]>();
 
   for (const cmd of filtered) {
-    const ws = cmd.workspace ?? '.';
+    const ws = cmd.subWorkspace ?? cmd.workspace ?? '.';
     const existing = groups.get(ws) ?? [];
     existing.push(cmd);
     groups.set(ws, existing);
