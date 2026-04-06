@@ -1483,6 +1483,9 @@ export default defineSchema({
     // JSON blob of FileTree (entries array + metadata)
     treeJson: v.string(),
 
+    // Hash of treeJson for server-side dedup (skips write if unchanged)
+    treeHash: v.optional(v.string()),
+
     // When the tree was last scanned
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),

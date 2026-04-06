@@ -83,6 +83,7 @@ export const syncFileTree = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     treeJson: v.string(),
+    treeHash: v.optional(v.string()),
     scannedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -105,10 +106,16 @@ export const syncFileTree = mutation({
       )
       .first();
 
+    // Server-side dedup: skip write if tree content hasn't changed
+    if (existing && args.treeHash && existing.treeHash === args.treeHash) {
+      return; // No change — skip write
+    }
+
     const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
       treeJson: args.treeJson,
+      treeHash: args.treeHash,
       scannedAt: args.scannedAt,
     };
 
