@@ -1351,6 +1351,26 @@ export default defineSchema({
       )
     ),
 
+    // All pull requests (open, closed, merged) for the repository
+    allPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          baseRefName: v.optional(v.string()),
+          state: v.string(),
+          author: v.optional(v.string()),
+          createdAt: v.optional(v.string()),
+          updatedAt: v.optional(v.string()),
+          mergedAt: v.optional(v.union(v.string(), v.null())),
+          closedAt: v.optional(v.union(v.string(), v.null())),
+          isDraft: v.optional(v.boolean()),
+        })
+      )
+    ),
+
     // Git remotes (only when status === 'available')
     remotes: v.optional(
       v.array(

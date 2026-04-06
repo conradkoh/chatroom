@@ -569,6 +569,83 @@ export async function getOpenPRsForBranch(
   }
 }
 
+/** Shape of a single PR item returned by `gh pr list --json ...`. */
+interface GHPRItem {
+  number: number;
+  title: string;
+  url?: string;
+  headRefName?: string;
+  baseRefName?: string;
+  state?: string;
+  author?: unknown;
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  isDraft?: boolean;
+}
+
+function isGHPRItem(item: unknown): item is GHPRItem {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as GHPRItem).number === 'number' &&
+    typeof (item as GHPRItem).title === 'string'
+  );
+}
+
+/**
+ * Get all pull requests (open, closed, merged) for the repository using `gh pr list`.
+ * Returns up to 20 most recent PRs.
+ */
+export async function getAllPRs(
+  cwd: string
+): Promise<GitPullRequest[]> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr list --limit 20 --state all --json number,title,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergedAt,closedAt,isDraft${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return [];
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(isGHPRItem)
+      .map((item): GitPullRequest => {
+        const author = typeof item.author === 'object' && item.author !== null
+          ? (item.author as { login?: string }).login
+          : undefined;
+        return {
+          number: item.number,
+          title: item.title,
+          url: item.url ?? '',
+          headRefName: item.headRefName ?? '',
+          baseRefName: item.baseRefName ?? 'main',
+          state: item.state ?? 'OPEN',
+          author,
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          mergedAt: item.mergedAt ?? null,
+          closedAt: item.closedAt ?? null,
+          isDraft: item.isDraft ?? false,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
 // ─── Git Remotes ────────────────────────────────────────────────────────────
 
 /** A single git remote entry (from `git remote -v`). */
