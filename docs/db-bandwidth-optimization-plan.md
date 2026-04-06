@@ -43,25 +43,25 @@
 ## Phase 2: Tier 2 Medium Wins (~10 GB savings)
 
 ### Fix 5: Cursor-Based Event Stream
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** machines.getCommandEvents (5GB)
 - **Root cause:** 7 queries per call, no TTL on some, all re-evaluate on any event
 - **Fix:** Cursor-based approach + TTL cleanup for old events
 
 ### Fix 6: Compressed/Delta File Tree Sync
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** workspaceFiles.syncFileTree (3.8GB+1.2GB write)
 - **Root cause:** Full tree blob replace on every change
 - **Fix:** Hash-based change detection at read level; compress treeJson
 
 ### Fix 7: Atomic Counter for messagesSinceContext
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** tasks.readTask (3.5GB)
 - **Root cause:** Scans all messages since context to count them
 - **Fix:** Use `chatroom.messageCount - context.messageCountAtCreation`
 
 ### Fix 8: Merge Duplicate Agent Queries
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** getAgentStatus + getMachineAgentConfigs (5GB combined)
 - **Root cause:** Two nearly identical queries reading same data
 - **Fix:** Merge into single query
