@@ -569,6 +569,31 @@ export async function getOpenPRsForBranch(
   }
 }
 
+/** Shape of a single PR item returned by `gh pr list --json ...`. */
+interface GHPRItem {
+  number: number;
+  title: string;
+  url?: string;
+  headRefName?: string;
+  baseRefName?: string;
+  state?: string;
+  author?: unknown;
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  isDraft?: boolean;
+}
+
+function isGHPRItem(item: unknown): item is GHPRItem {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as GHPRItem).number === 'number' &&
+    typeof (item as GHPRItem).title === 'string'
+  );
+}
+
 /**
  * Get all pull requests (open, closed, merged) for the repository using `gh pr list`.
  * Returns up to 20 most recent PRs.
@@ -596,27 +621,26 @@ export async function getAllPRs(
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .filter(
-        (item: unknown): item is Record<string, unknown> =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as Record<string, unknown>).number === 'number' &&
-          typeof (item as Record<string, unknown>).title === 'string'
-      )
-      .map((item) => ({
-        number: item.number as number,
-        title: item.title as string,
-        url: (item.url as string) ?? '',
-        headRefName: (item.headRefName as string) ?? '',
-        baseRefName: (item.baseRefName as string) ?? 'main',
-        state: (item.state as string) ?? 'OPEN',
-        author: (item.author as Record<string, unknown>)?.login as string | undefined,
-        createdAt: item.createdAt as string | undefined,
-        updatedAt: item.updatedAt as string | undefined,
-        mergedAt: (item.mergedAt as string | null) ?? null,
-        closedAt: (item.closedAt as string | null) ?? null,
-        isDraft: (item.isDraft as boolean) ?? false,
-      }));
+      .filter(isGHPRItem)
+      .map((item): GitPullRequest => {
+        const author = typeof item.author === 'object' && item.author !== null
+          ? (item.author as { login?: string }).login
+          : undefined;
+        return {
+          number: item.number,
+          title: item.title,
+          url: item.url ?? '',
+          headRefName: item.headRefName ?? '',
+          baseRefName: item.baseRefName ?? 'main',
+          state: item.state ?? 'OPEN',
+          author,
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          mergedAt: item.mergedAt ?? null,
+          closedAt: item.closedAt ?? null,
+          isDraft: item.isDraft ?? false,
+        };
+      });
   } catch {
     return [];
   }
