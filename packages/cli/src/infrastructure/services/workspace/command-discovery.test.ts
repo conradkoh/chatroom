@@ -144,33 +144,33 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'pnpm: test',
       script: 'pnpm run test',
-      source: 'package.json', subWorkspace: '.',
+      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Root turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build',
       script: 'pnpm turbo run build',
-      source: 'turbo.json', subWorkspace: '.',
+      source: 'turbo.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Filtered turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build (my-cli)',
       script: 'pnpm turbo run build --filter=my-cli',
-      source: 'turbo.json', subWorkspace: 'packages/cli',
+      source: 'turbo.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
 
     // Per-package script commands
     expect(commands).toContainEqual({
       name: 'my-cli: build',
       script: 'pnpm --filter my-cli run build',
-      source: 'package.json', subWorkspace: 'packages/cli',
+      source: 'package.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
     expect(commands).toContainEqual({
       name: 'my-cli: test',
       script: 'pnpm --filter my-cli run test',
-      source: 'package.json', subWorkspace: 'packages/cli',
+      source: 'package.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
   });
 
@@ -196,21 +196,21 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'yarn: lint',
       script: 'yarn run lint',
-      source: 'package.json', subWorkspace: '.',
+      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Turbo filtered
     expect(commands).toContainEqual({
       name: 'turbo: build (@my/web)',
       script: 'yarn turbo run build --filter=@my/web',
-      source: 'turbo.json', subWorkspace: 'apps/web',
+      source: 'turbo.json', subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
     });
 
     // Per-package
     expect(commands).toContainEqual({
       name: '@my/web: dev',
       script: 'yarn workspace @my/web run dev',
-      source: 'package.json', subWorkspace: 'apps/web',
+      source: 'package.json', subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
     });
   });
 
@@ -226,7 +226,7 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'npm: start',
       script: 'npm run start',
-      source: 'package.json', subWorkspace: '.',
+      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'single-app' },
     });
 
     // No workspace-specific commands

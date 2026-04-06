@@ -66,7 +66,7 @@ async function pushSingleWorkspaceCommands(
     workingDir,
     commands: commands.map((cmd) => ({
       ...cmd,
-      workspace: cmd.subWorkspace, // backward compat with older backends
+      workspace: cmd.subWorkspace.path, // backward compat with older backends
     })),
   });
 

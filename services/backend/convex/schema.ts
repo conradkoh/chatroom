@@ -1579,7 +1579,14 @@ export default defineSchema({
     /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
     workspace: v.optional(v.string()),
     /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
-    subWorkspace: v.optional(v.string()),
+    subWorkspace: v.optional(v.object({
+      /** Ecosystem type (e.g., "npm", "cargo", "go") */
+      type: v.string(),
+      /** Relative path from workspace root to the sub-package directory */
+      path: v.string(),
+      /** Package name from package manager (e.g., "@workspace/webapp") */
+      name: v.string(),
+    })),
     syncedAt: v.number(),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir']),

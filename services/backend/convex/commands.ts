@@ -46,7 +46,11 @@ export const syncCommands = mutation({
         script: v.string(),
         source: v.union(v.literal('package.json'), v.literal('turbo.json')),
         workspace: v.optional(v.string()),
-        subWorkspace: v.optional(v.string()),
+        subWorkspace: v.optional(v.object({
+          type: v.string(),
+          path: v.string(),
+          name: v.string(),
+        })),
       })
     ),
   },
@@ -81,7 +85,7 @@ export const syncCommands = mutation({
         script: cmd.script,
         source: cmd.source,
         workspace: cmd.workspace,
-        subWorkspace: cmd.subWorkspace ?? cmd.workspace,
+        subWorkspace: cmd.subWorkspace,
         syncedAt: now,
       });
     }
