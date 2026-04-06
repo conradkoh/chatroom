@@ -813,7 +813,25 @@ export const getTaskCounts = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Query each task status separately using the by_chatroom_status index to avoid full table scans
+    // Try materialized counts first (single doc read instead of 7 queries)
+    const materializedCounts = await ctx.db
+      .query('chatroom_taskCounts')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .first();
+
+    if (materializedCounts) {
+      return {
+        pending: materializedCounts.pending,
+        acknowledged: materializedCounts.acknowledged,
+        in_progress: materializedCounts.inProgress,
+        queued: materializedCounts.queueSize,
+        backlog: materializedCounts.backlogCount,
+        pendingUserReview: materializedCounts.pendingReviewCount,
+        completed: materializedCounts.completed,
+      };
+    }
+
+    // Fallback: compute counts from source tables (migration safety)
     const [pendingTasks, acknowledgedTasks, inProgressTasks, completedTasks] = await Promise.all([
       ctx.db
         .query('chatroom_tasks')
@@ -841,14 +859,11 @@ export const getTaskCounts = query({
         .collect(),
     ]);
 
-    // Queued messages are now in chatroom_messageQueue, not tasks
     const queuedMessages = await ctx.db
       .query('chatroom_messageQueue')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Backlog items are now in chatroom_backlog, not chatroom_tasks
-    // Query each backlog status separately using the by_chatroom_status index
     const [backlogItems, pendingUserReviewItems] = await Promise.all([
       ctx.db
         .query('chatroom_backlog')
@@ -868,7 +883,7 @@ export const getTaskCounts = query({
       pending: pendingTasks.length,
       acknowledged: acknowledgedTasks.length,
       in_progress: inProgressTasks.length,
-      queued: queuedMessages.length, // Count from chatroom_messageQueue
+      queued: queuedMessages.length,
       backlog: backlogItems.length,
       pendingUserReview: pendingUserReviewItems.length,
       completed: completedTasks.length,

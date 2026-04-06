@@ -68,6 +68,18 @@ export async function getAgentStatusForChatroom(
     .collect();
   const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
+  // Read liveness from dedicated table
+  const livenessMap = new Map<string, { daemonConnected: boolean }>();
+  for (const machine of userMachines) {
+    const liveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q: any) => q.eq('machineId', machine.machineId))
+      .first();
+    if (liveness) {
+      livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+    }
+  }
+
   // Build the agent role views
   const agents: AgentRoleView[] = teamRoles.map((role) => {
     const roleLower = role.toLowerCase();

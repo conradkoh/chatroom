@@ -274,17 +274,20 @@ export const getMissingCommitShas = query({
     if (!session.ok) return [];
     await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
-    const missing: string[] = [];
-    for (const sha of args.shas) {
-      const row = await ctx.db
-        .query('chatroom_workspaceCommitDetail')
-        .withIndex('by_machine_workingDir_sha', (q) =>
-          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', sha)
-        )
-        .first();
-      if (!row) missing.push(sha);
-    }
-    return missing;
+    if (args.shas.length === 0) return [];
+
+    // Batch approach: fetch all existing SHAs for this workspace in a single query,
+    // then compute the difference in memory. This replaces N individual lookups.
+    // Only fetch the SHA field to minimize read bandwidth.
+    const existingCommits = await ctx.db
+      .query('chatroom_workspaceCommitDetail')
+      .withIndex('by_machine_workingDir_sha', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+
+    const existingShaSet = new Set(existingCommits.map((c) => c.sha));
+    return args.shas.filter((sha) => !existingShaSet.has(sha));
   },
 });
 
