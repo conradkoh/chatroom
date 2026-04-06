@@ -66,7 +66,7 @@ interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
   /** Optional callback to register an imperative open action for the git panel (e.g. command palette) */
-  onRegisterOpenGitPanel?: (open: () => void) => void;
+  onRegisterOpenGitPanel?: (open: (tab?: string) => void) => void;
 }
 
 /** A workspace guaranteed to have a machineId. */
@@ -779,12 +779,16 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     getPersistedActiveWorkspaceId(chatroomId)
   );
   const [gitModalOpen, setGitModalOpen] = useState(false);
+  const [gitInitialTab, setGitInitialTab] = useState<string | undefined>(undefined);
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
   const isDesktop = useIsDesktop(640);
 
   // Register git panel open callback for external triggers (e.g. command palette)
   useEffect(() => {
-    onRegisterOpenGitPanel?.(() => setGitModalOpen(true));
+    onRegisterOpenGitPanel?.((tab?: string) => {
+      setGitInitialTab(tab);
+      setGitModalOpen(true);
+    });
   }, [onRegisterOpenGitPanel]);
 
   const validWorkspaces = useMemo(
@@ -818,6 +822,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
 
   const handleCloseGitPanel = useCallback(() => {
     setGitModalOpen(false);
+    setGitInitialTab(undefined);
   }, []);
 
   const handleOpenMobileModal = useCallback(() => {
@@ -999,6 +1004,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                 machineId={activeWorkspace.machineId}
                 workingDir={activeWorkspace.workingDir}
                 chatroomId={chatroomId}
+                initialTab={gitInitialTab as 'diff' | 'log' | 'pr-review' | undefined}
               />
             )}
           </FixedModalBody>

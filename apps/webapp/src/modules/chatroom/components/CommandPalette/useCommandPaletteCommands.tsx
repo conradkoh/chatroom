@@ -34,6 +34,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
+  onOpenPRReview?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
@@ -62,6 +63,7 @@ export function useCommandPaletteCommands({
   onOpenInVSCode,
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
+  onOpenPRReview,
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
@@ -146,6 +148,16 @@ export function useCommandPaletteCommands({
       });
     }
 
+    if (onOpenPRReview) {
+      commands.push({
+        id: 'action-pr-review-diff',
+        label: 'PR: Review Diff',
+        icon: <GitPullRequest size={14} />,
+        category: 'Actions',
+        action: onOpenPRReview,
+      });
+    }
+
     if (onOpenWorkspaceDetails) {
       commands.push({
         id: 'action-open-workspace-details',
@@ -218,6 +230,7 @@ export function useCommandPaletteCommands({
     onOpenInVSCode,
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
+    onOpenPRReview,
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,

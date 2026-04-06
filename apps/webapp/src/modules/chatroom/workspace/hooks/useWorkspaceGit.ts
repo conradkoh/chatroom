@@ -11,7 +11,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useState, useCallback, useMemo, useRef } from 'react';
 
-import type { WorkspaceGitState, FullDiffState, CommitDetailState } from '../types/git';
+import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState } from '../types/git';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,43 @@ export function useFullDiff(
   }, [requestMutation, machineId, workingDir]);
 
   const state: FullDiffState = useMemo(() => {
+    if (!result) {
+      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
+    }
+    return {
+      status: 'available',
+      content: result.diffContent,
+      truncated: result.truncated,
+      diffStat: result.diffStat,
+    };
+  }, [result]);
+
+  return { state, request };
+}
+
+/**
+ * Returns the PR diff state and a request function.
+ *
+ * `request(baseBranch)` triggers a daemon fetch for the PR diff.
+ * The result is read from the `getPRDiff` query.
+ */
+export function usePRDiff(
+  machineId: string,
+  workingDir: string
+): { state: PRDiffState; request: (baseBranch: string) => void } {
+  const result = useSessionQuery(api.workspaces.getPRDiff, { machineId, workingDir });
+  const requestMutation = useSessionMutation(api.workspaces.requestPRDiff);
+  const requestedRef = useRef(false);
+
+  const request = useCallback(
+    (baseBranch: string) => {
+      requestedRef.current = true;
+      requestMutation({ machineId, workingDir, baseBranch });
+    },
+    [requestMutation, machineId, workingDir]
+  );
+
+  const state: PRDiffState = useMemo(() => {
     if (!result) {
       return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
