@@ -1367,13 +1367,30 @@ export const listPaginated = query({
       .paginate(args.paginationOpts);
 
     // Enrich messages with task status and attached task details
+    // Batch task lookups: collect unique taskIds, fetch in parallel
+    const uniqueTaskIds = [...new Set(
+      result.page
+        .filter((m) => m.taskId != null)
+        .map((m) => m.taskId!)
+    )];
+    const taskMap = new Map<string, { status: string } | null>();
+    const taskResults = await Promise.all(
+      uniqueTaskIds.map(async (id) => {
+        const task = await ctx.db.get(id);
+        return [id.toString(), task ? { status: task.status } : null] as const;
+      })
+    );
+    for (const [id, task] of taskResults) {
+      taskMap.set(id, task);
+    }
+
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
-        // Fetch task status if message has a linked task
+        // Use batched task lookup
         let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
+          const task = taskMap.get(message.taskId.toString());
+          taskStatus = task?.status as TaskStatus | undefined;
         }
 
         // Resolve attachments (shared helper)
