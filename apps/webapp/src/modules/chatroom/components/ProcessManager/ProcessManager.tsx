@@ -10,13 +10,14 @@
 
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
+import { useEscapeToClear } from '../../hooks/useEscapeToClear';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,9 @@ export function ProcessManager({
   initialSelectedCommand,
 }: ProcessManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const searchQueryRef = useRef(searchQuery);
+  searchQueryRef.current = searchQuery;
+  const onEscapeKeyDown = useEscapeToClear(searchQueryRef, () => setSearchQuery(''));
   const [favoritesVersion, setFavoritesVersion] = useState(0);
   const favoritesStore = useMemo(() => getCommandFavoritesStore(), []);
 
@@ -156,6 +160,7 @@ export function ProcessManager({
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
 
         <DialogPrimitive.Content
+          onEscapeKeyDown={onEscapeKeyDown}
           className="fixed left-[50%] top-[50%] z-50 w-[1000px] max-w-[95vw] h-[600px] max-h-[85vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200"
         >
           {/* Header */}
