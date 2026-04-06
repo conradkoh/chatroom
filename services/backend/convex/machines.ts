@@ -1708,6 +1708,66 @@ export const listAgentOverview = query({
   },
 });
 
+/** Returns agent overview for a single chatroom. Per-chatroom subscription reduces blast radius. */
+export const getAgentOverviewForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const chatroom = await ctx.db.get(args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
+
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .collect();
+    const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+
+    // Read liveness
+    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    for (const machine of userMachines) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+      }
+    }
+
+    const allConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const currentTeamId = chatroom.teamId;
+    const configs = allConfigs.filter((c) => {
+      if (!c.machineId || !machineMap.has(c.machineId)) return false;
+      if (currentTeamId && c.teamRoleKey) {
+        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+      }
+      return true;
+    });
+
+    const runningConfigs = configs.filter((c) => {
+      if (c.spawnedAgentPid == null) return false;
+      const liveness = livenessMap.get(c.machineId!);
+      return liveness?.daemonConnected === true;
+    });
+
+    return {
+      chatroomId: args.chatroomId as string,
+      agentStatus: configs.length === 0 ? 'none' as const : runningConfigs.length > 0 ? 'running' as const : 'stopped' as const,
+      runningRoles: runningConfigs.map((c) => c.role),
+      runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
+    };
+  },
+});
+
 // ============================================================================
 // DAEMON TASK MONITOR
 // Used by the daemon to subscribe to all tasks assigned to roles on this machine.

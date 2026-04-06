@@ -503,3 +503,29 @@ export const listParticipantPresence = query({
     return presence.flat();
   },
 });
+
+/** Returns participant presence for a single chatroom. Per-chatroom subscription reduces blast radius. */
+export const getPresenceForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.ok) return [];
+
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    return participants.map((p) => ({
+      chatroomId: args.chatroomId as string,
+      role: p.role,
+      lastSeenAt: p.lastSeenAt ?? null,
+      lastSeenAction: p.lastSeenAction ?? null,
+      lastStatus: p.lastStatus ?? null,
+      lastDesiredState: p.lastDesiredState ?? null,
+    }));
+  },
+});
