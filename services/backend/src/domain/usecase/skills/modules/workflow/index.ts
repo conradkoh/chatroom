@@ -58,19 +58,8 @@ ${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<a
 - Exact file paths
 - High-level interfaces (function signatures, exported types)
 See FILE_STRUCTURE section below for detailed file specifications.]
----FILE_STRUCTURE--- (optional, include when step creates/modifies files)
+---FILE_STRUCTURE--- (include when step creates/modifies files)
 [Exact folder structure and files, with each file's purpose and interface]
-
-Example:
-  src/domain/services/
-    payment-service.ts
-      - Purpose: Handles payment processing
-      - Exports: PaymentService class
-      - Interface: processPayment(amount: number, currency: string): Promise<PaymentResult>
-      - Interface: refund(transactionId: string): Promise<RefundResult>
-    payment-types.ts
-      - Purpose: Shared types for payment domain
-      - Exports: PaymentResult, RefundResult, PaymentStatus
 ---WARNINGS---
 [Optional: things to avoid]
 \`\`\`
