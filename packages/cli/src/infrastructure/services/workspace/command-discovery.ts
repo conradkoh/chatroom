@@ -156,32 +156,24 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   // Collect turbo task names for per-package variants
   const turboTaskNames: string[] = [];
 
-  // Read root package name for sub-workspace info
+  // 1. Parse root package.json — read name and scripts in a single pass
   let rootPackageName = basename(workingDir);
-  try {
-    const rootPkgContent = await readFile(join(workingDir, 'package.json'), 'utf-8');
-    const rootPkg = JSON.parse(rootPkgContent) as { name?: string };
-    if (rootPkg.name) rootPackageName = rootPkg.name;
-  } catch {
-    // Use directory name as fallback
-  }
-
-  const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
-
-  // 1. Parse root package.json scripts
   try {
     const pkgPath = join(workingDir, 'package.json');
     const pkgContent = await readFile(pkgPath, 'utf-8');
-    const pkg = JSON.parse(pkgContent) as { scripts?: Record<string, string> };
+    const pkg = JSON.parse(pkgContent) as { name?: string; scripts?: Record<string, string> };
+
+    if (pkg.name) rootPackageName = pkg.name;
 
     if (pkg.scripts && typeof pkg.scripts === 'object') {
+      const rootSw: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
       for (const [name, script] of Object.entries(pkg.scripts)) {
         if (typeof script === 'string' && name.length <= MAX_NAME_LENGTH && script.length <= MAX_SCRIPT_LENGTH) {
           commands.push({
             name: `${pm}: ${name}`,
             script: `${scriptPrefix} ${name}`,
             source: 'package.json',
-            subWorkspace: rootSubWorkspace,
+            subWorkspace: rootSw,
           });
         }
       }
@@ -189,6 +181,8 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   } catch {
     // package.json doesn't exist or is invalid — skip
   }
+
+  const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
 
   // 2. Parse turbo.json tasks (root-level, all packages)
   try {
