@@ -210,10 +210,16 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Workflow process:**
 
+      0. **List skills** to understand available capabilities:
+         \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role="planner"\`
       1. **Activate** the workflow skill:
          \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
       2. **Create** the workflow DAG using \`workflow create\`
-      3. **Specify** each step using \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+      3. **Specify** each step using \`workflow specify\` with sections:
+         - **GOAL**: what the step achieves
+         - **SKILLS**: full \`chatroom skill activate\` commands for the assignee (available: software-engineering, code-review)
+         - **REQUIREMENTS**: specific outcomes with file paths, interfaces, and verification criteria
+         - **WARNINGS**: things to avoid
       4. **Execute** the workflow using \`workflow execute\`
       5. **Delegate** the current step via handoff with \`workflow step-view\` command
       6. **On handback:** Review. If acceptable → \`workflow step-complete\`. If not → hand back with feedback.
