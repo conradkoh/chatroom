@@ -140,11 +140,17 @@ Cancels the entire workflow.
 6. **Complete** — Workflow completes when all steps are terminal (completed/cancelled)
 
 ## Best Practices
-- Every step must be specified before it can be completed
+
+### Step Design
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
+
+### Specification Quality
+- Every step must be specified before it can be completed
 - Specify clear requirements so step completion can be objectively verified
 - When a step involves creating or modifying files, include the exact folder structure and high-level interfaces in the specification (use the FILE_STRUCTURE section)
+
+### Operations
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
 - Exit the workflow with a reason if the plan needs to change
