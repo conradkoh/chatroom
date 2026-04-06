@@ -19,4 +19,11 @@ crons.interval('cleanup commit details', { hours: 24 }, internal.storageCleanup.
 // Storage cleanup — cached content (24-hour TTL, hourly)
 crons.interval('cleanup cached content', { hours: 1 }, internal.storageCleanup.cleanupCachedContent);
 
+// Machine status — transition online→offline when heartbeat expires (every 60s)
+crons.interval(
+  'transition offline machines',
+  { seconds: 60 },
+  internal.machineStatusCron.transitionOfflineMachines
+);
+
 export default crons;

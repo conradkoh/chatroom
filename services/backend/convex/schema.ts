@@ -864,6 +864,19 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   /**
+   * Materialized machine online/offline status.
+   * Written only on actual state transitions to avoid subscription invalidation.
+   * The cron job transitions online→offline; daemonHeartbeat transitions offline→online.
+   */
+  chatroom_machineStatus: defineTable({
+    machineId: v.string(),
+    status: v.union(v.literal('online'), v.literal('offline')),
+    lastTransitionAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_status', ['status']),
+
+  /**
    * Model visibility filters for a machine's harness.
    * Machine-level — shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.

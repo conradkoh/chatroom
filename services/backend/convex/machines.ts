@@ -261,22 +261,34 @@ export const listMachines = query({
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect();
 
-    // Join with liveness table for volatile data
+    // Join with machineStatus table for materialized online/offline state
     const machineIds = machines.map((m) => m.machineId);
-    const livenessMap = new Map<string, { lastSeenAt: number; daemonConnected: boolean }>();
+    const statusMap = new Map<string, { status: string }>();
+    for (const machineId of machineIds) {
+      const machineStatus = await ctx.db
+        .query('chatroom_machineStatus')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (machineStatus) {
+        statusMap.set(machineId, { status: machineStatus.status });
+      }
+    }
+
+    // Read lastSeenAt from liveness table (still updated on every heartbeat)
+    const livenessData = new Map<string, number>();
     for (const machineId of machineIds) {
       const liveness = await ctx.db
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
       if (liveness) {
-        livenessMap.set(machineId, { lastSeenAt: liveness.lastSeenAt, daemonConnected: liveness.daemonConnected });
+        livenessData.set(machineId, liveness.lastSeenAt);
       }
     }
 
     return {
       machines: machines.map((m) => {
-        const liveness = livenessMap.get(m.machineId);
+        const status = statusMap.get(m.machineId);
         return {
           machineId: m.machineId,
           hostname: m.hostname,
@@ -285,8 +297,8 @@ export const listMachines = query({
           availableHarnesses: m.availableHarnesses,
           harnessVersions: m.harnessVersions ?? {},
           availableModels: m.availableModels ?? {},
-          daemonConnected: liveness?.daemonConnected ?? false,
-          lastSeenAt: liveness?.lastSeenAt ?? 0,
+          daemonConnected: status?.status === 'online',
+          lastSeenAt: livenessData.get(m.machineId) ?? 0,
           registeredAt: m.registeredAt,
         };
       }),
@@ -315,14 +327,20 @@ export const getDaemonStatus = query({
       return { connected: false, lastSeenAt: null };
     }
 
-    // Read liveness from dedicated table (fallback to main machine doc)
+    // Read status from materialized machineStatus table
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    // Read lastSeenAt from liveness table (still updated on every heartbeat)
     const liveness = await ctx.db
       .query('chatroom_machineLiveness')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
     return {
-      connected: liveness?.daemonConnected ?? false,
+      connected: machineStatus?.status === 'online',
       lastSeenAt: liveness?.lastSeenAt ?? 0,
     };
   },
@@ -354,16 +372,14 @@ export const getMachineAgentConfigs = query({
       .collect();
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-    // Read liveness data from dedicated table
-    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    // Read status from materialized machineStatus table
+    const statusMap = new Map<string, { daemonConnected: boolean }>();
     for (const machine of userMachines) {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
+      const machineStatus = await ctx.db
+        .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
         .first();
-      if (liveness) {
-        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
-      }
+      statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
     }
 
     const allConfigs = await ctx.db
@@ -386,7 +402,7 @@ export const getMachineAgentConfigs = query({
 
     const configsWithMachine = userConfigs.map((config) => {
       const machine = userMachineMap.get(config.machineId!);
-      const liveness = livenessMap.get(config.machineId!);
+      const status = statusMap.get(config.machineId!);
       return {
         machineId: config.machineId!,
         hostname: machine?.hostname ?? 'Unknown',
@@ -395,7 +411,7 @@ export const getMachineAgentConfigs = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
-        daemonConnected: liveness?.daemonConnected ?? false,
+        daemonConnected: status?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
@@ -667,6 +683,8 @@ export const updateDaemonStatus = mutation({
 
     const now = Date.now();
 
+    // TODO: Remove once chatroom_machineStatus is the sole source of truth.
+    // Kept for backward compatibility during migration.
     await ctx.db.patch(machine._id, {
       daemonConnected: args.connected,
       lastSeenAt: now,
@@ -690,6 +708,29 @@ export const updateDaemonStatus = mutation({
         daemonConnected: args.connected,
       });
     }
+
+    // Update materialized machine status — only write on actual transition
+    const desiredStatus: 'online' | 'offline' = args.connected ? 'online' : 'offline';
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!machineStatus) {
+      // No row yet — insert with desired status
+      await ctx.db.insert('chatroom_machineStatus', {
+        machineId: args.machineId,
+        status: desiredStatus,
+        lastTransitionAt: now,
+      });
+    } else if (machineStatus.status !== desiredStatus) {
+      // Actual state transition — write
+      await ctx.db.patch(machineStatus._id, {
+        status: desiredStatus,
+        lastTransitionAt: now,
+      });
+    }
+    // If status matches desired, do NOT write (write suppression)
 
     return { success: true };
   },
@@ -729,6 +770,28 @@ export const daemonHeartbeat = mutation({
         daemonConnected: true,
       });
     }
+
+    // Update materialized machine status — only write on actual transition
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!machineStatus) {
+      // No row yet — insert as online
+      await ctx.db.insert('chatroom_machineStatus', {
+        machineId: args.machineId,
+        status: 'online',
+        lastTransitionAt: now,
+      });
+    } else if (machineStatus.status === 'offline') {
+      // Transition offline → online
+      await ctx.db.patch(machineStatus._id, {
+        status: 'online',
+        lastTransitionAt: now,
+      });
+    }
+    // If already online, do NOT write (write suppression)
 
     return { success: true };
   },
@@ -1727,16 +1790,14 @@ export const getAgentOverviewForChatroom = query({
       .collect();
     const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-    // Read liveness
-    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    // Read status from materialized machineStatus table
+    const statusMap = new Map<string, { daemonConnected: boolean }>();
     for (const machine of userMachines) {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
+      const machineStatus = await ctx.db
+        .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
         .first();
-      if (liveness) {
-        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
-      }
+      statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
     }
 
     const allConfigs = await ctx.db
@@ -1755,8 +1816,8 @@ export const getAgentOverviewForChatroom = query({
 
     const runningConfigs = configs.filter((c) => {
       if (c.spawnedAgentPid == null) return false;
-      const liveness = livenessMap.get(c.machineId!);
-      return liveness?.daemonConnected === true;
+      const status = statusMap.get(c.machineId!);
+      return status?.daemonConnected === true;
     });
 
     return {

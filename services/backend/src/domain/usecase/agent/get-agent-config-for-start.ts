@@ -60,14 +60,22 @@ export async function getAgentConfigForStart(
     .withIndex('by_userId', (q) => q.eq('userId', input.userId))
     .collect();
 
-  const connectedMachines: ConnectedMachineView[] = userMachines
-    .filter((m) => m.daemonConnected)
-    .map((m) => ({
-      machineId: m.machineId,
-      hostname: m.hostname,
-      availableHarnesses: m.availableHarnesses as AgentHarness[],
-      availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
-    }));
+  // Read connection status from machineStatus table (transition-driven, not heartbeat-driven)
+  const connectedMachines: ConnectedMachineView[] = [];
+  for (const m of userMachines) {
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q: any) => q.eq('machineId', m.machineId))
+      .first();
+    if (machineStatus?.status === 'online') {
+      connectedMachines.push({
+        machineId: m.machineId,
+        hostname: m.hostname,
+        availableHarnesses: m.availableHarnesses as AgentHarness[],
+        availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
+      });
+    }
+  }
 
   // Resolve defaults using the priority chain:
   // 1. Agent preference (user's last-used config for this role)
