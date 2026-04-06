@@ -21,42 +21,36 @@ export interface AgentPanelData {
 }
 
 export function useAgentPanelData(chatroomId: string): AgentPanelData {
-  const statusResult = useSessionQuery(api.machines.getAgentStatus, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
-  const machineResult = useSessionQuery(api.machines.listMachines);
-
-  const machineConfigResult = useSessionQuery(api.machines.getMachineAgentConfigs, {
+  // Combined query replaces 3 separate subscriptions (getAgentStatus + getMachineAgentConfigs + listMachines)
+  const panelData = useSessionQuery(api.machines.getAgentPanelData, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
 
-  const agents = useMemo<AgentRoleView[]>(() => statusResult?.agents ?? [], [statusResult?.agents]);
+  const agents = useMemo<AgentRoleView[]>(() => panelData?.agents ?? [], [panelData?.agents]);
 
   const teamRoles = useMemo<string[]>(
-    () => statusResult?.teamRoles ?? [],
-    [statusResult?.teamRoles]
+    () => panelData?.teamRoles ?? [],
+    [panelData?.teamRoles]
   );
 
   const connectedMachines = useMemo<MachineInfo[]>(
-    () => ((machineResult?.machines ?? []) as MachineInfo[]).filter((m) => m.daemonConnected),
-    [machineResult?.machines]
+    () => ((panelData?.machines ?? []) as MachineInfo[]).filter((m) => m.daemonConnected),
+    [panelData?.machines]
   );
 
   const machineConfigs = useMemo<AgentConfig[]>(
-    () => (machineConfigResult?.configs ?? []) as AgentConfig[],
-    [machineConfigResult?.configs]
+    () => (panelData?.configs ?? []) as AgentConfig[],
+    [panelData?.configs]
   );
 
   const agentPreferenceMap = useMemo(() => {
     return new Map<string, AgentPreference>();
   }, []);
 
-  const isLoading =
-    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined;
+  const isLoading = panelData === undefined;
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {
