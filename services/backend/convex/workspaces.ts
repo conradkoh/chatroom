@@ -276,18 +276,22 @@ export const getMissingCommitShas = query({
 
     if (args.shas.length === 0) return [];
 
-    // Batch approach: fetch all existing SHAs for this workspace in a single query,
-    // then compute the difference in memory. This replaces N individual lookups.
-    // Only fetch the SHA field to minimize read bandwidth.
-    const existingCommits = await ctx.db
-      .query('chatroom_workspaceCommitDetail')
-      .withIndex('by_machine_workingDir_sha', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .collect();
-
-    const existingShaSet = new Set(existingCommits.map((c) => c.sha));
-    return args.shas.filter((sha) => !existingShaSet.has(sha));
+    // Individual lookups using the full 3-field index (machineId, workingDir, sha).
+    // This avoids reading all commit documents (which include large diffContent)
+    // and only reads the specific documents that match each requested SHA.
+    const missingShas: string[] = [];
+    for (const sha of args.shas) {
+      const existing = await ctx.db
+        .query('chatroom_workspaceCommitDetail')
+        .withIndex('by_machine_workingDir_sha', (q) =>
+          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', sha)
+        )
+        .first();
+      if (!existing) {
+        missingShas.push(sha);
+      }
+    }
+    return missingShas;
   },
 });
 
