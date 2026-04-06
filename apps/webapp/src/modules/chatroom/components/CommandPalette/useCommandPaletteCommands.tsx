@@ -39,6 +39,8 @@ interface UseCommandPaletteCommandsProps {
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
   /** Callback to open the Process Manager with a specific command selected */
   onOpenProcessManagerWithCommand?: (commandName: string) => void;
+  /** Callback to directly execute a command (run + open terminal) */
+  onRunCommand?: (commandName: string, script: string) => void;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
 }
@@ -63,13 +65,14 @@ export function useCommandPaletteCommands({
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
+  onRunCommand,
   onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
 
     // ─── Favorites (favourited commands from process manager) ────────
-    if (runnableCommands && onOpenProcessManagerWithCommand) {
+    if (runnableCommands && (onRunCommand || onOpenProcessManagerWithCommand)) {
       const favoritesStore = getCommandFavoritesStore();
       const favorites = favoritesStore.getAll();
 
@@ -80,7 +83,13 @@ export function useCommandPaletteCommands({
             label: cmd.name,
             icon: <Terminal size={14} />,
             category: 'Commands',
-            action: () => onOpenProcessManagerWithCommand(cmd.name),
+            action: () => {
+              if (onRunCommand) {
+                onRunCommand(cmd.name, cmd.script);
+              } else if (onOpenProcessManagerWithCommand) {
+                onOpenProcessManagerWithCommand(cmd.name);
+              }
+            },
           });
         }
       }
@@ -212,6 +221,7 @@ export function useCommandPaletteCommands({
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,
+    onRunCommand,
     onOpenProcessManager,
   ]);
 }

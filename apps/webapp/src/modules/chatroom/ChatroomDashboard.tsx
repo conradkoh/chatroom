@@ -518,6 +518,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
+    onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
   });
 
