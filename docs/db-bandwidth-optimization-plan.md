@@ -32,7 +32,7 @@
 - **Est savings:** ~9 GB/day
 
 ### Fix 4: Use Proper Index for Backlog Listing
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** backlog.listBacklogItems (6GB)
 - **Root cause:** Uses `by_chatroom` + JS filter instead of `by_chatroom_status` index; 3 overlapping subscriptions
 - **Fix:** Use `by_chatroom_status` index for direct status-filtered queries. Add `.take()` limits.

@@ -26,6 +26,7 @@ import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
+import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
 import type * as http from "../http.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   crypto: typeof crypto;
   discussions: typeof discussions;
+  eventCleanup: typeof eventCleanup;
   events: typeof events;
   guidelines: typeof guidelines;
   http: typeof http;

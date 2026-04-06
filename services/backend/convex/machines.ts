@@ -448,21 +448,25 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 5. Fetch all daemon.ping events — no cursor, session dedup handled by daemon
+    // 5. Fetch daemon.ping events — time-bounded to prevent unbounded growth
+    const PING_TTL_MS = 5 * 60_000; // 5 minutes
     const pingEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
       )
+      .filter((q) => q.gt(q.field('timestamp'), now - PING_TTL_MS))
       .order('asc')
       .collect();
 
-    // 6. Fetch daemon.gitRefresh events — session dedup handled by daemon, idempotent
+    // 6. Fetch daemon.gitRefresh events — time-bounded to prevent unbounded growth
+    const GIT_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
     const gitRefreshEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.gitRefresh')
       )
+      .filter((q) => q.gt(q.field('timestamp'), now - GIT_REFRESH_TTL_MS))
       .order('asc')
       .collect();
 
