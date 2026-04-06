@@ -386,7 +386,7 @@ function groupCommandsByWorkspace(
   const groups = new Map<string, RunnableCommand[]>();
 
   for (const cmd of filtered) {
-    const ws = cmd.subWorkspace?.path ?? cmd.workspace ?? '.';
+    const ws = cmd.subWorkspace?.path ?? '.';
     const existing = groups.get(ws) ?? [];
     existing.push(cmd);
     groups.set(ws, existing);

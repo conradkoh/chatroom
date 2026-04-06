@@ -64,10 +64,7 @@ async function pushSingleWorkspaceCommands(
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
-    commands: commands.map((cmd) => ({
-      ...cmd,
-      workspace: cmd.subWorkspace.path, // backward compat with older backends
-    })),
+    commands,
   });
 
   ctx.lastPushedGitState.set(stateKey, commandsHash);

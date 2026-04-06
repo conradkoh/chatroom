@@ -213,6 +213,3 @@ export async function resolveSubWorkspaces(
 
   return packages;
 }
-
-/** @deprecated Use resolveSubWorkspaces instead */
-export const resolveWorkspacePackages = resolveSubWorkspaces;
