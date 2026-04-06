@@ -30,6 +30,10 @@ export async function markChatroomUnread(
     .first();
 
   if (existing) {
+    // Skip write if already in correct state (avoids unnecessary subscription invalidations)
+    if (existing.hasUnread && (!isHandoff || existing.hasUnreadHandoff)) {
+      return; // Already marked as unread with correct handoff state
+    }
     const update: { hasUnread: boolean; hasUnreadHandoff?: boolean } = { hasUnread: true };
     if (isHandoff) {
       update.hasUnreadHandoff = true;
