@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowRightLeft,
@@ -68,6 +68,14 @@ export function useCommandPaletteCommands({
   onRunCommand,
   onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
+  // Track favorites changes from Process Manager via custom event
+  const [favoritesVersion, setFavoritesVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setFavoritesVersion((v) => v + 1);
+    window.addEventListener('chatroom:favorites-changed', handler);
+    return () => window.removeEventListener('chatroom:favorites-changed', handler);
+  }, []);
+
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
 
@@ -223,5 +231,6 @@ export function useCommandPaletteCommands({
     onOpenProcessManagerWithCommand,
     onRunCommand,
     onOpenProcessManager,
+    favoritesVersion,
   ]);
 }
