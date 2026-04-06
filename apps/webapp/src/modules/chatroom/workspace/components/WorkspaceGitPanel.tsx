@@ -1,5 +1,7 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
@@ -68,6 +70,34 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   const { loading: loadingMore, loadMore } = useLoadMoreCommits(machineId, workingDir);
   const { refresh, isRefreshing } = useGitRefresh(machineId, workingDir);
 
+  // Determine if PR review tab should be shown
+  const hasActivePR =
+    gitState.status === 'available' && gitState.openPullRequests.length > 0;
+  const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
+
+  // PR action mutation
+  const requestPRActionMutation = useSessionMutation(api.workspaces.requestPRAction);
+  const [prActionLoading, setPrActionLoading] = useState(false);
+  const handlePRAction = useCallback(
+    async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
+      if (!activePR || prActionLoading) return;
+      setPrActionLoading(true);
+      try {
+        await requestPRActionMutation({
+          machineId,
+          workingDir,
+          prNumber: activePR.number,
+          prAction: action,
+        });
+      } catch (err) {
+        console.error('PR action failed:', err);
+      } finally {
+        setPrActionLoading(false);
+      }
+    },
+    [activePR, prActionLoading, machineId, workingDir, requestPRActionMutation]
+  );
+
   const handleSelectCommit = useCallback(
     (sha: string) => {
       clearCommitDetail(); // reset so it loads fresh
@@ -97,11 +127,6 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       handleSelectCommit(gitState.recentCommits[0]!.sha);
     }
   }, [activeTab, selectedCommitSha, gitState, handleSelectCommit]);
-
-  // Determine if PR review tab should be shown
-  const hasActivePR =
-    gitState.status === 'available' && gitState.openPullRequests.length > 0;
-  const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
 
   // Build tabs dynamically
   const tabs = hasActivePR
@@ -228,6 +253,35 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                 <div className="text-[10px] text-chatroom-text-muted mt-1">
                   {activePR.headRefName} → {baseBranch}
                 </div>
+              </div>
+            )}
+            {/* PR action buttons */}
+            {activePR && (
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
+                <button
+                  type="button"
+                  onClick={() => handlePRAction('merge_squash')}
+                  disabled={prActionLoading}
+                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {prActionLoading ? '...' : 'Merge (Squash)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePRAction('merge_no_squash')}
+                  disabled={prActionLoading}
+                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Merge
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePRAction('close')}
+                  disabled={prActionLoading}
+                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Close
+                </button>
               </div>
             )}
             {/* PR diff content */}
