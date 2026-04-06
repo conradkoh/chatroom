@@ -448,7 +448,9 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 5. Fetch daemon.ping events — time-bounded to prevent unbounded growth
+    // 5. Fetch daemon.ping events — time-bounded to reduce payload
+    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
+    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
     const PING_TTL_MS = 5 * 60_000; // 5 minutes
     const pingEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -459,7 +461,9 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 6. Fetch daemon.gitRefresh events — time-bounded to prevent unbounded growth
+    // 6. Fetch daemon.gitRefresh events — time-bounded to reduce payload
+    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
+    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
     const GIT_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
     const gitRefreshEvents = await ctx.db
       .query('chatroom_eventStream')
