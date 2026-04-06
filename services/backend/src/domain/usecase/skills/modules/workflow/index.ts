@@ -51,12 +51,77 @@ Reads content from stdin with sections:
 ---GOAL---
 [High-level goal in markdown]
 ---SKILLS---
+[Activate skills the assignee needs before starting work. One command per line.]
 ${cliEnvPrefix}chatroom skill activate <skill-name> --chatroom-id=<id> --role=<assignee-role>
-[List each chatroom skill activation command, one per line. Available: software-engineering, code-review]
+Available: software-engineering, code-review
 ---REQUIREMENTS---
-[Specific, verifiable outcomes]
+[Specific, verifiable outcomes.
+When files are created or modified, include:
+- Exact file paths and folder structure
+- Purpose of each file
+- High-level interfaces (function signatures, exported types, TypeScript interfaces for key objects)]
 ---WARNINGS---
 [Optional: things to avoid]
+\`\`\`
+
+### Specification Example
+
+A fully filled-out specification for a step:
+
+\`\`\`bash
+${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=planner --workflow-key=payment-service --step-key=core-service --assignee-role=builder << 'EOF'
+---GOAL---
+Build the core payment processing service that handles charges and refunds via Stripe.
+---SKILLS---
+${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=builder
+---REQUIREMENTS---
+- Implement PaymentService class with processPayment and refund methods
+- All monetary amounts use integer cents (no floating point)
+- Each operation must be idempotent using a client-provided idempotency key
+- Write unit tests covering: successful charge, declined card, partial refund, duplicate idempotency key
+- Minimum 90% code coverage for the service module
+
+File structure:
+  src/domain/services/payment-service.ts — Core payment processing logic
+  src/domain/services/payment-types.ts — Shared types for the payment domain
+  src/domain/services/__tests__/payment-service.test.ts — Unit tests
+
+Key interfaces:
+\`\`\`typescript
+interface ChargeParams {
+  amount: number; // in cents
+  currency: string;
+  idempotencyKey: string;
+}
+
+interface RefundParams {
+  transactionId: string;
+  amount?: number; // partial refund in cents, omit for full refund
+}
+
+interface PaymentResult {
+  transactionId: string;
+  status: PaymentStatus;
+  chargedAmount: number;
+}
+
+interface RefundResult {
+  refundId: string;
+  status: PaymentStatus;
+  refundedAmount: number;
+}
+
+type PaymentStatus = 'succeeded' | 'failed' | 'pending';
+
+class PaymentService {
+  processPayment(params: ChargeParams): Promise<PaymentResult>;
+  refund(params: RefundParams): Promise<RefundResult>;
+}
+\`\`\`
+---WARNINGS---
+- Do NOT store raw card numbers — use Stripe tokens only
+- Do NOT use floating point for monetary amounts
+EOF
 \`\`\`
 
 ### Execute Workflow
@@ -97,10 +162,17 @@ Cancels the entire workflow.
 6. **Complete** — Workflow completes when all steps are terminal (completed/cancelled)
 
 ## Best Practices
-- Every step must be specified before it can be completed
+
+### Step Design
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
+
+### Specification Quality
+- Every step must be specified before it can be completed
 - Specify clear requirements so step completion can be objectively verified
+- When a step involves creating or modifying files, include the exact folder structure, file purposes, and high-level interfaces directly in the REQUIREMENTS section
+
+### Operations
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
 - Exit the workflow with a reason if the plan needs to change
