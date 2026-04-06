@@ -34,6 +34,10 @@ export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
 export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 
+/** How long before a daemon is considered offline if no heartbeat received (ms).
+ *  Set to 3× the heartbeat interval (90s). */
+export const DAEMON_HEARTBEAT_TTL_MS = 90_000; // 90s
+
 // ─── Agent Request Deadline ──────────────────────────────────────────────────
 
 /** How long an agent.requestStart / agent.requestStop event is considered valid (ms).
