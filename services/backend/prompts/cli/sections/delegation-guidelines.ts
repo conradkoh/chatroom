@@ -34,10 +34,16 @@ For architecture/SOLID guidance, activate the \`software-engineering\` skill.
 
 **Workflow process:**
 
+0. **List skills** to understand available capabilities:
+   \`${cliEnvPrefix}chatroom skill list --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
 1. **Activate** the workflow skill:
    \`${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
 2. **Create** the workflow DAG using \`workflow create\`
-3. **Specify** each step using \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+3. **Specify** each step using \`workflow specify\` with sections:
+   - **GOAL**: what the step achieves
+   - **SKILLS**: full \`chatroom skill activate\` commands for the assignee (available: software-engineering, code-review)
+   - **REQUIREMENTS**: specific outcomes with file paths, interfaces, and verification criteria
+   - **WARNINGS**: things to avoid
 4. **Execute** the workflow using \`workflow execute\`
 5. **Delegate** the current step via handoff with \`workflow step-view\` command
 6. **On handback:** Review. If acceptable → \`workflow step-complete\`. If not → hand back with feedback.
