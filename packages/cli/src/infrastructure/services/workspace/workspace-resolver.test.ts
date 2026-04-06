@@ -7,7 +7,7 @@ import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { resolveWorkspacePackages } from './workspace-resolver.js';
+import { resolveSubWorkspaces } from './workspace-resolver.js';
 
 let testDir: string;
 
@@ -47,7 +47,7 @@ describe('pnpm workspaces', () => {
       scripts: { build: 'tsc', test: 'vitest' },
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'pnpm');
+    const packages = await resolveSubWorkspaces(testDir, 'pnpm');
 
     expect(packages).toHaveLength(2);
 
@@ -62,7 +62,7 @@ describe('pnpm workspaces', () => {
 
   test('returns empty if no pnpm-workspace.yaml exists', async () => {
     await createPackageJson(testDir, { name: 'root' });
-    const packages = await resolveWorkspacePackages(testDir, 'pnpm');
+    const packages = await resolveSubWorkspaces(testDir, 'pnpm');
     expect(packages).toHaveLength(0);
   });
 
@@ -76,7 +76,7 @@ describe('pnpm workspaces', () => {
       scripts: { test: 'jest' },
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'pnpm');
+    const packages = await resolveSubWorkspaces(testDir, 'pnpm');
     expect(packages).toHaveLength(1);
     expect(packages[0].name).toBe('utils');
   });
@@ -96,7 +96,7 @@ describe('yarn/npm/bun workspaces', () => {
     });
 
     for (const pm of ['yarn', 'npm', 'bun'] as const) {
-      const packages = await resolveWorkspacePackages(testDir, pm);
+      const packages = await resolveSubWorkspaces(testDir, pm);
       expect(packages).toHaveLength(1);
       expect(packages[0].name).toBe('@my/core');
     }
@@ -112,14 +112,14 @@ describe('yarn/npm/bun workspaces', () => {
       scripts: { dev: 'tsx watch' },
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'yarn');
+    const packages = await resolveSubWorkspaces(testDir, 'yarn');
     expect(packages).toHaveLength(1);
     expect(packages[0].name).toBe('auth-module');
   });
 
   test('returns empty if no workspaces field', async () => {
     await createPackageJson(testDir, { name: 'root' });
-    const packages = await resolveWorkspacePackages(testDir, 'npm');
+    const packages = await resolveSubWorkspaces(testDir, 'npm');
     expect(packages).toHaveLength(0);
   });
 });
@@ -137,7 +137,7 @@ describe('edge cases', () => {
       scripts: { start: 'node index.js' },
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'npm');
+    const packages = await resolveSubWorkspaces(testDir, 'npm');
     expect(packages).toHaveLength(1);
     expect(packages[0].name).toBe('my-tool');
   });
@@ -151,7 +151,7 @@ describe('edge cases', () => {
       scripts: { build: 'tsc' },
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'npm');
+    const packages = await resolveSubWorkspaces(testDir, 'npm');
     expect(packages).toHaveLength(1);
     expect(packages[0].name).toBe('unnamed');
   });
@@ -166,7 +166,7 @@ describe('edge cases', () => {
       name: 'has-pkg',
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'npm');
+    const packages = await resolveSubWorkspaces(testDir, 'npm');
     expect(packages).toHaveLength(1);
     expect(packages[0].name).toBe('has-pkg');
   });
@@ -180,7 +180,7 @@ describe('edge cases', () => {
       name: 'core',
     });
 
-    const packages = await resolveWorkspacePackages(testDir, 'npm');
+    const packages = await resolveSubWorkspaces(testDir, 'npm');
     expect(packages).toHaveLength(1);
   });
 });

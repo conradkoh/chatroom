@@ -20,7 +20,7 @@ import { access } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-import { resolveWorkspacePackages } from './workspace-resolver.js';
+import { resolveSubWorkspaces } from './workspace-resolver.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,8 +28,8 @@ export interface DiscoveredCommand {
   name: string;
   script: string;
   source: 'package.json' | 'turbo.json';
-  /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') */
-  workspace: string;
+  /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
+  subWorkspace: string;
 }
 
 export type PackageManager = 'pnpm' | 'yarn' | 'bun' | 'npm';
@@ -159,7 +159,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
             name: `${pm}: ${name}`,
             script: `${scriptPrefix} ${name}`,
             source: 'package.json',
-            workspace: '.',
+            subWorkspace: '.',
           });
         }
       }
@@ -182,7 +182,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
             name: `turbo: ${taskName}`,
             script: `${turboPrefix} ${taskName}`,
             source: 'turbo.json',
-            workspace: '.',
+            subWorkspace: '.',
           });
         }
       }
@@ -191,10 +191,10 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     // turbo.json doesn't exist or is invalid — skip
   }
 
-  // 3. Discover workspace packages for monorepo support
-  const workspacePackages = await resolveWorkspacePackages(workingDir, pm);
+  // 3. Discover sub-workspace packages for monorepo support
+  const subWorkspaces = await resolveSubWorkspaces(workingDir, pm);
 
-  for (const pkg of workspacePackages) {
+  for (const pkg of subWorkspaces) {
     const wsPath = relative(workingDir, pkg.dir) || '.';
 
     // 3a. Per-package turbo task variants (filtered)
@@ -203,7 +203,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
         name: `turbo: ${taskName} (${pkg.name})`,
         script: getFilteredTurboCommand(pm, pkg.name, taskName),
         source: 'turbo.json',
-        workspace: wsPath,
+        subWorkspace: wsPath,
       });
     }
 
@@ -218,7 +218,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
           name: `${pkg.name}: ${scriptName}`,
           script: getFilteredScriptCommand(pm, pkg.name, scriptName),
           source: 'package.json',
-          workspace: wsPath,
+          subWorkspace: wsPath,
         });
       }
     }
