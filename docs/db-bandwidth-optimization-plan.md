@@ -25,7 +25,7 @@
 - **Est savings:** ~10 GB/day
 
 ### Fix 3: Per-Chatroom Unread Flag
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** chatrooms.listUnreadStatus (10GB)
 - **Root cause:** Global subscription + N+1 per chatroom with 10 messages read each
 - **Fix:** Store `hasUnread`/`hasUnreadHandoff` flags on chatroom or read cursor. Update flags on message insert + cursor update. Listing query becomes single table scan.
