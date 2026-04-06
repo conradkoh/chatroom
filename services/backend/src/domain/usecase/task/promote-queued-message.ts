@@ -1,4 +1,5 @@
 import { createTask } from './create-task';
+import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/auth/cliSessionAuth';
@@ -73,6 +74,9 @@ export async function promoteQueuedMessage(
 
   // Delete the queue record (no longer needed after promotion)
   await ctx.db.delete('chatroom_messageQueue', queuedMessageId);
+
+  // Decrement the queue size counter
+  await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
 
   return { messageId, taskId };
 }
