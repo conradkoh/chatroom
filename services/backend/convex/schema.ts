@@ -1405,12 +1405,15 @@ export default defineSchema({
     requestType: v.union(
       v.literal('full_diff'),
       v.literal('commit_detail'),
-      v.literal('more_commits')
+      v.literal('more_commits'),
+      v.literal('pr_diff')
     ),
     // For commit_detail requests
     sha: v.optional(v.string()),
     // For more_commits requests
     offset: v.optional(v.number()),
+    // For pr_diff requests
+    baseBranch: v.optional(v.string()),
     // Request status
     status: v.union(
       v.literal('pending'),
@@ -1423,6 +1426,25 @@ export default defineSchema({
   })
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']),
+
+  /**
+   * Stored PR diff content (diff between base branch and HEAD).
+   * Populated by the daemon after a `pr_diff` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspacePRDiffs: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    baseBranch: v.string(),
+    diffContent: v.string(),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Per-commit diff content fetched on demand.
