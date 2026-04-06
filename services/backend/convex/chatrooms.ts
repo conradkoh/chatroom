@@ -4,6 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
@@ -359,6 +360,9 @@ export const markAsRead = mutation({
         updatedAt: now,
       });
     }
+
+    // Clear materialized unread status
+    await clearChatroomUnread(ctx, args.chatroomId, session.userId);
   },
 });
 
@@ -393,7 +397,21 @@ export const listUnreadStatus = query({
       return [];
     }
 
-    // Fetch all chatrooms and read cursors in parallel
+    // Try materialized unread status first (single query, no N+1)
+    const materializedStatus = await ctx.db
+      .query('chatroom_unreadStatus')
+      .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+      .collect();
+
+    if (materializedStatus.length > 0) {
+      return materializedStatus.map((s) => ({
+        chatroomId: s.chatroomId as string,
+        hasUnread: s.hasUnread,
+        hasUnreadHandoff: s.hasUnreadHandoff,
+      }));
+    }
+
+    // Fallback: compute from message scans (migration safety)
     const [chatrooms, readCursors] = await Promise.all([
       ctx.db
         .query('chatroom_rooms')
@@ -413,7 +431,6 @@ export const listUnreadStatus = query({
         let hasUnread = false;
         let hasUnreadHandoff = false;
 
-        // Fetch the 10 most recent messages once (used for both hasUnread and hasUnreadHandoff)
         const recentMessages = await ctx.db
           .query('chatroom_messages')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
@@ -421,10 +438,7 @@ export const listUnreadStatus = query({
           .take(10);
 
         if (lastSeenAt !== undefined) {
-          // Check if there's any message newer than the cursor
           hasUnread = recentMessages.some((msg) => msg._creationTime > lastSeenAt);
-
-          // Check specifically for handoff-to-user messages newer than cursor
           if (hasUnread) {
             hasUnreadHandoff = recentMessages.some(
               (msg) =>
@@ -434,10 +448,7 @@ export const listUnreadStatus = query({
             );
           }
         } else {
-          // No cursor — any messages means unread
           hasUnread = recentMessages.length > 0;
-
-          // Check for handoff-to-user in recent messages
           if (hasUnread) {
             hasUnreadHandoff = recentMessages.some(
               (msg) =>

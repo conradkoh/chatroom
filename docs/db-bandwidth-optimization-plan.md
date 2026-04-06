@@ -18,7 +18,7 @@
 - **Est savings:** ~15 GB/day (cascade elimination)
 
 ### Fix 2: Materialized Task Counts
-- **Status:** [ ] TODO
+- **Status:** [x] DONE
 - **Functions affected:** tasks.getTaskCounts (10.5GB)
 - **Root cause:** `.collect()` reads ALL task documents just to count them
 - **Fix:** Create `chatroom_taskCounts` table. Increment/decrement counts in task status mutations. Query becomes single doc read.

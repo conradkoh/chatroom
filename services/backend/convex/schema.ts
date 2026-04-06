@@ -686,6 +686,20 @@ export default defineSchema({
    * Used to compute unread indicators efficiently without subscribing to full message history.
    * One record per user per chatroom.
    */
+  /**
+   * Materialized per-user per-chatroom unread status.
+   * Updated on message insert (set unread) and markAsRead (clear unread).
+   * Replaces the expensive N+1 computation in listUnreadStatus.
+   */
+  chatroom_unreadStatus: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.string(),
+    hasUnread: v.boolean(),
+    hasUnreadHandoff: v.boolean(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_chatroomId', ['userId', 'chatroomId']),
+
   chatroom_read_cursors: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),

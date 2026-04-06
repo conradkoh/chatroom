@@ -23,6 +23,7 @@ import {
 } from '../src/domain/usecase/task/create-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
+import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
@@ -379,6 +380,11 @@ async function _sendMessageHandler(
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
   }
 
+  // Update unread status for chatroom owner (skip if sender is the owner's "user" role)
+  if (args.senderRole !== 'user' && chatroom.ownerId) {
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, false);
+  }
+
   return messageId;
 }
 
@@ -667,6 +673,13 @@ async function _handoffHandler(
         }
       }
     }
+  }
+
+  // Update unread status for chatroom owner
+  // Handoff-to-user is specially flagged
+  if (chatroom?.ownerId) {
+    const isHandoffToUser = args.targetRole?.toLowerCase() === 'user';
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
   }
 
   return {
