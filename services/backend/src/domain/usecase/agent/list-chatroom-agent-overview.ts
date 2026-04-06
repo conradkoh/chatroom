@@ -71,7 +71,7 @@ export async function listChatroomAgentOverview(
       const allConfigs = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-        .take(50); // Cap at 50 configs per chatroom to bound reads
+        .collect();
 
       // Filter to only configs for the CURRENT team and user-owned machines.
       // This matches the filtering in getMachineAgentConfigs (convex/machines.ts)
