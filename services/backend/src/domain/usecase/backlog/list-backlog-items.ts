@@ -5,7 +5,6 @@
  */
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import { ACTIVE_BACKLOG_STATUSES } from '../../entities/backlog-item';
 
 export type BacklogStatusFilter = 'backlog' | 'pending_user_review' | 'closed' | 'active';
 export type BacklogSortOrder = 'date:desc' | 'priority:desc';
@@ -20,21 +19,48 @@ export interface ListBacklogItemsArgs {
 }
 
 export async function listBacklogItems(ctx: QueryCtx, args: ListBacklogItemsArgs) {
-  let items = await ctx.db
-    .query('chatroom_backlog')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-    .collect();
+  let items;
 
-  // Apply status filter
+  // Use by_chatroom_status index for direct status-filtered queries
+  // This avoids reading ALL items and filtering in JS
   if (args.statusFilter === 'backlog') {
-    items = items.filter((i) => i.status === 'backlog');
+    items = await ctx.db
+      .query('chatroom_backlog')
+      .withIndex('by_chatroom_status', (q: any) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
+      )
+      .collect();
   } else if (args.statusFilter === 'pending_user_review') {
-    items = items.filter((i) => i.status === 'pending_user_review');
+    items = await ctx.db
+      .query('chatroom_backlog')
+      .withIndex('by_chatroom_status', (q: any) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+      )
+      .collect();
   } else if (args.statusFilter === 'closed') {
-    items = items.filter((i) => i.status === 'closed');
+    items = await ctx.db
+      .query('chatroom_backlog')
+      .withIndex('by_chatroom_status', (q: any) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'closed')
+      )
+      .collect();
   } else {
-    // 'active' or no filter → show active items
-    items = items.filter((i) => ACTIVE_BACKLOG_STATUSES.has(i.status as any));
+    // 'active' or no filter → combine backlog + pending_user_review
+    const [backlogItems, reviewItems] = await Promise.all([
+      ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_chatroom_status', (q: any) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_chatroom_status', (q: any) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+        )
+        .collect(),
+    ]);
+    items = [...backlogItems, ...reviewItems];
   }
 
   // Apply optional filter

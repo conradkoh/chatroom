@@ -18,18 +18,28 @@
 
 import { access } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, basename } from 'node:path';
 
-import { resolveWorkspacePackages } from './workspace-resolver.js';
+import { resolveSubWorkspaces } from './workspace-resolver.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+
+/** Structured sub-workspace info for a discovered command */
+export interface SubWorkspaceInfo {
+  /** Ecosystem type (e.g., "npm", "cargo", "go") */
+  type: string;
+  /** Relative path from workspace root to the sub-package directory */
+  path: string;
+  /** Package name from package manager (e.g., "@workspace/webapp") */
+  name: string;
+}
 
 export interface DiscoveredCommand {
   name: string;
   script: string;
   source: 'package.json' | 'turbo.json';
-  /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') */
-  workspace: string;
+  /** Structured sub-workspace info. Refers to package manager workspace packages, not the chatroom workspace (workingDir). */
+  subWorkspace: SubWorkspaceInfo;
 }
 
 export type PackageManager = 'pnpm' | 'yarn' | 'bun' | 'npm';
@@ -146,20 +156,24 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   // Collect turbo task names for per-package variants
   const turboTaskNames: string[] = [];
 
-  // 1. Parse root package.json scripts
+  // 1. Parse root package.json — read name and scripts in a single pass
+  let rootPackageName = basename(workingDir);
   try {
     const pkgPath = join(workingDir, 'package.json');
     const pkgContent = await readFile(pkgPath, 'utf-8');
-    const pkg = JSON.parse(pkgContent) as { scripts?: Record<string, string> };
+    const pkg = JSON.parse(pkgContent) as { name?: string; scripts?: Record<string, string> };
+
+    if (pkg.name) rootPackageName = pkg.name;
 
     if (pkg.scripts && typeof pkg.scripts === 'object') {
+      const rootSw: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
       for (const [name, script] of Object.entries(pkg.scripts)) {
         if (typeof script === 'string' && name.length <= MAX_NAME_LENGTH && script.length <= MAX_SCRIPT_LENGTH) {
           commands.push({
             name: `${pm}: ${name}`,
             script: `${scriptPrefix} ${name}`,
             source: 'package.json',
-            workspace: '.',
+            subWorkspace: rootSw,
           });
         }
       }
@@ -167,6 +181,8 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   } catch {
     // package.json doesn't exist or is invalid — skip
   }
+
+  const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
 
   // 2. Parse turbo.json tasks (root-level, all packages)
   try {
@@ -182,7 +198,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
             name: `turbo: ${taskName}`,
             script: `${turboPrefix} ${taskName}`,
             source: 'turbo.json',
-            workspace: '.',
+            subWorkspace: rootSubWorkspace,
           });
         }
       }
@@ -191,11 +207,12 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     // turbo.json doesn't exist or is invalid — skip
   }
 
-  // 3. Discover workspace packages for monorepo support
-  const workspacePackages = await resolveWorkspacePackages(workingDir, pm);
+  // 3. Discover sub-workspace packages for monorepo support
+  const subWorkspaces = await resolveSubWorkspaces(workingDir, pm);
 
-  for (const pkg of workspacePackages) {
+  for (const pkg of subWorkspaces) {
     const wsPath = relative(workingDir, pkg.dir) || '.';
+    const pkgSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: wsPath, name: pkg.name };
 
     // 3a. Per-package turbo task variants (filtered)
     for (const taskName of turboTaskNames) {
@@ -203,7 +220,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
         name: `turbo: ${taskName} (${pkg.name})`,
         script: getFilteredTurboCommand(pm, pkg.name, taskName),
         source: 'turbo.json',
-        workspace: wsPath,
+        subWorkspace: pkgSubWorkspace,
       });
     }
 
@@ -218,7 +235,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
           name: `${pkg.name}: ${scriptName}`,
           script: getFilteredScriptCommand(pm, pkg.name, scriptName),
           source: 'package.json',
-          workspace: wsPath,
+          subWorkspace: pkgSubWorkspace,
         });
       }
     }

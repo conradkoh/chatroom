@@ -47,12 +47,24 @@ export async function listChatroomAgentOverview(
     .withIndex('by_ownerId', (q) => q.eq('ownerId', input.userId))
     .collect();
 
-  // Pre-fetch all user machines for daemon connectivity check
+  // Pre-fetch all user machines for ownership check (static data only)
   const userMachines = await ctx.db
     .query('chatroom_machines')
     .withIndex('by_userId', (q) => q.eq('userId', input.userId))
     .collect();
   const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+
+  // Read liveness data from dedicated table
+  const livenessMap = new Map<string, { daemonConnected: boolean }>();
+  for (const machine of userMachines) {
+    const liveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q: any) => q.eq('machineId', machine.machineId))
+      .first();
+    if (liveness) {
+      livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+    }
+  }
 
   const results = await Promise.all(
     userChatrooms.map(async (room) => {
@@ -82,8 +94,10 @@ export async function listChatroomAgentOverview(
       // and prevents stale "running" status when a daemon disconnects without cleanup.
       const runningConfigs = configs.filter((c) => {
         if (c.spawnedAgentPid == null) return false;
+        const liveness = livenessMap.get(c.machineId!);
         const machine = machineMap.get(c.machineId!);
-        return machine?.daemonConnected === true;
+        const connected = liveness?.daemonConnected ?? machine?.daemonConnected;
+        return connected === true;
       });
 
       const agentStatus: ChatroomAgentOverview['agentStatus'] =

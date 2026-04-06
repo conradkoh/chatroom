@@ -440,6 +440,23 @@ export default defineSchema({
    * On promotion, the message is copied to chatroom_messages and a task is created.
    * This ensures messages appear in chat history in task processing order.
    */
+  /**
+   * Materialized task counts per chatroom.
+   * Updated atomically by task/backlog/queue mutations to avoid expensive full-table scans.
+   * Falls back to computed counts if no record exists (migration safety).
+   */
+  chatroom_taskCounts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    pending: v.number(),
+    acknowledged: v.number(),
+    inProgress: v.number(),
+    completed: v.number(),
+    queueSize: v.number(),
+    backlogCount: v.number(),
+    pendingReviewCount: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId']),
+
   chatroom_messageQueue: defineTable({
     // Which chatroom this queued message belongs to
     chatroomId: v.id('chatroom_rooms'),
@@ -669,6 +686,20 @@ export default defineSchema({
    * Used to compute unread indicators efficiently without subscribing to full message history.
    * One record per user per chatroom.
    */
+  /**
+   * Materialized per-user per-chatroom unread status.
+   * Updated on message insert (set unread) and markAsRead (clear unread).
+   * Replaces the expensive N+1 computation in listUnreadStatus.
+   */
+  chatroom_unreadStatus: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.string(),
+    hasUnread: v.boolean(),
+    hasUnreadHandoff: v.boolean(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_chatroomId', ['userId', 'chatroomId']),
+
   chatroom_read_cursors: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
@@ -816,6 +847,21 @@ export default defineSchema({
     // Convex mutations are serializable, so the check-then-insert is race-safe.
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
+
+  /**
+   * Machine liveness data — volatile fields separated from the main machine record
+   * to prevent heartbeat-triggered cascading re-evaluations.
+   *
+   * Updated by daemonHeartbeat on every heartbeat. Queries that only need static
+   * machine info (hostname, harnesses, etc.) read from chatroom_machines and
+   * won't re-trigger when liveness data changes.
+   */
+  chatroom_machineLiveness: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    daemonConnected: v.boolean(),
+  })
+    .index('by_machineId', ['machineId']),
 
   /**
    * Model visibility filters for a machine's harness.
@@ -1437,6 +1483,9 @@ export default defineSchema({
     // JSON blob of FileTree (entries array + metadata)
     treeJson: v.string(),
 
+    // Hash of treeJson for server-side dedup (skips write if unchanged)
+    treeHash: v.optional(v.string()),
+
     // When the tree was last scanned
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
@@ -1576,8 +1625,17 @@ export default defineSchema({
     name: v.string(),
     script: v.string(),
     source: v.union(v.literal('package.json'), v.literal('turbo.json')),
-    /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') */
+    /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
     workspace: v.optional(v.string()),
+    /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
+    subWorkspace: v.optional(v.object({
+      /** Ecosystem type (e.g., "npm", "cargo", "go") */
+      type: v.string(),
+      /** Relative path from workspace root to the sub-package directory */
+      path: v.string(),
+      /** Package name from package manager (e.g., "@workspace/webapp") */
+      name: v.string(),
+    })),
     syncedAt: v.number(),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir']),

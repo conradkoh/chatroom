@@ -66,6 +66,7 @@ async function pushSingleWorkspaceFileTree(
     machineId: ctx.machineId,
     workingDir,
     treeJson,
+    treeHash,
     scannedAt: tree.scannedAt,
   });
 

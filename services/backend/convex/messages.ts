@@ -22,6 +22,8 @@ import {
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
+import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
@@ -269,6 +271,9 @@ async function _sendMessageHandler(
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
 
+      // Update materialized queue count
+      await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
+
       // Update chatroom lastActivityAt
       await ctx.db.patch('chatroom_rooms', args.chatroomId, {
         lastActivityAt: Date.now(),
@@ -373,6 +378,11 @@ async function _sendMessageHandler(
       queuePosition,
     });
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  }
+
+  // Update unread status for chatroom owner (skip if sender is the owner's "user" role)
+  if (args.senderRole !== 'user' && chatroom.ownerId) {
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, false);
   }
 
   return messageId;
@@ -663,6 +673,13 @@ async function _handoffHandler(
         }
       }
     }
+  }
+
+  // Update unread status for chatroom owner
+  // Handoff-to-user is specially flagged
+  if (chatroom?.ownerId) {
+    const isHandoffToUser = args.targetRole?.toLowerCase() === 'user';
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
   }
 
   return {
@@ -1123,6 +1140,9 @@ export const deleteQueuedMessage = mutation({
     // Delete the queue record
     await ctx.db.delete('chatroom_messageQueue', args.queuedMessageId);
 
+    // Update materialized queue count
+    await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
+
     return { success: true };
   },
 });
@@ -1347,13 +1367,30 @@ export const listPaginated = query({
       .paginate(args.paginationOpts);
 
     // Enrich messages with task status and attached task details
+    // Batch task lookups: collect unique taskIds, fetch in parallel
+    const uniqueTaskIds = [...new Set(
+      result.page
+        .filter((m) => m.taskId != null)
+        .map((m) => m.taskId!)
+    )];
+    const taskMap = new Map<string, { status: string } | null>();
+    const taskResults = await Promise.all(
+      uniqueTaskIds.map(async (id) => {
+        const task = await ctx.db.get(id);
+        return [id.toString(), task ? { status: task.status } : null] as const;
+      })
+    );
+    for (const [id, task] of taskResults) {
+      taskMap.set(id, task);
+    }
+
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
-        // Fetch task status if message has a linked task
+        // Use batched task lookup
         let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
+          const task = taskMap.get(message.taskId.toString());
+          taskStatus = task?.status as TaskStatus | undefined;
         }
 
         // Resolve attachments (shared helper)

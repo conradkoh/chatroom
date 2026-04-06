@@ -261,19 +261,35 @@ export const listMachines = query({
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect();
 
+    // Join with liveness table for volatile data
+    const machineIds = machines.map((m) => m.machineId);
+    const livenessMap = new Map<string, { lastSeenAt: number; daemonConnected: boolean }>();
+    for (const machineId of machineIds) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machineId, { lastSeenAt: liveness.lastSeenAt, daemonConnected: liveness.daemonConnected });
+      }
+    }
+
     return {
-      machines: machines.map((m) => ({
-        machineId: m.machineId,
-        hostname: m.hostname,
-        alias: m.alias,
-        os: m.os,
-        availableHarnesses: m.availableHarnesses,
-        harnessVersions: m.harnessVersions ?? {},
-        availableModels: m.availableModels ?? {},
-        daemonConnected: m.daemonConnected,
-        lastSeenAt: m.lastSeenAt,
-        registeredAt: m.registeredAt,
-      })),
+      machines: machines.map((m) => {
+        const liveness = livenessMap.get(m.machineId);
+        return {
+          machineId: m.machineId,
+          hostname: m.hostname,
+          alias: m.alias,
+          os: m.os,
+          availableHarnesses: m.availableHarnesses,
+          harnessVersions: m.harnessVersions ?? {},
+          availableModels: m.availableModels ?? {},
+          daemonConnected: liveness?.daemonConnected ?? false,
+          lastSeenAt: liveness?.lastSeenAt ?? 0,
+          registeredAt: m.registeredAt,
+        };
+      }),
     };
   },
 });
@@ -299,9 +315,15 @@ export const getDaemonStatus = query({
       return { connected: false, lastSeenAt: null };
     }
 
+    // Read liveness from dedicated table (fallback to main machine doc)
+    const liveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
     return {
-      connected: machine.daemonConnected,
-      lastSeenAt: machine.lastSeenAt,
+      connected: liveness?.daemonConnected ?? false,
+      lastSeenAt: liveness?.lastSeenAt ?? 0,
     };
   },
 });
@@ -332,6 +354,18 @@ export const getMachineAgentConfigs = query({
       .collect();
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
+    // Read liveness data from dedicated table
+    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    for (const machine of userMachines) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+      }
+    }
+
     const allConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -352,6 +386,7 @@ export const getMachineAgentConfigs = query({
 
     const configsWithMachine = userConfigs.map((config) => {
       const machine = userMachineMap.get(config.machineId!);
+      const liveness = livenessMap.get(config.machineId!);
       return {
         machineId: config.machineId!,
         hostname: machine?.hostname ?? 'Unknown',
@@ -360,7 +395,7 @@ export const getMachineAgentConfigs = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
-        daemonConnected: machine?.daemonConnected ?? false,
+        daemonConnected: liveness?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
@@ -413,21 +448,29 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 5. Fetch all daemon.ping events — no cursor, session dedup handled by daemon
+    // 5. Fetch daemon.ping events — time-bounded to reduce payload
+    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
+    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
+    const PING_TTL_MS = 5 * 60_000; // 5 minutes
     const pingEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
       )
+      .filter((q) => q.gt(q.field('timestamp'), now - PING_TTL_MS))
       .order('asc')
       .collect();
 
-    // 6. Fetch daemon.gitRefresh events — session dedup handled by daemon, idempotent
+    // 6. Fetch daemon.gitRefresh events — time-bounded to reduce payload
+    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
+    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
+    const GIT_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
     const gitRefreshEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.gitRefresh')
       )
+      .filter((q) => q.gt(q.field('timestamp'), now - GIT_REFRESH_TTL_MS))
       .order('asc')
       .collect();
 
@@ -622,10 +665,31 @@ export const updateDaemonStatus = mutation({
     const user = auth.user;
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
-    await ctx.db.patch('chatroom_machines', machine._id, {
+    const now = Date.now();
+
+    await ctx.db.patch(machine._id, {
       daemonConnected: args.connected,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
     });
+
+    // Also update liveness table
+    const existingLiveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (existingLiveness) {
+      await ctx.db.patch(existingLiveness._id, {
+        lastSeenAt: now,
+        daemonConnected: args.connected,
+      });
+    } else {
+      await ctx.db.insert('chatroom_machineLiveness', {
+        machineId: args.machineId,
+        lastSeenAt: now,
+        daemonConnected: args.connected,
+      });
+    }
 
     return { success: true };
   },
@@ -643,12 +707,28 @@ export const daemonHeartbeat = mutation({
       throw new Error('Authentication required');
     }
     const user = auth.user;
-    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+    await getOwnedMachine(ctx, args.machineId, user._id); // ownership check
 
-    await ctx.db.patch('chatroom_machines', machine._id, {
-      lastSeenAt: Date.now(),
-      daemonConnected: true, // Self-healing: recover from transient disconnect (Plan 026)
-    });
+    const now = Date.now();
+
+    // Write liveness data to dedicated table (upsert)
+    const existingLiveness = await ctx.db
+      .query('chatroom_machineLiveness')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (existingLiveness) {
+      await ctx.db.patch(existingLiveness._id, {
+        lastSeenAt: now,
+        daemonConnected: true,
+      });
+    } else {
+      await ctx.db.insert('chatroom_machineLiveness', {
+        machineId: args.machineId,
+        lastSeenAt: now,
+        daemonConnected: true,
+      });
+    }
 
     return { success: true };
   },
@@ -1594,6 +1674,7 @@ export const getAgentStatus = query({
 });
 
 /** Returns the data needed to populate the "Start Agent" form for a specific role. */
+/** Returns the data needed to populate the "Start Agent" form for a specific role. */
 export const getAgentStartConfig = query({
   args: {
     ...SessionIdArg,
@@ -1624,6 +1705,66 @@ export const listAgentOverview = query({
     return listChatroomAgentOverview(ctx, {
       userId: auth.user._id,
     });
+  },
+});
+
+/** Returns agent overview for a single chatroom. Per-chatroom subscription reduces blast radius. */
+export const getAgentOverviewForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const chatroom = await ctx.db.get(args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
+
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .collect();
+    const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+
+    // Read liveness
+    const livenessMap = new Map<string, { daemonConnected: boolean }>();
+    for (const machine of userMachines) {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+        .first();
+      if (liveness) {
+        livenessMap.set(machine.machineId, { daemonConnected: liveness.daemonConnected });
+      }
+    }
+
+    const allConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const currentTeamId = chatroom.teamId;
+    const configs = allConfigs.filter((c) => {
+      if (!c.machineId || !machineMap.has(c.machineId)) return false;
+      if (currentTeamId && c.teamRoleKey) {
+        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+      }
+      return true;
+    });
+
+    const runningConfigs = configs.filter((c) => {
+      if (c.spawnedAgentPid == null) return false;
+      const liveness = livenessMap.get(c.machineId!);
+      return liveness?.daemonConnected === true;
+    });
+
+    return {
+      chatroomId: args.chatroomId as string,
+      agentStatus: configs.length === 0 ? 'none' as const : runningConfigs.length > 0 ? 'running' as const : 'stopped' as const,
+      runningRoles: runningConfigs.map((c) => c.role),
+      runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
+    };
   },
 });
 
