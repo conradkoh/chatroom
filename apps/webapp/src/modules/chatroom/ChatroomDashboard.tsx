@@ -385,13 +385,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
-  const openGitPanelRef = useRef<(() => void) | null>(null);
+  const openGitPanelRef = useRef<((tab?: string) => void) | null>(null);
   const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
 
   // Registration callbacks (stable refs, no re-renders)
-  const handleRegisterOpenGitPanel = useCallback((fn: () => void) => {
+  const handleRegisterOpenGitPanel = useCallback((fn: (tab?: string) => void) => {
     openGitPanelRef.current = fn;
   }, []);
 
@@ -418,6 +418,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   const handleCmdOpenGitPanel = useCallback(() => {
     openGitPanelRef.current?.();
+  }, []);
+
+  const handleCmdOpenPRReview = useCallback(() => {
+    openGitPanelRef.current?.('pr-review');
   }, []);
 
   const handleCmdOpenEventStream = useCallback(() => {
@@ -515,6 +519,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
+    onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,

@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
@@ -10,6 +10,7 @@ import { WorkspaceGitLog } from './WorkspaceGitLog';
 import {
   useWorkspaceGit,
   useFullDiff,
+  usePRDiff,
   useCommitDetail,
   useLoadMoreCommits,
   useGitRefresh,
@@ -24,13 +25,16 @@ interface WorkspaceGitPanelProps {
   workingDir: string;
   /** Optional chatroomId to display in the sidebar footer. */
   chatroomId?: string;
+  /** Optional initial tab to open. */
+  initialTab?: ActiveTab;
 }
 
-type ActiveTab = 'diff' | 'log';
+type ActiveTab = 'diff' | 'log' | 'pr-review';
 
 // ─── Navigation items ─────────────────────────────────────────────────────────
 
-const TABS: { id: ActiveTab; label: string }[] = [
+// Base tabs (always shown)
+const BASE_TABS: { id: ActiveTab; label: string }[] = [
   { id: 'diff', label: 'Changes' },
   { id: 'log', label: 'History' },
 ];
@@ -48,12 +52,14 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   machineId,
   workingDir,
   chatroomId,
+  initialTab,
 }: WorkspaceGitPanelProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('diff');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'diff');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
 
   const gitState = useWorkspaceGit(machineId, workingDir);
   const { state: fullDiffState, request: requestDiff } = useFullDiff(machineId, workingDir);
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir);
   const {
     state: commitDetailState,
     request: requestCommitDetail,
@@ -92,6 +98,27 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     }
   }, [activeTab, selectedCommitSha, gitState, handleSelectCommit]);
 
+  // Determine if PR review tab should be shown
+  const hasActivePR =
+    gitState.status === 'available' && gitState.openPullRequests.length > 0;
+  const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
+
+  // Build tabs dynamically
+  const tabs = hasActivePR
+    ? [...BASE_TABS, { id: 'pr-review' as ActiveTab, label: 'PR Review' }]
+    : BASE_TABS;
+
+  // Auto-request PR diff when switching to PR review tab
+  // Determine base branch — default to 'master'
+  const baseBranch = 'master';
+
+  // Auto-request PR diff when switching to PR review tab
+  useEffect(() => {
+    if (activeTab === 'pr-review' && hasActivePR && prDiffState.status === 'idle') {
+      requestPRDiff(baseBranch);
+    }
+  }, [activeTab, hasActivePR, prDiffState.status, requestPRDiff, baseBranch]);
+
   // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {
     return (
@@ -122,7 +149,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         </div>
 
         {/* Navigation items */}
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -169,11 +196,48 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       <div
         className={cn(
           'flex-1 overflow-y-auto',
-          activeTab === 'diff' || activeTab === 'log' ? 'p-0' : 'p-4'
+          'p-0'
         )}
       >
         {activeTab === 'diff' && (
           <WorkspaceDiffViewer state={fullDiffState} onRequest={requestDiff} />
+        )}
+
+        {activeTab === 'pr-review' && (
+          <div className="flex flex-col h-full">
+            {/* PR header */}
+            {activePR && (
+              <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-chatroom-text-primary">
+                    #{activePR.number}
+                  </span>
+                  <span className="text-xs text-chatroom-text-secondary truncate">
+                    {activePR.title}
+                  </span>
+                  <a
+                    href={activePR.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
+                    title="Open PR on GitHub"
+                  >
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+                <div className="text-[10px] text-chatroom-text-muted mt-1">
+                  {activePR.headRefName} → {baseBranch}
+                </div>
+              </div>
+            )}
+            {/* PR diff content */}
+            <div className="flex-1 overflow-y-auto">
+              <WorkspaceDiffViewer
+                state={prDiffState}
+                onRequest={() => requestPRDiff(baseBranch)}
+              />
+            </div>
+          </div>
         )}
 
         {activeTab === 'log' && (

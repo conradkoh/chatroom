@@ -249,6 +249,84 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
 }
 
 /**
+ * Returns diff statistics for a PR (diff between origin/<baseBranch> and HEAD).
+ * Uses three-dot syntax to diff from the merge-base.
+ */
+export async function getPRDiffStat(
+  workingDir: string,
+  baseBranch: string
+): Promise<GitDiffStatResult> {
+  const result = await runGit(`diff --stat origin/${baseBranch}...HEAD`, workingDir);
+
+  if ('error' in result) {
+    const errMsg = result.error.message;
+    if (isEmptyRepo(errMsg)) {
+      return { status: 'no_commits' };
+    }
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+    return classified;
+  }
+
+  const output = result.stdout;
+  const stderr = result.stderr;
+
+  if (isEmptyRepo(stderr)) {
+    return { status: 'no_commits' };
+  }
+
+  if (!output.trim()) {
+    return {
+      status: 'available',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    };
+  }
+
+  const lines = output.trim().split('\n');
+  const summaryLine = lines[lines.length - 1] ?? '';
+  const diffStat = parseDiffStatLine(summaryLine);
+
+  return { status: 'available', diffStat };
+}
+
+/**
+ * Returns the full unified PR diff (diff between origin/<baseBranch> and HEAD).
+ * Uses three-dot syntax to diff from the merge-base.
+ * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
+ */
+export async function getPRDiff(
+  workingDir: string,
+  baseBranch: string
+): Promise<GitFullDiffResult> {
+  const result = await runGit(`diff origin/${baseBranch}...HEAD`, workingDir);
+
+  if ('error' in result) {
+    const errMsg = result.error.message;
+    if (isEmptyRepo(errMsg)) {
+      return { status: 'no_commits' };
+    }
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+    return classified;
+  }
+
+  const stderr = result.stderr;
+  if (isEmptyRepo(stderr)) {
+    return { status: 'no_commits' };
+  }
+
+  const raw = result.stdout;
+  const byteLength = Buffer.byteLength(raw, 'utf8');
+
+  if (byteLength > FULL_DIFF_MAX_BYTES) {
+    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
+    return { status: 'truncated', content: truncated, truncated: true };
+  }
+
+  return { status: 'available', content: raw, truncated: false };
+}
+
+/**
  * Returns up to `count` recent commits from the current branch.
  * Default: 20 commits. Optional `skip` to paginate (0-based offset).
  *
