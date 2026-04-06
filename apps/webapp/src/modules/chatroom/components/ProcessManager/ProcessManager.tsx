@@ -13,6 +13,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+
+import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
@@ -21,12 +23,8 @@ import { useEscapeToClear } from '../../hooks/useEscapeToClear';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface RunnableCommand {
-  name: string;
-  script: string;
-  source: string;
-  workspace?: string;
-}
+/** A runnable command from the backend. */
+export type RunnableCommand = Doc<'chatroom_runnableCommands'>;
 
 export interface CommandRun {
   _id: string;
@@ -388,7 +386,7 @@ function groupCommandsByWorkspace(
   const groups = new Map<string, RunnableCommand[]>();
 
   for (const cmd of filtered) {
-    const ws = cmd.workspace ?? '.';
+    const ws = cmd.subWorkspace?.path ?? '.';
     const existing = groups.get(ws) ?? [];
     existing.push(cmd);
     groups.set(ws, existing);

@@ -1,5 +1,9 @@
 /**
- * Workspace Resolver — discovers workspace packages in a monorepo.
+ * Sub-Workspace Resolver — discovers sub-workspace packages (monorepo packages) within a project.
+ *
+ * NOTE: "Sub-workspace" refers to package manager workspace packages (e.g., apps/webapp,
+ * packages/cli) within a monorepo. This is distinct from a "chatroom workspace" which
+ * refers to the project root / workingDir.
  *
  * Supports:
  * - pnpm: reads `pnpm-workspace.yaml`
@@ -16,7 +20,7 @@ import type { PackageManager } from './command-discovery.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface WorkspacePackage {
+export interface SubWorkspacePackage {
   /** Package name from package.json (e.g., "@workspace/webapp") */
   name: string;
   /** Absolute path to the package directory */
@@ -24,6 +28,9 @@ export interface WorkspacePackage {
   /** Scripts from the package's package.json */
   scripts: Record<string, string>;
 }
+
+/** @deprecated Use SubWorkspacePackage instead */
+export type WorkspacePackage = SubWorkspacePackage;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -161,10 +168,10 @@ async function readPackageJsonWorkspacePatterns(rootDir: string): Promise<string
  * @param pm - Detected package manager
  * @returns List of workspace packages with name, dir, and scripts
  */
-export async function resolveWorkspacePackages(
+export async function resolveSubWorkspaces(
   rootDir: string,
   pm: PackageManager
-): Promise<WorkspacePackage[]> {
+): Promise<SubWorkspacePackage[]> {
   // 1. Get workspace patterns
   let patterns: string[] = [];
 
@@ -192,7 +199,7 @@ export async function resolveWorkspacePackages(
   const uniqueDirs = [...new Set(allDirs)];
 
   // 3. Read package.json from each directory
-  const packages: WorkspacePackage[] = [];
+  const packages: SubWorkspacePackage[] = [];
   for (const dir of uniqueDirs) {
     const pkg = await readPackageJson(dir);
     if (pkg) {
