@@ -15,7 +15,6 @@ import { str } from './utils/types';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
-import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
@@ -704,7 +703,7 @@ export const daemonHeartbeat = mutation({
       throw new Error('Authentication required');
     }
     const user = auth.user;
-    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+    await getOwnedMachine(ctx, args.machineId, user._id); // ownership check
 
     const now = Date.now();
 
@@ -1670,130 +1669,7 @@ export const getAgentStatus = query({
   },
 });
 
-/** Combined agent status + machine configs for a chatroom. Eliminates duplicate reads. */
-export const getAgentPanelData = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
-
-    const chatroom = await ctx.db.get(args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
-
-    // Read shared data once
-    const userMachines = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
-      .collect();
-    const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
-
-    // Read liveness from dedicated table
-    const livenessMap = new Map<string, { daemonConnected: boolean; lastSeenAt: number }>();
-    for (const machine of userMachines) {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-        .first();
-      if (liveness) {
-        livenessMap.set(machine.machineId, {
-          daemonConnected: liveness.daemonConnected,
-          lastSeenAt: liveness.lastSeenAt,
-        });
-      }
-    }
-
-    // Read team configs
-    const allConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const currentTeamId = chatroom.teamId;
-    const userConfigs = allConfigs.filter((c) => {
-      if (!c.machineId || !userMachineMap.has(c.machineId)) return false;
-      if (currentTeamId && c.teamRoleKey) {
-        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
-      }
-      return true;
-    });
-
-    // Build agent status (from getAgentStatusForChatroom)
-    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
-    const teamConfigByRole = new Map(allConfigs.map((c) => [c.role.toLowerCase(), c]));
-    const agents = teamRoles.map((role: string) => {
-      const roleLower = role.toLowerCase();
-      const teamConfig = teamConfigByRole.get(roleLower);
-      if (!teamConfig) {
-        return { role, state: 'stopped' as const, type: 'remote' as const };
-      }
-      const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
-      let state: 'running' | 'stopped' | 'starting' | 'circuit_open' = 'stopped';
-      if (teamConfig.circuitState === 'open') {
-        state = 'circuit_open';
-      } else if (teamConfig.desiredState === 'running') {
-        state = teamConfig.spawnedAgentPid != null ? 'running' : 'starting';
-      }
-      return {
-        role,
-        state,
-        type: teamConfig.type,
-        machineName: machine?.hostname,
-        agentHarness: teamConfig.agentHarness,
-        model: teamConfig.model,
-        workingDir: teamConfig.workingDir,
-        spawnedAt: teamConfig.spawnedAt,
-      };
-    });
-
-    // Build machine configs (from getMachineAgentConfigs)
-    const configs = userConfigs.map((config) => {
-      const machine = userMachineMap.get(config.machineId!);
-      const liveness = livenessMap.get(config.machineId!);
-      return {
-        machineId: config.machineId!,
-        hostname: machine?.hostname ?? 'Unknown',
-        alias: machine?.alias,
-        role: config.role,
-        agentType: config.agentHarness,
-        workingDir: config.workingDir,
-        model: config.model,
-        daemonConnected: liveness?.daemonConnected ?? false,
-        availableHarnesses: machine?.availableHarnesses ?? [],
-        updatedAt: config.updatedAt,
-        spawnedAgentPid: config.spawnedAgentPid,
-        spawnedAt: config.spawnedAt,
-      };
-    });
-
-    // Build machines list
-    const machines = userMachines.map((m) => {
-      const liveness = livenessMap.get(m.machineId);
-      return {
-        machineId: m.machineId,
-        hostname: m.hostname,
-        alias: m.alias,
-        os: m.os,
-        availableHarnesses: m.availableHarnesses,
-        harnessVersions: m.harnessVersions ?? {},
-        availableModels: m.availableModels ?? {},
-        daemonConnected: liveness?.daemonConnected ?? false,
-        lastSeenAt: liveness?.lastSeenAt ?? 0,
-        registeredAt: m.registeredAt,
-      };
-    });
-
-    return {
-      teamRoles,
-      agents,
-      configs,
-      machines,
-    };
-  },
-});
-
+/** Returns the data needed to populate the "Start Agent" form for a specific role. */
 /** Returns the data needed to populate the "Start Agent" form for a specific role. */
 export const getAgentStartConfig = query({
   args: {
