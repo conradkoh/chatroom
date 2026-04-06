@@ -487,7 +487,7 @@ export const listParticipantPresence = query({
         const participants = await ctx.db
           .query('chatroom_participants')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-          .take(20); // Cap at 20 participants per chatroom
+          .collect();
 
         return participants.map((p) => ({
           chatroomId: chatroom._id as string,
