@@ -167,6 +167,51 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
 }
 
 /**
+ * Process a `pr_diff` request:
+ * Run `git diff origin/<baseBranch>...HEAD`, get diff stat, push via `upsertPRDiff`.
+ */
+async function processPRDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const baseBranch = req.baseBranch ?? 'main';
+  const result = await gitReader.getPRDiff(req.workingDir, baseBranch);
+
+  if (result.status === 'available' || result.status === 'truncated') {
+    const diffStatResult = await gitReader.getPRDiffStat(req.workingDir, baseBranch);
+    const diffStat =
+      diffStatResult.status === 'available'
+        ? diffStatResult.diffStat
+        : { filesChanged: 0, insertions: 0, deletions: 0 };
+
+    await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      baseBranch,
+      diffContent: result.content,
+      truncated: result.truncated,
+      diffStat,
+    });
+
+    console.log(
+      `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (${baseBranch}...HEAD, ${diffStat.filesChanged} files, ${result.truncated ? 'truncated' : 'complete'})`
+    );
+  } else {
+    await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      baseBranch,
+      diffContent: '',
+      truncated: false,
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    });
+
+    console.log(
+      `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (${result.status})`
+    );
+  }
+}
+
+/**
  * Process a `commit_detail` request:
  * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
  */
@@ -298,6 +343,9 @@ export async function processRequests(
           break;
         case 'more_commits':
           await processMoreCommits(ctx, req);
+          break;
+        case 'pr_diff':
+          await processPRDiff(ctx, req);
           break;
       }
 
