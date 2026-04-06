@@ -106,4 +106,37 @@ describe('Daemon Heartbeat', () => {
     });
     expect(afterHeartbeat).toBe(true);
   });
+
+  test('daemonHeartbeat does NOT update chatroom_machines doc', async () => {
+    const { sessionId } = await createTestSession('test-hb-noupdate');
+    const machineId = 'machine-hb-noupdate';
+
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Read machine doc state before heartbeat
+    const beforeMachine = await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return { lastSeenAt: machine!.lastSeenAt };
+    });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Send heartbeat
+    await t.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
+
+    // Verify machine doc lastSeenAt is NOT updated
+    const afterMachine = await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return { lastSeenAt: machine!.lastSeenAt };
+    });
+
+    // Machine doc should NOT have been updated by heartbeat
+    expect(afterMachine.lastSeenAt).toBe(beforeMachine.lastSeenAt);
+  });
 });
