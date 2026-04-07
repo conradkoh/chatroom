@@ -28,11 +28,12 @@ import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { InlineDiffStat } from './shared';
+import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-import type { GitRemote } from '../types/git';
+import type { GitRemote, CommitStatusSummary } from '../types/git';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import {
@@ -167,6 +168,8 @@ interface DerivedGitInfo {
   openPullRequests: { number: number; title: string; url: string }[];
   /** Diff stat (zeros when not available). */
   diffStat: { filesChanged: number; insertions: number; deletions: number };
+  /** CI/CD status for the current branch head commit. */
+  headCommitStatus: CommitStatusSummary | null;
 }
 
 function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): DerivedGitInfo {
@@ -178,6 +181,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   const remotes = isAvailable ? gitState.remotes : [];
   const openPullRequests = isAvailable ? gitState.openPullRequests : [];
   const diffStat = isAvailable ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
+  const headCommitStatus = (isAvailable ? gitState.headCommitStatus : null) ?? null;
 
   const hasPR = openPullRequests.length > 0;
   const branchDisplay = isAvailable
@@ -197,6 +201,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   return {
     isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
     isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat,
+    headCommitStatus,
   };
 }
 
@@ -300,7 +305,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
 }) {
   const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const sendAction = useSendLocalAction();
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat, headCommitStatus } =
     useDerivedGitInfo(workspace, isLocal);
 
   // Show the popover if there's anything to show (local actions or repo link)
@@ -318,7 +323,8 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             <RemotePopover remotes={remotes} />
           )}
 
-          {/* Branch + PR — clickable popover with GitHub Desktop + View on GitHub */}
+          {/* Branch + PR + CI status — grouped together */}
+          <div className="inline-flex items-center gap-0.5 shrink-0">
           {hasPopoverContent ? (
             <Popover>
               <PopoverTrigger asChild>
@@ -380,6 +386,10 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
               </span>
             </div>
           )}
+          {headCommitStatus && (
+            <CommitStatusIndicator status={headCommitStatus} />
+          )}
+          </div>
 
           {/* Diff stats — clickable, opens git panel */}
           <button

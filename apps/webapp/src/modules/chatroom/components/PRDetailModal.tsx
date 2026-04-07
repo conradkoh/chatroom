@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/fixed-modal';
 
 import { WorkspaceDiffViewer } from '../workspace/components/WorkspaceDiffViewer';
+import { PRActionButtons } from '../workspace/components/PRActionButtons';
 import { usePRDiff } from '../workspace/hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../workspace/types/git';
 
@@ -23,6 +24,8 @@ interface PRDetailModalProps {
   pr: GitPullRequest;
   machineId: string;
   workingDir: string;
+  onPRAction?: (prNumber: number, action: 'merge_squash' | 'merge_no_squash' | 'close') => Promise<void>;
+  prActionLoading?: boolean;
 }
 
 /**
@@ -35,6 +38,8 @@ export const PRDetailModal = memo(function PRDetailModal({
   pr,
   machineId,
   workingDir,
+  onPRAction,
+  prActionLoading,
 }: PRDetailModalProps) {
   const baseBranch = pr.baseRefName ?? 'master';
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir);
@@ -78,6 +83,14 @@ export const PRDetailModal = memo(function PRDetailModal({
             {pr.headRefName} → {baseBranch}
           </span>
         </div>
+        {onPRAction && pr.state === 'OPEN' && (
+          <div className="px-4 py-2 border-b border-chatroom-border">
+            <PRActionButtons
+              onAction={(action) => onPRAction(pr.number, action)}
+              loading={prActionLoading}
+            />
+          </div>
+        )}
         <FixedModalBody className="p-0 overflow-hidden">
           <div className="h-full overflow-y-auto">
             <WorkspaceDiffViewer

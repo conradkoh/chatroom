@@ -35,6 +35,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   onOpenPRReview?: (() => void) | null;
+  onViewGitHubPullRequests?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
@@ -64,6 +65,7 @@ export function useCommandPaletteCommands({
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
   onOpenPRReview,
+  onViewGitHubPullRequests,
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
@@ -109,7 +111,7 @@ export function useCommandPaletteCommands({
     commands.push(
       {
         id: 'nav-switch-chatroom',
-        label: 'Switch Chatroom',
+        label: 'Chatroom: Switch Chatroom',
         icon: <ArrowRightLeft size={14} />,
         category: 'Navigate',
         shortcut: '⌘K',
@@ -117,7 +119,7 @@ export function useCommandPaletteCommands({
       },
       {
         id: 'nav-go-to-file',
-        label: 'Go to File',
+        label: 'Chatroom: Go to File',
         icon: <FileSearch size={14} />,
         category: 'Navigate',
         shortcut: '⌘P',
@@ -129,7 +131,7 @@ export function useCommandPaletteCommands({
     if (onOpenInVSCode) {
       commands.push({
         id: 'action-open-vscode',
-        label: 'Open in VS Code',
+        label: 'Machine: Open in VS Code',
         icon: <Code2 size={14} />,
         category: 'Actions',
         action: onOpenInVSCode,
@@ -139,19 +141,31 @@ export function useCommandPaletteCommands({
     if (onOpenInGitHubDesktop) {
       commands.push({
         id: 'action-open-github-desktop',
-        label: 'Open in GitHub Desktop',
+        label: 'Machine: Open in GitHub Desktop',
         icon: <SiGithub size={14} />,
         category: 'Actions',
         action: onOpenInGitHubDesktop,
       });
     }
 
+    if (onViewGitHubPullRequests) {
+      commands.push({
+        id: 'action-view-github-prs',
+        label: 'Github: View Pull Requests',
+        icon: <SiGithub size={14} />,
+        category: 'Actions',
+        keywords: ['PR', 'PRs'],
+        action: onViewGitHubPullRequests,
+      });
+    }
+
     if (onOpenPROnGitHub) {
       commands.push({
         id: 'action-open-pr-github',
-        label: 'PR: Open on GitHub',
+        label: 'Github: View Current PR',
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
+        keywords: ['PR'],
         action: onOpenPROnGitHub,
       });
     }
@@ -159,9 +173,10 @@ export function useCommandPaletteCommands({
     if (onOpenPRReview) {
       commands.push({
         id: 'action-pr-review-diff',
-        label: 'PR: Review PRs',
+        label: 'Chatroom: Review Pull Requests',
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
+        keywords: ['PR', 'PRs', 'Review'],
         action: onOpenPRReview,
       });
     }
@@ -169,7 +184,7 @@ export function useCommandPaletteCommands({
     if (onOpenWorkspaceDetails) {
       commands.push({
         id: 'action-open-workspace-details',
-        label: 'Open Workspace Details',
+        label: 'Machine: Workspace Details',
         icon: <PanelBottomOpen size={14} />,
         category: 'Actions',
         action: onOpenWorkspaceDetails,
@@ -180,35 +195,35 @@ export function useCommandPaletteCommands({
     commands.push(
       {
         id: 'panel-git',
-        label: 'Show Git Panel',
+        label: 'Chatroom: Git Panel',
         icon: <GitBranch size={14} />,
         category: 'Panels',
         action: onOpenGitPanel,
       },
       {
         id: 'panel-configuration',
-        label: 'Show Configuration',
+        label: 'Chatroom: Configuration',
         icon: <Settings size={14} />,
         category: 'Panels',
         action: () => onOpenSettings('setup'),
       },
       {
         id: 'panel-event-stream',
-        label: 'Show Event Stream',
+        label: 'Chatroom: Event Stream',
         icon: <Activity size={14} />,
         category: 'Panels',
         action: onOpenEventStream,
       },
       {
         id: 'panel-pending-review',
-        label: 'Show Pending Review',
+        label: 'Chatroom: Pending Review',
         icon: <ClipboardCheck size={14} />,
         category: 'Panels',
         action: onOpenPendingReview,
       },
       {
         id: 'panel-backlog',
-        label: 'Show Backlog',
+        label: 'Chatroom: Backlog',
         icon: <ListTodo size={14} />,
         category: 'Panels',
         action: onOpenBacklog,
@@ -219,7 +234,7 @@ export function useCommandPaletteCommands({
     if (onOpenProcessManager) {
       commands.push({
         id: 'panel-process-manager',
-        label: 'Open Process Manager',
+        label: 'Chatroom: Process Manager',
         icon: <Terminal size={14} />,
         category: 'Panels',
         action: onOpenProcessManager,
@@ -239,6 +254,7 @@ export function useCommandPaletteCommands({
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
     onOpenPRReview,
+    onViewGitHubPullRequests,
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,

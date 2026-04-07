@@ -6,6 +6,7 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
 import { PRDetailModal } from '../../components/PRDetailModal';
+import { PRActionButtons } from './PRActionButtons';
 
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
@@ -105,6 +106,27 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       }
     },
     [activePR, prActionLoading, machineId, workingDir, requestPRActionMutation]
+  );
+
+  // PR action from the detail modal (any PR, not just activePR)
+  const handlePRDetailAction = useCallback(
+    async (prNumber: number, action: 'merge_squash' | 'merge_no_squash' | 'close') => {
+      if (prActionLoading) return;
+      setPrActionLoading(true);
+      try {
+        await requestPRActionMutation({
+          machineId,
+          workingDir,
+          prNumber,
+          prAction: action,
+        });
+      } catch (err) {
+        console.error('PR action failed:', err);
+      } finally {
+        setPrActionLoading(false);
+      }
+    },
+    [prActionLoading, machineId, workingDir, requestPRActionMutation]
   );
 
   const handleSelectCommit = useCallback(
@@ -347,31 +369,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                   </div>
                 </div>
                 {/* PR action buttons */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('merge_squash')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {prActionLoading ? '...' : 'Merge (Squash)'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('merge_no_squash')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Merge
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('close')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Close
-                  </button>
+                <div className="px-4 py-2 border-b border-chatroom-border">
+                  <PRActionButtons onAction={handlePRAction} loading={prActionLoading} />
                 </div>
                 {/* PR diff content */}
                 <div className="flex-1 overflow-y-auto">
@@ -439,6 +438,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         pr={selectedPR}
         machineId={machineId}
         workingDir={workingDir}
+        onPRAction={handlePRDetailAction}
+        prActionLoading={prActionLoading}
       />
     )}
     </>

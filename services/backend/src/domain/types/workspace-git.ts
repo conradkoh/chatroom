@@ -87,6 +87,12 @@ export type WorkspaceGitState =
       remotes: GitRemote[];
       /** Number of commits ahead of the upstream tracking branch (unpushed). 0 if no upstream. */
       commitsAhead: number;
+      /** Default branch name (e.g. 'main', 'master'). Null if gh unavailable. */
+      defaultBranch?: string | null;
+      /** CI/CD status checks for the current branch head commit. */
+      headCommitStatus?: CommitStatusSummary | null;
+      /** CI/CD status checks for the latest default branch commit. */
+      defaultBranchStatus?: CommitStatusSummary | null;
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }
@@ -108,4 +114,18 @@ export interface GitRemote {
   name: string;
   /** Remote URL (HTTPS or SSH). */
   url: string;
+}
+
+/** Summary of CI/CD commit status checks. */
+export interface CommitStatusSummary {
+  /** Combined state: 'success' | 'failure' | 'pending' | 'error' | 'neutral' */
+  state: string;
+  /** Individual check runs */
+  checkRuns: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+  }>;
+  /** Total number of checks */
+  totalCount: number;
 }

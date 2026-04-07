@@ -1384,6 +1384,37 @@ export default defineSchema({
     // Commits ahead of upstream tracking branch (unpushed)
     commitsAhead: v.optional(v.number()),
 
+    // Default branch name (e.g. 'main', 'master')
+    defaultBranch: v.optional(v.union(v.string(), v.null())),
+
+    // CI/CD status checks for the current branch head commit
+    headCommitStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
+
+    // CI/CD status checks for the latest default branch commit
+    defaultBranchStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
+
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
@@ -1588,6 +1619,20 @@ export default defineSchema({
   })
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * On-demand file tree scan requests.
+   * Frontend requests a fresh tree scan; daemon fulfills by scanning and calling syncFileTree.
+   */
+  chatroom_workspaceFileTreeRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    status: v.string(), // 'pending' | 'done'
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   // ─── Structured Workflows ────────────────────────────────────────────────────
   // DAG-based workflows that agents create and execute step-by-step.

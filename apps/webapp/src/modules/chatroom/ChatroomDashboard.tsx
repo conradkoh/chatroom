@@ -451,6 +451,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     return pr?.url ?? null;
   }, [gitState]);
 
+  // Derive GitHub repo URL from git remotes
+  const gitHubRepoUrl = useMemo(() => {
+    if (gitState.status !== 'available') return null;
+    const origin = gitState.remotes.find((r) => r.name === 'origin');
+    if (!origin) return null;
+    const url = origin.url;
+    // SSH format: git@github.com:owner/repo.git
+    const sshMatch = url.match(/^git@github\.com:(.+?)(\.git)?$/);
+    if (sshMatch) return `https://github.com/${sshMatch[1]}`;
+    // HTTPS format: https://github.com/owner/repo.git
+    const httpsMatch = url.match(/^https:\/\/github\.com\/(.+?)(\.git)?$/);
+    if (httpsMatch) return `https://github.com/${httpsMatch[1]}`;
+    return null;
+  }, [gitState]);
+
   // Action command callbacks — stable, conditionally nulled
   const handleOpenInVSCode = useCallback(() => {
     if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
@@ -467,6 +482,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleOpenPROnGitHub = useCallback(() => {
     if (prUrl) openExternalUrl(prUrl);
   }, [prUrl]);
+
+  const handleViewGitHubPullRequests = useCallback(() => {
+    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
+  }, [gitHubRepoUrl]);
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();
@@ -520,6 +539,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
+    onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,

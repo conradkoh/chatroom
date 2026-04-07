@@ -746,3 +746,107 @@ export async function getCommitsAhead(workingDir: string): Promise<number> {
   const count = parseInt(result.stdout.trim(), 10);
   return Number.isNaN(count) ? 0 : count;
 }
+
+// ─── Commit Status Checks ─────────────────────────────────────────────────────
+
+/** A single CI/CD check run. */
+export interface CommitStatusCheckRun {
+  name: string;
+  status: string;           // 'completed', 'in_progress', 'queued'
+  conclusion: string | null; // 'success', 'failure', 'skipped', 'cancelled', etc.
+}
+
+/** Combined commit status check result. */
+export interface CommitStatusCheck {
+  /** Overall combined status: 'success' | 'failure' | 'pending' | 'error' | 'neutral' */
+  state: string;
+  /** Individual check runs */
+  checkRuns: CommitStatusCheckRun[];
+  /** Total number of status checks */
+  totalCount: number;
+}
+
+/**
+ * Get CI/CD commit status checks for a given ref (branch or SHA).
+ *
+ * Uses `gh api` to fetch check runs and combined commit status.
+ * Returns null if `gh` is unavailable or any error occurs (non-blocking).
+ */
+export async function getCommitStatusChecks(
+  cwd: string,
+  ref: string
+): Promise<CommitStatusCheck | null> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  if (!repoSlug) return null;
+
+  try {
+    // Fetch check runs and combined status in parallel
+    const [checkRunsResult, statusResult] = await Promise.all([
+      runCommand(
+        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/check-runs --jq '{check_runs: [.check_runs[] | {name: .name, status: .status, conclusion: .conclusion}], total_count: .total_count}'`,
+        cwd
+      ),
+      runCommand(
+        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/status --jq '.state'`,
+        cwd
+      ),
+    ]);
+
+    if ('error' in checkRunsResult || 'error' in statusResult) return null;
+
+    const checkRunsData = JSON.parse(checkRunsResult.stdout.trim()) as {
+      check_runs: Array<{ name: string; status: string; conclusion: string | null }>;
+      total_count: number;
+    };
+
+    const combinedState = statusResult.stdout.trim() || 'pending';
+
+    // Determine overall state: prefer check runs conclusion over legacy status API
+    let state = combinedState;
+    if (checkRunsData.total_count > 0) {
+      const conclusions = checkRunsData.check_runs.map((cr) => cr.conclusion);
+      if (conclusions.some((c) => c === 'failure' || c === 'timed_out')) {
+        state = 'failure';
+      } else if (conclusions.every((c) => c === 'success' || c === 'skipped' || c === 'neutral')) {
+        state = 'success';
+      } else if (checkRunsData.check_runs.some((cr) => cr.status !== 'completed')) {
+        state = 'pending';
+      }
+    }
+
+    return {
+      state,
+      checkRuns: checkRunsData.check_runs.map((cr) => ({
+        name: cr.name,
+        status: cr.status,
+        conclusion: cr.conclusion,
+      })),
+      totalCount: checkRunsData.total_count,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the default branch name for the repository (e.g. 'main', 'master').
+ *
+ * Uses `gh api` to query the repo metadata.
+ * Returns null if `gh` is unavailable or any error occurs.
+ */
+export async function getDefaultBranch(cwd: string): Promise<string | null> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  if (!repoSlug) return null;
+
+  try {
+    const result = await runCommand(
+      `gh api repos/${repoSlug} --jq '.default_branch'`,
+      cwd
+    );
+    if ('error' in result) return null;
+    const branch = result.stdout.trim();
+    return branch || null;
+  } catch {
+    return null;
+  }
+}

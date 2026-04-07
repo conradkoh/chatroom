@@ -1,7 +1,7 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
@@ -27,11 +27,23 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
   );
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  // Fetch file tree
+  // Request file tree mutation
+  const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+
+  // Fetch file tree — only subscribe when the file selector is open
   const treeResult = useSessionQuery(
     api.workspaceFiles.getFileTree,
-    machineId && workingDir ? { machineId, workingDir } : 'skip'
+    open && machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
+
+  // Request a fresh file tree scan when the selector opens
+  useEffect(() => {
+    if (open && machineId && workingDir) {
+      requestFileTreeMutation({ machineId, workingDir }).catch(() => {
+        // Non-blocking — tree may already be cached
+      });
+    }
+  }, [open, machineId, workingDir, requestFileTreeMutation]);
 
   // Parse file tree entries
   const entries: FileEntry[] = (() => {

@@ -19,6 +19,8 @@ import {
   getCommitDetail,
   getOpenPRsForBranch,
   getCommitsAhead,
+  getCommitStatusChecks,
+  getDefaultBranch,
   parseDiffStatLine,
   parseRepoSlug,
   getOriginRepoSlug,
@@ -617,5 +619,112 @@ describe('getCommitsAhead', () => {
     mockSuccess('not-a-number\n');
     const result = await getCommitsAhead('/repo');
     expect(result).toBe(0);
+  });
+});
+
+// ─── getCommitStatusChecks ──────────────────────────────────────────────────
+
+describe('getCommitStatusChecks', () => {
+  test('returns status checks when gh api succeeds', async () => {
+    // First call: getOriginRepoSlug -> git remote get-url origin
+    mockSuccess('https://github.com/owner/repo.git\n');
+    // Second call: gh api check-runs
+    mockSuccess(JSON.stringify({
+      check_runs: [
+        { name: 'build', status: 'completed', conclusion: 'success' },
+        { name: 'test', status: 'completed', conclusion: 'success' },
+      ],
+      total_count: 2,
+    }));
+    // Third call: gh api status
+    mockSuccess('success\n');
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).not.toBeNull();
+    expect(result!.state).toBe('success');
+    expect(result!.checkRuns).toHaveLength(2);
+    expect(result!.totalCount).toBe(2);
+  });
+
+  test('returns failure state when a check run fails', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(JSON.stringify({
+      check_runs: [
+        { name: 'build', status: 'completed', conclusion: 'failure' },
+        { name: 'test', status: 'completed', conclusion: 'success' },
+      ],
+      total_count: 2,
+    }));
+    mockSuccess('failure\n');
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).not.toBeNull();
+    expect(result!.state).toBe('failure');
+  });
+
+  test('returns pending state when checks are in progress', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(JSON.stringify({
+      check_runs: [
+        { name: 'build', status: 'in_progress', conclusion: null },
+      ],
+      total_count: 1,
+    }));
+    mockSuccess('pending\n');
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).not.toBeNull();
+    expect(result!.state).toBe('pending');
+  });
+
+  test('returns null when repo slug cannot be determined', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).toBeNull();
+  });
+
+  test('returns null when gh api fails', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockFailure('gh: not found');
+    mockFailure('gh: not found');
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).toBeNull();
+  });
+});
+
+// ─── getDefaultBranch ───────────────────────────────────────────────────────
+
+describe('getDefaultBranch', () => {
+  test('returns default branch name', async () => {
+    // First call: getOriginRepoSlug -> git remote get-url origin
+    mockSuccess('https://github.com/owner/repo.git\n');
+    // Second call: gh api repos/owner/repo -> default_branch
+    mockSuccess('main\n');
+
+    const result = await getDefaultBranch('/repo');
+    expect(result).toBe('main');
+  });
+
+  test('returns null when repo slug cannot be determined', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getDefaultBranch('/repo');
+    expect(result).toBeNull();
+  });
+
+  test('returns null when gh api fails', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockFailure('gh: not found');
+
+    const result = await getDefaultBranch('/repo');
+    expect(result).toBeNull();
+  });
+
+  test('returns null for empty response', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess('\n');
+
+    const result = await getDefaultBranch('/repo');
+    expect(result).toBeNull();
   });
 });

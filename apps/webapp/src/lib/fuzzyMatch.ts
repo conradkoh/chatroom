@@ -64,6 +64,16 @@ export function fuzzyMatch(query: string, target: string): number {
  * each item. Returns 0 for no match, or a positive number (used for ranking;
  * higher = better). cmdk treats any value > 0 as a match.
  */
-export function fuzzyFilter(value: string, search: string): number {
-  return fuzzyMatch(search, value);
+export function fuzzyFilter(value: string, search: string, keywords?: string[]): number {
+  const valueScore = fuzzyMatch(search, value);
+
+  if (!keywords || keywords.length === 0) return valueScore;
+
+  let maxScore = valueScore;
+  for (const keyword of keywords) {
+    const keywordScore = fuzzyMatch(search, keyword);
+    if (keywordScore > maxScore) maxScore = keywordScore;
+  }
+
+  return maxScore;
 }
