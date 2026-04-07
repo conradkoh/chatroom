@@ -5,6 +5,8 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
+import { PRDetailModal } from '../../components/PRDetailModal';
+
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { WorkspaceGitBranch } from './WorkspaceGitBranch';
@@ -82,6 +84,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'diff');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
   const [prFilter, setPrFilter] = useState<'open' | 'closed' | 'merged'>('open');
+  const [prDetailOpen, setPrDetailOpen] = useState(false);
+  const [selectedPR, setSelectedPR] = useState<import('../types/git').GitPullRequest | null>(null);
 
   const gitState = useWorkspaceGit(machineId, workingDir);
   const { state: fullDiffState, request: requestDiff } = useFullDiff(machineId, workingDir);
@@ -189,6 +193,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   }
 
   return (
+    <>
     <div className="flex flex-row h-full">
       {/* Side panel */}
       <div className="w-40 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto flex flex-col">
@@ -293,8 +298,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                       key={pr.number}
                       type="button"
                       onClick={() => {
-                        // Navigate to PR review tab for this PR
-                        setActiveTab('pr-review');
+                        setSelectedPR(pr);
+                        setPrDetailOpen(true);
                       }}
                       className="w-full text-left px-4 py-3 border-b border-chatroom-border hover:bg-chatroom-bg-hover transition-colors"
                     >
@@ -431,5 +436,20 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         )}
       </div>
     </div>
+
+    {/* PR Detail Modal */}
+    {selectedPR && (
+      <PRDetailModal
+        isOpen={prDetailOpen}
+        onClose={() => {
+          setPrDetailOpen(false);
+          setSelectedPR(null);
+        }}
+        pr={selectedPR}
+        machineId={machineId}
+        workingDir={workingDir}
+      />
+    )}
+    </>
   );
 });
