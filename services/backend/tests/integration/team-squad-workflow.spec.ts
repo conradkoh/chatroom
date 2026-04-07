@@ -43,6 +43,17 @@ async function createSquadTeamChatroom(sessionId: SessionId): Promise<Id<'chatro
     teamRoles: ['planner', 'builder', 'reviewer'],
     teamEntryPoint: 'planner',
   });
+  // Create workflow for planner→builder handoffs
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workflows', {
+      chatroomId,
+      workflowKey: 'test-workflow',
+      status: 'active' as const,
+      createdBy: 'planner',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
   return chatroomId;
 }
 

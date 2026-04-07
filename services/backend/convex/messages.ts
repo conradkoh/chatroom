@@ -481,6 +481,39 @@ async function _handoffHandler(
     }
   }
 
+  // Validate workflow requirement for planner→builder handoffs (blocking)
+  if (normalizedSenderRole === 'planner' && normalizedTargetRole === 'builder') {
+    const activeWorkflow = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'active')
+      )
+      .first();
+
+    if (!activeWorkflow) {
+      const draftWorkflow = await ctx.db
+        .query('chatroom_workflows')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'draft')
+        )
+        .first();
+
+      if (!draftWorkflow) {
+        return {
+          success: false,
+          error: {
+            code: 'WORKFLOW_REQUIRED',
+            message: 'Active workflow required for planner → builder handoff. Create a workflow first.',
+          },
+          messageId: null,
+          completedTaskIds: [],
+          newTaskId: null,
+          promotedTaskId: null,
+        };
+      }
+    }
+  }
+
   // Validate handoff to user is allowed based on classification
   if (isHandoffToUser) {
     // Get the most recent classified user message to determine restrictions (optimized)

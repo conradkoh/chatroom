@@ -789,3 +789,35 @@ export const resolveWorkflowId = query({
     return { workflowId: workflow._id };
   },
 });
+
+/**
+ * Check if there's any active (or draft) workflow in a chatroom.
+ * Used by the CLI to enforce workflow requirements for planner→builder handoffs.
+ */
+export const hasActiveWorkflow = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const activeWorkflow = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'active')
+      )
+      .first();
+
+    if (activeWorkflow) return { hasActive: true };
+
+    const draftWorkflow = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'draft')
+      )
+      .first();
+
+    return { hasActive: !!draftWorkflow };
+  },
+});
