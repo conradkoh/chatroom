@@ -1426,7 +1426,8 @@ export default defineSchema({
       v.literal('full_diff'),
       v.literal('commit_detail'),
       v.literal('more_commits'),
-      v.literal('pr_diff')
+      v.literal('pr_diff'),
+      v.literal('pr_action')
     ),
     // For commit_detail requests
     sha: v.optional(v.string()),
@@ -1434,6 +1435,9 @@ export default defineSchema({
     offset: v.optional(v.number()),
     // For pr_diff requests
     baseBranch: v.optional(v.string()),
+    // For pr_action requests
+    prAction: v.optional(v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close'))),
+    prNumber: v.optional(v.number()),
     // Request status
     status: v.union(
       v.literal('pending'),

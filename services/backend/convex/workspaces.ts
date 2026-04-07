@@ -841,6 +841,40 @@ export const requestPRDiff = mutation({
 });
 
 /**
+ * Requests a PR action (merge/close) to be executed by the daemon.
+ *
+ * NOT idempotent — each call creates a new request.
+ */
+export const requestPRAction = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+    prAction: v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close')),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'pr_action',
+      prAction: args.prAction,
+      prNumber: args.prNumber,
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
  * Requests the full diff for a specific commit SHA.
  *
  * Idempotent: if a pending request already exists for the same SHA, it is not duplicated.
