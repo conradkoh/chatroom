@@ -180,6 +180,7 @@ export const getWorkspaceGitState = query({
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
         openPullRequests: row.openPullRequests ?? [],
+        allPullRequests: row.allPullRequests ?? [],
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         updatedAt: row.updatedAt,
@@ -403,6 +404,24 @@ export const upsertWorkspaceGitState = mutation({
         })
       )
     ),
+    allPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          baseRefName: v.optional(v.string()),
+          state: v.string(),
+          author: v.optional(v.string()),
+          createdAt: v.optional(v.string()),
+          updatedAt: v.optional(v.string()),
+          mergedAt: v.optional(v.union(v.string(), v.null())),
+          closedAt: v.optional(v.union(v.string(), v.null())),
+          isDraft: v.optional(v.boolean()),
+        })
+      )
+    ),
     // Git remotes
     remotes: v.optional(
       v.array(
@@ -436,6 +455,7 @@ export const upsertWorkspaceGitState = mutation({
       recentCommits: args.recentCommits,
       hasMoreCommits: args.hasMoreCommits,
       openPullRequests: args.openPullRequests,
+      allPullRequests: args.allPullRequests,
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
       errorMessage: args.errorMessage,

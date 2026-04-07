@@ -9,6 +9,7 @@ import { Code2 } from 'lucide-react';
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
+import { EditorModal } from './EditorModal';
 import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAttachments } from '../context/AttachmentsContext';
 
 interface SendFormProps {
@@ -113,6 +114,10 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       return next;
     });
   }, []);
+  void toggleEditorMode; // Kept for potential future inline editor mode re-enablement
+
+  // ── Editor modal ───────────────────────────────────────────────────────────
+  const [editorOpen, setEditorOpen] = useState(false);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
@@ -269,6 +274,50 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     setMessage(e.target.value);
   }, []);
 
+  // ── Editor modal callbacks ────────────────────────────────────────────────────
+  const handleEditorClose = useCallback((editedText: string) => {
+    setMessage(editedText);
+    setEditorOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
+  const handleEditorSend = useCallback(
+    async (text: string) => {
+      setMessage(text);
+      setEditorOpen(false);
+      if (!text.trim() || sending) return;
+      setSending(true);
+      try {
+        await sendMessage({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          senderRole: 'user',
+          content: text.trim(),
+          type: 'message',
+          ...(attachedTasks.length > 0 && {
+            attachedTaskIds: attachedTasks.map((task) => task.id),
+          }),
+          ...(attachedBacklogItems.length > 0 && {
+            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
+          }),
+          ...(attachedMessages.length > 0 && {
+            attachedMessageIds: attachedMessages.map((msg) => msg.id),
+          }),
+        });
+        setMessage('');
+        localStorage.removeItem(draftKey);
+        if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
+          clearAll();
+        }
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      } finally {
+        setSending(false);
+      }
+    },
+    [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]
+  );
+
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong">
       {/* Attached Tasks Row */}
@@ -327,8 +376,8 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
           {!isTouchDevice && (
             <button
               type="button"
-              onClick={toggleEditorMode}
-              title={editorMode ? 'Switch to normal mode' : 'Switch to editor mode'}
+              onClick={() => setEditorOpen(true)}
+              title="Open editor"
               className={`p-2.5 border-2 transition-all duration-100 ${
                 editorMode
                   ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
@@ -350,6 +399,14 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
           </button>
         </div>
       </form>
+
+      {/* Editor Modal */}
+      <EditorModal
+        isOpen={editorOpen}
+        initialValue={message}
+        onClose={handleEditorClose}
+        onSend={handleEditorSend}
+      />
     </div>
   );
 });
