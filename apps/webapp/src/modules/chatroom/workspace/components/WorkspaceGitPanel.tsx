@@ -107,6 +107,27 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     [activePR, prActionLoading, machineId, workingDir, requestPRActionMutation]
   );
 
+  // PR action from the detail modal (any PR, not just activePR)
+  const handlePRDetailAction = useCallback(
+    async (prNumber: number, action: 'merge_squash' | 'merge_no_squash' | 'close') => {
+      if (prActionLoading) return;
+      setPrActionLoading(true);
+      try {
+        await requestPRActionMutation({
+          machineId,
+          workingDir,
+          prNumber,
+          prAction: action,
+        });
+      } catch (err) {
+        console.error('PR action failed:', err);
+      } finally {
+        setPrActionLoading(false);
+      }
+    },
+    [prActionLoading, machineId, workingDir, requestPRActionMutation]
+  );
+
   const handleSelectCommit = useCallback(
     (sha: string) => {
       clearCommitDetail(); // reset so it loads fresh
@@ -439,6 +460,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         pr={selectedPR}
         machineId={machineId}
         workingDir={workingDir}
+        onPRAction={handlePRDetailAction}
+        prActionLoading={prActionLoading}
       />
     )}
     </>
