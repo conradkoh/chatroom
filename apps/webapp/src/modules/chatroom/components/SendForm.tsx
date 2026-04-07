@@ -93,30 +93,12 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-// ── Editor mode storage key ────────────────────────────────────────────────
-const EDITOR_MODE_KEY = 'chatroom:editor-mode';
-
 export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
-  // ── Editor mode ───────────────────────────────────────────────────────────
-  const [editorMode, setEditorMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(EDITOR_MODE_KEY) === 'true';
-  });
-  const toggleEditorMode = useCallback(() => {
-    setEditorMode((prev) => {
-      const next = !prev;
-      localStorage.setItem(EDITOR_MODE_KEY, String(next));
-      return next;
-    });
-  }, []);
-  void toggleEditorMode; // Kept for potential future inline editor mode re-enablement
-
-  // ── Editor modal ───────────────────────────────────────────────────────────
   const [editorOpen, setEditorOpen] = useState(false);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
@@ -162,19 +144,18 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
 
     onBeforeResize?.();
 
-    const maxHeight = editorMode ? 400 : 200;
 
     // Set height to 0 to get accurate scrollHeight (Safari workaround)
     textarea.style.height = '0px';
     const scrollHeight = textarea.scrollHeight;
     // Set to content height, capped at max with min of 40px (matches button height)
-    const newHeight = Math.max(40, Math.min(scrollHeight, maxHeight));
+    const newHeight = Math.max(40, Math.min(scrollHeight, 200));
     textarea.style.height = `${newHeight}px`;
     // Only show overflow when content exceeds max height
-    textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+    textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
 
     onAfterResize?.();
-  }, [message, editorMode, onBeforeResize, onAfterResize]);
+  }, [message, onBeforeResize, onAfterResize]);
 
   const handleSubmit = useCallback(async () => {
     if (!message.trim() || sending) return;
@@ -226,32 +207,6 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
         return;
       }
 
-      if (editorMode) {
-        // Editor mode: Tab inserts 2 spaces
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          const textarea = textareaRef.current;
-          if (textarea) {
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const newValue = message.substring(0, start) + '  ' + message.substring(end);
-            setMessage(newValue);
-            // Restore cursor position after state update
-            requestAnimationFrame(() => {
-              textarea.selectionStart = textarea.selectionEnd = start + 2;
-            });
-          }
-        }
-        // Editor mode: Cmd/Ctrl+Enter sends
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          handleSubmit();
-          return;
-        }
-        // Editor mode: Enter = newline (default behavior, no preventDefault)
-        return;
-      }
-
       // Normal mode: Enter without Shift sends the message
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -259,7 +214,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice, editorMode, message]
+    [handleSubmit, isTouchDevice]
   );
 
   const handleFormSubmit = useCallback(
@@ -352,20 +307,16 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       )}
       {/* Input Form */}
       <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
-        <div className="flex-1 flex flex-col gap-1">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            disabled={sending}
-            rows={1}
-            className={`w-full min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle ${
-              editorMode ? 'max-h-[400px] font-mono' : 'max-h-[200px]'
-            }`}
-          />
-        </div>
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message..."
+          disabled={sending}
+          rows={1}
+          className="flex-1 min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle"
+        />
 
         <div className="flex items-center gap-2 flex-shrink-0">
           {!isTouchDevice && (
@@ -373,11 +324,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className={`p-2.5 border-2 transition-all duration-100 ${
-                editorMode
-                  ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
-                  : 'bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary'
-              }`}
+              className="p-2.5 border-2 transition-all duration-100 bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
             >
               <Code2 size={14} />
             </button>
