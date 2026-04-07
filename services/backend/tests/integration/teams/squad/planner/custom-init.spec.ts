@@ -240,7 +240,6 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       ⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
 
-      **Workflow errors:** If \`workflow create\` fails, verify JSON: \`{"steps": [...]}\` — each step needs \`stepKey\` (string), \`description\` (string), \`dependsOn\` (string[]), \`order\` (number).
 
       **Code review:** Include a review step for code-producing workflows. Activate \`code-review\` skill.
 
