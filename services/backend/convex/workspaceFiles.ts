@@ -413,3 +413,146 @@ export const fulfillFileContent = mutation({
     }
   },
 });
+
+// ─── File Tree Request (frontend → daemon) ──────────────────────────────────
+
+/** Staleness window: don't re-request if tree is fresher than this. */
+const FILE_TREE_STALENESS_MS = 10 * 1000; // 10 seconds
+
+/**
+ * Requests a fresh file tree scan for a workspace.
+ * Returns 'cached' if the tree is fresh, 'pending' if already requested,
+ * or 'requested' if a new request was created.
+ */
+export const requestFileTree = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Check if existing tree is fresh enough
+    const existingTree = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
+      return { status: 'cached' as const };
+    }
+
+    // Check for existing pending request
+    const existingRequest = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (existingRequest && existingRequest.status === 'pending') {
+      return { status: 'pending' as const };
+    }
+
+    const now = Date.now();
+
+    if (existingRequest) {
+      await ctx.db.patch(existingRequest._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return { status: 'requested' as const };
+  },
+});
+
+// ─── Daemon: Pending File Tree Requests ─────────────────────────────────────
+
+/**
+ * Returns pending file tree requests for a machine.
+ * Daemon subscribes to this reactively.
+ */
+export const getPendingFileTreeRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      return [];
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+    }));
+  },
+});
+
+// ─── Daemon: Fulfill File Tree Request ──────────────────────────────────────
+
+/**
+ * Marks a file tree request as fulfilled.
+ * Called by the daemon after scanning and uploading the tree via syncFileTree.
+ */
+export const fulfillFileTreeRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const request = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch(request._id, {
+        status: 'done',
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});

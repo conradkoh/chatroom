@@ -1589,6 +1589,20 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
+  /**
+   * On-demand file tree scan requests.
+   * Frontend requests a fresh tree scan; daemon fulfills by scanning and calling syncFileTree.
+   */
+  chatroom_workspaceFileTreeRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    status: v.string(), // 'pending' | 'done'
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
   // ─── Structured Workflows ────────────────────────────────────────────────────
   // DAG-based workflows that agents create and execute step-by-step.
   // Workflows block user handoff until completed or explicitly exited.
