@@ -323,7 +323,8 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             <RemotePopover remotes={remotes} />
           )}
 
-          {/* Branch + PR — clickable popover with GitHub Desktop + View on GitHub */}
+          {/* Branch + PR + CI status — grouped together */}
+          <div className="inline-flex items-center gap-0.5 shrink-0">
           {hasPopoverContent ? (
             <Popover>
               <PopoverTrigger asChild>
@@ -385,11 +386,10 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
               </span>
             </div>
           )}
-
-          {/* Commit status indicator — inline next to branch */}
           {headCommitStatus && (
             <CommitStatusIndicator status={headCommitStatus} />
           )}
+          </div>
 
           {/* Diff stats — clickable, opens git panel */}
           <button

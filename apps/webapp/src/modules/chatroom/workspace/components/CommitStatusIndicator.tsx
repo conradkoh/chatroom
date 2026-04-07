@@ -70,7 +70,7 @@ export const CommitStatusIndicator = memo(function CommitStatusIndicator({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center shrink-0 p-0.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
+          className="inline-flex items-center shrink-0 p-0 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
           title={`CI: ${status.state} (${status.totalCount} check${status.totalCount !== 1 ? 's' : ''})`}
         >
           {getStatusIcon(status.state)}
