@@ -82,6 +82,8 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "Publishing version ${{ needs.check-version.outputs.local_version }}"
           echo "Previous npm version: ${{ needs.check-version.outputs.npm_version }}"
