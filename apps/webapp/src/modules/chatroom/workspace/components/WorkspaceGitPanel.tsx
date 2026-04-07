@@ -63,7 +63,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   chatroomId,
   initialTab,
 }: WorkspaceGitPanelProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'diff');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'prs');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
   const [prFilter, setPrFilter] = useState<'open' | 'closed' | 'merged'>('open');
   const [prDetailOpen, setPrDetailOpen] = useState(false);

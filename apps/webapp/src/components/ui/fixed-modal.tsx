@@ -6,6 +6,10 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
 
+// ─── Modal Stack ─────────────────────────────────────────────────────────────
+// Tracks open FixedModals so only the topmost modal responds to Escape.
+let modalStack: (() => void)[] = [];
+
 // ─── Composition Sub-Components ─────────────────────────────────────────
 
 /**
@@ -230,14 +234,24 @@ const FixedModal = memo(function FixedModal({
     [onClose]
   );
 
-  // Handle Escape key
+  // Handle Escape key — only the topmost modal responds
   useEffect(() => {
     if (!isOpen) return;
+
+    const handler = onClose;
+    modalStack.push(handler);
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === handler) {
+        onClose();
+      }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      modalStack = modalStack.filter((h) => h !== handler);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
