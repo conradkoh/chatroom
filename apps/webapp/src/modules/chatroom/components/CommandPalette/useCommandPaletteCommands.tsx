@@ -173,7 +173,7 @@ export function useCommandPaletteCommands({
     if (onOpenPRReview) {
       commands.push({
         id: 'action-pr-review-diff',
-        label: 'Github: Review Pull Requests',
+        label: 'Chatroom: Review Pull Requests',
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
         keywords: ['PR', 'PRs', 'Review'],
