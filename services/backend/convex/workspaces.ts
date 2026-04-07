@@ -158,7 +158,10 @@ export const getWorkspaceGitState = query({
     if (!session.ok) {
       return { status: 'loading' };
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) {
+      return { status: 'loading' };
+    }
 
     const row = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -216,7 +219,8 @@ export const getFullDiff = query({
     if (!session.ok) {
       return null;
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return null;
 
     const row = await ctx.db
       .query('chatroom_workspaceFullDiff')
@@ -245,7 +249,8 @@ export const getPRDiff = query({
     if (!session.ok) {
       return null;
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return null;
 
     const row = await ctx.db
       .query('chatroom_workspacePRDiffs')
@@ -275,7 +280,8 @@ export const getCommitDetail = query({
     if (!session.ok) {
       return null;
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return null;
 
     const row = await ctx.db
       .query('chatroom_workspaceCommitDetail')
@@ -302,7 +308,8 @@ export const getMissingCommitShas = query({
   handler: async (ctx, args): Promise<string[]> => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return [];
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return [];
 
     if (args.shas.length === 0) return [];
 
@@ -342,7 +349,8 @@ export const getPendingRequests = query({
     if (!session.ok) {
       return [];
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return [];
 
     const rows = await ctx.db
       .query('chatroom_workspaceDiffRequests')
