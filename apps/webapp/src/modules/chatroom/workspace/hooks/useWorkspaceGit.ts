@@ -22,12 +22,13 @@ import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState }
  * the query is resolving or no data has been pushed by the daemon yet.
  */
 export function useWorkspaceGit(machineId: string, workingDir: string): WorkspaceGitState {
-  const result = useSessionQuery(api.workspaces.getWorkspaceGitState, {
-    machineId,
-    workingDir,
-  });
+  const shouldSkip = !machineId || !workingDir;
+  const result = useSessionQuery(
+    api.workspaces.getWorkspaceGitState,
+    shouldSkip ? 'skip' : { machineId, workingDir }
+  );
 
-  // While the query is loading (undefined), return loading state
+  // While the query is loading (undefined) or skipped, return loading state
   if (!result) {
     return { status: 'loading' };
   }
@@ -182,7 +183,11 @@ export function useLoadMoreCommits(
 ): { loading: boolean; loadMore: () => void } {
   const [loading, setLoading] = useState(false);
   const requestMutation = useSessionMutation(api.workspaces.requestMoreCommits);
-  const gitState = useSessionQuery(api.workspaces.getWorkspaceGitState, { machineId, workingDir });
+  const shouldSkipGit = !machineId || !workingDir;
+  const gitState = useSessionQuery(
+    api.workspaces.getWorkspaceGitState,
+    shouldSkipGit ? 'skip' : { machineId, workingDir }
+  );
 
   const loadMore = useCallback(() => {
     const currentCount =
