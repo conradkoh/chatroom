@@ -246,29 +246,49 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Delegation Guidelines:**
 
-      Break complex features into small, focused phases — delegate **one phase at a time** and never leave the codebase in a broken state between phases.
+      Break complex features into small, focused phases. For architecture/SOLID guidance, activate the \`software-engineering\` skill.
 
-      For architecture/SOLID guidance, activate the \`software-engineering\` skill.
+      **Decision flow:**
+      \`\`\`mermaid
+      flowchart TD
+          A[Receive task] --> B{Can handle alone?}
+          B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
+          B -->|No: needs builder| D[Create workflow]
+          D --> E[Specify + execute]
+          E --> F[Delegate step to builder]
+          F --> G[Review output]
+          G -->|Not acceptable| H[Hand back with feedback]
+          H --> F
+          G -->|Acceptable| I[Complete step]
+          I -->|More steps| F
+          I -->|All done| J[Deliver to user]
+      \`\`\`
 
-      **When to use a workflow:**
-      Single-step tasks (one file fix, a question, running a command) → do directly. **2+ steps → MUST use a workflow.** Aim for 2–7 steps per workflow; each step should be independently verifiable.
+      **Workflow commands** (a workflow MUST exist before handing off to builder):
 
-      **Workflow process:**
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
 
-      1. **Activate** the workflow skill:
-         \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
-      2. **Create** the workflow DAG using \`workflow create\`
-      3. **Specify** each step using \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-      4. **Execute** the workflow using \`workflow execute\`
-      5. **Delegate** the current step via handoff with \`workflow step-view\` command
-      6. **On handback:** Review. If acceptable → \`workflow step-complete\`. If not → hand back with feedback.
-      7. **Check next:** \`workflow status\` → do it yourself, delegate, or deliver to user if all done
+      2. \`\`\`
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="feature-name" << 'EOF'
+         {"steps": [
+           {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
+           {"stepKey": "review", "description": "Code review", "dependsOn": ["implement"], "order": 2}
+         ]}
+         EOF
+         \`\`\`
+
+      3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+      4. **Execute**: \`workflow execute\`
+      5. **Delegate**: handoff with \`workflow step-view\` command
+      6. **On handback**: \`workflow step-complete\` or hand back with feedback
+      7. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
 
       ⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
 
-      **Code review:** Include a final review step for code-producing workflows. Activate \`code-review\` skill for the 8-pillar framework.
 
-      **Backlog items:** When the task originates from a backlog item (attached as \`<attachment type="backlog-item">\`), activate the \`backlog\` skill for lifecycle management (mark-for-review, scoring, completion).
+      **Code review:** Include a review step for code-producing workflows. Activate \`code-review\` skill.
+
+      **Backlog items:** When task originates from a backlog item, activate \`backlog\` skill for lifecycle management.
 
       **If stuck:** After 2 failed rework attempts → \`workflow exit\` with reason → replan or deliver partial results.
 

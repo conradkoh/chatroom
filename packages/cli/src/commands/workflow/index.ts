@@ -12,6 +12,10 @@ import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/clien
 
 export type { WorkflowDeps } from './deps.js';
 
+// ─── Constants ──────────────────────────────────────────────────────────
+
+const VALID_CHATROOM_SKILLS = ['backlog', 'software-engineering', 'code-review', 'workflow'];
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 type WorkflowStatus = 'draft' | 'active' | 'completed' | 'cancelled';
@@ -327,6 +331,15 @@ export async function specifyWorkflowStep(
   const requirements = sections.get('REQUIREMENTS')!;
   const warnings = sections.get('WARNINGS') || undefined;
   const skills = sections.get('SKILLS') || undefined;
+
+  // Soft validation: warn on unrecognized skill names
+  if (skills) {
+    const skillList = skills.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+    const invalid = skillList.filter((s) => !VALID_CHATROOM_SKILLS.includes(s));
+    if (invalid.length > 0) {
+      console.warn(`⚠️  Unknown skills: ${invalid.join(', ')}. Valid skills: ${VALID_CHATROOM_SKILLS.join(', ')}`);
+    }
+  }
 
   try {
     await d.backend.mutation(api.workflows.specifyStep, {

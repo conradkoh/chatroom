@@ -58,3 +58,9 @@ export type CommitDetailState =
   | { status: 'too_large'; message?: string; author?: string; date?: string }
   | { status: 'not_found' }
   | { status: 'error'; message: string };
+
+/**
+ * State for an on-demand PR diff request.
+ * Same shape as FullDiffState.
+ */
+export type PRDiffState = FullDiffState;

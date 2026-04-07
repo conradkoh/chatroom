@@ -129,3 +129,23 @@ export async function getCommandEvents(sessionId: SessionId, machineId: string) 
   });
   return result.events;
 }
+
+/**
+ * Create a minimal active workflow in a chatroom.
+ * Used by tests that need planner→builder handoffs.
+ */
+export async function createTestWorkflow(
+  chatroomId: Id<'chatroom_rooms'>,
+  workflowKey = 'test-workflow'
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workflows', {
+      chatroomId,
+      workflowKey,
+      status: 'active',
+      createdBy: 'planner',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
+}

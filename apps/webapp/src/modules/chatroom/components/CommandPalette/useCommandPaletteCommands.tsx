@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowRightLeft,
@@ -34,11 +34,14 @@ interface UseCommandPaletteCommandsProps {
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
+  onOpenPRReview?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
   /** Callback to open the Process Manager with a specific command selected */
   onOpenProcessManagerWithCommand?: (commandName: string) => void;
+  /** Callback to directly execute a command (run + open terminal) */
+  onRunCommand?: (commandName: string, script: string) => void;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
 }
@@ -60,16 +63,26 @@ export function useCommandPaletteCommands({
   onOpenInVSCode,
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
+  onOpenPRReview,
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
+  onRunCommand,
   onOpenProcessManager,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
+  // Track favorites changes from Process Manager via custom event
+  const [favoritesVersion, setFavoritesVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setFavoritesVersion((v) => v + 1);
+    window.addEventListener('chatroom:favorites-changed', handler);
+    return () => window.removeEventListener('chatroom:favorites-changed', handler);
+  }, []);
+
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
 
     // ─── Favorites (favourited commands from process manager) ────────
-    if (runnableCommands && onOpenProcessManagerWithCommand) {
+    if (runnableCommands && (onRunCommand || onOpenProcessManagerWithCommand)) {
       const favoritesStore = getCommandFavoritesStore();
       const favorites = favoritesStore.getAll();
 
@@ -80,7 +93,13 @@ export function useCommandPaletteCommands({
             label: cmd.name,
             icon: <Terminal size={14} />,
             category: 'Commands',
-            action: () => onOpenProcessManagerWithCommand(cmd.name),
+            action: () => {
+              if (onRunCommand) {
+                onRunCommand(cmd.name, cmd.script);
+              } else if (onOpenProcessManagerWithCommand) {
+                onOpenProcessManagerWithCommand(cmd.name);
+              }
+            },
           });
         }
       }
@@ -134,6 +153,16 @@ export function useCommandPaletteCommands({
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
         action: onOpenPROnGitHub,
+      });
+    }
+
+    if (onOpenPRReview) {
+      commands.push({
+        id: 'action-pr-review-diff',
+        label: 'PR: Review PRs',
+        icon: <GitPullRequest size={14} />,
+        category: 'Actions',
+        action: onOpenPRReview,
       });
     }
 
@@ -209,9 +238,12 @@ export function useCommandPaletteCommands({
     onOpenInVSCode,
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
+    onOpenPRReview,
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,
+    onRunCommand,
     onOpenProcessManager,
+    favoritesVersion,
   ]);
 }

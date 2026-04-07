@@ -111,6 +111,9 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
   // Fetch open PRs for the current branch (non-blocking on failure)
   const openPRs = await gitReader.getOpenPRsForBranch(workingDir, branchResult.branch);
 
+  // Fetch all PRs for the repository (non-blocking on failure)
+  const allPRs = await gitReader.getAllPRs(workingDir);
+
   // Build available state
   const branch = branchResult.branch;
   const isDirty = dirtyResult;
@@ -122,7 +125,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), allPrs: allPRs.map((pr) => `${pr.number}:${pr.state}`), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
@@ -141,6 +144,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
     recentCommits: commits,
     hasMoreCommits,
     openPullRequests: openPRs,
+    allPullRequests: allPRs,
     remotes,
     commitsAhead,
   });

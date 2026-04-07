@@ -180,6 +180,7 @@ export const getWorkspaceGitState = query({
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
         openPullRequests: row.openPullRequests ?? [],
+        allPullRequests: row.allPullRequests ?? [],
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         updatedAt: row.updatedAt,
@@ -219,6 +220,35 @@ export const getFullDiff = query({
 
     const row = await ctx.db
       .query('chatroom_workspaceFullDiff')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    return row ?? null;
+  },
+});
+
+/**
+ * Returns the stored PR diff for a machine/workingDir, or null if not available.
+ *
+ * Called by the frontend after `requestPRDiff` to retrieve the result.
+ */
+export const getPRDiff = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    const row = await ctx.db
+      .query('chatroom_workspacePRDiffs')
       .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
@@ -374,6 +404,24 @@ export const upsertWorkspaceGitState = mutation({
         })
       )
     ),
+    allPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          baseRefName: v.optional(v.string()),
+          state: v.string(),
+          author: v.optional(v.string()),
+          createdAt: v.optional(v.string()),
+          updatedAt: v.optional(v.string()),
+          mergedAt: v.optional(v.union(v.string(), v.null())),
+          closedAt: v.optional(v.union(v.string(), v.null())),
+          isDraft: v.optional(v.boolean()),
+        })
+      )
+    ),
     // Git remotes
     remotes: v.optional(
       v.array(
@@ -407,6 +455,7 @@ export const upsertWorkspaceGitState = mutation({
       recentCommits: args.recentCommits,
       hasMoreCommits: args.hasMoreCommits,
       openPullRequests: args.openPullRequests,
+      allPullRequests: args.allPullRequests,
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
       errorMessage: args.errorMessage,
@@ -475,6 +524,59 @@ export const upsertFullDiff = mutation({
       await ctx.db.patch('chatroom_workspaceFullDiff', existing._id, data);
     } else {
       await ctx.db.insert('chatroom_workspaceFullDiff', data);
+    }
+  },
+});
+
+/**
+ * Persists the PR diff content for a machine/workingDir (upsert).
+ *
+ * Called by the daemon after processing a `pr_diff` request.
+ */
+export const upsertPRDiff = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    baseBranch: v.string(),
+    diffContent: v.string(),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    const now = Date.now();
+
+    const data = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      baseBranch: args.baseBranch,
+      diffContent: args.diffContent,
+      truncated: args.truncated,
+      diffStat: args.diffStat,
+      updatedAt: now,
+    };
+
+    const existing = await ctx.db
+      .query('chatroom_workspacePRDiffs')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch('chatroom_workspacePRDiffs', existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_workspacePRDiffs', data);
     }
   },
 });
@@ -681,6 +783,92 @@ export const requestFullDiff = mutation({
       machineId: args.machineId,
       workingDir: args.workingDir,
       requestType: 'full_diff',
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Requests a PR diff (diff between base branch and HEAD) for a workspace.
+ *
+ * Idempotent: if a pending request already exists, it is not duplicated.
+ * The frontend subscribes to `getPRDiff` to receive the result.
+ */
+export const requestPRDiff = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    baseBranch: v.string(),
+    prNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    // Idempotency: check for existing pending request
+    const existing = await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_workingDir_type', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('requestType', 'pr_diff')
+      )
+      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .first();
+
+    if (existing) {
+      // Already pending — no-op
+      return;
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'pr_diff',
+      baseBranch: args.baseBranch,
+      prNumber: args.prNumber,
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Requests a PR action (merge/close) to be executed by the daemon.
+ *
+ * NOT idempotent — each call creates a new request.
+ */
+export const requestPRAction = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+    prAction: v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close')),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'pr_action',
+      prAction: args.prAction,
+      prNumber: args.prNumber,
       status: 'pending',
       requestedAt: now,
       updatedAt: now,

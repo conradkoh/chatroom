@@ -15,8 +15,10 @@
  * This subscription is only for on-demand requests that require low latency.
  */
 
+import { exec } from 'child_process';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { promisify } from 'util';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -24,6 +26,7 @@ import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { pushGitState } from './git-heartbeat.js';
 
 /** Handle returned by `startGitRequestSubscription` to stop the subscription. */
 export interface GitSubscriptionHandle {
@@ -167,6 +170,125 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
 }
 
 /**
+ * Process a `pr_diff` request:
+ * Run `git diff origin/<baseBranch>...HEAD`, get diff stat, push via `upsertPRDiff`.
+ */
+async function processPRDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const baseBranch = req.baseBranch ?? 'main';
+
+  // If a PR number is specified, use `gh pr diff <number>` for the exact PR diff
+  if (req.prNumber) {
+    const result = await gitReader.getPRDiffByNumber(req.workingDir, req.prNumber);
+
+    if (result.status === 'available' || result.status === 'truncated') {
+      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        workingDir: req.workingDir,
+        baseBranch,
+        diffContent: result.content,
+        truncated: result.truncated,
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      });
+      console.log(
+        `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (#${req.prNumber}, ${result.truncated ? 'truncated' : 'complete'})`
+      );
+    } else {
+      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        workingDir: req.workingDir,
+        baseBranch,
+        diffContent: '',
+        truncated: false,
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      });
+      console.log(
+        `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (#${req.prNumber}, ${result.status})`
+      );
+    }
+    return;
+  }
+
+  // Fallback: use branch comparison (origin/<baseBranch>...HEAD)
+  const result = await gitReader.getPRDiff(req.workingDir, baseBranch);
+
+  if (result.status === 'available' || result.status === 'truncated') {
+    const diffStatResult = await gitReader.getPRDiffStat(req.workingDir, baseBranch);
+    const diffStat =
+      diffStatResult.status === 'available'
+        ? diffStatResult.diffStat
+        : { filesChanged: 0, insertions: 0, deletions: 0 };
+
+    await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      baseBranch,
+      diffContent: result.content,
+      truncated: result.truncated,
+      diffStat,
+    });
+
+    console.log(
+      `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (${baseBranch}...HEAD, ${diffStat.filesChanged} files, ${result.truncated ? 'truncated' : 'complete'})`
+    );
+  } else {
+    await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      baseBranch,
+      diffContent: '',
+      truncated: false,
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    });
+
+    console.log(
+      `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (${result.status})`
+    );
+  }
+}
+
+/**
+ * Process a `pr_action` request:
+ * Execute the appropriate `gh` CLI command for merge/close.
+ */
+async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const prNumber = req.prNumber;
+  const action = req.prAction;
+  if (!prNumber || !action) {
+    throw new Error('pr_action request missing prNumber or prAction');
+  }
+
+  let cmd: string;
+  switch (action) {
+    case 'merge_squash':
+      cmd = `gh pr merge ${prNumber} --squash --delete-branch`;
+      break;
+    case 'merge_no_squash':
+      cmd = `gh pr merge ${prNumber} --merge`;
+      break;
+    case 'close':
+      cmd = `gh pr close ${prNumber}`;
+      break;
+    default:
+      throw new Error(`Unknown PR action: ${action}`);
+  }
+
+  const execAsync = promisify(exec);
+  const result = await execAsync(cmd, { cwd: req.workingDir });
+  console.log(
+    `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
+  );
+
+  // Refresh git state so the UI updates (PR list, branch, etc.)
+  await pushGitState(ctx).catch((err: unknown) => {
+    console.warn(`[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`);
+  });
+}
+
+/**
  * Process a `commit_detail` request:
  * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
  */
@@ -298,6 +420,12 @@ export async function processRequests(
           break;
         case 'more_commits':
           await processMoreCommits(ctx, req);
+          break;
+        case 'pr_diff':
+          await processPRDiff(ctx, req);
+          break;
+        case 'pr_action':
+          await processPRAction(ctx, req);
           break;
       }
 

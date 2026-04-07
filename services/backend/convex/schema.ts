@@ -1351,6 +1351,26 @@ export default defineSchema({
       )
     ),
 
+    // All pull requests (open, closed, merged) for the repository
+    allPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          baseRefName: v.optional(v.string()),
+          state: v.string(),
+          author: v.optional(v.string()),
+          createdAt: v.optional(v.string()),
+          updatedAt: v.optional(v.string()),
+          mergedAt: v.optional(v.union(v.string(), v.null())),
+          closedAt: v.optional(v.union(v.string(), v.null())),
+          isDraft: v.optional(v.boolean()),
+        })
+      )
+    ),
+
     // Git remotes (only when status === 'available')
     remotes: v.optional(
       v.array(
@@ -1405,12 +1425,19 @@ export default defineSchema({
     requestType: v.union(
       v.literal('full_diff'),
       v.literal('commit_detail'),
-      v.literal('more_commits')
+      v.literal('more_commits'),
+      v.literal('pr_diff'),
+      v.literal('pr_action')
     ),
     // For commit_detail requests
     sha: v.optional(v.string()),
     // For more_commits requests
     offset: v.optional(v.number()),
+    // For pr_diff requests
+    baseBranch: v.optional(v.string()),
+    // For pr_action requests
+    prAction: v.optional(v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close'))),
+    prNumber: v.optional(v.number()),
     // Request status
     status: v.union(
       v.literal('pending'),
@@ -1423,6 +1450,25 @@ export default defineSchema({
   })
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']),
+
+  /**
+   * Stored PR diff content (diff between base branch and HEAD).
+   * Populated by the daemon after a `pr_diff` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspacePRDiffs: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    baseBranch: v.string(),
+    diffContent: v.string(),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Per-commit diff content fetched on demand.
