@@ -76,9 +76,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Update npm to latest version for OIDC support
-        run: npm install -g npm@latest
-
       - name: Build CLI (with dependencies)
         run: pnpm turbo run build --filter=chatroom-cli
 
