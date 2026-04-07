@@ -47,9 +47,9 @@ export const PRDetailModal = memo(function PRDetailModal({
   // Auto-request diff when modal opens
   useEffect(() => {
     if (isOpen && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch);
+      requestPRDiff(baseBranch, pr.number);
     }
-  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch]);
+  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, pr.number]);
 
   const badge = prStateBadge(pr.state, pr.isDraft, pr.mergedAt);
 
@@ -87,7 +87,7 @@ export const PRDetailModal = memo(function PRDetailModal({
           <div className="h-full overflow-y-auto">
             <WorkspaceDiffViewer
               state={prDiffState}
-              onRequest={() => requestPRDiff(baseBranch)}
+              onRequest={() => requestPRDiff(baseBranch, pr.number)}
             />
           </div>
         </FixedModalBody>

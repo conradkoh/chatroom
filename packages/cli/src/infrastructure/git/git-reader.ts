@@ -327,6 +327,41 @@ export async function getPRDiff(
 }
 
 /**
+ * Returns the diff for a specific PR by number using `gh pr diff <number>`.
+ * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
+ */
+export async function getPRDiffByNumber(
+  cwd: string,
+  prNumber: number
+): Promise<GitFullDiffResult> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr diff ${prNumber}${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return { status: 'error', message: result.error.message };
+  }
+
+  const raw = result.stdout;
+  if (!raw.trim()) {
+    return { status: 'available', content: '', truncated: false };
+  }
+
+  const byteLength = Buffer.byteLength(raw, 'utf8');
+
+  if (byteLength > FULL_DIFF_MAX_BYTES) {
+    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
+    return { status: 'truncated', content: truncated, truncated: true };
+  }
+
+  return { status: 'available', content: raw, truncated: false };
+}
+
+/**
  * Returns up to `count` recent commits from the current branch.
  * Default: 20 commits. Optional `skip` to paginate (0-based offset).
  *

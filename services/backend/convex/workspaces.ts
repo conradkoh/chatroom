@@ -802,6 +802,7 @@ export const requestPRDiff = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
+    prNumber: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -833,6 +834,7 @@ export const requestPRDiff = mutation({
       workingDir: args.workingDir,
       requestType: 'pr_diff',
       baseBranch: args.baseBranch,
+      prNumber: args.prNumber,
       status: 'pending',
       requestedAt: now,
       updatedAt: now,

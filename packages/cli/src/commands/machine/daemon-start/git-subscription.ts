@@ -173,6 +173,42 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
  */
 async function processPRDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   const baseBranch = req.baseBranch ?? 'main';
+
+  // If a PR number is specified, use `gh pr diff <number>` for the exact PR diff
+  if (req.prNumber) {
+    const result = await gitReader.getPRDiffByNumber(req.workingDir, req.prNumber);
+
+    if (result.status === 'available' || result.status === 'truncated') {
+      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        workingDir: req.workingDir,
+        baseBranch,
+        diffContent: result.content,
+        truncated: result.truncated,
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      });
+      console.log(
+        `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (#${req.prNumber}, ${result.truncated ? 'truncated' : 'complete'})`
+      );
+    } else {
+      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        workingDir: req.workingDir,
+        baseBranch,
+        diffContent: '',
+        truncated: false,
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      });
+      console.log(
+        `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (#${req.prNumber}, ${result.status})`
+      );
+    }
+    return;
+  }
+
+  // Fallback: use branch comparison (origin/<baseBranch>...HEAD)
   const result = await gitReader.getPRDiff(req.workingDir, baseBranch);
 
   if (result.status === 'available' || result.status === 'truncated') {
