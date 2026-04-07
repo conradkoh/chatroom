@@ -22,13 +22,25 @@ import { createTestSession } from '../helpers/integration';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
+  const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
+  // Create workflow for planner→builder handoffs
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workflows', {
+      chatroomId,
+      workflowKey: 'test-workflow',
+      status: 'active' as const,
+      createdBy: 'planner',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
+  return chatroomId;
 }
 
 async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
