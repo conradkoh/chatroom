@@ -81,7 +81,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
 }: WorkspaceGitPanelProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'diff');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
-  const [prFilter, setPrFilter] = useState<'all' | 'open' | 'closed' | 'merged'>('all');
+  const [prFilter, setPrFilter] = useState<'open' | 'closed' | 'merged'>('open');
 
   const gitState = useWorkspaceGit(machineId, workingDir);
   const { state: fullDiffState, request: requestDiff } = useFullDiff(machineId, workingDir);
@@ -157,7 +157,6 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
 
   // Filtered PRs based on current filter
   const filteredPRs = allPRs.filter((pr) => {
-    if (prFilter === 'all') return true;
     if (prFilter === 'open') return pr.state === 'OPEN';
     if (prFilter === 'closed') return pr.state === 'CLOSED' && !pr.mergedAt;
     if (prFilter === 'merged') return pr.state === 'MERGED' || !!pr.mergedAt;
@@ -264,7 +263,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
           <div className="flex flex-col h-full">
             {/* Filter tabs */}
             <div className="flex items-center gap-1 px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-surface">
-              {(['all', 'open', 'closed', 'merged'] as const).map((f) => (
+              {(['open', 'closed', 'merged'] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
