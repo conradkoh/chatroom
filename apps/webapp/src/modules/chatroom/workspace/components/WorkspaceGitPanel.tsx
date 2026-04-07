@@ -167,10 +167,11 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     return true;
   });
 
-  // Build tabs dynamically
-  const tabs = hasActivePR
-    ? [...BASE_TABS, { id: 'pr-review' as ActiveTab, label: 'PR Review' }]
-    : BASE_TABS;
+  // Build tabs — Current Branch tab always shown
+  const tabs: { id: ActiveTab; label: string }[] = [
+    ...BASE_TABS,
+    { id: 'pr-review' as ActiveTab, label: 'Current Branch' },
+  ];
 
   // Auto-request PR diff when switching to PR review tab
   // Determine base branch — default to 'master'
@@ -339,67 +340,76 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
 
         {activeTab === 'pr-review' && (
           <div className="flex flex-col h-full">
-            {/* PR header */}
-            {activePR && (
-              <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-chatroom-text-primary">
-                    #{activePR.number}
-                  </span>
-                  <span className="text-xs text-chatroom-text-secondary truncate">
-                    {activePR.title}
-                  </span>
-                  <a
-                    href={activePR.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
-                    title="Open PR on GitHub"
+            {activePR ? (
+              <>
+                {/* PR header */}
+                <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-chatroom-text-primary">
+                      #{activePR.number}
+                    </span>
+                    <span className="text-xs text-chatroom-text-secondary truncate">
+                      {activePR.title}
+                    </span>
+                    <a
+                      href={activePR.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
+                      title="Open PR on GitHub"
+                    >
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                  <div className="text-[10px] text-chatroom-text-muted mt-1">
+                    {activePR.headRefName} → {baseBranch}
+                  </div>
+                </div>
+                {/* PR action buttons */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
+                  <button
+                    type="button"
+                    onClick={() => handlePRAction('merge_squash')}
+                    disabled={prActionLoading}
+                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ExternalLink size={12} />
-                  </a>
+                    {prActionLoading ? '...' : 'Merge (Squash)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePRAction('merge_no_squash')}
+                    disabled={prActionLoading}
+                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Merge
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePRAction('close')}
+                    disabled={prActionLoading}
+                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Close
+                  </button>
                 </div>
-                <div className="text-[10px] text-chatroom-text-muted mt-1">
-                  {activePR.headRefName} → {baseBranch}
+                {/* PR diff content */}
+                <div className="flex-1 overflow-y-auto">
+                  <WorkspaceDiffViewer
+                    state={prDiffState}
+                    onRequest={() => requestPRDiff(baseBranch)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+                <div className="text-chatroom-text-muted text-[11px]">
+                  No pull request found for branch <span className="font-mono font-bold text-chatroom-text-secondary">{gitState.status === 'available' ? gitState.branch : ''}</span>
+                </div>
+                <div className="text-[10px] text-chatroom-text-muted">
+                  Create a pull request to see the diff and merge options here.
                 </div>
               </div>
             )}
-            {/* PR action buttons */}
-            {activePR && (
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
-                <button
-                  type="button"
-                  onClick={() => handlePRAction('merge_squash')}
-                  disabled={prActionLoading}
-                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {prActionLoading ? '...' : 'Merge (Squash)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePRAction('merge_no_squash')}
-                  disabled={prActionLoading}
-                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Merge
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePRAction('close')}
-                  disabled={prActionLoading}
-                  className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Close
-                </button>
-              </div>
-            )}
-            {/* PR diff content */}
-            <div className="flex-1 overflow-y-auto">
-              <WorkspaceDiffViewer
-                state={prDiffState}
-                onRequest={() => requestPRDiff(baseBranch)}
-              />
-            </div>
           </div>
         )}
 
