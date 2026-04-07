@@ -311,7 +311,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
 }) {
   const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const sendAction = useSendLocalAction();
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat, headCommitStatus, defaultBranchStatus, defaultBranch } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat, headCommitStatus } =
     useDerivedGitInfo(workspace, isLocal);
 
   // Show the popover if there's anything to show (local actions or repo link)
@@ -392,12 +392,9 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             </div>
           )}
 
-          {/* Commit status indicators */}
+          {/* Commit status indicator — inline next to branch */}
           {headCommitStatus && (
-            <CommitStatusIndicator status={headCommitStatus} label="HEAD" />
-          )}
-          {defaultBranchStatus && defaultBranch && (
-            <CommitStatusIndicator status={defaultBranchStatus} label={defaultBranch} />
+            <CommitStatusIndicator status={headCommitStatus} />
           )}
 
           {/* Diff stats — clickable, opens git panel */}

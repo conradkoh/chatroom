@@ -1,5 +1,5 @@
 /**
- * CommitStatusIndicator — displays a colored dot for CI/CD check status
+ * CommitStatusIndicator — displays a status icon for CI/CD checks
  * with a popover showing individual check run details.
  */
 
@@ -19,23 +19,21 @@ import type { CommitStatusSummary } from '../types/git';
 
 interface CommitStatusIndicatorProps {
   status: CommitStatusSummary;
-  /** Optional label shown next to the dot (e.g. branch name) */
-  label?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getStatusColor(state: string): string {
+function getStatusIcon(state: string) {
   switch (state) {
     case 'success':
-      return 'bg-green-500 dark:bg-green-400';
+      return <CheckCircle2 size={13} className="text-green-500 dark:text-green-400" />;
     case 'failure':
-      return 'bg-red-500 dark:bg-red-400';
+      return <XCircle size={13} className="text-red-500 dark:text-red-400" />;
     case 'pending':
     case 'in_progress':
-      return 'bg-yellow-500 dark:bg-yellow-400';
+      return <Clock size={13} className="text-yellow-500 dark:text-yellow-400" />;
     default:
-      return 'bg-gray-400 dark:bg-gray-500';
+      return <MinusCircle size={13} className="text-gray-400 dark:text-gray-500" />;
   }
 }
 
@@ -66,26 +64,22 @@ function getConclusionLabel(conclusion: string | null, status: string): string {
 
 export const CommitStatusIndicator = memo(function CommitStatusIndicator({
   status,
-  label,
 }: CommitStatusIndicatorProps) {
-  const dotColor = getStatusColor(status.state);
-
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors font-mono uppercase tracking-wider px-1 py-0.5 rounded-none hover:bg-chatroom-bg-hover/50"
+          className="inline-flex items-center shrink-0 p-0.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
           title={`CI: ${status.state} (${status.totalCount} check${status.totalCount !== 1 ? 's' : ''})`}
         >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-          {label && <span className="truncate max-w-[80px]">{label}</span>}
+          {getStatusIcon(status.state)}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-auto min-w-[220px] max-w-[320px] p-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5 px-1 pb-1 border-b border-chatroom-border-strong">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+            {getStatusIcon(status.state)}
             <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider">
               {status.state}
             </span>
