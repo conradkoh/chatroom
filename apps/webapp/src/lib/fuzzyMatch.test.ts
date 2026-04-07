@@ -89,4 +89,20 @@ describe('fuzzyFilter', () => {
   it('returns > 0 for empty search', () => {
     expect(fuzzyFilter('anything', '')).toBeGreaterThan(0);
   });
+
+  it('returns > 0 when keyword matches but value does not', () => {
+    expect(fuzzyFilter('Github: View Pull Requests', 'PR', ['PR', 'PRs'])).toBeGreaterThan(0);
+  });
+
+  it('returns the max score across value and keywords', () => {
+    const valueOnly = fuzzyFilter('Pull Requests', 'PR');
+    const withKeywords = fuzzyFilter('Pull Requests', 'PR', ['PR', 'PRs']);
+    expect(withKeywords).toBeGreaterThanOrEqual(valueOnly);
+  });
+
+  it('works with no keywords (backward compatible)', () => {
+    expect(fuzzyFilter('CommandPalette', 'cmd')).toBeGreaterThan(0);
+    expect(fuzzyFilter('CommandPalette', 'cmd', undefined)).toBeGreaterThan(0);
+    expect(fuzzyFilter('CommandPalette', 'cmd', [])).toBeGreaterThan(0);
+  });
 });

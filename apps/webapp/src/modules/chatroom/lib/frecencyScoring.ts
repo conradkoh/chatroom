@@ -103,13 +103,13 @@ export function getMaxFrecencyScore(scores: Map<string, number>): number {
  * @returns A filter function compatible with cmdk's `filter` prop
  */
 export function createRankedFilter(
-  fuzzyFilter: (value: string, search: string) => number,
+  fuzzyFilter: (value: string, search: string, keywords?: string[]) => number,
   frecencyScores: Map<string, number>
-): (value: string, search: string) => number {
+): (value: string, search: string, keywords?: string[]) => number {
   const maxScore = getMaxFrecencyScore(frecencyScores);
 
-  return (value: string, search: string): number => {
-    const fuzzyScore = fuzzyFilter(value, search);
+  return (value: string, search: string, keywords?: string[]): number => {
+    const fuzzyScore = fuzzyFilter(value, search, keywords);
 
     // If the fuzzy filter says no match, don't override
     if (fuzzyScore === 0 && search.length > 0) return 0;
