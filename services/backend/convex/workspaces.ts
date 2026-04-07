@@ -186,6 +186,9 @@ export const getWorkspaceGitState = query({
         allPullRequests: row.allPullRequests ?? [],
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
+        defaultBranch: row.defaultBranch ?? null,
+        headCommitStatus: row.headCommitStatus ?? null,
+        defaultBranchStatus: row.defaultBranchStatus ?? null,
         updatedAt: row.updatedAt,
       };
     }
@@ -441,6 +444,34 @@ export const upsertWorkspaceGitState = mutation({
     ),
     // Commits ahead of upstream (unpushed)
     commitsAhead: v.optional(v.number()),
+    // Default branch name
+    defaultBranch: v.optional(v.union(v.string(), v.null())),
+    // CI/CD status checks for current branch head
+    headCommitStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
+    // CI/CD status checks for default branch
+    defaultBranchStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
   },
@@ -466,6 +497,9 @@ export const upsertWorkspaceGitState = mutation({
       allPullRequests: args.allPullRequests,
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
+      defaultBranch: args.defaultBranch,
+      headCommitStatus: args.headCommitStatus,
+      defaultBranchStatus: args.defaultBranchStatus,
       errorMessage: args.errorMessage,
       updatedAt: now,
     };
