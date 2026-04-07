@@ -12,6 +12,7 @@
 import type { DiffStat } from '@workspace/backend/src/domain/types/workspace-git';
 
 export type {
+  CommitStatusSummary,
   DiffStat,
   GitCommit,
   GitPullRequest,

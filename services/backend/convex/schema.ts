@@ -1384,6 +1384,37 @@ export default defineSchema({
     // Commits ahead of upstream tracking branch (unpushed)
     commitsAhead: v.optional(v.number()),
 
+    // Default branch name (e.g. 'main', 'master')
+    defaultBranch: v.optional(v.union(v.string(), v.null())),
+
+    // CI/CD status checks for the current branch head commit
+    headCommitStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
+
+    // CI/CD status checks for the latest default branch commit
+    defaultBranchStatus: v.optional(v.union(
+      v.object({
+        state: v.string(),
+        checkRuns: v.array(v.object({
+          name: v.string(),
+          status: v.string(),
+          conclusion: v.union(v.string(), v.null()),
+        })),
+        totalCount: v.number(),
+      }),
+      v.null()
+    )),
+
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 

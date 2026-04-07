@@ -114,6 +114,13 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
   // Fetch all PRs for the repository (non-blocking on failure)
   const allPRs = await gitReader.getAllPRs(workingDir);
 
+  // Fetch default branch and commit status checks (non-blocking on failure)
+  const defaultBranch = await gitReader.getDefaultBranch(workingDir);
+  const [headCommitStatus, defaultBranchStatus] = await Promise.all([
+    gitReader.getCommitStatusChecks(workingDir, branchResult.branch),
+    defaultBranch ? gitReader.getCommitStatusChecks(workingDir, defaultBranch) : Promise.resolve(null),
+  ]);
+
   // Build available state
   const branch = branchResult.branch;
   const isDirty = dirtyResult;
@@ -125,7 +132,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), allPrs: allPRs.map((pr) => `${pr.number}:${pr.state}`), remotes: remotes.map((r) => `${r.name}:${r.url}`) }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), allPrs: allPRs.map((pr) => `${pr.number}:${pr.state}`), remotes: remotes.map((r) => `${r.name}:${r.url}`), defaultBranch, headCommitStatus, defaultBranchStatus }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
@@ -147,6 +154,9 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
     allPullRequests: allPRs,
     remotes,
     commitsAhead,
+    defaultBranch,
+    headCommitStatus,
+    defaultBranchStatus,
   });
 
   ctx.lastPushedGitState.set(stateKey, stateHash);
