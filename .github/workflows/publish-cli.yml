@@ -51,6 +51,7 @@ jobs:
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
+    environment: npm
     permissions:
       id-token: write
       contents: read
@@ -84,6 +85,6 @@ jobs:
         run: |
           echo "Publishing version ${{ needs.check-version.outputs.local_version }}"
           echo "Previous npm version: ${{ needs.check-version.outputs.npm_version }}"
-          npm publish --access public
+          npm publish --access public --provenance
         # Using trusted publishing - no NPM_TOKEN needed
         # Provenance is automatic with trusted publishing
