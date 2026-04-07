@@ -118,7 +118,7 @@ export function getPlannerSoloWorkflow(): string {
 1. Receive task from user
 2. Run task read (get content + mark in_progress)
 3. Classify with classify
-4. **Plan**: If the task has 2+ steps, create a workflow to track your progress (see Delegation Guidelines). Single-step tasks can be done directly.
+4. **Plan**: Create a workflow for any task involving builder delegation (see Delegation Guidelines). Questions and simple self-handled tasks don't need one.
 5. Implement the solution yourself (following workflow steps if created)
 6. Review your own work for quality
 7. Verify: \`pnpm typecheck && pnpm test\`

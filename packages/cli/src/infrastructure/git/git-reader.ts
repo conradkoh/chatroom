@@ -249,6 +249,119 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
 }
 
 /**
+ * Returns diff statistics for a PR (diff between origin/<baseBranch> and HEAD).
+ * Uses three-dot syntax to diff from the merge-base.
+ */
+export async function getPRDiffStat(
+  workingDir: string,
+  baseBranch: string
+): Promise<GitDiffStatResult> {
+  const result = await runGit(`diff --stat origin/${baseBranch}...HEAD`, workingDir);
+
+  if ('error' in result) {
+    const errMsg = result.error.message;
+    if (isEmptyRepo(errMsg)) {
+      return { status: 'no_commits' };
+    }
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+    return classified;
+  }
+
+  const output = result.stdout;
+  const stderr = result.stderr;
+
+  if (isEmptyRepo(stderr)) {
+    return { status: 'no_commits' };
+  }
+
+  if (!output.trim()) {
+    return {
+      status: 'available',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    };
+  }
+
+  const lines = output.trim().split('\n');
+  const summaryLine = lines[lines.length - 1] ?? '';
+  const diffStat = parseDiffStatLine(summaryLine);
+
+  return { status: 'available', diffStat };
+}
+
+/**
+ * Returns the full unified PR diff (diff between origin/<baseBranch> and HEAD).
+ * Uses three-dot syntax to diff from the merge-base.
+ * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
+ */
+export async function getPRDiff(
+  workingDir: string,
+  baseBranch: string
+): Promise<GitFullDiffResult> {
+  const result = await runGit(`diff origin/${baseBranch}...HEAD`, workingDir);
+
+  if ('error' in result) {
+    const errMsg = result.error.message;
+    if (isEmptyRepo(errMsg)) {
+      return { status: 'no_commits' };
+    }
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+    return classified;
+  }
+
+  const stderr = result.stderr;
+  if (isEmptyRepo(stderr)) {
+    return { status: 'no_commits' };
+  }
+
+  const raw = result.stdout;
+  const byteLength = Buffer.byteLength(raw, 'utf8');
+
+  if (byteLength > FULL_DIFF_MAX_BYTES) {
+    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
+    return { status: 'truncated', content: truncated, truncated: true };
+  }
+
+  return { status: 'available', content: raw, truncated: false };
+}
+
+/**
+ * Returns the diff for a specific PR by number using `gh pr diff <number>`.
+ * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
+ */
+export async function getPRDiffByNumber(
+  cwd: string,
+  prNumber: number
+): Promise<GitFullDiffResult> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr diff ${prNumber}${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return { status: 'error', message: result.error.message };
+  }
+
+  const raw = result.stdout;
+  if (!raw.trim()) {
+    return { status: 'available', content: '', truncated: false };
+  }
+
+  const byteLength = Buffer.byteLength(raw, 'utf8');
+
+  if (byteLength > FULL_DIFF_MAX_BYTES) {
+    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
+    return { status: 'truncated', content: truncated, truncated: true };
+  }
+
+  return { status: 'available', content: raw, truncated: false };
+}
+
+/**
  * Returns up to `count` recent commits from the current branch.
  * Default: 20 commits. Optional `skip` to paginate (0-based offset).
  *
@@ -487,6 +600,83 @@ export async function getOpenPRsForBranch(
       }));
   } catch {
     // JSON parse failure — degrade gracefully
+    return [];
+  }
+}
+
+/** Shape of a single PR item returned by `gh pr list --json ...`. */
+interface GHPRItem {
+  number: number;
+  title: string;
+  url?: string;
+  headRefName?: string;
+  baseRefName?: string;
+  state?: string;
+  author?: unknown;
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  isDraft?: boolean;
+}
+
+function isGHPRItem(item: unknown): item is GHPRItem {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as GHPRItem).number === 'number' &&
+    typeof (item as GHPRItem).title === 'string'
+  );
+}
+
+/**
+ * Get all pull requests (open, closed, merged) for the repository using `gh pr list`.
+ * Returns up to 20 most recent PRs.
+ */
+export async function getAllPRs(
+  cwd: string
+): Promise<GitPullRequest[]> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr list --limit 20 --state all --json number,title,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergedAt,closedAt,isDraft${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return [];
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(isGHPRItem)
+      .map((item): GitPullRequest => {
+        const author = typeof item.author === 'object' && item.author !== null
+          ? (item.author as { login?: string }).login
+          : undefined;
+        return {
+          number: item.number,
+          title: item.title,
+          url: item.url ?? '',
+          headRefName: item.headRefName ?? '',
+          baseRefName: item.baseRefName ?? 'main',
+          state: item.state ?? 'OPEN',
+          author,
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          mergedAt: item.mergedAt ?? null,
+          closedAt: item.closedAt ?? null,
+          isDraft: item.isDraft ?? false,
+        };
+      });
+  } catch {
     return [];
   }
 }

@@ -4,10 +4,12 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { Code2 } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
+import { EditorModal } from './EditorModal';
 import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAttachments } from '../context/AttachmentsContext';
 
 interface SendFormProps {
@@ -97,6 +99,8 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
+  const [editorOpen, setEditorOpen] = useState(false);
+
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
@@ -140,10 +144,11 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
 
     onBeforeResize?.();
 
+
     // Set height to 0 to get accurate scrollHeight (Safari workaround)
     textarea.style.height = '0px';
     const scrollHeight = textarea.scrollHeight;
-    // Set to content height, capped at max (200px) with min of 40px (matches button height)
+    // Set to content height, capped at max with min of 40px (matches button height)
     const newHeight = Math.max(40, Math.min(scrollHeight, 200));
     textarea.style.height = `${newHeight}px`;
     // Only show overflow when content exceeds max height
@@ -152,46 +157,42 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     onAfterResize?.();
   }, [message, onBeforeResize, onAfterResize]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!message.trim() || sending) return;
-
+  // Shared send logic used by both inline submit and editor modal
+  const doSend = useCallback(async (text: string) => {
+    if (!text.trim() || sending) return;
     setSending(true);
     try {
       await sendMessage({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         senderRole: 'user',
-        content: message.trim(),
+        content: text.trim(),
         type: 'message',
-        // Include attached task IDs if any
         ...(attachedTasks.length > 0 && {
           attachedTaskIds: attachedTasks.map((task) => task.id),
         }),
-        // Include attached backlog item IDs if any
         ...(attachedBacklogItems.length > 0 && {
           attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
         }),
-        // Include attached message IDs if any
         ...(attachedMessages.length > 0 && {
           attachedMessageIds: attachedMessages.map((msg) => msg.id),
         }),
       });
       setMessage('');
       localStorage.removeItem(draftKey);
-      // Clear all attachments after successful send
       if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
         clearAll();
       }
-      // Refocus the textarea after successful send
-      // Use setTimeout to ensure focus happens after React re-renders
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+  }, [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+
+  const handleSubmit = useCallback(async () => {
+    await doSend(message);
+  }, [doSend, message]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -202,7 +203,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
         return;
       }
 
-      // On desktop: Enter without Shift sends the message
+      // Normal mode: Enter without Shift sends the message
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
@@ -223,6 +224,22 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
   }, []);
+
+  // ── Editor modal callbacks ────────────────────────────────────────────────────
+  const handleEditorClose = useCallback((editedText: string) => {
+    setMessage(editedText);
+    setEditorOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
+  const handleEditorSend = useCallback(
+    async (text: string) => {
+      setMessage(text);
+      setEditorOpen(false);
+      await doSend(text);
+    },
+    [doSend]
+  );
 
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong">
@@ -269,21 +286,37 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
           className="flex-1 min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle"
         />
 
-        <button
-          type="submit"
-          disabled={!message.trim() || sending}
-          onPointerDown={(e) => {
-            // Prevent the button from stealing focus from the textarea.
-            // On mobile this keeps the virtual keyboard open after sending.
-            // pointerDown preventDefault does NOT suppress the subsequent click event,
-            // so form submission still works normally.
-            e.preventDefault();
-          }}
-          className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {sending ? 'Sending...' : 'Send'}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!isTouchDevice && (
+            <button
+              type="button"
+              onClick={() => setEditorOpen(true)}
+              title="Open editor"
+              className="p-2.5 border-2 transition-all duration-100 bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+            >
+              <Code2 size={14} />
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={!message.trim() || sending}
+            onPointerDown={(e) => {
+              e.preventDefault();
+            }}
+            className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
       </form>
+
+      {/* Editor Modal */}
+      <EditorModal
+        isOpen={editorOpen}
+        initialValue={message}
+        onClose={handleEditorClose}
+        onSend={handleEditorSend}
+      />
     </div>
   );
 });

@@ -45,6 +45,7 @@ export class CommandFavoritesStore {
     try {
       if (typeof window === 'undefined') return;
       localStorage.setItem(STORAGE_KEY, JSON.stringify([...this.favorites]));
+      window.dispatchEvent(new CustomEvent('chatroom:favorites-changed'));
     } catch {
       // silently fail
     }
