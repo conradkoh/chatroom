@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/fixed-modal';
 
 import { WorkspaceDiffViewer } from '../workspace/components/WorkspaceDiffViewer';
+import { PRActionButtons } from '../workspace/components/PRActionButtons';
 import { usePRDiff } from '../workspace/hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../workspace/types/git';
 
@@ -83,31 +84,11 @@ export const PRDetailModal = memo(function PRDetailModal({
           </span>
         </div>
         {onPRAction && pr.state === 'OPEN' && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
-            <button
-              type="button"
-              onClick={() => onPRAction(pr.number, 'merge_squash')}
-              disabled={prActionLoading}
-              className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {prActionLoading ? '...' : 'Merge (Squash)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => onPRAction(pr.number, 'merge_no_squash')}
-              disabled={prActionLoading}
-              className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Merge
-            </button>
-            <button
-              type="button"
-              onClick={() => onPRAction(pr.number, 'close')}
-              disabled={prActionLoading}
-              className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Close
-            </button>
+          <div className="px-4 py-2 border-b border-chatroom-border">
+            <PRActionButtons
+              onAction={(action) => onPRAction(pr.number, action)}
+              loading={prActionLoading}
+            />
           </div>
         )}
         <FixedModalBody className="p-0 overflow-hidden">

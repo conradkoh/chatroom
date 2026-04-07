@@ -6,6 +6,7 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
 import { PRDetailModal } from '../../components/PRDetailModal';
+import { PRActionButtons } from './PRActionButtons';
 
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
@@ -368,31 +369,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                   </div>
                 </div>
                 {/* PR action buttons */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border">
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('merge_squash')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {prActionLoading ? '...' : 'Merge (Squash)'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('merge_no_squash')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Merge
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePRAction('close')}
-                    disabled={prActionLoading}
-                    className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-red-500 dark:text-red-400 border border-red-300 dark:border-red-800 transition-all duration-100 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Close
-                  </button>
+                <div className="px-4 py-2 border-b border-chatroom-border">
+                  <PRActionButtons onAction={handlePRAction} loading={prActionLoading} />
                 </div>
                 {/* PR diff content */}
                 <div className="flex-1 overflow-y-auto">
