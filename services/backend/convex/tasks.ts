@@ -820,11 +820,21 @@ export const getTaskCounts = query({
       .first();
 
     if (materializedCounts) {
+      // Cross-check queueSize against actual queue records to prevent stale notices.
+      // This is a lightweight indexed query that ensures the "needs promotion" UI
+      // only appears when there genuinely are queued messages.
+      const firstQueuedMessage = await ctx.db
+        .query('chatroom_messageQueue')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .first();
+      const actualHasQueued = firstQueuedMessage !== null;
+      const queueCount = actualHasQueued ? Math.max(materializedCounts.queueSize, 1) : 0;
+
       return {
         pending: materializedCounts.pending,
         acknowledged: materializedCounts.acknowledged,
         in_progress: materializedCounts.inProgress,
-        queued: materializedCounts.queueSize,
+        queued: queueCount,
         backlog: materializedCounts.backlogCount,
         pendingUserReview: materializedCounts.pendingReviewCount,
         completed: materializedCounts.completed,

@@ -9,7 +9,7 @@ import {
   MoreHorizontal,
   XCircle,
 } from 'lucide-react';
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -80,7 +80,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
   // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
-  const needsPromotion = useMemo(() => {
+  const needsPromotionRaw = useMemo(() => {
     if (!counts) return false;
     const hasActiveTask = counts.pending > 0 || counts.acknowledged > 0 || counts.in_progress > 0;
     const hasQueuedTasks = counts.queued > 0;
@@ -96,6 +96,22 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     }
     return false;
   }, [counts, lifecycle]);
+
+  // Debounce needsPromotion to prevent flashing during normal task transitions.
+  // The notice only appears after staying true for 2 seconds.
+  const [needsPromotion, setNeedsPromotion] = useState(false);
+  const needsPromotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (needsPromotionRaw) {
+      needsPromotionTimerRef.current = setTimeout(() => setNeedsPromotion(true), 2000);
+    } else {
+      if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
+      setNeedsPromotion(false);
+    }
+    return () => {
+      if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
+    };
+  }, [needsPromotionRaw]);
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
