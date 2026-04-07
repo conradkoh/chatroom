@@ -6,5 +6,6 @@ export type CommandItem = {
   icon?: React.ReactNode;
   category: string;
   shortcut?: string;
+  keywords?: string[];
   action: () => void;
 };

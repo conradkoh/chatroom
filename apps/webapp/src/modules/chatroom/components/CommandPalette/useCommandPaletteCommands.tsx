@@ -35,6 +35,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   onOpenPRReview?: (() => void) | null;
+  onViewGitHubPullRequests?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
@@ -64,6 +65,7 @@ export function useCommandPaletteCommands({
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
   onOpenPRReview,
+  onViewGitHubPullRequests,
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
@@ -143,6 +145,17 @@ export function useCommandPaletteCommands({
         icon: <SiGithub size={14} />,
         category: 'Actions',
         action: onOpenInGitHubDesktop,
+      });
+    }
+
+    if (onViewGitHubPullRequests) {
+      commands.push({
+        id: 'action-view-github-prs',
+        label: 'Github: View Pull Requests',
+        icon: <SiGithub size={14} />,
+        category: 'Actions',
+        keywords: ['PR', 'PRs'],
+        action: onViewGitHubPullRequests,
       });
     }
 
@@ -239,6 +252,7 @@ export function useCommandPaletteCommands({
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,
     onOpenPRReview,
+    onViewGitHubPullRequests,
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,
