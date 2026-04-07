@@ -170,10 +170,6 @@ interface DerivedGitInfo {
   diffStat: { filesChanged: number; insertions: number; deletions: number };
   /** CI/CD status for the current branch head commit. */
   headCommitStatus: CommitStatusSummary | null;
-  /** CI/CD status for the default branch. */
-  defaultBranchStatus: CommitStatusSummary | null;
-  /** Default branch name (e.g. 'main'). */
-  defaultBranch: string | null;
 }
 
 function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): DerivedGitInfo {
@@ -186,8 +182,6 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   const openPullRequests = isAvailable ? gitState.openPullRequests : [];
   const diffStat = isAvailable ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
   const headCommitStatus = (isAvailable ? gitState.headCommitStatus : null) ?? null;
-  const defaultBranchStatus = (isAvailable ? gitState.defaultBranchStatus : null) ?? null;
-  const defaultBranch = (isAvailable ? gitState.defaultBranch : null) ?? null;
 
   const hasPR = openPullRequests.length > 0;
   const branchDisplay = isAvailable
@@ -207,7 +201,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   return {
     isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
     isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat,
-    headCommitStatus, defaultBranchStatus, defaultBranch,
+    headCommitStatus,
   };
 }
 
