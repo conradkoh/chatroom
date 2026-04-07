@@ -84,6 +84,6 @@ jobs:
         run: |
           echo "Publishing version ${{ needs.check-version.outputs.local_version }}"
           echo "Previous npm version: ${{ needs.check-version.outputs.npm_version }}"
-          npm publish --access public --provenance
-        # Using trusted publishing via OIDC - no NPM_TOKEN needed
-        # Provenance requires id-token:write permission
+          npm publish --access public
+        # Using trusted publishing - no NPM_TOKEN needed
+        # Provenance is automatic with trusted publishing
