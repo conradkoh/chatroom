@@ -28,11 +28,12 @@ import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { InlineDiffStat } from './shared';
+import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-import type { GitRemote } from '../types/git';
+import type { GitRemote, CommitStatusSummary } from '../types/git';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import {
@@ -167,6 +168,12 @@ interface DerivedGitInfo {
   openPullRequests: { number: number; title: string; url: string }[];
   /** Diff stat (zeros when not available). */
   diffStat: { filesChanged: number; insertions: number; deletions: number };
+  /** CI/CD status for the current branch head commit. */
+  headCommitStatus: CommitStatusSummary | null;
+  /** CI/CD status for the default branch. */
+  defaultBranchStatus: CommitStatusSummary | null;
+  /** Default branch name (e.g. 'main'). */
+  defaultBranch: string | null;
 }
 
 function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): DerivedGitInfo {
@@ -178,6 +185,9 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   const remotes = isAvailable ? gitState.remotes : [];
   const openPullRequests = isAvailable ? gitState.openPullRequests : [];
   const diffStat = isAvailable ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
+  const headCommitStatus = (isAvailable ? gitState.headCommitStatus : null) ?? null;
+  const defaultBranchStatus = (isAvailable ? gitState.defaultBranchStatus : null) ?? null;
+  const defaultBranch = (isAvailable ? gitState.defaultBranch : null) ?? null;
 
   const hasPR = openPullRequests.length > 0;
   const branchDisplay = isAvailable
@@ -197,6 +207,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   return {
     isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
     isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat,
+    headCommitStatus, defaultBranchStatus, defaultBranch,
   };
 }
 
@@ -300,7 +311,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
 }) {
   const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const sendAction = useSendLocalAction();
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat, headCommitStatus, defaultBranchStatus, defaultBranch } =
     useDerivedGitInfo(workspace, isLocal);
 
   // Show the popover if there's anything to show (local actions or repo link)
@@ -379,6 +390,14 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                 {branchDisplay}
               </span>
             </div>
+          )}
+
+          {/* Commit status indicators */}
+          {headCommitStatus && (
+            <CommitStatusIndicator status={headCommitStatus} label="HEAD" />
+          )}
+          {defaultBranchStatus && defaultBranch && (
+            <CommitStatusIndicator status={defaultBranchStatus} label={defaultBranch} />
           )}
 
           {/* Diff stats — clickable, opens git panel */}
