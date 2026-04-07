@@ -157,46 +157,42 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     onAfterResize?.();
   }, [message, onBeforeResize, onAfterResize]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!message.trim() || sending) return;
-
+  // Shared send logic used by both inline submit and editor modal
+  const doSend = useCallback(async (text: string) => {
+    if (!text.trim() || sending) return;
     setSending(true);
     try {
       await sendMessage({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         senderRole: 'user',
-        content: message.trim(),
+        content: text.trim(),
         type: 'message',
-        // Include attached task IDs if any
         ...(attachedTasks.length > 0 && {
           attachedTaskIds: attachedTasks.map((task) => task.id),
         }),
-        // Include attached backlog item IDs if any
         ...(attachedBacklogItems.length > 0 && {
           attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
         }),
-        // Include attached message IDs if any
         ...(attachedMessages.length > 0 && {
           attachedMessageIds: attachedMessages.map((msg) => msg.id),
         }),
       });
       setMessage('');
       localStorage.removeItem(draftKey);
-      // Clear all attachments after successful send
       if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
         clearAll();
       }
-      // Refocus the textarea after successful send
-      // Use setTimeout to ensure focus happens after React re-renders
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+  }, [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+
+  const handleSubmit = useCallback(async () => {
+    await doSend(message);
+  }, [doSend, message]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -240,37 +236,9 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     async (text: string) => {
       setMessage(text);
       setEditorOpen(false);
-      if (!text.trim() || sending) return;
-      setSending(true);
-      try {
-        await sendMessage({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          senderRole: 'user',
-          content: text.trim(),
-          type: 'message',
-          ...(attachedTasks.length > 0 && {
-            attachedTaskIds: attachedTasks.map((task) => task.id),
-          }),
-          ...(attachedBacklogItems.length > 0 && {
-            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
-          }),
-          ...(attachedMessages.length > 0 && {
-            attachedMessageIds: attachedMessages.map((msg) => msg.id),
-          }),
-        });
-        setMessage('');
-        localStorage.removeItem(draftKey);
-        if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
-          clearAll();
-        }
-        setTimeout(() => textareaRef.current?.focus(), 0);
-      } catch (error) {
-        console.error('Failed to send message:', error);
-      } finally {
-        setSending(false);
-      }
+      await doSend(text);
     },
-    [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]
+    [doSend]
   );
 
   return (

@@ -15,8 +15,10 @@
  * This subscription is only for on-demand requests that require low latency.
  */
 
+import { exec } from 'child_process';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { promisify } from 'util';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -274,10 +276,7 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
       throw new Error(`Unknown PR action: ${action}`);
   }
 
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
   const execAsync = promisify(exec);
-
   const result = await execAsync(cmd, { cwd: req.workingDir });
   console.log(
     `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
