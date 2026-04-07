@@ -365,11 +365,6 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
               editorMode ? 'max-h-[400px] font-mono' : 'max-h-[200px]'
             }`}
           />
-          {editorMode && !isTouchDevice && (
-            <span className="text-[11px] text-chatroom-text-muted px-1">
-              {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl'}↵ to send · Tab for indent
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
