@@ -88,6 +88,7 @@ export const PRDetailModal = memo(function PRDetailModal({
             <PRActionButtons
               onAction={(action) => onPRAction(pr.number, action)}
               loading={prActionLoading}
+              onSuccess={onClose}
             />
           </div>
         )}
