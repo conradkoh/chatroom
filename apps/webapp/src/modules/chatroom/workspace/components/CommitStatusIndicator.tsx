@@ -6,7 +6,7 @@
 'use client';
 
 import { memo } from 'react';
-import { CheckCircle2, XCircle, Clock, MinusCircle } from 'lucide-react';
+import { Check, XCircle, Clock, MinusCircle } from 'lucide-react';
 
 import {
   Popover,
@@ -26,7 +26,7 @@ interface CommitStatusIndicatorProps {
 function getStatusIcon(state: string) {
   switch (state) {
     case 'success':
-      return <CheckCircle2 size={13} className="text-green-500 dark:text-green-400" />;
+      return <Check size={13} className="text-green-500 dark:text-green-400" />;
     case 'failure':
       return <XCircle size={13} className="text-red-500 dark:text-red-400" />;
     case 'pending':
@@ -43,7 +43,7 @@ function getConclusionIcon(conclusion: string | null, status: string) {
   }
   switch (conclusion) {
     case 'success':
-      return <CheckCircle2 size={11} className="text-green-500 dark:text-green-400 shrink-0" />;
+      return <Check size={11} className="text-green-500 dark:text-green-400 shrink-0" />;
     case 'failure':
     case 'timed_out':
       return <XCircle size={11} className="text-red-500 dark:text-red-400 shrink-0" />;
