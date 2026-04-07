@@ -15,12 +15,7 @@ import { WorkspaceDiffViewer } from '../workspace/components/WorkspaceDiffViewer
 import { usePRDiff } from '../workspace/hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../workspace/types/git';
 
-function prStateBadge(state: string, isDraft?: boolean, mergedAt?: string | null) {
-  if (isDraft) return { label: 'Draft', cls: 'text-chatroom-text-muted border-chatroom-border' };
-  if (state === 'MERGED' || mergedAt) return { label: 'Merged', cls: 'text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700' };
-  if (state === 'CLOSED') return { label: 'Closed', cls: 'text-red-500 dark:text-red-400 border-red-300 dark:border-red-700' };
-  return { label: 'Open', cls: 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-700' };
-}
+import { prStateBadge } from '../workspace/utils/pr-helpers';
 
 interface PRDetailModalProps {
   isOpen: boolean;
