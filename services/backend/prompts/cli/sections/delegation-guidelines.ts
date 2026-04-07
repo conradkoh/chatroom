@@ -37,6 +37,15 @@ Single-step tasks (one file fix, a question, running a command) → do directly.
 1. **Activate** the workflow skill:
    \`${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
 2. **Create** the workflow DAG using \`workflow create\`
+   Example:
+   \`\`\`
+   ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="feature-name" << 'EOF'
+   {"steps": [
+     {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
+     {"stepKey": "review", "description": "Code review", "dependsOn": ["implement"], "order": 2}
+   ]}
+   EOF
+   \`\`\`
 3. **Specify** each step using \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
 4. **Execute** the workflow using \`workflow execute\`
 5. **Delegate** the current step via handoff with \`workflow step-view\` command
@@ -50,6 +59,8 @@ Single-step tasks (one file fix, a question, running a command) → do directly.
 **Backlog items:** When the task originates from a backlog item (attached as \`<attachment type="backlog-item">\`), activate the \`backlog\` skill for lifecycle management (mark-for-review, scoring, completion).
 
 **If stuck:** After 2 failed rework attempts → \`workflow exit\` with reason → replan or deliver partial results.
+
+**Workflow errors:** If \`workflow create\` fails, verify JSON format: \`{"steps": [...]}\` where each step has \`stepKey\` (string), \`description\` (string), \`dependsOn\` (string array), \`order\` (number). A workflow must exist before handing off to builder.
 
 **Review loop:**
 - Review completed work before moving to the next phase
