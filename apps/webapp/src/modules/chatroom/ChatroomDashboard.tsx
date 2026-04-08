@@ -38,6 +38,9 @@ import type { TeamLifecycle } from './types/readiness';
 import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
+import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
+import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
+import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
@@ -52,6 +55,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { cn } from '@/lib/utils';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
@@ -294,6 +298,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Track the path to reveal in the file tree
   const [revealPath, setRevealPath] = useState<string | null>(null);
+
+  // Right pane handlers
+  const handleOpenPreview = useCallback((filePath: string) => {
+    fileTabs.openRight(filePath, 'preview');
+  }, [fileTabs.openRight]);
+
+  const handleOpenTableView = useCallback((filePath: string) => {
+    fileTabs.openRight(filePath, 'table');
+  }, [fileTabs.openRight]);
 
   // Update sidebar visibility when screen size changes
   useEffect(() => {
@@ -879,7 +892,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 </div>
               )}
 
-              {/* Main Content Area: File tabs + viewer OR Message feed */}
+              {/* Main Content Area: Dual-pane file viewer OR Message feed */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* File Tab Bar — shown when tabs are open */}
                 {fileTabs.tabs.length > 0 && (
@@ -893,15 +906,60 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   />
                 )}
 
-                {/* File Content Viewer — shown when a tab is active */}
+                {/* File Content Area — left pane + optional right pane */}
                 {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
-                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <FileContentViewer
-                      key={fileTabs.activeTabPath}
-                      machineId={firstWorkspace.machineId}
-                      workingDir={firstWorkspace.workingDir}
-                      filePath={fileTabs.activeTabPath}
-                    />
+                  <div className="flex-1 flex min-h-0 overflow-hidden">
+                    {/* Left Pane — source code */}
+                    <div className={cn(
+                      'flex flex-col min-h-0 overflow-hidden',
+                      fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+                    )}>
+                      <FileContentViewer
+                        key={fileTabs.activeTabPath}
+                        machineId={firstWorkspace.machineId}
+                        workingDir={firstWorkspace.workingDir}
+                        filePath={fileTabs.activeTabPath}
+                        onOpenPreview={handleOpenPreview}
+                        onOpenTableView={handleOpenTableView}
+                      />
+                    </div>
+
+                    {/* Right Pane — preview/table */}
+                    {fileTabs.rightTabs.length > 0 && (
+                      <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+                        <RightPaneTabBar
+                          tabs={fileTabs.rightTabs}
+                          activeTabKey={fileTabs.activeRightTabKey}
+                          onActivate={fileTabs.setActiveRightTab}
+                          onClose={fileTabs.closeRight}
+                        />
+                        {(() => {
+                          const activeRight = fileTabs.rightTabs.find(t => t.key === fileTabs.activeRightTabKey);
+                          if (!activeRight) return null;
+                          if (activeRight.viewType === 'preview') {
+                            return (
+                              <MarkdownPreviewPane
+                                key={activeRight.key}
+                                machineId={firstWorkspace.machineId!}
+                                workingDir={firstWorkspace.workingDir!}
+                                filePath={activeRight.filePath}
+                              />
+                            );
+                          }
+                          if (activeRight.viewType === 'table') {
+                            return (
+                              <CsvTablePane
+                                key={activeRight.key}
+                                machineId={firstWorkspace.machineId!}
+                                workingDir={firstWorkspace.workingDir!}
+                                filePath={activeRight.filePath}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Message Section — shown when no file tab is active */
@@ -914,7 +972,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
                 )}
-                {/* SendForm always visible — user can send messages while viewing files */}
+                {/* SendForm always visible */}
                 <SendForm
                   chatroomId={chatroomId}
                   onBeforeResize={beginResize}
