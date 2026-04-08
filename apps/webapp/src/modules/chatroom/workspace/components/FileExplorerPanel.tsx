@@ -1,5 +1,7 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { FolderTree, RefreshCw } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
@@ -23,10 +25,16 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   onFileDoubleClick,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
 
   const handleRefresh = useCallback(() => {
+    if (machineId && workingDir) {
+      requestTree({ machineId, workingDir }).catch(() => {
+        // Silently ignore
+      });
+    }
     setRefreshKey((k) => k + 1);
-  }, []);
+  }, [machineId, workingDir, requestTree]);
 
   if (!machineId || !workingDir) {
     return (

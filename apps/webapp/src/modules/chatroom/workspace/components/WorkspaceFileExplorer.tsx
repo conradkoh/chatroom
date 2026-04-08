@@ -2,9 +2,9 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { FileTree, FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
@@ -188,19 +188,14 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
 }: WorkspaceFileExplorerProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
-  // Fetch file tree reactively
+  // Fetch file tree reactively (uses cached data from backend)
   const treeResult = useSessionQuery(api.workspaceFiles.getFileTree, {
     machineId,
     workingDir,
   });
 
-  // Request a tree refresh on mount
-  const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
-  useEffect(() => {
-    requestTree({ machineId, workingDir }).catch(() => {
-      // Silently ignore — tree will show loading or stale data
-    });
-  }, [machineId, workingDir, requestTree]);
+  // Note: No auto-refresh on mount. Tree refresh is triggered on-demand
+  // via the refresh button in FileExplorerPanel.
 
   // Parse tree JSON into hierarchical nodes
   const treeNodes = useMemo<TreeNode[]>(() => {
