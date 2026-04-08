@@ -11,6 +11,7 @@ interface FileExplorerPanelProps {
   machineId: string | null;
   workingDir: string | null;
   onFileSelect?: (filePath: string) => void;
+  onFileDoubleClick?: (filePath: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   machineId,
   workingDir,
   onFileSelect,
+  onFileDoubleClick,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -64,6 +66,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
           machineId={machineId}
           workingDir={workingDir}
           onFileSelect={onFileSelect}
+          onFileDoubleClick={onFileDoubleClick}
         />
       </div>
     </div>

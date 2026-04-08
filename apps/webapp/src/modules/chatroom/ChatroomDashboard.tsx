@@ -36,8 +36,11 @@ import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
+import { FileContentViewer } from './workspace/components/FileContentViewer';
+import { FileTabBar } from './workspace/components/FileTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
@@ -276,6 +279,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const toggleFileExplorer = useCallback(() => {
     setFileExplorerVisible((prev) => !prev);
   }, []);
+
+  // File tabs state
+  const fileTabs = useFileTabs();
+
+  // File select handler: single click = preview, double click = pin
+  const handleFileSelect = useCallback((filePath: string) => {
+    fileTabs.openPreview(filePath);
+  }, [fileTabs.openPreview]);
+
+  const handleFileDoubleClick = useCallback((filePath: string) => {
+    fileTabs.pinTab(filePath);
+  }, [fileTabs.pinTab]);
 
   // Update sidebar visibility when screen size changes
   useEffect(() => {
@@ -836,28 +851,53 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   <FileExplorerPanel
                     machineId={firstWorkspace.machineId}
                     workingDir={firstWorkspace.workingDir}
-                    onFileSelect={(filePath) => {
-                      console.log('[FileExplorer] Selected file:', filePath);
-                    }}
+                    onFileSelect={handleFileSelect}
+                    onFileDoubleClick={handleFileDoubleClick}
                   />
                 </div>
               )}
 
-              {/* Message Section */}
+              {/* Main Content Area: File tabs + viewer OR Message feed */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed
-                  chatroomId={chatroomId}
-                  activeTask={activeTask}
-                  controller={scrollController}
-                  isPinned={isPinned}
-                  scrollToBottom={scrollToBottom}
-                  onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                />
-                <SendForm
-                  chatroomId={chatroomId}
-                  onBeforeResize={beginResize}
-                  onAfterResize={endResize}
-                />
+                {/* File Tab Bar — shown when tabs are open */}
+                {fileTabs.tabs.length > 0 && (
+                  <FileTabBar
+                    tabs={fileTabs.tabs}
+                    activeTabPath={fileTabs.activeTabPath}
+                    onActivate={fileTabs.setActiveTab}
+                    onClose={fileTabs.closeTab}
+                    onPin={fileTabs.pinTab}
+                  />
+                )}
+
+                {/* File Content Viewer — shown when a tab is active */}
+                {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <FileContentViewer
+                      key={fileTabs.activeTabPath}
+                      machineId={firstWorkspace.machineId}
+                      workingDir={firstWorkspace.workingDir}
+                      filePath={fileTabs.activeTabPath}
+                    />
+                  </div>
+                ) : (
+                  /* Message Section — shown when no file tab is active */
+                  <>
+                    <MessageFeed
+                      chatroomId={chatroomId}
+                      activeTask={activeTask}
+                      controller={scrollController}
+                      isPinned={isPinned}
+                      scrollToBottom={scrollToBottom}
+                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    />
+                    <SendForm
+                      chatroomId={chatroomId}
+                      onBeforeResize={beginResize}
+                      onAfterResize={endResize}
+                    />
+                  </>
+                )}
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}

@@ -24,6 +24,7 @@ interface WorkspaceFileExplorerProps {
   machineId: string;
   workingDir: string;
   onFileSelect?: (filePath: string) => void;
+  onFileDoubleClick?: (filePath: string) => void;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -89,12 +90,14 @@ const TreeNodeItem = memo(function TreeNodeItem({
   expandedPaths,
   onToggle,
   onFileSelect,
+  onFileDoubleClick,
 }: {
   node: TreeNode;
   depth: number;
   expandedPaths: Set<string>;
   onToggle: (path: string) => void;
   onFileSelect?: (filePath: string) => void;
+  onFileDoubleClick?: (filePath: string) => void;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const isDirectory = node.type === 'directory';
@@ -108,6 +111,12 @@ const TreeNodeItem = memo(function TreeNodeItem({
     }
   }, [isDirectory, node.path, onToggle, onFileSelect]);
 
+  const handleDoubleClick = useCallback(() => {
+    if (!isDirectory) {
+      onFileDoubleClick?.(node.path);
+    }
+  }, [isDirectory, node.path, onFileDoubleClick]);
+
   return (
     <>
       <button
@@ -118,6 +127,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
         )}
         style={{ paddingLeft }}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         title={node.path}
       >
         {/* Expand / collapse chevron for directories */}
@@ -159,6 +169,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
               expandedPaths={expandedPaths}
               onToggle={onToggle}
               onFileSelect={onFileSelect}
+              onFileDoubleClick={onFileDoubleClick}
             />
           ))}
         </div>
@@ -173,6 +184,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   machineId,
   workingDir,
   onFileSelect,
+  onFileDoubleClick,
 }: WorkspaceFileExplorerProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
@@ -242,6 +254,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           expandedPaths={expandedPaths}
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
+          onFileDoubleClick={onFileDoubleClick}
         />
       ))}
     </div>
