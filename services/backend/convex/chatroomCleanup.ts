@@ -12,7 +12,6 @@ import { internalMutation } from './_generated/server';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 500;
-const SMALL_BATCH_SIZE = 200;
 /** Max deletes per mutation to stay safely within Convex write limits. */
 const MAX_DELETES_PER_MUTATION = 300;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
