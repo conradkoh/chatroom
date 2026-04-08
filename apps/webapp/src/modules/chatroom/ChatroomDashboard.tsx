@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  MessageSquare as MessageSquareIcon,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -35,7 +36,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { ActivityBar } from './components/ActivityBar';
 import { FileExplorerPanel, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
@@ -279,11 +280,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
-  // Activity bar — tracks which left-panel view is active (null = none)
-  const [activeView, setActiveView] = useState<ActivityView | null>(null);
-  const fileExplorerVisible = activeView === 'explorer';
-  const handleViewToggle = useCallback((view: ActivityView | null) => {
-    setActiveView(view);
+  // Activity bar — panel visibility
+  const [fileExplorerVisible, setFileExplorerVisible] = useState(false);
+  const toggleFileExplorer = useCallback(() => {
+    setFileExplorerVisible((prev) => !prev);
+  }, []);
+  const [messagesVisible, setMessagesVisible] = useState(true);
+  const toggleMessages = useCallback(() => {
+    setMessagesVisible((prev) => !prev);
   }, []);
 
   // File tabs state
@@ -425,7 +429,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     // Open as pinned tab
     fileTabs.pinTab(filePath);
     // Show file explorer if hidden
-    setActiveView('explorer');
+    setFileExplorerVisible(true);
     // Reveal in tree
     setRevealPath(filePath);
     // Close the file picker modal
@@ -602,7 +606,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManager: handleOpenProcessManager,
     onOpenFileExplorer: firstWorkspace
       ? () => {
-          setActiveView('explorer');
+          setFileExplorerVisible(true);
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
@@ -879,7 +883,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative min-h-0">
               {/* Activity Bar — VSCode-style icon sidebar */}
               {firstWorkspace && (
-                <ActivityBar activeView={activeView} onViewToggle={handleViewToggle} />
+                <ActivityBar
+                  explorerVisible={fileExplorerVisible}
+                  onToggleExplorer={toggleFileExplorer}
+                  messagesVisible={messagesVisible}
+                  onToggleMessages={toggleMessages}
+                />
               )}
 
               {/* File Explorer Left Sidebar — hidden when tab is expanded */}
@@ -966,8 +975,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                       </div>
                     )}
                   </div>
-                ) : (
-                  /* Message Section — shown when no file tab is active */
+                ) : messagesVisible ? (
+                  /* Message Section — shown when no file tab is active and messages are visible */
                   <MessageFeed
                     chatroomId={chatroomId}
                     activeTask={activeTask}
@@ -976,6 +985,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     scrollToBottom={scrollToBottom}
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
+                ) : (
+                  /* Empty state when messages are hidden and no file is open */
+                  <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
+                    <div className="text-center">
+                      <MessageSquareIcon size={32} className="mx-auto mb-2 opacity-40" />
+                      <p>Messages hidden</p>
+                      <p className="text-xs mt-1">Click the message icon in the sidebar to show</p>
+                    </div>
+                  </div>
                 )}
               </div>
 
