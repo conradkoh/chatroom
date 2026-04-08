@@ -171,6 +171,60 @@ export function useCommitDetail(
   return { state, request, clear };
 }
 
+// ─── PR Commit List Types ─────────────────────────────────────────────────────
+
+export interface PRCommitEntry {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export type PRCommitsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'available'; commits: PRCommitEntry[] };
+
+/**
+ * Returns the list of commits for a specific PR and a request function.
+ *
+ * `request()` triggers a daemon fetch for the PR's commits.
+ * The result is read from the `getPRCommits` query.
+ */
+export function usePRCommits(
+  machineId: string,
+  workingDir: string,
+  prNumber: number | null
+): { state: PRCommitsState; request: () => void } {
+  const requestMutation = useSessionMutation(api.workspaces.requestPRCommits);
+  const requestedRef = useRef(false);
+
+  const result = useSessionQuery(
+    api.workspaces.getPRCommits,
+    prNumber ? { machineId, workingDir, prNumber } : 'skip'
+  );
+
+  const request = useCallback(() => {
+    if (!prNumber) return;
+    requestedRef.current = true;
+    requestMutation({ machineId, workingDir, prNumber });
+  }, [requestMutation, machineId, workingDir, prNumber]);
+
+  const state: PRCommitsState = useMemo(() => {
+    if (!prNumber) return { status: 'idle' };
+    if (!result) {
+      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
+    }
+    return {
+      status: 'available',
+      commits: result.commits as PRCommitEntry[],
+    };
+  }, [prNumber, result]);
+
+  return { state, request };
+}
+
 /**
  * Returns a loading flag and a loadMore function for paginating commits.
  *

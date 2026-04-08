@@ -681,6 +681,68 @@ export async function getAllPRs(
   }
 }
 
+/** A commit entry from `gh pr view --json commits`. */
+export interface PRCommitEntry {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+/**
+ * Get the list of commits for a specific PR number.
+ * Uses `gh pr view <number> --json commits`.
+ */
+export async function getPRCommits(
+  cwd: string,
+  prNumber: number
+): Promise<PRCommitEntry[]> {
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
+  const result = await runCommand(
+    `gh pr view ${prNumber} --json commits${repoFlag}`,
+    cwd
+  );
+
+  if ('error' in result) {
+    return [];
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (typeof parsed !== 'object' || parsed === null || !('commits' in parsed)) return [];
+    const commits = (parsed as { commits: unknown[] }).commits;
+    if (!Array.isArray(commits)) return [];
+
+    return commits.map((c: unknown): PRCommitEntry => {
+      const commit = c as Record<string, unknown>;
+      const oid = typeof commit.oid === 'string' ? commit.oid : '';
+      const headline = typeof commit.messageHeadline === 'string' ? commit.messageHeadline : '';
+      const date = typeof commit.committedDate === 'string' ? commit.committedDate : '';
+      // Authors array
+      let authorLogin = '';
+      if (Array.isArray(commit.authors) && commit.authors.length > 0) {
+        const first = commit.authors[0] as Record<string, unknown>;
+        authorLogin = typeof first.login === 'string' ? first.login : (typeof first.name === 'string' ? first.name : '');
+      }
+      return {
+        sha: oid,
+        shortSha: oid.slice(0, 7),
+        message: headline,
+        author: authorLogin,
+        date,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 // ─── Git Remotes ────────────────────────────────────────────────────────────
 
 /** A single git remote entry (from `git remote -v`). */

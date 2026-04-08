@@ -1019,3 +1019,137 @@ export const requestMoreCommits = mutation({
     });
   },
 });
+
+// ─── PR Commits ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns the cached list of commits for a specific PR, or null if not available.
+ *
+ * Called by the frontend after `requestPRCommits` to retrieve the result.
+ */
+export const getPRCommits = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    if (!accessResult.ok) return null;
+
+    const row = await ctx.db
+      .query('chatroom_workspacePRCommits')
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+      )
+      .first();
+
+    return row ?? null;
+  },
+});
+
+/**
+ * Requests the daemon to fetch the list of commits for a specific PR.
+ *
+ * Idempotent: if a pending request already exists, this is a no-op.
+ * The frontend subscribes to `getPRCommits` to receive the result.
+ */
+export const requestPRCommits = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    // Idempotency: check for existing pending request
+    const existing = await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_workingDir_type', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('requestType', 'pr_commits')
+      )
+      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .first();
+
+    if (existing) {
+      return;
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'pr_commits',
+      prNumber: args.prNumber,
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Called by the daemon after processing a `pr_commits` request.
+ * Upserts the PR commit list for the given workspace + PR number.
+ */
+export const upsertPRCommits = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    const existing = await ctx.db
+      .query('chatroom_workspacePRCommits')
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        commits: args.commits,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspacePRCommits', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        prNumber: args.prNumber,
+        commits: args.commits,
+        updatedAt: now,
+      });
+    }
+  },
+});
