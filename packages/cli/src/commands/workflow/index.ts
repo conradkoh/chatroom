@@ -679,6 +679,15 @@ export async function viewStep(
         console.log('');
         console.log('Skills:');
         console.log(spec.skills);
+        // Generate activation commands for each skill
+        const skillNames = spec.skills.split(/[,\s]+/).filter((s: string) => s.trim().length > 0);
+        if (skillNames.length > 0) {
+          console.log('');
+          console.log('💡 Activate required skills before starting:');
+          for (const skill of skillNames) {
+            console.log(`   chatroom skill activate ${skill.trim()} --chatroom-id="${chatroomId}" --role="${options.role}"`);
+          }
+        }
       }
       if (spec.requirements) {
         console.log('');

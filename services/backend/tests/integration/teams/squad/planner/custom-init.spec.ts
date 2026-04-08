@@ -233,6 +233,10 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
          \`\`\`
 
       3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+         - **SKILLS must use valid skill names** from the glossary: \`software-engineering\`, \`code-review\`, \`backlog\`
+         - Implementation steps → \`software-engineering\`
+         - Review steps → \`code-review\`
+         - Backlog-related steps → \`backlog\`
       4. **Execute**: \`workflow execute\`
       5. **Delegate**: handoff with \`workflow step-view\` command
       6. **On handback**: \`workflow step-complete\` or hand back with feedback
