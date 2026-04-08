@@ -12,7 +12,7 @@ import { internalMutation } from './_generated/server';
 const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Maximum events to delete per run (to stay within mutation limits). */
-const BATCH_SIZE = 4000;
+const BATCH_SIZE = 2000;
 
 /**
  * Delete old events from chatroom_eventStream.

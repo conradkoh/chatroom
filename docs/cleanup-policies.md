@@ -10,7 +10,7 @@ All cleanup functions run as Convex `internalMutation` cron jobs. They process r
 
 | Table | Cleanup Strategy | TTL / Condition | Batch Size | Schedule | File | Notes |
 |---|---|---|---|---|---|---|
-| `chatroom_eventStream` | Age-based | 24 hours | 4,000 | Every 15 min | `eventCleanup.ts` | Self-reschedules if batch full |
+| `chatroom_eventStream` | Age-based | 24 hours | 2,000 | Every 15 min | `eventCleanup.ts` | Self-reschedules if batch full |
 | `chatroom_commandOutput` | Age-based (terminal runs) | 7 days | 500 chunks (50 runs) | Hourly | `storageCleanup.ts` | Deletes output chunks for completed/failed/stopped runs |
 | `chatroom_commandRuns` | Age-based (terminal status) | 30 days | 500 | Daily | `storageCleanup.ts` | Also deletes remaining output chunks |
 | `chatroom_workspaceCommitDetail` | Age-based | 30 days | 500 | Daily | `storageCleanup.ts` | |
@@ -19,12 +19,12 @@ All cleanup functions run as Convex `internalMutation` cron jobs. They process r
 | `chatroom_workspaceDiffRequests` | Age-based | 24 hours | 200 | Hourly | `storageCleanup.ts` | Part of cached content cleanup |
 | `chatroom_workspaceFileContentRequests` | Age-based | 24 hours | 200 | Hourly | `storageCleanup.ts` | Part of cached content cleanup |
 | `chatroom_workspaceFileTree` | Stale scannedAt | 30 days | 500 | Daily | `chatroomCleanup.ts` | Self-reschedules if batch full |
-| `chatroom_read_cursors` | Orphaned (chatroom deleted) | — | 500 | Daily | `chatroomCleanup.ts` | Checks if referenced chatroom exists |
-| `chatroom_machines` | Inactive (lastSeenAt) | 90 days | 200 | Daily | `chatroomCleanup.ts` | Also deletes related `machineLiveness` and `machineStatus` rows |
-| `chatroom_participants` | Orphaned (chatroom deleted) | — | 500 | Daily | `chatroomCleanup.ts` | Checks if referenced chatroom exists |
-| `cliSessions` | Inactive + stale | 30d (inactive) / 90d (stale) | 500 | Daily | `chatroomCleanup.ts` | Two passes: inactive sessions, then stale by lastUsedAt |
+| `chatroom_read_cursors` | Orphaned (chatroom deleted) | — | 500 scan / 300 delete cap | Daily | `chatroomCleanup.ts` | Delete-capped to prevent infinite loops |
+| `chatroom_machines` | Inactive (lastSeenAt) | 90 days | 50 | Daily | `chatroomCleanup.ts` | Full cascading delete of 16+ related tables |
+| `chatroom_participants` | Orphaned (chatroom deleted) | — | 500 scan / 300 delete cap | Daily | `chatroomCleanup.ts` | Delete-capped to prevent infinite loops |
+| `cliSessions` | Inactive + stale | 30d (inactive) / 90d (stale) | 500 | Daily | `chatroomCleanup.ts` | Two passes with dedup Set to prevent double-delete |
 | `cliAuthRequests` | Terminal status age | 7 days | 500 | Daily | `chatroomCleanup.ts` | Targets expired, denied, approved requests |
-| `chatroom_tasks` | Terminal status age | 60 days | 500 | Daily | `chatroomCleanup.ts` | Targets completed/closed tasks; falls back to _creationTime if completedAt unset |
+| `chatroom_tasks` | Terminal status age | 60 days | 500 | Daily | `chatroomCleanup.ts` | Uses completedAt with _creationTime fallback |
 
 ## Self-Rescheduling Pattern
 
@@ -38,14 +38,48 @@ if (deleted === BATCH_SIZE) {
 
 This ensures eventual convergence without overloading a single mutation. Functions using this pattern:
 
-- `eventCleanup.cleanupOldEvents` (batch 4,000)
+- `eventCleanup.cleanupOldEvents` (batch 2,000)
 - `chatroomCleanup.cleanupWorkspaceFileTree` (batch 500)
-- `chatroomCleanup.cleanupMachines` (batch 200)
+- `chatroomCleanup.cleanupMachines` (batch 50, reschedules if more machines remain)
 - `chatroomCleanup.cleanupCliSessions` (batch 500)
 - `chatroomCleanup.cleanupCliAuthRequests` (batch 500)
 - `chatroomCleanup.cleanupCompletedTasks` (batch 500)
 
-Orphan-detection cleanups (`cleanupReadCursors`, `cleanupParticipants`) reschedule based on whether a full batch was **scanned** (not deleted), since only a subset of scanned records may be orphaned.
+### Delete-Capped Orphan Detection
+
+Orphan-detection cleanups (`cleanupReadCursors`, `cleanupParticipants`) use a different strategy to avoid infinite reschedule loops when most records are valid:
+
+1. Scan up to 500 records ordered by `_creationTime`
+2. Delete orphans up to a cap of 300 per mutation
+3. Only reschedule if the delete cap was hit (meaning more orphans likely exist)
+4. If no orphans found (or fewer than cap), stop — no reschedule
+
+This prevents the pathological case where the cron infinitely reschedules to re-scan the same valid records.
+
+## Machine Cascading Delete
+
+When a machine is deleted (90-day inactive), the cleanup removes ALL related rows across these tables:
+
+| Table | Lookup Method |
+|-------|--------------|
+| `chatroom_machineLiveness` | Index: `by_machineId` |
+| `chatroom_machineStatus` | Index: `by_machineId` |
+| `chatroom_machineModelFilters` | Index: `by_machine_harness` |
+| `chatroom_teamAgentConfigs` | Index: `by_machineId` |
+| `chatroom_workspaces` | Index: `by_machine` |
+| `chatroom_workspaceGitState` | Filter: `machineId` |
+| `chatroom_workspaceFileTree` | Filter: `machineId` |
+| `chatroom_workspaceFileContent` | Filter: `machineId` |
+| `chatroom_workspaceFullDiff` | Filter: `machineId` |
+| `chatroom_workspacePRDiffs` | Filter: `machineId` |
+| `chatroom_workspaceDiffRequests` | Filter: `machineId` |
+| `chatroom_workspaceFileContentRequests` | Filter: `machineId` |
+| `chatroom_workspaceFileTreeRequests` | Filter: `machineId` |
+| `chatroom_workspaceCommitDetail` | Filter: `machineId` |
+| `chatroom_runnableCommands` | Filter: `machineId` |
+| `chatroom_commandRuns` | Filter: `machineId` (+ output chunks) |
+
+Due to the large number of related rows, machines are processed in small batches (50 per run).
 
 ## Source Files
 
