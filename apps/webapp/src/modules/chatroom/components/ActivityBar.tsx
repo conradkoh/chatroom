@@ -7,15 +7,13 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type ActivityView = 'explorer' | 'messages';
+
 interface ActivityBarProps {
-  /** Whether the file explorer panel is visible */
-  explorerVisible: boolean;
-  /** Toggle file explorer panel */
-  onToggleExplorer: () => void;
-  /** Whether the message feed panel is visible */
-  messagesVisible: boolean;
-  /** Toggle message feed panel */
-  onToggleMessages: () => void;
+  /** Currently active view */
+  activeView: ActivityView;
+  /** Called when a view icon is clicked */
+  onViewChange: (view: ActivityView) => void;
 }
 
 interface ActivityBarItemProps {
@@ -56,24 +54,22 @@ const ActivityBarItem = memo(function ActivityBarItem({
 // ─── ActivityBar ──────────────────────────────────────────────────────────────
 
 export const ActivityBar = memo(function ActivityBar({
-  explorerVisible,
-  onToggleExplorer,
-  messagesVisible,
-  onToggleMessages,
+  activeView,
+  onViewChange,
 }: ActivityBarProps) {
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
       <ActivityBarItem
         icon={<Files size={20} />}
-        label={explorerVisible ? 'Hide explorer' : 'Show explorer'}
-        isActive={explorerVisible}
-        onClick={onToggleExplorer}
+        label="Explorer"
+        isActive={activeView === 'explorer'}
+        onClick={() => onViewChange('explorer')}
       />
       <ActivityBarItem
         icon={<MessagesSquare size={20} />}
-        label={messagesVisible ? 'Hide messages' : 'Show messages'}
-        isActive={messagesVisible}
-        onClick={onToggleMessages}
+        label="Messages"
+        isActive={activeView === 'messages'}
+        onClick={() => onViewChange('messages')}
       />
     </div>
   );
