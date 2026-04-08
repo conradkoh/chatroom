@@ -280,8 +280,8 @@ describe('Squad Team > Planner > System Prompt', () => {
          \`\`\`
 
       4. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-         - **SKILLS must use valid skill names** from the \`skill list\` output above
-         - Assign appropriate skills per step (e.g. \`code-review\` for review steps)
+         - **SKILLS**: Include full \`chatroom skill activate <name>\` commands that the assignee should run
+         - Use the \`skill list\` output to choose the right skills per step
       5. **Execute**: \`workflow execute\`
       6. **Delegate**: handoff with \`workflow step-view\` command
       7. **On handback**: \`workflow step-complete\` or hand back with feedback
