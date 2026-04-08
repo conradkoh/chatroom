@@ -35,6 +35,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
+import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -269,6 +270,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
+
+  // File explorer (left panel) visibility
+  const [fileExplorerVisible, setFileExplorerVisible] = useState(false);
+  const toggleFileExplorer = useCallback(() => {
+    setFileExplorerVisible((prev) => !prev);
+  }, []);
 
   // Update sidebar visibility when screen size changes
   useEffect(() => {
@@ -735,6 +742,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <Settings2 size={16} />
               </button>
             )}
+            {/* File Explorer Toggle */}
+            {firstWorkspace && (
+              <FileExplorerToggle visible={fileExplorerVisible} onToggle={toggleFileExplorer} />
+            )}
             {/* Sidebar Toggle Button with Status Indicator */}
             <button
               className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
@@ -779,6 +790,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
+    fileExplorerVisible,
+    toggleFileExplorer,
+    firstWorkspace,
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
@@ -814,6 +828,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative">
+              {/* File Explorer Left Sidebar */}
+              {fileExplorerVisible && firstWorkspace && (
+                <div
+                  className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                >
+                  <FileExplorerPanel
+                    machineId={firstWorkspace.machineId}
+                    workingDir={firstWorkspace.workingDir}
+                    onFileSelect={(filePath) => {
+                      console.log('[FileExplorer] Selected file:', filePath);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed
