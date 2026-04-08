@@ -35,8 +35,15 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
+import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
+import { FileContentViewer } from './workspace/components/FileContentViewer';
+import { FileTabBar } from './workspace/components/FileTabBar';
+import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
+import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
+import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 
@@ -48,6 +55,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { cn } from '@/lib/utils';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
@@ -270,6 +278,36 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
+  // File explorer (left panel) visibility
+  const [fileExplorerVisible, setFileExplorerVisible] = useState(false);
+  const toggleFileExplorer = useCallback(() => {
+    setFileExplorerVisible((prev) => !prev);
+  }, []);
+
+  // File tabs state
+  const fileTabs = useFileTabs();
+
+  // File select handler: single click = preview, double click = pin
+  const handleFileSelect = useCallback((filePath: string) => {
+    fileTabs.openPreview(filePath);
+  }, [fileTabs.openPreview]);
+
+  const handleFileDoubleClick = useCallback((filePath: string) => {
+    fileTabs.pinTab(filePath);
+  }, [fileTabs.pinTab]);
+
+  // Track the path to reveal in the file tree
+  const [revealPath, setRevealPath] = useState<string | null>(null);
+
+  // Right pane handlers
+  const handleOpenPreview = useCallback((filePath: string) => {
+    fileTabs.openRight(filePath, 'preview');
+  }, [fileTabs.openRight]);
+
+  const handleOpenTableView = useCallback((filePath: string) => {
+    fileTabs.openRight(filePath, 'table');
+  }, [fileTabs.openRight]);
+
   // Update sidebar visibility when screen size changes
   useEffect(() => {
     setSidebarVisible(!isSmallScreen);
@@ -376,6 +414,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     machineId: firstWorkspace?.machineId ?? null,
     workingDir: firstWorkspace?.workingDir ?? null,
   });
+
+  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
+  const handleCmdPFileSelect = useCallback((filePath: string) => {
+    if (!filePath) return;
+    // Track in recent files
+    fileSelector.selectFile(filePath);
+    // Open as pinned tab
+    fileTabs.pinTab(filePath);
+    // Show file explorer if hidden
+    setFileExplorerVisible(true);
+    // Reveal in tree
+    setRevealPath(filePath);
+    // Close the file picker modal
+    fileSelector.setOpen(false);
+  }, [fileSelector, fileTabs.pinTab]);
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
@@ -545,6 +598,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
+    onOpenFileExplorer: firstWorkspace
+      ? () => setFileExplorerVisible(true)
+      : null,
   });
 
   // Memoize the team entry point
@@ -735,6 +791,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <Settings2 size={16} />
               </button>
             )}
+            {/* File Explorer Toggle */}
+            {firstWorkspace && (
+              <FileExplorerToggle visible={fileExplorerVisible} onToggle={toggleFileExplorer} />
+            )}
             {/* Sidebar Toggle Button with Status Indicator */}
             <button
               className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
@@ -779,6 +839,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
+    fileExplorerVisible,
+    toggleFileExplorer,
+    firstWorkspace,
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
@@ -814,16 +877,102 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative">
-              {/* Message Section */}
+              {/* File Explorer Left Sidebar — hidden when tab is expanded */}
+              {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
+                <div
+                  className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                >
+                  <FileExplorerPanel
+                    machineId={firstWorkspace.machineId}
+                    workingDir={firstWorkspace.workingDir}
+                    onFileSelect={handleFileSelect}
+                    onFileDoubleClick={handleFileDoubleClick}
+                    revealPath={revealPath}
+                  />
+                </div>
+              )}
+
+              {/* Main Content Area: Dual-pane file viewer OR Message feed */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed
-                  chatroomId={chatroomId}
-                  activeTask={activeTask}
-                  controller={scrollController}
-                  isPinned={isPinned}
-                  scrollToBottom={scrollToBottom}
-                  onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                />
+                {/* File Tab Bar — shown when tabs are open */}
+                {fileTabs.tabs.length > 0 && (
+                  <FileTabBar
+                    tabs={fileTabs.tabs}
+                    activeTabPath={fileTabs.activeTabPath}
+                    onActivate={fileTabs.setActiveTab}
+                    onClose={fileTabs.closeTab}
+                    onPin={fileTabs.pinTab}
+                    onToggleExpanded={fileTabs.toggleExpanded}
+                  />
+                )}
+
+                {/* File Content Area — left pane + optional right pane */}
+                {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
+                  <div className="flex-1 flex min-h-0 overflow-hidden">
+                    {/* Left Pane — source code */}
+                    <div className={cn(
+                      'flex flex-col min-h-0 overflow-hidden',
+                      fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+                    )}>
+                      <FileContentViewer
+                        key={fileTabs.activeTabPath}
+                        machineId={firstWorkspace.machineId}
+                        workingDir={firstWorkspace.workingDir}
+                        filePath={fileTabs.activeTabPath}
+                        onOpenPreview={handleOpenPreview}
+                        onOpenTableView={handleOpenTableView}
+                      />
+                    </div>
+
+                    {/* Right Pane — preview/table */}
+                    {fileTabs.rightTabs.length > 0 && (
+                      <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+                        <RightPaneTabBar
+                          tabs={fileTabs.rightTabs}
+                          activeTabKey={fileTabs.activeRightTabKey}
+                          onActivate={fileTabs.setActiveRightTab}
+                          onClose={fileTabs.closeRight}
+                        />
+                        {(() => {
+                          const activeRight = fileTabs.rightTabs.find(t => t.key === fileTabs.activeRightTabKey);
+                          if (!activeRight) return null;
+                          if (activeRight.viewType === 'preview') {
+                            return (
+                              <MarkdownPreviewPane
+                                key={activeRight.key}
+                                machineId={firstWorkspace.machineId!}
+                                workingDir={firstWorkspace.workingDir!}
+                                filePath={activeRight.filePath}
+                              />
+                            );
+                          }
+                          if (activeRight.viewType === 'table') {
+                            return (
+                              <CsvTablePane
+                                key={activeRight.key}
+                                machineId={firstWorkspace.machineId!}
+                                workingDir={firstWorkspace.workingDir!}
+                                filePath={activeRight.filePath}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Message Section — shown when no file tab is active */
+                  <MessageFeed
+                    chatroomId={chatroomId}
+                    activeTask={activeTask}
+                    controller={scrollController}
+                    isPinned={isPinned}
+                    scrollToBottom={scrollToBottom}
+                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                  />
+                )}
+                {/* SendForm always visible */}
                 <SendForm
                   chatroomId={chatroomId}
                   onBeforeResize={beginResize}
@@ -886,7 +1035,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onOpenChange={fileSelector.setOpen}
             files={fileSelector.files}
             recentFiles={fileSelector.recentFiles}
-            onSelectFile={fileSelector.selectFile}
+            onSelectFile={handleCmdPFileSelect}
             isLoading={fileSelector.isLoading}
             hasWorkspace={fileSelector.hasWorkspace}
           />

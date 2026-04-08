@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Code2,
   FileSearch,
+  FolderTree,
   GitBranch,
   GitPullRequest,
   ListTodo,
@@ -45,6 +46,8 @@ interface UseCommandPaletteCommandsProps {
   onRunCommand?: (commandName: string, script: string) => void;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
+  /** Callback to open the File Explorer */
+  onOpenFileExplorer?: (() => void) | null;
 }
 
 /**
@@ -71,6 +74,7 @@ export function useCommandPaletteCommands({
   onOpenProcessManagerWithCommand,
   onRunCommand,
   onOpenProcessManager,
+  onOpenFileExplorer,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -230,6 +234,18 @@ export function useCommandPaletteCommands({
       }
     );
 
+    // ─── File Explorer ─────────────────────────────────
+    if (onOpenFileExplorer) {
+      commands.push({
+        id: 'panel-file-explorer',
+        label: 'Chatroom: Open File Explorer',
+        icon: <FolderTree size={14} />,
+        category: 'Panels',
+        keywords: ['files', 'tree', 'explorer', 'workspace'],
+        action: onOpenFileExplorer,
+      });
+    }
+
     // ─── Process Manager ────────────────────────────────
     if (onOpenProcessManager) {
       commands.push({
@@ -260,6 +276,7 @@ export function useCommandPaletteCommands({
     onOpenProcessManagerWithCommand,
     onRunCommand,
     onOpenProcessManager,
+    onOpenFileExplorer,
     favoritesVersion,
   ]);
 }

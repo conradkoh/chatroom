@@ -70,6 +70,20 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('.tsx', 'Component.tsx')).toBeGreaterThan(0);
   });
 
+  it('ranks exact extension matches higher than other matches', () => {
+    // Searching ".csv" should rank "data.csv" higher than "csv_parser.ts"
+    const extensionMatch = fuzzyMatch('.csv', 'data.csv');
+    const nonExtensionMatch = fuzzyMatch('.csv', 'csv_parser.ts');
+    expect(extensionMatch).toBeGreaterThan(nonExtensionMatch);
+  });
+
+  it('ranks suffix matches higher for extension-like queries', () => {
+    // Searching ".ts" should rank files ending in .ts higher
+    const tsFileScore = fuzzyMatch('.ts', 'utils.ts');
+    const tsxFileScore = fuzzyMatch('.ts', 'Component.tsx');
+    expect(tsFileScore).toBeGreaterThan(tsxFileScore);
+  });
+
   it('matches single character queries', () => {
     expect(fuzzyMatch('c', 'CommandPalette')).toBeGreaterThan(0);
     expect(fuzzyMatch('z', 'abc')).toBe(0);
