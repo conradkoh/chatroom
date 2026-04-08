@@ -35,7 +35,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
+import { FileExplorerPanel, FileExplorerToggle, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
@@ -599,7 +599,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
     onOpenFileExplorer: firstWorkspace
-      ? () => setFileExplorerVisible(true)
+      ? () => {
+          setFileExplorerVisible(true);
+          // Dispatch refresh event so the file tree reloads
+          window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
+        }
       : null,
   });
 
