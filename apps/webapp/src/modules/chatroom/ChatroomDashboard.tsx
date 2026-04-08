@@ -292,6 +292,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     fileTabs.pinTab(filePath);
   }, [fileTabs.pinTab]);
 
+  // Track the path to reveal in the file tree
+  const [revealPath, setRevealPath] = useState<string | null>(null);
+
   // Update sidebar visibility when screen size changes
   useEffect(() => {
     setSidebarVisible(!isSmallScreen);
@@ -398,6 +401,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     machineId: firstWorkspace?.machineId ?? null,
     workingDir: firstWorkspace?.workingDir ?? null,
   });
+
+  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
+  const handleCmdPFileSelect = useCallback((filePath: string) => {
+    if (!filePath) return;
+    // Track in recent files
+    fileSelector.selectFile(filePath);
+    // Open as pinned tab
+    fileTabs.pinTab(filePath);
+    // Show file explorer if hidden
+    setFileExplorerVisible(true);
+    // Reveal in tree
+    setRevealPath(filePath);
+    // Close the file picker modal
+    fileSelector.setOpen(false);
+  }, [fileSelector, fileTabs.pinTab]);
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
@@ -856,6 +874,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     workingDir={firstWorkspace.workingDir}
                     onFileSelect={handleFileSelect}
                     onFileDoubleClick={handleFileDoubleClick}
+                    revealPath={revealPath}
                   />
                 </div>
               )}
@@ -958,7 +977,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onOpenChange={fileSelector.setOpen}
             files={fileSelector.files}
             recentFiles={fileSelector.recentFiles}
-            onSelectFile={fileSelector.selectFile}
+            onSelectFile={handleCmdPFileSelect}
             isLoading={fileSelector.isLoading}
             hasWorkspace={fileSelector.hasWorkspace}
           />

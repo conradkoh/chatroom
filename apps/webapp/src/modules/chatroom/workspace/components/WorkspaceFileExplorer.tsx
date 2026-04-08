@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { FileTree, FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
@@ -25,6 +25,8 @@ interface WorkspaceFileExplorerProps {
   workingDir: string;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
+  /** When set, auto-expand tree to reveal this file path */
+  revealPath?: string | null;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -185,6 +187,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   workingDir,
   onFileSelect,
   onFileDoubleClick,
+  revealPath,
 }: WorkspaceFileExplorerProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
@@ -207,6 +210,21 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       return [];
     }
   }, [treeResult?.treeJson]);
+
+  // Auto-expand tree to reveal a specific file path
+  useEffect(() => {
+    if (!revealPath) return;
+    const parts = revealPath.split('/').filter(Boolean);
+    if (parts.length <= 1) return; // no parent dirs to expand
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      // Expand all parent directories
+      for (let i = 1; i < parts.length; i++) {
+        next.add(parts.slice(0, i).join('/'));
+      }
+      return next;
+    });
+  }, [revealPath]);
 
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {

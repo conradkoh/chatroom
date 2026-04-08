@@ -14,6 +14,8 @@ interface FileExplorerPanelProps {
   workingDir: string | null;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
+  /** When set, auto-expand tree to reveal this file path */
+  revealPath?: string | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -23,6 +25,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   workingDir,
   onFileSelect,
   onFileDoubleClick,
+  revealPath,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
@@ -75,6 +78,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
           workingDir={workingDir}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}
+          revealPath={revealPath}
         />
       </div>
     </div>
