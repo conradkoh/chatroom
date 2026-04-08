@@ -289,6 +289,29 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
 }
 
 /**
+ * Process a `pr_commits` request:
+ * Run `gh pr view <number> --json commits`, push via `upsertPRCommits`.
+ */
+async function processPRCommits(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const prNumber = req.prNumber;
+  if (!prNumber) {
+    throw new Error('pr_commits request missing prNumber');
+  }
+
+  const commits = await gitReader.getPRCommits(req.workingDir, prNumber);
+  await ctx.deps.backend.mutation(api.workspaces.upsertPRCommits, {
+    machineId: ctx.machineId,
+    workingDir: req.workingDir,
+    prNumber,
+    commits,
+  });
+
+  console.log(
+    `[${formatTimestamp()}] 📋 PR commits pushed: ${req.workingDir} (#${prNumber}, ${commits.length} commits)`
+  );
+}
+
+/**
  * Process a `commit_detail` request:
  * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
  */
@@ -426,6 +449,9 @@ export async function processRequests(
           break;
         case 'pr_action':
           await processPRAction(ctx, req);
+          break;
+        case 'pr_commits':
+          await processPRCommits(ctx, req);
           break;
       }
 
