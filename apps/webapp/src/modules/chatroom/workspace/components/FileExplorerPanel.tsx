@@ -3,9 +3,12 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { FolderTree, RefreshCw } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+
+/** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
+export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +41,13 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     }
     setRefreshKey((k) => k + 1);
   }, [machineId, workingDir, requestTree]);
+
+  // Listen for external refresh requests (e.g. from command palette "Open File Explorer")
+  useEffect(() => {
+    const handler = () => handleRefresh();
+    window.addEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
+  }, [handleRefresh]);
 
   if (!machineId || !workingDir) {
     return (

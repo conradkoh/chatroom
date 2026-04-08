@@ -35,7 +35,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { FileExplorerPanel, FileExplorerToggle } from './workspace/components/FileExplorerPanel';
+import { FileExplorerPanel, FileExplorerToggle, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
@@ -599,7 +599,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
     onOpenFileExplorer: firstWorkspace
-      ? () => setFileExplorerVisible(true)
+      ? () => {
+          setFileExplorerVisible(true);
+          // Dispatch refresh event so the file tree reloads
+          window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
+        }
       : null,
   });
 
@@ -876,7 +880,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       >
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            <div className="flex flex-1 overflow-hidden relative">
+            <div className="flex flex-1 overflow-hidden relative min-h-0">
               {/* File Explorer Left Sidebar — hidden when tab is expanded */}
               {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
                 <div
@@ -972,12 +976,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
                 )}
-                {/* SendForm always visible */}
-                <SendForm
-                  chatroomId={chatroomId}
-                  onBeforeResize={beginResize}
-                  onAfterResize={endResize}
-                />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}
@@ -1011,6 +1009,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} onRegisterActions={handleRegisterWorkQueueActions} />
               </div>
+            </div>
+            {/* SendForm row — border-t-2 spans both main content and sidebar */}
+            <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                <SendForm
+                  chatroomId={chatroomId}
+                  onBeforeResize={beginResize}
+                  onAfterResize={endResize}
+                />
             </div>
             <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />
           </div>
