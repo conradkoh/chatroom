@@ -243,7 +243,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   if (tasks === undefined) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong min-h-0 overflow-hidden">
+      <div className="flex flex-col min-h-0 overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Task Queue
         </div>
@@ -253,7 +253,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   }
 
   return (
-    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden min-h-0">
+    <div className="flex flex-col overflow-hidden min-h-0">
       {/* Header */}
       <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
         <span>Task Queue</span>

@@ -242,7 +242,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   );
 
   return (
-    <div className="bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong">
+    <div className="bg-chatroom-bg-surface backdrop-blur-xl">
       {/* Attached Tasks Row */}
       {(attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) && (
         <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">

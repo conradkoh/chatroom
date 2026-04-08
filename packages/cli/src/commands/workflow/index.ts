@@ -677,7 +677,7 @@ export async function viewStep(
       }
       if (spec.skills) {
         console.log('');
-        console.log('Skills:');
+        console.log('Skills (activate before starting):');
         console.log(spec.skills);
       }
       if (spec.requirements) {
