@@ -223,9 +223,10 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       **Workflow commands** (a workflow MUST exist before handing off to builder):
 
       1. **List available skills** before planning: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role="planner"\`
-      2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
+      2. **Activate workflow skill**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
 
-      3. \`\`\`
+      3. **Create workflow**:
+         \`\`\`
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="feature-name" << 'EOF'
          {"steps": [
            {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
@@ -234,22 +235,23 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
          EOF
          \`\`\`
 
-      4. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-         - **SKILLS**: Include full \`chatroom skill activate <name>\` commands that the assignee should run
-         - Use the \`skill list\` output to choose the right skills per step
-      5. **Execute**: \`workflow execute\`
-      6. **Delegate**: handoff with \`workflow step-view\` command
-      7. **On handback**: \`workflow step-complete\` or hand back with feedback
-      8. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
+      4. **Specify** each step: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>" --chatroom-id=<id> --role="planner"\`
+         - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
+         - **SKILLS**: Include full \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate <name> --chatroom-id=<id> --role="planner"\` commands that the assignee should run
+         - Use the \`skill list\` output from step 1 to choose the right skills per step
+      5. **Execute**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow execute --workflow-key="<key>" --chatroom-id=<id> --role="planner"\`
+      6. **Delegate**: handoff with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-view --workflow-key="<key>" --step-key="<step>" --chatroom-id=<id> --role="planner"\` command
+      7. **On handback**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-complete --workflow-key="<key>" --step-key="<step>" --chatroom-id=<id> --role="planner"\` or hand back with feedback
+      8. **Check next**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow status --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` → delegate, self-handle, or deliver
 
-      ⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
+      ⚠️ Workflows complete automatically when all steps are done. Only use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` to abandon.
 
 
-      **Code review:** Include a review step for code-producing workflows. Activate \`code-review\` skill.
+      **Code review:** Include a review step for code-producing workflows. Activate with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`
 
-      **Backlog items:** When task originates from a backlog item, activate \`backlog\` skill for lifecycle management.
+      **Backlog items:** When task originates from a backlog item, activate backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id=<id> --role="planner"\`
 
-      **If stuck:** After 2 failed rework attempts → \`workflow exit\` with reason → replan or deliver partial results.
+      **If stuck:** After 2 failed rework attempts → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` with reason → replan or deliver partial results.
 
       **Review loop:**
       - Review completed work before moving to the next phase
