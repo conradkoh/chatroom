@@ -1458,7 +1458,8 @@ export default defineSchema({
       v.literal('commit_detail'),
       v.literal('more_commits'),
       v.literal('pr_diff'),
-      v.literal('pr_action')
+      v.literal('pr_action'),
+      v.literal('pr_commits')
     ),
     // For commit_detail requests
     sha: v.optional(v.string()),
@@ -1500,6 +1501,27 @@ export default defineSchema({
     }),
     updatedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Cached list of commits for a specific PR.
+   * Populated by the daemon after a `pr_commits` request is fulfilled.
+   * Keyed by machineId + workingDir + prNumber.
+   */
+  chatroom_workspacePRCommits: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
 
   /**
    * Per-commit diff content fetched on demand.

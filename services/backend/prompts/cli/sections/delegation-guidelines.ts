@@ -23,6 +23,9 @@ export function getDelegationGuidelinesSection(
   const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
   const roleArg = options?.role ? `"${options.role}"` : '<role>';
 
+  // Full command helper
+  const cmd = (subcommand: string) => `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
+
   return `**Delegation Guidelines:**
 
 Break complex features into small, focused phases. For architecture/SOLID guidance, activate the \`software-engineering\` skill.
@@ -32,22 +35,25 @@ Break complex features into small, focused phases. For architecture/SOLID guidan
 flowchart TD
     A[Receive task] --> B{Can handle alone?}
     B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-    B -->|No: needs builder| D[Create workflow]
-    D --> E[Specify + execute]
-    E --> F[Delegate step to builder]
-    F --> G[Review output]
-    G -->|Not acceptable| H[Hand back with feedback]
-    H --> F
-    G -->|Acceptable| I[Complete step]
-    I -->|More steps| F
-    I -->|All done| J[Deliver to user]
+    B -->|No: needs builder| D[List available skills]
+    D -->|skill list| E[Create workflow]
+    E --> F[Specify + execute]
+    F --> G[Delegate step to builder]
+    G --> H[Review output]
+    H -->|Not acceptable| I[Hand back with feedback]
+    I --> G
+    H -->|Acceptable| J[Complete step]
+    J -->|More steps| G
+    J -->|All done| K[Deliver to user]
 \`\`\`
 
 **Workflow commands** (a workflow MUST exist before handing off to builder):
 
-1. \`${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
+1. **List available skills** before planning: ${cmd('skill list')}
+2. **Activate workflow skill**: ${cmd('skill activate workflow')}
 
-2. \`\`\`
+3. **Create workflow**:
+   \`\`\`
    ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="feature-name" << 'EOF'
    {"steps": [
      {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
@@ -56,20 +62,23 @@ flowchart TD
    EOF
    \`\`\`
 
-3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-4. **Execute**: \`workflow execute\`
-5. **Delegate**: handoff with \`workflow step-view\` command
-6. **On handback**: \`workflow step-complete\` or hand back with feedback
-7. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
+4. **Specify** each step: ${cmd('workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>"')}
+   - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
+   - **SKILLS**: Include full \`${cliEnvPrefix}chatroom skill activate <name> --chatroom-id=${chatroomIdArg} --role=${roleArg}\` commands that the assignee should run
+   - Use the \`skill list\` output from step 1 to choose the right skills per step
+5. **Execute**: ${cmd('workflow execute --workflow-key="<key>"')}
+6. **Delegate**: handoff with ${cmd('workflow step-view --workflow-key="<key>" --step-key="<step>"')} command
+7. **On handback**: ${cmd('workflow step-complete --workflow-key="<key>" --step-key="<step>"')} or hand back with feedback
+8. **Check next**: ${cmd('workflow status --workflow-key="<key>"')} → delegate, self-handle, or deliver
 
-⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
+⚠️ Workflows complete automatically when all steps are done. Only use ${cmd('workflow exit --workflow-key="<key>"')} to abandon.
 
 
-**Code review:** Include a review step for code-producing workflows. Activate \`code-review\` skill.
+**Code review:** Include a review step for code-producing workflows. Activate with: ${cmd('skill activate code-review')}
 
-**Backlog items:** When task originates from a backlog item, activate \`backlog\` skill for lifecycle management.
+**Backlog items:** When task originates from a backlog item, activate backlog skill: ${cmd('skill activate backlog')}
 
-**If stuck:** After 2 failed rework attempts → \`workflow exit\` with reason → replan or deliver partial results.
+**If stuck:** After 2 failed rework attempts → ${cmd('workflow exit --workflow-key="<key>"')} with reason → replan or deliver partial results.
 
 **Review loop:**
 - Review completed work before moving to the next phase
