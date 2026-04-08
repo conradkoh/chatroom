@@ -54,12 +54,13 @@ function parseCsv(text: string): string[][] {
       } else if (ch === ',') {
         row.push(current);
         current = '';
-      } else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
+      } else if (ch === '\n' || ch === '\r') {
         row.push(current);
         current = '';
         if (row.some((c) => c.length > 0)) rows.push(row);
         row = [];
-        if (ch === '\r') i++;
+        // Handle \r\n as single newline
+        if (ch === '\r' && text[i + 1] === '\n') i++;
       } else {
         current += ch;
       }
@@ -224,10 +225,13 @@ const FileContentInner = memo(function FileContentInner({
 
 // ─── Markdown Preview ─────────────────────────────────────────────────────────
 
+// Stable plugin array — avoids creating a new reference each render
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+
 const MarkdownPreview = memo(function MarkdownPreview({ content }: { content: string }) {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none text-chatroom-text-primary">
-      <Markdown remarkPlugins={[remarkGfm, remarkBreaks]}>{content}</Markdown>
+      <Markdown remarkPlugins={REMARK_PLUGINS}>{content}</Markdown>
     </div>
   );
 });

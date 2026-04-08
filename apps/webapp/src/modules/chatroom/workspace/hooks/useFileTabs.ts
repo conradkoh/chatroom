@@ -94,6 +94,8 @@ export function useFileTabs(): UseFileTabsReturn {
       });
       return next;
     });
+    // Clear expanded state if closing the expanded tab
+    setExpandedTabPath((prev) => (prev === filePath ? null : prev));
   }, []);
 
   const setActive = useCallback((filePath: string) => {

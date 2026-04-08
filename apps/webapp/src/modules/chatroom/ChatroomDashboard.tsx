@@ -886,22 +886,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   </div>
                 ) : (
                   /* Message Section — shown when no file tab is active */
-                  <>
-                    <MessageFeed
-                      chatroomId={chatroomId}
-                      activeTask={activeTask}
-                      controller={scrollController}
-                      isPinned={isPinned}
-                      scrollToBottom={scrollToBottom}
-                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                    />
-                    <SendForm
-                      chatroomId={chatroomId}
-                      onBeforeResize={beginResize}
-                      onAfterResize={endResize}
-                    />
-                  </>
+                  <MessageFeed
+                    chatroomId={chatroomId}
+                    activeTask={activeTask}
+                    controller={scrollController}
+                    isPinned={isPinned}
+                    scrollToBottom={scrollToBottom}
+                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                  />
                 )}
+                {/* SendForm always visible — user can send messages while viewing files */}
+                <SendForm
+                  chatroomId={chatroomId}
+                  onBeforeResize={beginResize}
+                  onAfterResize={endResize}
+                />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}
