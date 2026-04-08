@@ -567,6 +567,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
+    onOpenFileExplorer: firstWorkspace
+      ? () => setFileExplorerVisible(true)
+      : null,
   });
 
   // Memoize the team entry point
