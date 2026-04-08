@@ -253,22 +253,24 @@ describe('Squad Team > Planner > System Prompt', () => {
       flowchart TD
           A[Receive task] --> B{Can handle alone?}
           B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-          B -->|No: needs builder| D[Create workflow]
-          D --> E[Specify + execute]
-          E --> F[Delegate step to builder]
-          F --> G[Review output]
-          G -->|Not acceptable| H[Hand back with feedback]
-          H --> F
-          G -->|Acceptable| I[Complete step]
-          I -->|More steps| F
-          I -->|All done| J[Deliver to user]
+          B -->|No: needs builder| D[List available skills]
+          D -->|skill list| E[Create workflow]
+          E --> F[Specify + execute]
+          F --> G[Delegate step to builder]
+          G --> H[Review output]
+          H -->|Not acceptable| I[Hand back with feedback]
+          I --> G
+          H -->|Acceptable| J[Complete step]
+          J -->|More steps| G
+          J -->|All done| K[Deliver to user]
       \`\`\`
 
       **Workflow commands** (a workflow MUST exist before handing off to builder):
 
-      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
+      1. **List available skills** before planning: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role="planner"\`
+      2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
 
-      2. \`\`\`
+      3. \`\`\`
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="feature-name" << 'EOF'
          {"steps": [
            {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
@@ -277,15 +279,13 @@ describe('Squad Team > Planner > System Prompt', () => {
          EOF
          \`\`\`
 
-      3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-         - **SKILLS must use valid skill names**: \`backlog\`, \`software-engineering\`, \`code-review\`
-         - \`backlog\` — The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
-         - \`software-engineering\` — Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-         - \`code-review\` — Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
-      4. **Execute**: \`workflow execute\`
-      5. **Delegate**: handoff with \`workflow step-view\` command
-      6. **On handback**: \`workflow step-complete\` or hand back with feedback
-      7. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
+      4. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+         - **SKILLS must use valid skill names** from the \`skill list\` output above
+         - Assign appropriate skills per step (e.g. \`code-review\` for review steps)
+      5. **Execute**: \`workflow execute\`
+      6. **Delegate**: handoff with \`workflow step-view\` command
+      7. **On handback**: \`workflow step-complete\` or hand back with feedback
+      8. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
 
       ⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
 

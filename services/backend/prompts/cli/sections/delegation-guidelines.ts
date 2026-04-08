@@ -7,7 +7,6 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
-import { GLOSSARY_TERMS } from '../../sections/glossary';
 
 /**
  * Generate the Delegation Guidelines section.
@@ -24,16 +23,6 @@ export function getDelegationGuidelinesSection(
   const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
   const roleArg = options?.role ? `"${options.role}"` : '<role>';
 
-  // Build dynamic skill list from glossary terms (exclude 'workflow' as it's the planning tool itself)
-  const availableSkills = GLOSSARY_TERMS
-    .filter((t) => t.linkedSkillId && t.linkedSkillId !== 'workflow')
-    .map((t) => `\`${t.linkedSkillId}\``)
-    .join(', ');
-  const skillDescriptions = GLOSSARY_TERMS
-    .filter((t) => t.linkedSkillId && t.linkedSkillId !== 'workflow')
-    .map((t) => `   - \`${t.linkedSkillId}\` — ${t.definition}`)
-    .join('\n');
-
   return `**Delegation Guidelines:**
 
 Break complex features into small, focused phases. For architecture/SOLID guidance, activate the \`software-engineering\` skill.
@@ -43,22 +32,24 @@ Break complex features into small, focused phases. For architecture/SOLID guidan
 flowchart TD
     A[Receive task] --> B{Can handle alone?}
     B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-    B -->|No: needs builder| D[Create workflow]
-    D --> E[Specify + execute]
-    E --> F[Delegate step to builder]
-    F --> G[Review output]
-    G -->|Not acceptable| H[Hand back with feedback]
-    H --> F
-    G -->|Acceptable| I[Complete step]
-    I -->|More steps| F
-    I -->|All done| J[Deliver to user]
+    B -->|No: needs builder| D[List available skills]
+    D -->|skill list| E[Create workflow]
+    E --> F[Specify + execute]
+    F --> G[Delegate step to builder]
+    G --> H[Review output]
+    H -->|Not acceptable| I[Hand back with feedback]
+    I --> G
+    H -->|Acceptable| J[Complete step]
+    J -->|More steps| G
+    J -->|All done| K[Deliver to user]
 \`\`\`
 
 **Workflow commands** (a workflow MUST exist before handing off to builder):
 
-1. \`${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
+1. **List available skills** before planning: \`${cliEnvPrefix}chatroom skill list --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
+2. \`${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomIdArg} --role=${roleArg}\`
 
-2. \`\`\`
+3. \`\`\`
    ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="feature-name" << 'EOF'
    {"steps": [
      {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
@@ -67,13 +58,13 @@ flowchart TD
    EOF
    \`\`\`
 
-3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-   - **SKILLS must use valid skill names**: ${availableSkills}
-${skillDescriptions}
-4. **Execute**: \`workflow execute\`
-5. **Delegate**: handoff with \`workflow step-view\` command
-6. **On handback**: \`workflow step-complete\` or hand back with feedback
-7. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
+4. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
+   - **SKILLS must use valid skill names** from the \`skill list\` output above
+   - Assign appropriate skills per step (e.g. \`code-review\` for review steps)
+5. **Execute**: \`workflow execute\`
+6. **Delegate**: handoff with \`workflow step-view\` command
+7. **On handback**: \`workflow step-complete\` or hand back with feedback
+8. **Check next**: \`workflow status\` → delegate, self-handle, or deliver
 
 ⚠️ Workflows complete automatically when all steps are done. Only use \`workflow exit\` to abandon.
 
