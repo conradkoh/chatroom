@@ -35,7 +35,8 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { FileExplorerPanel, FileExplorerToggle, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { FileExplorerPanel, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
@@ -278,10 +279,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
-  // File explorer (left panel) visibility
-  const [fileExplorerVisible, setFileExplorerVisible] = useState(false);
-  const toggleFileExplorer = useCallback(() => {
-    setFileExplorerVisible((prev) => !prev);
+  // Activity bar — tracks which left-panel view is active (null = none)
+  const [activeView, setActiveView] = useState<ActivityView | null>(null);
+  const fileExplorerVisible = activeView === 'explorer';
+  const handleViewToggle = useCallback((view: ActivityView | null) => {
+    setActiveView(view);
   }, []);
 
   // File tabs state
@@ -423,7 +425,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     // Open as pinned tab
     fileTabs.pinTab(filePath);
     // Show file explorer if hidden
-    setFileExplorerVisible(true);
+    setActiveView('explorer');
     // Reveal in tree
     setRevealPath(filePath);
     // Close the file picker modal
@@ -600,7 +602,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManager: handleOpenProcessManager,
     onOpenFileExplorer: firstWorkspace
       ? () => {
-          setFileExplorerVisible(true);
+          setActiveView('explorer');
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
@@ -795,10 +797,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <Settings2 size={16} />
               </button>
             )}
-            {/* File Explorer Toggle */}
-            {firstWorkspace && (
-              <FileExplorerToggle visible={fileExplorerVisible} onToggle={toggleFileExplorer} />
-            )}
             {/* Sidebar Toggle Button with Status Indicator */}
             <button
               className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
@@ -843,8 +841,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
-    fileExplorerVisible,
-    toggleFileExplorer,
     firstWorkspace,
   ]);
 
@@ -881,6 +877,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative min-h-0">
+              {/* Activity Bar — VSCode-style icon sidebar */}
+              {firstWorkspace && (
+                <ActivityBar activeView={activeView} onViewToggle={handleViewToggle} />
+              )}
+
               {/* File Explorer Left Sidebar — hidden when tab is expanded */}
               {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
                 <div
