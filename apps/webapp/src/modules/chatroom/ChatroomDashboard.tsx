@@ -880,7 +880,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       >
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            <div className="flex flex-1 overflow-hidden relative">
+            <div className="flex flex-1 overflow-hidden relative min-h-0">
               {/* File Explorer Left Sidebar — hidden when tab is expanded */}
               {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
                 <div
@@ -976,12 +976,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
                 )}
-                {/* SendForm always visible */}
-                <SendForm
-                  chatroomId={chatroomId}
-                  onBeforeResize={beginResize}
-                  onAfterResize={endResize}
-                />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}
@@ -1015,6 +1009,26 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} onRegisterActions={handleRegisterWorkQueueActions} />
               </div>
+            </div>
+            {/* SendForm row — border-t-2 spans both main content and sidebar */}
+            <div className="flex shrink-0 border-t-2 border-chatroom-border-strong">
+              <div className="flex-1 min-w-0">
+                <SendForm
+                  chatroomId={chatroomId}
+                  onBeforeResize={beginResize}
+                  onAfterResize={endResize}
+                />
+              </div>
+              {/* Sidebar footer spacer — matches sidebar width so border-t-2 extends across */}
+              {!isSmallScreen && (
+                <div
+                  className={`
+                    ${sidebarVisible ? 'w-80' : 'w-0'}
+                    border-l-2 border-chatroom-border-strong bg-chatroom-bg-surface
+                    transition-all duration-300 ease-in-out overflow-hidden
+                  `}
+                />
+              )}
             </div>
             <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />
           </div>
