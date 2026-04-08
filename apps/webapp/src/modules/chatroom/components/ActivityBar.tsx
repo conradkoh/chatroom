@@ -1,6 +1,6 @@
 'use client';
 
-import { Files, MessageSquare } from 'lucide-react';
+import { Files, MessagesSquare } from 'lucide-react';
 import { memo } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -70,7 +70,7 @@ export const ActivityBar = memo(function ActivityBar({
         onClick={onToggleExplorer}
       />
       <ActivityBarItem
-        icon={<MessageSquare size={20} />}
+        icon={<MessagesSquare size={20} />}
         label={messagesVisible ? 'Hide messages' : 'Show messages'}
         isActive={messagesVisible}
         onClick={onToggleMessages}
