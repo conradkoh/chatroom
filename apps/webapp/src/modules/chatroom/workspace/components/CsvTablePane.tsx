@@ -29,12 +29,13 @@ function parseCsv(text: string): string[][] {
       } else if (ch === ',') {
         row.push(current);
         current = '';
-      } else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
+      } else if (ch === '\n' || ch === '\r') {
         row.push(current);
         current = '';
         if (row.some((c) => c.length > 0)) rows.push(row);
         row = [];
-        if (ch === '\r') i++;
+        // Handle \r\n as single newline
+        if (ch === '\r' && text[i + 1] === '\n') i++;
       } else {
         current += ch;
       }

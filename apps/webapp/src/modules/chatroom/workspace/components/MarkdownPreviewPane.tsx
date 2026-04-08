@@ -17,6 +17,9 @@ interface MarkdownPreviewPaneProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// Stable plugin array — avoids creating a new reference each render
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+
 export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
   machineId,
   workingDir,
@@ -48,7 +51,7 @@ export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
   return (
     <div className="flex-1 overflow-auto p-4">
       <div className="prose prose-sm dark:prose-invert max-w-none text-chatroom-text-primary">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]}>{content.content}</Markdown>
+        <Markdown remarkPlugins={REMARK_PLUGINS}>{content.content}</Markdown>
       </div>
     </div>
   );
