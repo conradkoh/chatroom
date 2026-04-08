@@ -843,8 +843,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative">
-              {/* File Explorer Left Sidebar */}
-              {fileExplorerVisible && firstWorkspace && (
+              {/* File Explorer Left Sidebar — hidden when tab is expanded */}
+              {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
                 <div
                   className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
                 >
@@ -867,6 +867,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onActivate={fileTabs.setActiveTab}
                     onClose={fileTabs.closeTab}
                     onPin={fileTabs.pinTab}
+                    onToggleExpanded={fileTabs.toggleExpanded}
                   />
                 )}
 

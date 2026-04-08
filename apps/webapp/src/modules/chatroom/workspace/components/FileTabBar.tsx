@@ -16,6 +16,7 @@ interface FileTabBarProps {
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
   onPin: (filePath: string) => void;
+  onToggleExpanded?: (filePath: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ export const FileTabBar = memo(function FileTabBar({
   onActivate,
   onClose,
   onPin,
+  onToggleExpanded,
 }: FileTabBarProps) {
   if (tabs.length === 0) return null;
 
@@ -39,6 +41,7 @@ export const FileTabBar = memo(function FileTabBar({
           onActivate={onActivate}
           onClose={onClose}
           onPin={onPin}
+          onToggleExpanded={onToggleExpanded}
         />
       ))}
     </div>
@@ -53,20 +56,28 @@ const TabItem = memo(function TabItem({
   onActivate,
   onClose,
   onPin,
+  onToggleExpanded,
 }: {
   tab: FileTab;
   isActive: boolean;
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
   onPin: (filePath: string) => void;
+  onToggleExpanded?: (filePath: string) => void;
 }) {
   const handleClick = useCallback(() => {
     onActivate(tab.filePath);
   }, [onActivate, tab.filePath]);
 
   const handleDoubleClick = useCallback(() => {
-    onPin(tab.filePath);
-  }, [onPin, tab.filePath]);
+    if (tab.isPinned) {
+      // Already pinned — toggle expansion
+      onToggleExpanded?.(tab.filePath);
+    } else {
+      // Not pinned yet — pin it
+      onPin(tab.filePath);
+    }
+  }, [onPin, onToggleExpanded, tab.filePath, tab.isPinned]);
 
   const handleClose = useCallback(
     (e: React.MouseEvent) => {

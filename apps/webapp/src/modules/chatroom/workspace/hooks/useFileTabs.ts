@@ -16,6 +16,8 @@ export interface FileTab {
 export interface UseFileTabsReturn {
   tabs: FileTab[];
   activeTabPath: string | null;
+  /** Path of the expanded tab (double-click on pinned tab toggles) */
+  expandedTabPath: string | null;
   /** Open a file as a preview tab (replaces existing preview tab) */
   openPreview: (filePath: string) => void;
   /** Pin a tab (double-click or double-click on tree item) */
@@ -24,6 +26,8 @@ export interface UseFileTabsReturn {
   closeTab: (filePath: string) => void;
   /** Set the active tab */
   setActiveTab: (filePath: string) => void;
+  /** Toggle expanded state on a pinned tab */
+  toggleExpanded: (filePath: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,6 +42,7 @@ function getFileName(filePath: string): string {
 export function useFileTabs(): UseFileTabsReturn {
   const [tabs, setTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
+  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(null);
 
   const openPreview = useCallback((filePath: string) => {
     setTabs((prev) => {
@@ -95,12 +100,18 @@ export function useFileTabs(): UseFileTabsReturn {
     setActiveTabPath(filePath);
   }, []);
 
+  const toggleExpanded = useCallback((filePath: string) => {
+    setExpandedTabPath((prev) => (prev === filePath ? null : filePath));
+  }, []);
+
   return {
     tabs,
     activeTabPath,
+    expandedTabPath,
     openPreview,
     pinTab,
     closeTab,
     setActiveTab: setActive,
+    toggleExpanded,
   };
 }
