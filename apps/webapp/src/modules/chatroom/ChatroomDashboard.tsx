@@ -597,13 +597,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
-    onOpenFileExplorer: firstWorkspace
+    onShowExplorer: firstWorkspace
       ? () => {
           setActiveView('explorer');
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
       : null,
+    onShowMessages: () => setActiveView('messages'),
   });
 
   // Memoize the team entry point
