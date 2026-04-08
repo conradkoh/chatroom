@@ -54,7 +54,16 @@ export function fuzzyMatch(query: string, target: string): number {
   }
 
   // All query characters must have matched
-  return qi === q.length ? score : 0;
+  if (qi !== q.length) return 0;
+
+  // Suffix/extension match bonus: if the query matches the end of the target
+  // (e.g., searching ".csv" matches "data.csv" at the end), give a strong bonus.
+  // This ensures extension searches rank exact extension matches highest.
+  if (t.endsWith(q)) {
+    score += 10;
+  }
+
+  return score;
 }
 
 /**
