@@ -300,6 +300,7 @@ async function processPRCommits(ctx: DaemonContext, req: PendingRequest): Promis
 
   const commits = await gitReader.getPRCommits(req.workingDir, prNumber);
   await ctx.deps.backend.mutation(api.workspaces.upsertPRCommits, {
+    sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir: req.workingDir,
     prNumber,

@@ -1108,6 +1108,7 @@ export const requestPRCommits = mutation({
  */
 export const upsertPRCommits = mutation({
   args: {
+    ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
     prNumber: v.number(),
@@ -1122,6 +1123,12 @@ export const upsertPRCommits = mutation({
     ),
   },
   handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
     const existing = await ctx.db
       .query('chatroom_workspacePRCommits')
       .withIndex('by_machine_workingDir_prNumber', (q) =>
