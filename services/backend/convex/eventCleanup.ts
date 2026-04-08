@@ -5,13 +5,14 @@
  * Prevents unbounded growth of the event table.
  */
 
+import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 
 /** Maximum age of events to keep (24 hours). */
 const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Maximum events to delete per run (to stay within mutation limits). */
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 4000;
 
 /**
  * Delete old events from chatroom_eventStream.
@@ -37,6 +38,11 @@ export const cleanupOldEvents = internalMutation({
 
     if (deleted > 0) {
       console.log(`[EventCleanup] Deleted ${deleted} old events (cutoff: ${new Date(cutoff).toISOString()})`);
+    }
+
+    // Self-reschedule if we hit the batch limit (more rows likely remain)
+    if (deleted === BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.eventCleanup.cleanupOldEvents);
     }
   },
 });
