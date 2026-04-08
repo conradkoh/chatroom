@@ -7,6 +7,7 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
+import { GLOSSARY_TERMS } from '../../sections/glossary';
 
 /**
  * Generate the Delegation Guidelines section.
@@ -22,6 +23,16 @@ export function getDelegationGuidelinesSection(
   const cliEnvPrefix = options?.cliEnvPrefix ?? '';
   const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
   const roleArg = options?.role ? `"${options.role}"` : '<role>';
+
+  // Build dynamic skill list from glossary terms (exclude 'workflow' as it's the planning tool itself)
+  const availableSkills = GLOSSARY_TERMS
+    .filter((t) => t.linkedSkillId && t.linkedSkillId !== 'workflow')
+    .map((t) => `\`${t.linkedSkillId}\``)
+    .join(', ');
+  const skillDescriptions = GLOSSARY_TERMS
+    .filter((t) => t.linkedSkillId && t.linkedSkillId !== 'workflow')
+    .map((t) => `   - \`${t.linkedSkillId}\` — ${t.definition}`)
+    .join('\n');
 
   return `**Delegation Guidelines:**
 
@@ -57,10 +68,8 @@ flowchart TD
    \`\`\`
 
 3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-   - **SKILLS must use valid skill names** from the glossary: \`software-engineering\`, \`code-review\`, \`backlog\`
-   - Implementation steps → \`software-engineering\`
-   - Review steps → \`code-review\`
-   - Backlog-related steps → \`backlog\`
+   - **SKILLS must use valid skill names**: ${availableSkills}
+${skillDescriptions}
 4. **Execute**: \`workflow execute\`
 5. **Delegate**: handoff with \`workflow step-view\` command
 6. **On handback**: \`workflow step-complete\` or hand back with feedback

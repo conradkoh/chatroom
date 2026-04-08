@@ -16,7 +16,7 @@ export interface GlossarySectionParams {
   role?: string;
 }
 
-interface GlossaryTerm {
+export interface GlossaryTerm {
   /** The term name (also the skill ID if linkedSkillId is set) */
   term: string;
   /** Short, system-specific definition (~2 lines) */
@@ -25,7 +25,7 @@ interface GlossaryTerm {
   linkedSkillId?: string;
 }
 
-const GLOSSARY_TERMS: GlossaryTerm[] = [
+export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'backlog',
     definition:

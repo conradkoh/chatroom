@@ -233,10 +233,10 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
          \`\`\`
 
       3. **Specify** each step: \`workflow specify\` (GOAL, SKILLS, REQUIREMENTS, WARNINGS)
-         - **SKILLS must use valid skill names** from the glossary: \`software-engineering\`, \`code-review\`, \`backlog\`
-         - Implementation steps → \`software-engineering\`
-         - Review steps → \`code-review\`
-         - Backlog-related steps → \`backlog\`
+         - **SKILLS must use valid skill names**: \`backlog\`, \`software-engineering\`, \`code-review\`
+         - \`backlog\` — The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+         - \`software-engineering\` — Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+         - \`code-review\` — Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
       4. **Execute**: \`workflow execute\`
       5. **Delegate**: handoff with \`workflow step-view\` command
       6. **On handback**: \`workflow step-complete\` or hand back with feedback
