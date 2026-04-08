@@ -13,7 +13,7 @@ export interface FileTab {
   isPinned: boolean;
 }
 
-export interface UseFileTabsReturn {
+interface UseFileTabsReturn {
   tabs: FileTab[];
   activeTabPath: string | null;
   /** Path of the expanded tab (double-click on pinned tab toggles) */

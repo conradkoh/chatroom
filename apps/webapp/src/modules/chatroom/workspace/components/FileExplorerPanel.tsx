@@ -100,5 +100,3 @@ export const FileExplorerToggle = memo(function FileExplorerToggle({
     </button>
   );
 });
-
-export { type FileExplorerPanelProps };

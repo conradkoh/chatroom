@@ -255,5 +255,3 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     </div>
   );
 });
-
-export { type WorkspaceFileExplorerProps };
