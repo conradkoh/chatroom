@@ -18,6 +18,7 @@
 import { exec } from 'child_process';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { gzipSync } from 'node:zlib';
 import { promisify } from 'util';
 
 import type { DaemonContext } from './types.js';
@@ -140,11 +141,17 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
         ? diffStatResult.diffStat
         : { filesChanged: 0, insertions: 0, deletions: 0 };
 
+    // Compress diff content for efficient transport
+    const compressed = gzipSync(Buffer.from(result.content));
+    const diffContentCompressed = compressed.toString('base64');
+
     await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
       diffContent: result.content,
+      diffContentCompressed,
+      compression: 'gzip' as const,
       truncated: result.truncated,
       diffStat,
     });
@@ -358,6 +365,10 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   // result.status is 'available' or 'truncated'
   const diffStat = extractDiffStatFromShowOutput(result.content);
 
+  // Compress diff content for efficient transport
+  const compressed = gzipSync(Buffer.from(result.content));
+  const diffContentCompressed = compressed.toString('base64');
+
   await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
@@ -365,6 +376,8 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
     sha: req.sha,
     status: 'available',
     diffContent: result.content,
+    diffContentCompressed,
+    compression: 'gzip' as const,
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,

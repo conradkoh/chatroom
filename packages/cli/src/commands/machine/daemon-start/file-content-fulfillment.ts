@@ -7,6 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -119,12 +120,18 @@ async function fulfillSingleRequest(
     truncated = false;
   }
 
+  // Compress content for efficient transport
+  const compressed = gzipSync(Buffer.from(content));
+  const contentCompressed = compressed.toString('base64');
+
   await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContent, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
     filePath,
     content,
+    contentCompressed,
+    compression: 'gzip' as const,
     encoding: 'utf8',
     truncated,
   });

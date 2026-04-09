@@ -9,9 +9,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState } from '../types/git';
+import { decompressGzip } from '../utils/decompressGzip';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -49,23 +50,50 @@ export function useFullDiff(
   const result = useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
   const requestedRef = useRef(false);
+  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   const request = useCallback(() => {
     requestedRef.current = true;
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
+  // Decompress when compressed data is available
+  useEffect(() => {
+    if (
+      result &&
+      'diffContentCompressed' in result &&
+      result.diffContentCompressed &&
+      'compression' in result &&
+      result.compression === 'gzip'
+    ) {
+      let cancelled = false;
+      decompressGzip(result.diffContentCompressed).then((content) => {
+        if (!cancelled) setDecompressedContent(content);
+      });
+      return () => { cancelled = true; };
+    } else {
+      setDecompressedContent(null);
+    }
+  }, [result]);
+
   const state: FullDiffState = useMemo(() => {
     if (!result) {
       return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
+
+    // Use decompressed content if available, otherwise fall back to diffContent
+    const content =
+      'diffContentCompressed' in result && result.diffContentCompressed && decompressedContent !== null
+        ? decompressedContent
+        : result.diffContent;
+
     return {
       status: 'available',
-      content: result.diffContent,
+      content,
       truncated: result.truncated,
       diffStat: result.diffStat,
     };
-  }, [result]);
+  }, [result, decompressedContent]);
 
   return { state, request };
 }
@@ -119,6 +147,7 @@ export function useCommitDetail(
 ): { state: CommitDetailState; request: (sha: string) => void; clear: () => void } {
   const [activeSha, setActiveSha] = useState<string | null>(null);
   const requestMutation = useSessionMutation(api.workspaces.requestCommitDetail);
+  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   // Only subscribe when we have a sha to fetch
   const result = useSessionQuery(
@@ -136,16 +165,42 @@ export function useCommitDetail(
 
   const clear = useCallback(() => {
     setActiveSha(null);
+    setDecompressedContent(null);
   }, []);
+
+  // Decompress when compressed data is available
+  useEffect(() => {
+    if (
+      result &&
+      'diffContentCompressed' in result &&
+      result.diffContentCompressed &&
+      'compression' in result &&
+      result.compression === 'gzip'
+    ) {
+      let cancelled = false;
+      decompressGzip(result.diffContentCompressed).then((content) => {
+        if (!cancelled) setDecompressedContent(content);
+      });
+      return () => { cancelled = true; };
+    } else {
+      setDecompressedContent(null);
+    }
+  }, [result]);
 
   const state: CommitDetailState = useMemo(() => {
     if (!activeSha) return { status: 'idle' };
     if (result === undefined) return { status: 'loading' }; // query still loading
     if (result === null) return { status: 'loading' }; // no row yet
     if (result.status === 'available') {
+      // Use decompressed content if available, otherwise fall back to diffContent
+      const content =
+        'diffContentCompressed' in result && result.diffContentCompressed && decompressedContent !== null
+          ? decompressedContent
+          : (result.diffContent ?? '');
+
       return {
         status: 'available',
-        content: result.diffContent ?? '',
+        content,
         truncated: result.truncated ?? false,
         message: result.message ?? '',
         author: result.author ?? '',
@@ -166,7 +221,7 @@ export function useCommitDetail(
     }
     // error
     return { status: 'error', message: result.errorMessage ?? 'Unknown error' };
-  }, [activeSha, result]);
+  }, [activeSha, result, decompressedContent]);
 
   return { state, request, clear };
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
 import { isMarkdownFile, isCsvFile } from '../file-renderers';
 import { memo, useEffect } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
+import { useFileContent } from '../hooks/useFileContent';
 
 import { cn } from '@/lib/utils';
 
@@ -69,8 +70,8 @@ const FileContentInner = memo(function FileContentInner({
     requestContent({ machineId, workingDir, filePath }).catch(() => {});
   }, [machineId, workingDir, filePath, requestContent]);
 
-  // Reactively fetch cached content
-  const content = useSessionQuery(api.workspaceFiles.getFileContent, {
+  // Reactively fetch cached content (with transparent decompression)
+  const content = useFileContent({
     machineId,
     workingDir,
     filePath,
