@@ -283,6 +283,22 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Activity bar — single active view at a time
   const [activeView, setActiveView] = useState<ActivityView>('messages');
 
+  // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
+  const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
+
+  // Handle ActivityBar view changes with toggle sub-state support
+  const handleActivityViewChange = useCallback((view: ActivityView) => {
+    if (view === activeView) {
+      // Already on this view — toggle sub-state
+      if (view === 'explorer') {
+        setExplorerSidebarVisible(prev => !prev);
+      }
+    } else {
+      // Switch to different view
+      setActiveView(view);
+    }
+  }, [activeView]);
+
   // File tabs state
   const fileTabs = useFileTabs();
 
@@ -310,6 +326,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Update sidebar visibility when screen size changes
   useEffect(() => {
     setSidebarVisible(!isSmallScreen);
+    setExplorerSidebarVisible(!isSmallScreen);
   }, [isSmallScreen]);
 
   // Lock body scroll when sidebar overlay is visible on mobile
@@ -423,6 +440,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     fileTabs.pinTab(filePath);
     // Show file explorer if hidden
     setActiveView('explorer');
+    setExplorerSidebarVisible(true);
     // Reveal in tree
     setRevealPath(filePath);
     // Close the file picker modal
@@ -600,6 +618,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onShowExplorer: firstWorkspace
       ? () => {
           setActiveView('explorer');
+          setExplorerSidebarVisible(true);
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
@@ -879,12 +898,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               {firstWorkspace && (
                 <ActivityBar
                   activeView={activeView}
-                  onViewChange={setActiveView}
+                  onViewChange={handleActivityViewChange}
                 />
               )}
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
-              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && (
+              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && explorerSidebarVisible && (
                 <div
                   className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
                 >

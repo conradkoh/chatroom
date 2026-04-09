@@ -2,7 +2,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import type { AgentPreference } from '../components/AgentConfigTabs';
 import type { MachineInfo, AgentConfig } from '../types/machine';
@@ -51,12 +51,44 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     [machineConfigResult?.configs]
   );
 
+  // Load preferences once, then unsubscribe — preferences are snapshotted at mount
+  // by useAgentControls and don't need reactive updates.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const preferencesResult = useSessionQuery(
+    api.machines.getAgentPreferences,
+    prefsLoaded ? 'skip' : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
+  );
+
+  // Cache preferences before unsubscribing to prevent data loss when query returns undefined
+  const [cachedPreferences, setCachedPreferences] = useState<AgentPreference[]>([]);
+
+  useEffect(() => {
+    if (preferencesResult?.preferences && !prefsLoaded) {
+      const prefs: AgentPreference[] = preferencesResult.preferences.map((p: any) => ({
+        role: p.role,
+        machineId: p.machineId,
+        agentHarness: p.agentHarness,
+        model: p.model,
+        workingDir: p.workingDir,
+      }));
+      setCachedPreferences(prefs);
+      setPrefsLoaded(true);
+    }
+  }, [preferencesResult, prefsLoaded]);
+
   const agentPreferenceMap = useMemo(() => {
-    return new Map<string, AgentPreference>();
-  }, []);
+    const map = new Map<string, AgentPreference>();
+    for (const pref of cachedPreferences) {
+      map.set(pref.role, pref);
+    }
+    return map;
+  }, [cachedPreferences]);
 
   const isLoading =
-    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined;
+    statusResult === undefined ||
+    machineResult === undefined ||
+    machineConfigResult === undefined ||
+    (!prefsLoaded && preferencesResult === undefined);
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {
