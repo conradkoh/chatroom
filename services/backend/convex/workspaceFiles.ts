@@ -311,11 +311,15 @@ export const getFileContent = query({
       return null;
     }
 
+    // Return all fields — compressed data alongside regular fields for backward compat
     return {
       content: content.content,
       encoding: content.encoding,
       truncated: content.truncated,
       fetchedAt: content.fetchedAt,
+      ...(content.compression && content.contentCompressed
+        ? { contentCompressed: content.contentCompressed, compression: content.compression }
+        : {}),
     };
   },
 });
@@ -373,6 +377,8 @@ export const fulfillFileContent = mutation({
     content: v.string(),
     encoding: v.string(),
     truncated: v.boolean(),
+    contentCompressed: v.optional(v.string()),
+    compression: v.optional(v.literal('gzip')),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -403,7 +409,7 @@ export const fulfillFileContent = mutation({
       )
       .first();
 
-    const data = {
+    const data: Record<string, unknown> = {
       machineId: args.machineId,
       workingDir: args.workingDir,
       filePath: args.filePath,
@@ -413,10 +419,20 @@ export const fulfillFileContent = mutation({
       fetchedAt: now,
     };
 
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
+    // Store compressed data when provided
+    if (args.contentCompressed && args.compression) {
+      data.contentCompressed = args.contentCompressed;
+      data.compression = args.compression;
     } else {
-      await ctx.db.insert('chatroom_workspaceFileContent', data);
+      // Clear compressed fields if switching back to uncompressed
+      data.contentCompressed = undefined;
+      data.compression = undefined;
+    }
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data as any);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileContent', data as any);
     }
 
     // Mark request as done

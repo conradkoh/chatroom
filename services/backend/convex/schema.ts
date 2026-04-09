@@ -1435,6 +1435,12 @@ export default defineSchema({
     diffContent: v.string(),
     truncated: v.boolean(),
 
+    // Base64-encoded gzip-compressed diffContent (used when compression is set)
+    diffContentCompressed: v.optional(v.string()),
+
+    // Compression format marker
+    compression: v.optional(v.literal('gzip')),
+
     // Stats
     diffStat: v.object({
       filesChanged: v.number(),
@@ -1552,6 +1558,12 @@ export default defineSchema({
       })
     ),
 
+    // Base64-encoded gzip-compressed diffContent (used when compression is set)
+    diffContentCompressed: v.optional(v.string()),
+
+    // Compression format marker
+    compression: v.optional(v.literal('gzip')),
+
     // Commit metadata (available when status === 'available' or 'too_large')
     message: v.optional(v.string()),
     author: v.optional(v.string()),
@@ -1622,6 +1634,12 @@ export default defineSchema({
     content: v.string(),
     encoding: v.string(), // 'utf8'
     truncated: v.boolean(),
+
+    // Base64-encoded gzip-compressed content (used when compression is set)
+    contentCompressed: v.optional(v.string()),
+
+    // Compression format marker
+    compression: v.optional(v.literal('gzip')),
 
     // When the content was fetched
     fetchedAt: v.number(),
