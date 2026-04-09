@@ -59,27 +59,30 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     prefsLoaded ? 'skip' : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
   );
 
+  // Cache preferences before unsubscribing to prevent data loss when query returns undefined
+  const [cachedPreferences, setCachedPreferences] = useState<AgentPreference[]>([]);
+
   useEffect(() => {
-    if (preferencesResult !== undefined && !prefsLoaded) {
+    if (preferencesResult?.preferences && !prefsLoaded) {
+      const prefs: AgentPreference[] = preferencesResult.preferences.map((p: any) => ({
+        role: p.role,
+        machineId: p.machineId,
+        agentHarness: p.agentHarness,
+        model: p.model,
+        workingDir: p.workingDir,
+      }));
+      setCachedPreferences(prefs);
       setPrefsLoaded(true);
     }
   }, [preferencesResult, prefsLoaded]);
 
   const agentPreferenceMap = useMemo(() => {
     const map = new Map<string, AgentPreference>();
-    if (preferencesResult?.preferences) {
-      for (const pref of preferencesResult.preferences) {
-        map.set(pref.role, {
-          role: pref.role,
-          machineId: pref.machineId,
-          agentHarness: pref.agentHarness,
-          model: pref.model,
-          workingDir: pref.workingDir,
-        });
-      }
+    for (const pref of cachedPreferences) {
+      map.set(pref.role, pref);
     }
     return map;
-  }, [preferencesResult?.preferences]);
+  }, [cachedPreferences]);
 
   const isLoading =
     statusResult === undefined ||
