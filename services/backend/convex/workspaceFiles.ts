@@ -581,3 +581,70 @@ export const fulfillFileTreeRequest = mutation({
     }
   },
 });
+
+// ─── Purge Workspace Data ───────────────────────────────────────────────────
+
+/**
+ * Purge file tree data for a specific workspace (machineId + workingDir).
+ * Deletes the stored tree and any pending requests.
+ */
+export const purgeFileTree = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete stored file tree
+    const tree = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (tree) {
+      await ctx.db.delete(tree._id);
+    }
+
+    // Delete pending requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of requests) {
+      await ctx.db.delete(req._id);
+    }
+
+    // Delete file content cache
+    const contents = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const content of contents) {
+      await ctx.db.delete(content._id);
+    }
+
+    // Delete file content requests (uses different index)
+    const contentRequests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId)
+      )
+      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .collect();
+    for (const req of contentRequests) {
+      await ctx.db.delete(req._id);
+    }
+  },
+});

@@ -537,6 +537,9 @@ const WorkspacesContent = memo(function WorkspacesContent({
   );
   const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, { agentViews });
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [purgingWorkspaceId, setPurgingWorkspaceId] = useState<string | null>(null);
+  const [purgeStatus, setPurgeStatus] = useState<string | null>(null);
+  const purgeFileTreeMutation = useSessionMutation(api.workspaceFiles.purgeFileTree);
 
   // Build a set of workingDirs that have active remote agents
   const activeRemoteWorkingDirs = useMemo(() => {
@@ -564,6 +567,22 @@ const WorkspacesContent = memo(function WorkspacesContent({
       }
     },
     [removeWorkspace]
+  );
+
+  const handlePurgeFileTree = useCallback(
+    async (machineId: string, workingDir: string, workspaceId: string) => {
+      setPurgingWorkspaceId(workspaceId);
+      setPurgeStatus(null);
+      try {
+        await purgeFileTreeMutation({ machineId, workingDir });
+        setPurgeStatus('File tree data purged successfully');
+      } catch (err) {
+        setPurgeStatus(err instanceof Error ? err.message : 'Failed to purge');
+      } finally {
+        setPurgingWorkspaceId(null);
+      }
+    },
+    [purgeFileTreeMutation]
   );
 
   if (isLoading) {
@@ -620,6 +639,22 @@ const WorkspacesContent = memo(function WorkspacesContent({
                 <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
                   <AlertTriangle size={10} />
                   Active remote agents — cannot remove
+                </div>
+              )}
+              {/* Data purge controls */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  disabled={purgingWorkspaceId === ws.id}
+                  onClick={() => ws.machineId && handlePurgeFileTree(ws.machineId, ws.workingDir, ws.id)}
+                  className="text-[10px] px-2 py-0.5 rounded border border-chatroom-border text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-colors disabled:opacity-50"
+                >
+                  {purgingWorkspaceId === ws.id ? 'Purging...' : 'Purge File Tree'}
+                </button>
+              </div>
+              {purgeStatus && (
+                <div className="text-[10px] text-chatroom-text-muted mt-1">
+                  {purgeStatus}
                 </div>
               )}
             </div>
