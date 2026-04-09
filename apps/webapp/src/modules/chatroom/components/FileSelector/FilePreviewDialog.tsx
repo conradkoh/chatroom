@@ -9,7 +9,6 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FileTypeIcon } from './fileIcons';
 import { isBinaryFile } from './binaryDetection';
 import type { FileEntry } from './useFileSelector';
-import { proseClassNames } from '../markdown-utils';
 
 import {
   FixedModal,
@@ -370,7 +369,7 @@ const FileContentPanel = memo(function FileContentPanel({
       {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
         /* Rendered markdown preview */
         <div className="flex-1 p-6 overflow-auto">
-          <MarkdownRenderer content={contentResult.content} className={proseClassNames} />
+          <MarkdownRenderer content={contentResult.content} />
         </div>
       ) : viewMode === 'table' && filePath && isCsvFile(filePath) ? (
         /* CSV table view */
@@ -500,7 +499,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             </button>
             {hasToggle && (
               <button
-                onClick={() => setViewMode(prev => prev === 'source' ? (isMarkdown ? 'preview' : 'table') : 'source')}
+                onClick={() => setViewMode(prev => prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source')}
                 className={`p-1 shrink-0 transition-colors ${
                   viewMode !== 'source'
                     ? 'text-chatroom-accent'
