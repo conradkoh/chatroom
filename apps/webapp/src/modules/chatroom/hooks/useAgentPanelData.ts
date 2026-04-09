@@ -51,12 +51,28 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     [machineConfigResult?.configs]
   );
 
+  const preferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+
   const agentPreferenceMap = useMemo(() => {
-    return new Map<string, AgentPreference>();
-  }, []);
+    const map = new Map<string, AgentPreference>();
+    if (preferencesResult?.preferences) {
+      for (const pref of preferencesResult.preferences) {
+        map.set(pref.role, {
+          role: pref.role,
+          machineId: pref.machineId,
+          agentHarness: pref.agentHarness,
+          model: pref.model,
+          workingDir: pref.workingDir,
+        });
+      }
+    }
+    return map;
+  }, [preferencesResult?.preferences]);
 
   const isLoading =
-    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined;
+    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined || preferencesResult === undefined;
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {

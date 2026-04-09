@@ -1988,3 +1988,35 @@ export const clearAllSpawnedPids = mutation({
     return { clearedCount };
   },
 });
+
+export const getAgentPreferences = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      return { preferences: [] };
+    }
+
+    const preferences = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_userId_chatroom_role', (q) =>
+        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId)
+      )
+      .collect();
+
+    return {
+      preferences: preferences
+        .filter((p) => p.role && p.agentHarness)
+        .map((p) => ({
+          role: p.role!,
+          machineId: p.machineId,
+          agentHarness: p.agentHarness!,
+          model: p.model,
+          workingDir: p.workingDir,
+        })),
+    };
+  },
+});
