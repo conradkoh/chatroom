@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Files,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -35,7 +36,8 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
-import { FileExplorerPanel, FileExplorerToggle, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { FileExplorerPanel, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
@@ -278,11 +280,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
-  // File explorer (left panel) visibility
-  const [fileExplorerVisible, setFileExplorerVisible] = useState(false);
-  const toggleFileExplorer = useCallback(() => {
-    setFileExplorerVisible((prev) => !prev);
-  }, []);
+  // Activity bar — single active view at a time
+  const [activeView, setActiveView] = useState<ActivityView>('messages');
 
   // File tabs state
   const fileTabs = useFileTabs();
@@ -423,7 +422,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     // Open as pinned tab
     fileTabs.pinTab(filePath);
     // Show file explorer if hidden
-    setFileExplorerVisible(true);
+    setActiveView('explorer');
     // Reveal in tree
     setRevealPath(filePath);
     // Close the file picker modal
@@ -598,13 +597,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
-    onOpenFileExplorer: firstWorkspace
+    onShowExplorer: firstWorkspace
       ? () => {
-          setFileExplorerVisible(true);
+          setActiveView('explorer');
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
       : null,
+    onShowMessages: () => setActiveView('messages'),
   });
 
   // Memoize the team entry point
@@ -795,10 +795,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <Settings2 size={16} />
               </button>
             )}
-            {/* File Explorer Toggle */}
-            {firstWorkspace && (
-              <FileExplorerToggle visible={fileExplorerVisible} onToggle={toggleFileExplorer} />
-            )}
             {/* Sidebar Toggle Button with Status Indicator */}
             <button
               className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
@@ -843,8 +839,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
-    fileExplorerVisible,
-    toggleFileExplorer,
     firstWorkspace,
   ]);
 
@@ -881,8 +875,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative min-h-0">
-              {/* File Explorer Left Sidebar — hidden when tab is expanded */}
-              {fileExplorerVisible && firstWorkspace && !fileTabs.expandedTabPath && (
+              {/* Activity Bar — VSCode-style icon sidebar */}
+              {firstWorkspace && (
+                <ActivityBar
+                  activeView={activeView}
+                  onViewChange={setActiveView}
+                />
+              )}
+
+              {/* File Explorer Left Sidebar — shown in explorer view */}
+              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && (
                 <div
                   className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
                 >
@@ -896,77 +898,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 </div>
               )}
 
-              {/* Main Content Area: Dual-pane file viewer OR Message feed */}
+              {/* Main Content Area */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {/* File Tab Bar — shown when tabs are open */}
-                {fileTabs.tabs.length > 0 && (
-                  <FileTabBar
-                    tabs={fileTabs.tabs}
-                    activeTabPath={fileTabs.activeTabPath}
-                    onActivate={fileTabs.setActiveTab}
-                    onClose={fileTabs.closeTab}
-                    onPin={fileTabs.pinTab}
-                    onToggleExpanded={fileTabs.toggleExpanded}
-                  />
-                )}
-
-                {/* File Content Area — left pane + optional right pane */}
-                {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
-                  <div className="flex-1 flex min-h-0 overflow-hidden">
-                    {/* Left Pane — source code */}
-                    <div className={cn(
-                      'flex flex-col min-h-0 overflow-hidden',
-                      fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
-                    )}>
-                      <FileContentViewer
-                        key={fileTabs.activeTabPath}
-                        machineId={firstWorkspace.machineId}
-                        workingDir={firstWorkspace.workingDir}
-                        filePath={fileTabs.activeTabPath}
-                        onOpenPreview={handleOpenPreview}
-                        onOpenTableView={handleOpenTableView}
-                      />
-                    </div>
-
-                    {/* Right Pane — preview/table */}
-                    {fileTabs.rightTabs.length > 0 && (
-                      <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
-                        <RightPaneTabBar
-                          tabs={fileTabs.rightTabs}
-                          activeTabKey={fileTabs.activeRightTabKey}
-                          onActivate={fileTabs.setActiveRightTab}
-                          onClose={fileTabs.closeRight}
-                        />
-                        {(() => {
-                          const activeRight = fileTabs.rightTabs.find(t => t.key === fileTabs.activeRightTabKey);
-                          if (!activeRight) return null;
-                          if (activeRight.viewType === 'preview') {
-                            return (
-                              <MarkdownPreviewPane
-                                key={activeRight.key}
-                                machineId={firstWorkspace.machineId!}
-                                workingDir={firstWorkspace.workingDir!}
-                                filePath={activeRight.filePath}
-                              />
-                            );
-                          }
-                          if (activeRight.viewType === 'table') {
-                            return (
-                              <CsvTablePane
-                                key={activeRight.key}
-                                machineId={firstWorkspace.machineId!}
-                                workingDir={firstWorkspace.workingDir!}
-                                filePath={activeRight.filePath}
-                              />
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Message Section — shown when no file tab is active */
+                {activeView === 'messages' ? (
+                  /* Message Feed — shown in messages view */
                   <MessageFeed
                     chatroomId={chatroomId}
                     activeTask={activeTask}
@@ -975,6 +910,87 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     scrollToBottom={scrollToBottom}
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
+                ) : (
+                  /* Explorer view — file tabs + content or empty state */
+                  <>
+                    {/* File Tab Bar — shown when tabs are open */}
+                    {fileTabs.tabs.length > 0 && (
+                      <FileTabBar
+                        tabs={fileTabs.tabs}
+                        activeTabPath={fileTabs.activeTabPath}
+                        onActivate={fileTabs.setActiveTab}
+                        onClose={fileTabs.closeTab}
+                        onPin={fileTabs.pinTab}
+                        onToggleExpanded={fileTabs.toggleExpanded}
+                      />
+                    )}
+
+                    {/* File Content Area — left pane + optional right pane */}
+                    {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
+                      <div className="flex-1 flex min-h-0 overflow-hidden">
+                        {/* Left Pane — source code */}
+                        <div className={cn(
+                          'flex flex-col min-h-0 overflow-hidden',
+                          fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+                        )}>
+                          <FileContentViewer
+                            key={fileTabs.activeTabPath}
+                            machineId={firstWorkspace.machineId}
+                            workingDir={firstWorkspace.workingDir}
+                            filePath={fileTabs.activeTabPath}
+                            onOpenPreview={handleOpenPreview}
+                            onOpenTableView={handleOpenTableView}
+                          />
+                        </div>
+
+                        {/* Right Pane — preview/table */}
+                        {fileTabs.rightTabs.length > 0 && (
+                          <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+                            <RightPaneTabBar
+                              tabs={fileTabs.rightTabs}
+                              activeTabKey={fileTabs.activeRightTabKey}
+                              onActivate={fileTabs.setActiveRightTab}
+                              onClose={fileTabs.closeRight}
+                            />
+                            {(() => {
+                              const activeRight = fileTabs.rightTabs.find(t => t.key === fileTabs.activeRightTabKey);
+                              if (!activeRight) return null;
+                              if (activeRight.viewType === 'preview') {
+                                return (
+                                  <MarkdownPreviewPane
+                                    key={activeRight.key}
+                                    machineId={firstWorkspace.machineId!}
+                                    workingDir={firstWorkspace.workingDir!}
+                                    filePath={activeRight.filePath}
+                                  />
+                                );
+                              }
+                              if (activeRight.viewType === 'table') {
+                                return (
+                                  <CsvTablePane
+                                    key={activeRight.key}
+                                    machineId={firstWorkspace.machineId!}
+                                    workingDir={firstWorkspace.workingDir!}
+                                    filePath={activeRight.filePath}
+                                  />
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Empty state — no files open in explorer view */
+                      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
+                        <div className="text-center">
+                          <Files size={32} className="mx-auto mb-2 opacity-40" />
+                          <p>No files open</p>
+                          <p className="text-xs mt-1">Select a file from the explorer to view it</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

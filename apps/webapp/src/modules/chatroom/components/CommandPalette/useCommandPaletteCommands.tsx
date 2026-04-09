@@ -6,11 +6,12 @@ import {
   ArrowRightLeft,
   ClipboardCheck,
   Code2,
+  Files,
   FileSearch,
-  FolderTree,
   GitBranch,
   GitPullRequest,
   ListTodo,
+  MessagesSquare,
   PanelBottomOpen,
   Settings,
   Terminal,
@@ -46,8 +47,10 @@ interface UseCommandPaletteCommandsProps {
   onRunCommand?: (commandName: string, script: string) => void;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
-  /** Callback to open the File Explorer */
-  onOpenFileExplorer?: (() => void) | null;
+  /** Callback to switch to Explorer view */
+  onShowExplorer?: (() => void) | null;
+  /** Callback to switch to Messages view */
+  onShowMessages?: () => void;
 }
 
 /**
@@ -74,7 +77,8 @@ export function useCommandPaletteCommands({
   onOpenProcessManagerWithCommand,
   onRunCommand,
   onOpenProcessManager,
-  onOpenFileExplorer,
+  onShowExplorer,
+  onShowMessages,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -234,15 +238,26 @@ export function useCommandPaletteCommands({
       }
     );
 
-    // ─── File Explorer ─────────────────────────────────
-    if (onOpenFileExplorer) {
+    // ─── View ──────────────────────────────────────────────
+    if (onShowExplorer) {
       commands.push({
-        id: 'panel-file-explorer',
-        label: 'Chatroom: Open File Explorer',
-        icon: <FolderTree size={14} />,
-        category: 'Panels',
+        id: 'view-explorer',
+        label: 'View: Show Explorer',
+        icon: <Files size={14} />,
+        category: 'View',
         keywords: ['files', 'tree', 'explorer', 'workspace'],
-        action: onOpenFileExplorer,
+        action: onShowExplorer,
+      });
+    }
+
+    if (onShowMessages) {
+      commands.push({
+        id: 'view-messages',
+        label: 'View: Show Messages',
+        icon: <MessagesSquare size={14} />,
+        category: 'View',
+        keywords: ['chat', 'messages', 'feed', 'history'],
+        action: onShowMessages,
       });
     }
 
@@ -276,7 +291,8 @@ export function useCommandPaletteCommands({
     onOpenProcessManagerWithCommand,
     onRunCommand,
     onOpenProcessManager,
-    onOpenFileExplorer,
+    onShowExplorer,
+    onShowMessages,
     favoritesVersion,
   ]);
 }

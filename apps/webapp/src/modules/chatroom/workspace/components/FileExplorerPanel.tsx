@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { FolderTree, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
@@ -92,25 +92,5 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         />
       </div>
     </div>
-  );
-});
-
-// ─── Toggle Button ────────────────────────────────────────────────────────────
-
-export const FileExplorerToggle = memo(function FileExplorerToggle({
-  visible,
-  onToggle,
-}: {
-  visible: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-      onClick={onToggle}
-      title={visible ? 'Hide file explorer' : 'Show file explorer'}
-    >
-      <FolderTree size={16} />
-    </button>
   );
 });
