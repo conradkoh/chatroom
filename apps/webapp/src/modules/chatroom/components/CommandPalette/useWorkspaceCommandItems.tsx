@@ -33,13 +33,17 @@ function toGitHubRepoUrl(remoteUrl: string): string | null {
 }
 
 /**
- * Append workspace hostname suffix when there are multiple workspaces.
- * Single workspace → no suffix (backward compatible).
+ * Build a detail string for workspace disambiguation.
+ * Shows hostname + last directory component of workingDir.
+ * Only shown when isMulti is true.
  */
-function withWorkspaceSuffix(label: string, workspace: Workspace, isMulti: boolean): string {
-  if (!isMulti) return label;
+function getWorkspaceDetail(workspace: Workspace, isMulti: boolean): string | undefined {
+  if (!isMulti) return undefined;
   const hostname = getWorkspaceDisplayHostname(workspace);
-  return `${label} (${hostname})`;
+  const dir = workspace.workingDir;
+  // Show last path component for brevity, or full path if short
+  const shortDir = dir.split('/').filter(Boolean).pop() ?? dir;
+  return `${hostname} — ${shortDir}`;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -68,24 +72,28 @@ export function useWorkspaceCommandItems(
   return useMemo(() => {
     const items: CommandItem[] = [];
     const wsKey = workspace.id; // unique key per workspace
+    const detail = getWorkspaceDetail(workspace, isMulti);
+    const hostname = getWorkspaceDisplayHostname(workspace);
 
     // Only show machine actions when daemon is connected (local workspace)
     if (isConnected) {
       items.push({
         id: `ws-${wsKey}-open-vscode`,
-        label: withWorkspaceSuffix('Machine: Open in VS Code', workspace, isMulti),
+        label: 'Machine: Open in VS Code',
+        detail,
         icon: <Code2 size={14} />,
         category: 'Actions',
-        keywords: ['vscode', 'editor', getWorkspaceDisplayHostname(workspace)],
+        keywords: ['vscode', 'editor', hostname, workspace.workingDir],
         action: () => sendAction(machineId, 'open-vscode', workingDir),
       });
 
       items.push({
         id: `ws-${wsKey}-open-github-desktop`,
-        label: withWorkspaceSuffix('Machine: Open in GitHub Desktop', workspace, isMulti),
+        label: 'Machine: Open in GitHub Desktop',
+        detail,
         icon: <SiGithub size={14} />,
         category: 'Actions',
-        keywords: ['github desktop', getWorkspaceDisplayHostname(workspace)],
+        keywords: ['github desktop', hostname, workspace.workingDir],
         action: () => sendAction(machineId, 'open-github-desktop', workingDir),
       });
     }
@@ -99,19 +107,21 @@ export function useWorkspaceCommandItems(
       if (repoUrl) {
         items.push({
           id: `ws-${wsKey}-view-github-prs`,
-          label: withWorkspaceSuffix('Github: View Pull Requests', workspace, isMulti),
+          label: 'Github: View Pull Requests',
+          detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'PRs', getWorkspaceDisplayHostname(workspace)],
+          keywords: ['PR', 'PRs', hostname, workspace.workingDir],
           action: () => openExternalUrl(`${repoUrl}/pulls`),
         });
 
         items.push({
           id: `ws-${wsKey}-view-github-repo`,
-          label: withWorkspaceSuffix('Github: View Repository', workspace, isMulti),
+          label: 'Github: View Repository',
+          detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
-          keywords: ['repo', 'repository', 'github', getWorkspaceDisplayHostname(workspace)],
+          keywords: ['repo', 'repository', 'github', hostname, workspace.workingDir],
           action: () => openExternalUrl(repoUrl),
         });
       }
@@ -119,19 +129,21 @@ export function useWorkspaceCommandItems(
       if (pr) {
         items.push({
           id: `ws-${wsKey}-view-current-pr`,
-          label: withWorkspaceSuffix('Github: View Current PR', workspace, isMulti),
+          label: 'Github: View Current PR',
+          detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', getWorkspaceDisplayHostname(workspace)],
+          keywords: ['PR', hostname, workspace.workingDir],
           action: () => openExternalUrl(pr.url),
         });
 
         items.push({
           id: `ws-${wsKey}-review-prs`,
-          label: withWorkspaceSuffix('Chatroom: Review Pull Requests', workspace, isMulti),
+          label: 'Chatroom: Review Pull Requests',
+          detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'PRs', 'Review', getWorkspaceDisplayHostname(workspace)],
+          keywords: ['PR', 'PRs', 'Review', hostname, workspace.workingDir],
           action: () => onOpenGitPanel(),
         });
       }
@@ -140,10 +152,11 @@ export function useWorkspaceCommandItems(
     // Workspace details
     items.push({
       id: `ws-${wsKey}-workspace-details`,
-      label: withWorkspaceSuffix('Machine: Workspace Details', workspace, isMulti),
+      label: 'Machine: Workspace Details',
+      detail,
       icon: <PanelBottomOpen size={14} />,
       category: 'Actions',
-      keywords: ['workspace', 'details', getWorkspaceDisplayHostname(workspace)],
+      keywords: ['workspace', 'details', hostname, workspace.workingDir],
       action: onOpenGitPanel,
     });
 
