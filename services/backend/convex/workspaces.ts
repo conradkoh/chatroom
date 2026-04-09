@@ -240,7 +240,7 @@ export const getFullDiff = query({
       _creationTime: row._creationTime,
       machineId: row.machineId,
       workingDir: row.workingDir,
-      diffContent: row.diffContent,
+      diffContent: row.diffContent ?? '',
       truncated: row.truncated,
       diffStat: row.diffStat,
       updatedAt: row.updatedAt,
@@ -547,7 +547,7 @@ export const upsertFullDiff = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
-    diffContent: v.string(),
+    diffContent: v.optional(v.string()),
     truncated: v.boolean(),
     diffStat: v.object({
       filesChanged: v.number(),
@@ -569,18 +569,22 @@ export const upsertFullDiff = mutation({
     const data: Record<string, unknown> = {
       machineId: args.machineId,
       workingDir: args.workingDir,
-      diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
       updatedAt: now,
     };
 
-    // Store compressed data when provided
+    // Store compressed data when provided (preferred)
     if (args.diffContentCompressed && args.compression) {
       data.diffContentCompressed = args.diffContentCompressed;
       data.compression = args.compression;
-    } else {
-      // Clear compressed fields if switching back to uncompressed
+      // Store uncompressed too if provided (backward compat)
+      if (args.diffContent) {
+        data.diffContent = args.diffContent;
+      }
+    } else if (args.diffContent) {
+      // Legacy path: uncompressed only
+      data.diffContent = args.diffContent;
       data.diffContentCompressed = undefined;
       data.compression = undefined;
     }
@@ -713,7 +717,6 @@ export const upsertCommitDetail = mutation({
       workingDir: args.workingDir,
       sha: args.sha,
       status: args.status,
-      diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
       message: args.message,
@@ -723,11 +726,17 @@ export const upsertCommitDetail = mutation({
       updatedAt: now,
     };
 
-    // Store compressed data when provided
+    // Store compressed data when provided (preferred)
     if (args.diffContentCompressed && args.compression) {
       data.diffContentCompressed = args.diffContentCompressed;
       data.compression = args.compression;
-    } else {
+      // Store uncompressed too if provided (backward compat)
+      if (args.diffContent) {
+        data.diffContent = args.diffContent;
+      }
+    } else if (args.diffContent) {
+      // Legacy path: uncompressed only
+      data.diffContent = args.diffContent;
       data.diffContentCompressed = undefined;
       data.compression = undefined;
     }

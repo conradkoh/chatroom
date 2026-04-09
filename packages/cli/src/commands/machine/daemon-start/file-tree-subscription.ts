@@ -92,12 +92,11 @@ async function fulfillFileTreeRequests(
       const compressed = gzipSync(Buffer.from(treeJson));
       const treeJsonCompressed = compressed.toString('base64');
 
-      // Upload the tree
+      // Upload the tree (compressed only — uncompressed field deprecated)
       await ctx.deps.backend.mutation(api.workspaceFiles.syncFileTree, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
         workingDir: request.workingDir,
-        treeJson,
         treeJsonCompressed,
         compression: 'gzip' as const,
         treeHash,

@@ -85,14 +85,16 @@ async function fulfillSingleRequest(
     return;
   }
 
-  // Binary file: upload empty content with truncated flag
+  // Binary file: upload compressed placeholder
   if (isBinaryFile(filePath)) {
+    const binaryCompressed = gzipSync(Buffer.from('[Binary file]')).toString('base64');
     await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContent, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
       filePath,
-      content: '[Binary file]',
+      contentCompressed: binaryCompressed,
+      compression: 'gzip' as const,
       encoding: 'utf8',
       truncated: false,
     });
@@ -129,7 +131,6 @@ async function fulfillSingleRequest(
     machineId: ctx.machineId,
     workingDir,
     filePath,
-    content,
     contentCompressed,
     compression: 'gzip' as const,
     encoding: 'utf8',

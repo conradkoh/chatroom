@@ -149,7 +149,6 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContent: result.content,
       diffContentCompressed,
       compression: 'gzip' as const,
       truncated: result.truncated,
@@ -161,11 +160,14 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
     );
   } else {
     // For not_found / no_commits / error — push empty diff
+    // Empty diff — compress empty string for consistency
+    const emptyCompressed = gzipSync(Buffer.from('')).toString('base64');
     await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContent: '',
+      diffContentCompressed: emptyCompressed,
+      compression: 'gzip' as const,
       truncated: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
@@ -375,7 +377,6 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
     workingDir: req.workingDir,
     sha: req.sha,
     status: 'available',
-    diffContent: result.content,
     diffContentCompressed,
     compression: 'gzip' as const,
     truncated: result.truncated,

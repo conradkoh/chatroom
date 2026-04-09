@@ -1431,11 +1431,11 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
 
-    // git diff HEAD output (up to 500KB cap)
-    diffContent: v.string(),
+    /** @deprecated Use diffContentCompressed instead. Will be removed in a future version. */
+    diffContent: v.optional(v.string()),
     truncated: v.boolean(),
 
-    // Base64-encoded gzip-compressed diffContent (used when compression is set)
+    // Base64-encoded gzip-compressed diffContent
     diffContentCompressed: v.optional(v.string()),
 
     // Compression format marker
@@ -1548,6 +1548,7 @@ export default defineSchema({
     ),
 
     // Only when status === 'available'
+    /** @deprecated Use diffContentCompressed instead. Will be removed in a future version. */
     diffContent: v.optional(v.string()),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
@@ -1558,7 +1559,7 @@ export default defineSchema({
       })
     ),
 
-    // Base64-encoded gzip-compressed diffContent (used when compression is set)
+    // Base64-encoded gzip-compressed diffContent
     diffContentCompressed: v.optional(v.string()),
 
     // Compression format marker
@@ -1604,10 +1605,10 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
 
-    // JSON blob of FileTree (entries array + metadata)
-    treeJson: v.string(),
+    /** @deprecated Use treeJsonCompressed instead. Will be removed in a future version. */
+    treeJson: v.optional(v.string()),
 
-    // Base64-encoded gzip-compressed treeJson (used when compression is set)
+    // Base64-encoded gzip-compressed treeJson
     treeJsonCompressed: v.optional(v.string()),
 
     // Compression format marker
@@ -1630,12 +1631,12 @@ export default defineSchema({
     workingDir: v.string(),
     filePath: v.string(),
 
-    // File content (max 500KB)
-    content: v.string(),
+    /** @deprecated Use contentCompressed instead. Will be removed in a future version. */
+    content: v.optional(v.string()),
     encoding: v.string(), // 'utf8'
     truncated: v.boolean(),
 
-    // Base64-encoded gzip-compressed content (used when compression is set)
+    // Base64-encoded gzip-compressed content
     contentCompressed: v.optional(v.string()),
 
     // Compression format marker
