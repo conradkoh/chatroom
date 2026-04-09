@@ -2,8 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { memo, useEffect, useMemo, useState } from 'react';
-import { parseCsv } from '../file-renderers';
+import { memo, useEffect, useState } from 'react';
+import { CsvTableRenderer } from '../file-renderers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,11 +36,6 @@ export const CsvTablePane = memo(function CsvTablePane({
     filePath,
   });
 
-  const rows = useMemo(() => {
-    if (!content?.content) return [];
-    return parseCsv(content.content);
-  }, [content?.content]);
-
   if (content === undefined || content === null) {
     return (
       <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
@@ -49,17 +44,6 @@ export const CsvTablePane = memo(function CsvTablePane({
       </div>
     );
   }
-
-  if (rows.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        No data found in CSV file.
-      </div>
-    );
-  }
-
-  const headerRow = rows[0];
-  const dataRows = rows.slice(1);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -81,38 +65,7 @@ export const CsvTablePane = memo(function CsvTablePane({
       {/* Table */}
       <div className="flex-1 overflow-auto p-4">
         <div style={{ fontSize: `${zoom}%` }}>
-          <table className="w-full text-[13px] border-collapse">
-            <thead>
-              <tr>
-                {headerRow.map((cell, i) => (
-                  <th
-                    key={i}
-                    className="text-left px-3 py-1.5 font-semibold text-chatroom-text-primary bg-chatroom-bg-surface border border-chatroom-border whitespace-nowrap"
-                  >
-                    {cell}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {dataRows.map((row, ri) => (
-                <tr key={ri} className="hover:bg-chatroom-bg-hover/50">
-                  {row.map((cell, ci) => (
-                    <td
-                      key={ci}
-                      className="px-3 py-1.5 text-chatroom-text-secondary border border-chatroom-border whitespace-nowrap"
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                  {row.length < headerRow.length &&
-                    Array.from({ length: headerRow.length - row.length }).map((_, pi) => (
-                      <td key={`pad-${pi}`} className="px-3 py-1.5 border border-chatroom-border" />
-                    ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <CsvTableRenderer content={content.content} />
         </div>
       </div>
     </div>
