@@ -22,8 +22,6 @@ interface FileContentViewerProps {
   onOpenTableView?: (filePath: string) => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const FileContentViewer = memo(function FileContentViewer({
