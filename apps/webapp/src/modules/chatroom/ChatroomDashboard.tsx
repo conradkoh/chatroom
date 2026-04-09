@@ -884,7 +884,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               )}
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
-              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && (
+              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && !isSmallScreen && (
                 <div
                   className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
                 >
