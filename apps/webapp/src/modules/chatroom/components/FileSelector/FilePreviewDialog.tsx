@@ -3,10 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
-import { isMarkdownFile } from '../../workspace/file-renderers';
-import Markdown from 'react-markdown';
+import { isMarkdownFile, isCsvFile, getDefaultViewMode, type FileViewMode, MarkdownRenderer, CsvTableRenderer } from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import remarkGfm from 'remark-gfm';
 
 import { FileTypeIcon } from './fileIcons';
 import { isBinaryFile } from './binaryDetection';
@@ -305,20 +303,18 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
   );
 });
 
-// ─── Markdown Detection ─────────────────────────────────────────────────────
-
 // ─── File Content Panel ─────────────────────────────────────────────────────
 
 const FileContentPanel = memo(function FileContentPanel({
   filePath,
   machineId,
   workingDir,
-  previewMode,
+  viewMode,
 }: {
   filePath: string | null;
   machineId: string | null;
   workingDir: string | null;
-  previewMode: boolean;
+  viewMode: FileViewMode;
 }) {
   // Fetch cached content
   const contentResult = useSessionQuery(
@@ -371,12 +367,15 @@ const FileContentPanel = memo(function FileContentPanel({
 
   return (
     <div className="flex overflow-auto h-full">
-      {previewMode && filePath && isMarkdownFile(filePath) ? (
+      {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
         /* Rendered markdown preview */
         <div className="flex-1 p-6 overflow-auto">
-          <div className={proseClassNames}>
-            <Markdown remarkPlugins={[remarkGfm]}>{contentResult.content}</Markdown>
-          </div>
+          <MarkdownRenderer content={contentResult.content} className={proseClassNames} />
+        </div>
+      ) : viewMode === 'table' && filePath && isCsvFile(filePath) ? (
+        /* CSV table view */
+        <div className="flex-1 p-4 overflow-auto">
+          <CsvTableRenderer content={contentResult.content} />
         </div>
       ) : (
         /* Raw source with line numbers */
@@ -414,14 +413,16 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const [copied, setCopied] = useState(false);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [viewMode, setViewMode] = useState<FileViewMode>(() => getDefaultViewMode(filePath ?? ''));
 
-  // Reset preview mode when file changes
+  // Reset view mode when file changes
   useEffect(() => {
-    setPreviewMode(false);
+    setViewMode(getDefaultViewMode(filePath ?? ''));
   }, [filePath]);
 
   const isMarkdown = filePath ? isMarkdownFile(filePath) : false;
+  const isCsv = filePath ? isCsvFile(filePath) : false;
+  const hasToggle = isMarkdown || isCsv;
 
   const handleCopyPath = useCallback(async () => {
     if (!filePath) return;
@@ -497,17 +498,17 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
-            {isMarkdown && (
+            {hasToggle && (
               <button
-                onClick={() => setPreviewMode((prev) => !prev)}
+                onClick={() => setViewMode(prev => prev === 'source' ? (isMarkdown ? 'preview' : 'table') : 'source')}
                 className={`p-1 shrink-0 transition-colors ${
-                  previewMode
+                  viewMode !== 'source'
                     ? 'text-chatroom-accent'
                     : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
                 }`}
-                title={previewMode ? 'Show source' : 'Preview markdown'}
+                title={viewMode === 'source' ? (isMarkdown ? 'Preview markdown' : 'View as table') : 'Show source'}
               >
-                {previewMode ? <Code2 className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {viewMode === 'source' ? <Eye className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
               </button>
             )}
             {onOpenInExplorer && filePath && (
@@ -549,7 +550,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               filePath={filePath}
               machineId={machineId}
               workingDir={workingDir}
-              previewMode={previewMode}
+              viewMode={viewMode}
             />
           </FixedModalBody>
         </div>
