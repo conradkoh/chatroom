@@ -2,7 +2,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import type { AgentPreference } from '../components/AgentConfigTabs';
 import type { MachineInfo, AgentConfig } from '../types/machine';
@@ -51,9 +51,19 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     [machineConfigResult?.configs]
   );
 
-  const preferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
+  // Load preferences once, then unsubscribe — preferences are snapshotted at mount
+  // by useAgentControls and don't need reactive updates.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const preferencesResult = useSessionQuery(
+    api.machines.getAgentPreferences,
+    prefsLoaded ? 'skip' : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
+  );
+
+  useEffect(() => {
+    if (preferencesResult !== undefined && !prefsLoaded) {
+      setPrefsLoaded(true);
+    }
+  }, [preferencesResult, prefsLoaded]);
 
   const agentPreferenceMap = useMemo(() => {
     const map = new Map<string, AgentPreference>();
@@ -72,7 +82,10 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   }, [preferencesResult?.preferences]);
 
   const isLoading =
-    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined || preferencesResult === undefined;
+    statusResult === undefined ||
+    machineResult === undefined ||
+    machineConfigResult === undefined ||
+    (!prefsLoaded && preferencesResult === undefined);
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {

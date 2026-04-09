@@ -286,6 +286,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
 
+  // Handle ActivityBar view changes with toggle sub-state support
+  const handleActivityViewChange = useCallback((view: ActivityView) => {
+    if (view === activeView) {
+      // Already on this view — toggle sub-state
+      if (view === 'explorer') {
+        setExplorerSidebarVisible(prev => !prev);
+      }
+    } else {
+      // Switch to different view
+      setActiveView(view);
+    }
+  }, [activeView]);
+
   // File tabs state
   const fileTabs = useFileTabs();
 
@@ -885,17 +898,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               {firstWorkspace && (
                 <ActivityBar
                   activeView={activeView}
-                  onViewChange={(view) => {
-                    if (view === activeView) {
-                      // Already on this view — toggle sub-state
-                      if (view === 'explorer') {
-                        setExplorerSidebarVisible(prev => !prev);
-                      }
-                    } else {
-                      // Switch to different view
-                      setActiveView(view);
-                    }
-                  }}
+                  onViewChange={handleActivityViewChange}
                 />
               )}
 
