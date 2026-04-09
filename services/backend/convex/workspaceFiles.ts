@@ -83,6 +83,8 @@ export const syncFileTree = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     treeJson: v.string(),
+    treeJsonCompressed: v.optional(v.string()),
+    compression: v.optional(v.literal('gzip')),
     treeHash: v.optional(v.string()),
     scannedAt: v.number(),
   },
@@ -94,8 +96,11 @@ export const syncFileTree = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
-    // Validate treeJson size to prevent oversized documents
-    if (new TextEncoder().encode(args.treeJson).length > MAX_TREE_JSON_BYTES) {
+    // Validate size: use compressed size if available, otherwise raw treeJson
+    const sizeToCheck = args.treeJsonCompressed
+      ? new TextEncoder().encode(args.treeJsonCompressed).length
+      : new TextEncoder().encode(args.treeJson).length;
+    if (sizeToCheck > MAX_TREE_JSON_BYTES) {
       throw new Error('File tree too large');
     }
 
@@ -107,11 +112,12 @@ export const syncFileTree = mutation({
       .first();
 
     // Server-side dedup: skip write if tree content hasn't changed
+    // Hash is based on original content, not compressed
     if (existing && args.treeHash && existing.treeHash === args.treeHash) {
       return; // No change — skip write
     }
 
-    const data = {
+    const data: Record<string, unknown> = {
       machineId: args.machineId,
       workingDir: args.workingDir,
       treeJson: args.treeJson,
@@ -119,10 +125,20 @@ export const syncFileTree = mutation({
       scannedAt: args.scannedAt,
     };
 
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
+    // Store compressed data when provided
+    if (args.treeJsonCompressed && args.compression) {
+      data.treeJsonCompressed = args.treeJsonCompressed;
+      data.compression = args.compression;
     } else {
-      await ctx.db.insert('chatroom_workspaceFileTree', data);
+      // Clear compressed fields if switching back to uncompressed
+      data.treeJsonCompressed = undefined;
+      data.compression = undefined;
+    }
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data as any);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTree', data as any);
     }
   },
 });
@@ -160,6 +176,15 @@ export const getFileTree = query({
 
     if (!tree) {
       return null;
+    }
+
+    // Return compressed data when available, otherwise uncompressed
+    if (tree.compression && tree.treeJsonCompressed) {
+      return {
+        treeJsonCompressed: tree.treeJsonCompressed,
+        compression: tree.compression,
+        scannedAt: tree.scannedAt,
+      };
     }
 
     return {

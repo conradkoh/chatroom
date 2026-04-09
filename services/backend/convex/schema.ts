@@ -1595,6 +1595,12 @@ export default defineSchema({
     // JSON blob of FileTree (entries array + metadata)
     treeJson: v.string(),
 
+    // Base64-encoded gzip-compressed treeJson (used when compression is set)
+    treeJsonCompressed: v.optional(v.string()),
+
+    // Compression format marker
+    compression: v.optional(v.literal('gzip')),
+
     // Hash of treeJson for server-side dedup (skips write if unchanged)
     treeHash: v.optional(v.string()),
 
