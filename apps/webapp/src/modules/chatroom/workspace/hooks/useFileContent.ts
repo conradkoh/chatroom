@@ -13,9 +13,9 @@ interface FileContentResult {
 }
 
 /**
- * Hook that fetches file content and handles decompression transparently.
- * Always returns `{ content, encoding, truncated, fetchedAt }` regardless of whether
- * the backend sent compressed or uncompressed data.
+ * Hook that fetches file content (v2) and handles decompression transparently.
+ * Always returns `{ content, encoding, truncated, fetchedAt }`.
+ * The `data` field from the v2 query is always base64-encoded gzip — we always decompress.
  * Pass `'skip'` to skip the query.
  */
 export function useFileContent(args: {
@@ -24,7 +24,7 @@ export function useFileContent(args: {
   filePath: string;
 } | 'skip'): FileContentResult | null | undefined {
   const rawResult = useSessionQuery(
-    api.workspaceFiles.getFileContent,
+    api.workspaceFiles.getFileContentV2,
     args === 'skip' ? 'skip' : args
   );
 
@@ -40,36 +40,21 @@ export function useFileContent(args: {
       return;
     }
 
-    // Compressed response — decompress async
-    if (
-      'contentCompressed' in rawResult &&
-      rawResult.contentCompressed &&
-      'compression' in rawResult &&
-      rawResult.compression === 'gzip'
-    ) {
-      let cancelled = false;
-      decompressGzip(rawResult.contentCompressed).then((content) => {
-        if (!cancelled) {
-          setDecompressed({
-            content,
-            encoding: rawResult.encoding,
-            truncated: rawResult.truncated,
-            fetchedAt: rawResult.fetchedAt,
-          });
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Uncompressed response — return directly
-    setDecompressed({
-      content: rawResult.content,
-      encoding: rawResult.encoding,
-      truncated: rawResult.truncated,
-      fetchedAt: rawResult.fetchedAt,
+    // V2: data is always base64-encoded gzip — decompress
+    let cancelled = false;
+    decompressGzip(rawResult.data).then((content) => {
+      if (!cancelled) {
+        setDecompressed({
+          content,
+          encoding: rawResult.encoding,
+          truncated: rawResult.truncated,
+          fetchedAt: rawResult.fetchedAt,
+        });
+      }
     });
+    return () => {
+      cancelled = true;
+    };
   }, [rawResult]);
 
   return decompressed;

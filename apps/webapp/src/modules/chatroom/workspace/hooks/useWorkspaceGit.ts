@@ -47,7 +47,7 @@ export function useFullDiff(
   machineId: string,
   workingDir: string
 ): { state: FullDiffState; request: () => void } {
-  const result = useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir });
+  const result = useSessionQuery(api.workspaces.getFullDiffV2, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
   const requestedRef = useRef(false);
   const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
@@ -57,17 +57,11 @@ export function useFullDiff(
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
-  // Decompress when compressed data is available
+  // V2: data is always base64-encoded gzip — always decompress
   useEffect(() => {
-    if (
-      result &&
-      'diffContentCompressed' in result &&
-      result.diffContentCompressed &&
-      'compression' in result &&
-      result.compression === 'gzip'
-    ) {
+    if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.diffContentCompressed).then((content) => {
+      decompressGzip(result.data).then((content) => {
         if (!cancelled) setDecompressedContent(content);
       });
       return () => { cancelled = true; };
@@ -81,15 +75,9 @@ export function useFullDiff(
       return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
 
-    // Use decompressed content if available, otherwise fall back to diffContent
-    const content =
-      'diffContentCompressed' in result && result.diffContentCompressed && decompressedContent !== null
-        ? decompressedContent
-        : result.diffContent;
-
     return {
       status: 'available',
-      content,
+      content: decompressedContent ?? '',
       truncated: result.truncated,
       diffStat: result.diffStat,
     };
@@ -151,7 +139,7 @@ export function useCommitDetail(
 
   // Only subscribe when we have a sha to fetch
   const result = useSessionQuery(
-    api.workspaces.getCommitDetail,
+    api.workspaces.getCommitDetailV2,
     activeSha ? { machineId, workingDir, sha: activeSha } : 'skip'
   );
 
@@ -168,17 +156,11 @@ export function useCommitDetail(
     setDecompressedContent(null);
   }, []);
 
-  // Decompress when compressed data is available
+  // V2: data is always base64-encoded gzip when status=available — always decompress
   useEffect(() => {
-    if (
-      result &&
-      'diffContentCompressed' in result &&
-      result.diffContentCompressed &&
-      'compression' in result &&
-      result.compression === 'gzip'
-    ) {
+    if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.diffContentCompressed).then((content) => {
+      decompressGzip(result.data).then((content) => {
         if (!cancelled) setDecompressedContent(content);
       });
       return () => { cancelled = true; };
@@ -192,15 +174,9 @@ export function useCommitDetail(
     if (result === undefined) return { status: 'loading' }; // query still loading
     if (result === null) return { status: 'loading' }; // no row yet
     if (result.status === 'available') {
-      // Use decompressed content if available, otherwise fall back to diffContent
-      const content =
-        'diffContentCompressed' in result && result.diffContentCompressed && decompressedContent !== null
-          ? decompressedContent
-          : (result.diffContent ?? '');
-
       return {
         status: 'available',
-        content,
+        content: decompressedContent ?? '',
         truncated: result.truncated ?? false,
         message: result.message ?? '',
         author: result.author ?? '',

@@ -3,25 +3,21 @@ import { useEffect, useState } from 'react';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { decompressGzip } from '../utils/decompressGzip';
 
-/**
- * Decompress is now in ../utils/decompressGzip.ts
- */
-
 interface FileTreeResult {
   treeJson: string;
   scannedAt: number;
 }
 
 /**
- * Hook that fetches the file tree and handles decompression transparently.
- * Always returns `{ treeJson, scannedAt }` regardless of whether the backend
- * sent compressed or uncompressed data.
+ * Hook that fetches the file tree (v2) and handles decompression transparently.
+ * Always returns `{ treeJson, scannedAt }`. The `data` field from the v2 query
+ * is always base64-encoded gzip — we always decompress.
  */
 export function useFileTree(
   args: { machineId: string; workingDir: string } | 'skip'
 ): FileTreeResult | null | undefined {
   const rawResult = useSessionQuery(
-    api.workspaceFiles.getFileTree,
+    api.workspaceFiles.getFileTreeV2,
     args === 'skip' ? 'skip' : args
   );
 
@@ -37,38 +33,19 @@ export function useFileTree(
       return;
     }
 
-    // Uncompressed response — return directly
-    if ('treeJson' in rawResult && rawResult.treeJson) {
-      setDecompressed({
-        treeJson: rawResult.treeJson,
-        scannedAt: rawResult.scannedAt,
-      });
-      return;
-    }
-
-    // Compressed response — decompress async
-    if (
-      'treeJsonCompressed' in rawResult &&
-      rawResult.treeJsonCompressed &&
-      'compression' in rawResult &&
-      rawResult.compression === 'gzip'
-    ) {
-      let cancelled = false;
-      decompressGzip(rawResult.treeJsonCompressed).then((treeJson) => {
-        if (!cancelled) {
-          setDecompressed({
-            treeJson,
-            scannedAt: rawResult.scannedAt,
-          });
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Fallback: no data
-    setDecompressed(null);
+    // V2: data is always base64-encoded gzip — decompress
+    let cancelled = false;
+    decompressGzip(rawResult.data).then((treeJson) => {
+      if (!cancelled) {
+        setDecompressed({
+          treeJson,
+          scannedAt: rawResult.scannedAt,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [rawResult]);
 
   return decompressed;

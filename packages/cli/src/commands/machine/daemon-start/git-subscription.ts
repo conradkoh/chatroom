@@ -145,12 +145,11 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
     const compressed = gzipSync(Buffer.from(result.content));
     const diffContentCompressed = compressed.toString('base64');
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiffV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContentCompressed,
-      compression: 'gzip' as const,
+      data: diffContentCompressed,
       truncated: result.truncated,
       diffStat,
     });
@@ -162,12 +161,11 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
     // For not_found / no_commits / error — push empty diff
     // Empty diff — compress empty string for consistency
     const emptyCompressed = gzipSync(Buffer.from('')).toString('base64');
-    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiffV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContentCompressed: emptyCompressed,
-      compression: 'gzip' as const,
+      data: emptyCompressed,
       truncated: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
@@ -336,7 +334,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   ]);
 
   if (result.status === 'not_found') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
@@ -350,7 +348,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   }
 
   if (result.status === 'error') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
@@ -371,14 +369,13 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   const compressed = gzipSync(Buffer.from(result.content));
   const diffContentCompressed = compressed.toString('base64');
 
-  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir: req.workingDir,
     sha: req.sha,
     status: 'available',
-    diffContentCompressed,
-    compression: 'gzip' as const,
+    data: diffContentCompressed,
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,
