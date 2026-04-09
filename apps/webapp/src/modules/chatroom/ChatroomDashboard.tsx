@@ -28,7 +28,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
-import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { CommandPalette, useCommandPaletteCommands, WorkspaceCommandsAggregator, type SettingsTab, type CommandItem } from './components/CommandPalette';
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
@@ -571,6 +571,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     if (gitHubRepoUrl) openExternalUrl(gitHubRepoUrl);
   }, [gitHubRepoUrl]);
 
+  // ─── Multi-workspace command palette commands ──────────────────────────────
+  const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
+  const workspaceCommandCallbacks = useMemo(() => ({
+    sendAction,
+    openExternalUrl,
+    onOpenGitPanel: () => openGitPanelRef.current?.(),
+  }), [sendAction]);
+
   // Build command palette commands
   const { openDialog } = useCommandDialog();
 
@@ -639,6 +647,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         }
       : null,
     onShowMessages: () => setActiveView('messages'),
+    workspaceCommands,
   });
 
   // Memoize the team entry point
@@ -1123,6 +1132,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
           {/* Command Palette (Cmd+Shift+P) */}
           <CommandPalette commands={commands} />
+          <WorkspaceCommandsAggregator
+            workspaces={chatroomWorkspaces}
+            callbacks={workspaceCommandCallbacks}
+            onCommandsChange={setWorkspaceCommands}
+          />
 
           {/* Terminal Output Panel */}
           <TerminalOutputPanel
