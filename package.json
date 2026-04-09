@@ -1,8 +1,6 @@
 {
   "name": "chatroom",
-
   "version": "1.26.0",
-
   "description": "",
   "packageManager": "pnpm@10.15.1",
   "main": "index.js",
@@ -63,6 +61,7 @@
       "bun",
       "esbuild",
       "sharp",
+      "tesseract.js",
       "turbo",
       "unrs-resolver"
     ],
