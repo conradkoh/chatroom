@@ -567,6 +567,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
   }, [gitHubRepoUrl]);
 
+  const handleViewGitHubRepository = useCallback(() => {
+    if (gitHubRepoUrl) openExternalUrl(gitHubRepoUrl);
+  }, [gitHubRepoUrl]);
+
   // Build command palette commands
   const { openDialog } = useCommandDialog();
 
@@ -620,6 +624,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
+    onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,

@@ -38,6 +38,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenPROnGitHub?: (() => void) | null;
   onOpenPRReview?: (() => void) | null;
   onViewGitHubPullRequests?: (() => void) | null;
+  onViewGitHubRepository?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
@@ -72,6 +73,7 @@ export function useCommandPaletteCommands({
   onOpenPROnGitHub,
   onOpenPRReview,
   onViewGitHubPullRequests,
+  onViewGitHubRepository,
   onOpenWorkspaceDetails,
   runnableCommands,
   onOpenProcessManagerWithCommand,
@@ -164,6 +166,17 @@ export function useCommandPaletteCommands({
         category: 'Actions',
         keywords: ['PR', 'PRs'],
         action: onViewGitHubPullRequests,
+      });
+    }
+
+    if (onViewGitHubRepository) {
+      commands.push({
+        id: 'action-view-github-repo',
+        label: 'Github: View Repository',
+        icon: <SiGithub size={14} />,
+        category: 'Actions',
+        keywords: ['repo', 'repository', 'github'],
+        action: onViewGitHubRepository,
       });
     }
 
@@ -286,6 +299,7 @@ export function useCommandPaletteCommands({
     onOpenPROnGitHub,
     onOpenPRReview,
     onViewGitHubPullRequests,
+    onViewGitHubRepository,
     onOpenWorkspaceDetails,
     runnableCommands,
     onOpenProcessManagerWithCommand,

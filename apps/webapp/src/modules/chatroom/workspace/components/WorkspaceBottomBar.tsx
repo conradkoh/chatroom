@@ -293,7 +293,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
 
 /**
  * Right-aligned git info: <remote>  <branch>  <diff stat | clean>
- * Branch is clickable → popover with "Open in GitHub Desktop" + "View on GitHub".
+ * Branch is clickable → popover with "Open in GitHub Desktop" + "View PR on GitHub".
  * Diff stat is clickable → opens git panel.
  */
 const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
@@ -361,19 +361,32 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                   </button>
                 )}
                 {repoHttpsUrl && (
-                  <a
-                    href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
-                  >
-                    {isGitHubRepo ? (
-                      <SiGithub size={12} className="shrink-0" />
-                    ) : (
-                      <ExternalLink size={12} className="shrink-0" />
-                    )}
-                    {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
-                  </a>
+                  hasPR ? (
+                    <a
+                      href={openPullRequests[0]!.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
+                    >
+                      {isGitHubRepo ? (
+                        <SiGithub size={12} className="shrink-0" />
+                      ) : (
+                        <ExternalLink size={12} className="shrink-0" />
+                      )}
+                      {`View PR #${openPullRequests[0]!.number} on GitHub`}
+                    </a>
+                  ) : (
+                    <span
+                      className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-muted cursor-not-allowed rounded-none"
+                    >
+                      {isGitHubRepo ? (
+                        <SiGithub size={12} className="shrink-0 opacity-50" />
+                      ) : (
+                        <ExternalLink size={12} className="shrink-0 opacity-50" />
+                      )}
+                      View PR on GitHub
+                    </span>
+                  )
                 )}
               </PopoverContent>
             </Popover>
@@ -742,20 +755,33 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                         </button>
                       )}
                       {repoHttpsUrl && (
-                        <a
-                          href={hasPR ? openPullRequests[0]!.url : repoHttpsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
-                          onClick={onClose}
-                        >
-                          {isGitHubRepo ? (
-                            <SiGithub size={12} className="shrink-0" />
-                          ) : (
-                            <ExternalLink size={12} className="shrink-0" />
-                          )}
-                          {hasPR ? `View PR #${openPullRequests[0]!.number} on GitHub` : 'View on GitHub'}
-                        </a>
+                        hasPR ? (
+                          <a
+                            href={openPullRequests[0]!.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
+                            onClick={onClose}
+                          >
+                            {isGitHubRepo ? (
+                              <SiGithub size={12} className="shrink-0" />
+                            ) : (
+                              <ExternalLink size={12} className="shrink-0" />
+                            )}
+                            {`View PR #${openPullRequests[0]!.number} on GitHub`}
+                          </a>
+                        ) : (
+                          <span
+                            className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-muted cursor-not-allowed rounded-none"
+                          >
+                            {isGitHubRepo ? (
+                              <SiGithub size={12} className="shrink-0 opacity-50" />
+                            ) : (
+                              <ExternalLink size={12} className="shrink-0 opacity-50" />
+                            )}
+                            View PR on GitHub
+                          </span>
+                        )
                       )}
                     </div>
                   )}
