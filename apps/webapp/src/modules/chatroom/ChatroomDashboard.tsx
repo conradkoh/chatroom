@@ -287,6 +287,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
 
   // Handle ActivityBar view changes with toggle sub-state support
+  const focusSendFormRef = useRef<(() => void) | null>(null);
+
+  const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
+    focusSendFormRef.current = fn;
+  }, []);
+
   const handleActivityViewChange = useCallback((view: ActivityView) => {
     if (view === activeView) {
       // Already on this view — toggle sub-state
@@ -296,6 +302,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     } else {
       // Switch to different view
       setActiveView(view);
+      // Focus message input when switching to messages
+      if (view === 'messages') {
+        setTimeout(() => focusSendFormRef.current?.(), 0);
+      }
     }
   }, [activeView]);
 
@@ -1051,6 +1061,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   chatroomId={chatroomId}
                   onBeforeResize={beginResize}
                   onAfterResize={endResize}
+                  onRegisterFocus={handleRegisterSendFormFocus}
                 />
             </div>
             <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />

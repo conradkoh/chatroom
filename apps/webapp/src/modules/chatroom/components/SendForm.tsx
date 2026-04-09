@@ -16,6 +16,7 @@ interface SendFormProps {
   chatroomId: string;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
+  onRegisterFocus?: (focusFn: () => void) => void;
 }
 
 /**
@@ -93,13 +94,20 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize }: SendFormProps) {
+export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize, onRegisterFocus }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
+
+  // Register focus callback for external callers
+  useEffect(() => {
+    onRegisterFocus?.(() => {
+      textareaRef.current?.focus();
+    });
+  }, [onRegisterFocus]);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
