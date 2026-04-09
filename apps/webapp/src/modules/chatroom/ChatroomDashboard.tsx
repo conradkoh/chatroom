@@ -444,18 +444,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
   const handleCmdPFileSelect = useCallback((filePath: string) => {
     if (!filePath) return;
-    // Track in recent files
+    // Track in recent files and open preview dialog
     fileSelector.selectFile(filePath);
-    // Open as pinned tab
-    fileTabs.pinTab(filePath);
-    // Show file explorer if hidden
-    setActiveView('explorer');
-    setExplorerSidebarVisible(true);
-    // Reveal in tree
-    setRevealPath(filePath);
     // Close the file picker modal
     fileSelector.setOpen(false);
-  }, [fileSelector, fileTabs.pinTab]);
+  }, [fileSelector]);
+
+  const handleOpenInExplorer = useCallback((filePath: string) => {
+    fileTabs.pinTab(filePath);
+    setActiveView('explorer');
+    setExplorerSidebarVisible(true);
+    setRevealPath(filePath);
+  }, [fileTabs.pinTab]);
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
@@ -1099,6 +1099,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onClose={() => fileSelector.selectFile('')}
             files={fileSelector.files}
             onSelectFile={fileSelector.selectFile}
+            onOpenInExplorer={handleOpenInExplorer}
           />
 
           {/* Setup modal - only shown during setup mode */}

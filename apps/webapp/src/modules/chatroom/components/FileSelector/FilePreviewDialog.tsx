@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2 } from 'lucide-react';
+import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
@@ -30,6 +30,8 @@ interface FilePreviewDialogProps {
   files: FileEntry[];
   /** Callback when a different file is selected from the sidebar */
   onSelectFile: (filePath: string) => void;
+  /** Called when user wants to open the file in the explorer view */
+  onOpenInExplorer?: (filePath: string) => void;
 }
 
 // ─── Tree Node Types ────────────────────────────────────────────────────────
@@ -413,6 +415,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   onClose,
   files,
   onSelectFile,
+  onOpenInExplorer,
 }: FilePreviewDialogProps) {
   const isOpen = !!filePath;
 
@@ -512,6 +515,18 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 title={previewMode ? 'Show source' : 'Preview markdown'}
               >
                 {previewMode ? <Code2 className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            )}
+            {onOpenInExplorer && filePath && (
+              <button
+                onClick={() => {
+                  onOpenInExplorer(filePath);
+                  onClose();
+                }}
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1 shrink-0"
+                title="Open in Explorer"
+              >
+                <Files className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
