@@ -388,6 +388,21 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     </span>
                   )
                 )}
+                {repoHttpsUrl && (
+                  <a
+                    href={repoHttpsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
+                  >
+                    {isGitHubRepo ? (
+                      <SiGithub size={12} className="shrink-0" />
+                    ) : (
+                      <ExternalLink size={12} className="shrink-0" />
+                    )}
+                    View Repository
+                  </a>
+                )}
               </PopoverContent>
             </Popover>
           ) : (
@@ -782,6 +797,22 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             View PR on GitHub
                           </span>
                         )
+                      )}
+                      {repoHttpsUrl && (
+                        <a
+                          href={repoHttpsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
+                          onClick={onClose}
+                        >
+                          {isGitHubRepo ? (
+                            <SiGithub size={12} className="shrink-0" />
+                          ) : (
+                            <ExternalLink size={12} className="shrink-0" />
+                          )}
+                          View Repository
+                        </a>
                       )}
                     </div>
                   )}

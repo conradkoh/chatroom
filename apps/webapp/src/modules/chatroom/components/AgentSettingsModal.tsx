@@ -45,7 +45,9 @@ interface AgentSettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
+import type { SettingsTab } from './CommandPalette/types';
+
+export type { SettingsTab };
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -526,8 +528,14 @@ const WorkspacesContent = memo(function WorkspacesContent({
 }: {
   chatroomId: string;
 }) {
-  const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId);
   const { agents: agentRoleViews } = useAgentPanelData(chatroomId);
+
+  // Pass agentViews so workspaces are enriched with their agent roles
+  const agentViews = useMemo(
+    () => agentRoleViews.map((a) => ({ role: a.role, workingDir: a.workingDir })),
+    [agentRoleViews]
+  );
+  const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, { agentViews });
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   // Build a set of workingDirs that have active remote agents
@@ -541,11 +549,16 @@ const WorkspacesContent = memo(function WorkspacesContent({
     return dirs;
   }, [agentRoleViews]);
 
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
   const handleRemove = useCallback(
     async (registryId: string) => {
       setRemovingId(registryId);
+      setRemoveError(null);
       try {
         await removeWorkspace(registryId);
+      } catch (err) {
+        setRemoveError(err instanceof Error ? err.message : 'Failed to remove workspace');
       } finally {
         setRemovingId(null);
       }
@@ -574,6 +587,11 @@ const WorkspacesContent = memo(function WorkspacesContent({
       <p className="text-xs text-chatroom-text-muted px-2">
         Workspaces are registered when machine daemons connect. Remove a workspace to disassociate it from this chatroom.
       </p>
+      {removeError && (
+        <div className="text-xs text-red-600 dark:text-red-400 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded">
+          {removeError}
+        </div>
+      )}
       {workspaces.map((ws) => {
         const hostname = getWorkspaceDisplayHostname(ws);
         const hasActiveRemote = activeRemoteWorkingDirs.has(ws.workingDir);

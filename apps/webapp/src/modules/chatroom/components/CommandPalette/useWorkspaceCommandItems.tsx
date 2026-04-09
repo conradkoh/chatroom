@@ -9,28 +9,18 @@ import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import type { Workspace } from '../../types/workspace';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
+import { toGitHubRepoUrl } from '@/lib/github';
 import type { CommandItem } from './types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface WorkspaceCommandCallbacks {
+export interface WorkspaceCommandCallbacks {
   sendAction: (machineId: string, action: LocalActionType, workingDir: string) => void;
   openExternalUrl: (url: string) => void;
   onOpenGitPanel: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Derive GitHub repo HTTPS URL from a remote URL. */
-function toGitHubRepoUrl(remoteUrl: string): string | null {
-  // SSH format: git@github.com:owner/repo.git
-  const sshMatch = remoteUrl.match(/^git@github\.com:(.+?)(\.git)?$/);
-  if (sshMatch) return `https://github.com/${sshMatch[1]}`;
-  // HTTPS format: https://github.com/owner/repo.git
-  const httpsMatch = remoteUrl.match(/^https:\/\/github\.com\/(.+?)(\.git)?$/);
-  if (httpsMatch) return `https://github.com/${httpsMatch[1]}`;
-  return null;
-}
 
 /**
  * Build a detail string for workspace disambiguation.

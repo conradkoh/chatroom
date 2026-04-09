@@ -11,3 +11,5 @@ export type CommandItem = {
   keywords?: string[];
   action: () => void;
 };
+
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';

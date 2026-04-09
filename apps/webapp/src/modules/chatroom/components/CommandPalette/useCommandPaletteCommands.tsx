@@ -19,9 +19,9 @@ import {
 import { SiGithub } from 'react-icons/si';
 
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
-import type { CommandItem } from './types';
+import type { CommandItem, SettingsTab } from './types';
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
+export type { SettingsTab };
 
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;

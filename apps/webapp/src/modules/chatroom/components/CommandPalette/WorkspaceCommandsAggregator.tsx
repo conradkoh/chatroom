@@ -1,20 +1,13 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-
-import type { LocalActionType } from '@/hooks/useSendLocalAction';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import type { Workspace } from '../../types/workspace';
 import type { CommandItem } from './types';
 import { useWorkspaceCommandItems } from './useWorkspaceCommandItems';
+import type { WorkspaceCommandCallbacks } from './useWorkspaceCommandItems';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface WorkspaceCommandCallbacks {
-  sendAction: (machineId: string, action: LocalActionType, workingDir: string) => void;
-  openExternalUrl: (url: string) => void;
-  onOpenGitPanel: () => void;
-}
 
 interface WorkspaceCommandsAggregatorProps {
   workspaces: Workspace[];
@@ -60,14 +53,15 @@ export const WorkspaceCommandsAggregator = memo(function WorkspaceCommandsAggreg
   callbacks,
   onCommandsChange,
 }: WorkspaceCommandsAggregatorProps) {
-  // Store per-workspace command items in a ref-backed map to avoid render loops
+  // Store per-workspace command items in a ref-backed map
   const itemsMapRef = useRef<Map<string, CommandItem[]>>(new Map());
-  const [, forceUpdate] = useState(0);
+  const onCommandsChangeRef = useRef(onCommandsChange);
+  onCommandsChangeRef.current = onCommandsChange;
 
   const validWorkspaces = workspaces.filter((ws) => ws.machineId !== null);
   const isMulti = validWorkspaces.length > 1;
 
-  // Clean up removed workspaces
+  // Clean up removed workspaces and notify parent
   useEffect(() => {
     const validIds = new Set(validWorkspaces.map((ws) => ws.id));
     let changed = false;
@@ -77,22 +71,24 @@ export const WorkspaceCommandsAggregator = memo(function WorkspaceCommandsAggreg
         changed = true;
       }
     }
-    if (changed) forceUpdate((v) => v + 1);
+    if (changed) {
+      const allItems: CommandItem[] = [];
+      for (const items of itemsMapRef.current.values()) {
+        allItems.push(...items);
+      }
+      onCommandsChangeRef.current(allItems);
+    }
   }, [validWorkspaces]);
 
+  // Aggregate in handleUpdate — called when any workspace watcher reports new items
   const handleUpdate = useCallback((workspaceId: string, items: CommandItem[]) => {
     itemsMapRef.current.set(workspaceId, items);
-    forceUpdate((v) => v + 1);
-  }, []);
-
-  // Aggregate all workspace commands and notify parent
-  useEffect(() => {
     const allItems: CommandItem[] = [];
-    for (const items of itemsMapRef.current.values()) {
-      allItems.push(...items);
+    for (const wsItems of itemsMapRef.current.values()) {
+      allItems.push(...wsItems);
     }
-    onCommandsChange(allItems);
-  });
+    onCommandsChangeRef.current(allItems);
+  }, []);
 
   return (
     <>
