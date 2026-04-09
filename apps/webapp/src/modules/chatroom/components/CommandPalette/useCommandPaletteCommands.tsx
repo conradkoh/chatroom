@@ -237,9 +237,10 @@ export function useCommandPaletteCommands({
       },
       {
         id: 'panel-configuration',
-        label: 'Chatroom: Configuration',
+        label: 'Chatroom: Settings',
         icon: <Settings size={14} />,
         category: 'Panels',
+        keywords: ['settings', 'configuration', 'config', 'preferences'],
         action: () => onOpenSettings('setup'),
       },
       {
