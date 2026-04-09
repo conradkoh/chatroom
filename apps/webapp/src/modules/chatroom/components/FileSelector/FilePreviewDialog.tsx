@@ -3,6 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
+import { isMarkdownFile } from '../../workspace/file-renderers';
 import Markdown from 'react-markdown';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
@@ -305,14 +306,6 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
 });
 
 // ─── Markdown Detection ─────────────────────────────────────────────────────
-
-const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
-
-function isMarkdownFile(filePath: string): boolean {
-  const lastDot = filePath.lastIndexOf('.');
-  if (lastDot === -1) return false;
-  return MARKDOWN_EXTENSIONS.has(filePath.slice(lastDot).toLowerCase());
-}
 
 // ─── File Content Panel ─────────────────────────────────────────────────────
 

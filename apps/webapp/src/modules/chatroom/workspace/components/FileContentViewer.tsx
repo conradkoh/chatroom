@@ -3,6 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
+import { isMarkdownFile, isCsvFile } from '../file-renderers';
 import { memo, useEffect } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
@@ -22,14 +23,6 @@ interface FileContentViewerProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function isMarkdownFile(path: string): boolean {
-  return /\.(md|mdx)$/i.test(path);
-}
-
-function isCsvFile(path: string): boolean {
-  return /\.csv$/i.test(path);
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
