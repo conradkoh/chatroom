@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X, Plug } from 'lucide-react';
+import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X, Plug, HardDrive, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
@@ -31,6 +31,8 @@ import {
 import { getDaemonStartCommand } from '@/lib/environment';
 import { IntegrationsTab } from './IntegrationsTab';
 import { TEAMS_CONFIG } from '../config/teams';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import { getWorkspaceDisplayHostname } from '../types/workspace';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -43,7 +45,7 @@ interface AgentSettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'integrations';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -52,6 +54,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
   { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
+  { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
 ];
 
@@ -515,6 +518,110 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
 // ─── Agents Content ─────────────────────────────────────────────────
 
 /**
+ * Workspaces tab — lists all registered workspaces and allows deletion.
+ * Deletion is disabled for workspaces that have active remote agents.
+ */
+const WorkspacesContent = memo(function WorkspacesContent({
+  chatroomId,
+}: {
+  chatroomId: string;
+}) {
+  const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId);
+  const { agents: agentRoleViews } = useAgentPanelData(chatroomId);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  // Build a set of workingDirs that have active remote agents
+  const activeRemoteWorkingDirs = useMemo(() => {
+    const dirs = new Set<string>();
+    for (const agent of agentRoleViews) {
+      if (agent.type === 'remote' && agent.state === 'running' && agent.workingDir) {
+        dirs.add(agent.workingDir);
+      }
+    }
+    return dirs;
+  }, [agentRoleViews]);
+
+  const handleRemove = useCallback(
+    async (registryId: string) => {
+      setRemovingId(registryId);
+      try {
+        await removeWorkspace(registryId);
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [removeWorkspace]
+  );
+
+  if (isLoading) {
+    return (
+      <div className="p-4 text-sm text-chatroom-text-muted">
+        Loading workspaces…
+      </div>
+    );
+  }
+
+  if (workspaces.length === 0) {
+    return (
+      <div className="p-4 text-sm text-chatroom-text-muted">
+        No workspaces registered. Workspaces are automatically registered when a machine daemon connects.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-1">
+      <p className="text-xs text-chatroom-text-muted px-2">
+        Workspaces are registered when machine daemons connect. Remove a workspace to disassociate it from this chatroom.
+      </p>
+      {workspaces.map((ws) => {
+        const hostname = getWorkspaceDisplayHostname(ws);
+        const hasActiveRemote = activeRemoteWorkingDirs.has(ws.workingDir);
+        const isRemoving = removingId === ws._registryId;
+        const canRemove = !hasActiveRemote && !isRemoving && !!ws._registryId;
+
+        return (
+          <div
+            key={ws.id}
+            className="flex items-start gap-3 px-3 py-2.5 rounded border border-chatroom-border bg-chatroom-bg-secondary/30"
+          >
+            <HardDrive size={16} className="shrink-0 mt-0.5 text-chatroom-text-muted" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-chatroom-text-primary truncate">
+                {hostname}
+              </div>
+              <div className="text-xs text-chatroom-text-muted font-mono truncate mt-0.5">
+                {ws.workingDir}
+              </div>
+              {ws.agentRoles.length > 0 && (
+                <div className="text-[10px] text-chatroom-text-muted mt-1">
+                  Agents: {ws.agentRoles.join(', ')}
+                </div>
+              )}
+              {hasActiveRemote && (
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={10} />
+                  Active remote agents — cannot remove
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={!canRemove}
+              onClick={() => ws._registryId && handleRemove(ws._registryId)}
+              className="shrink-0 p-1.5 rounded text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-chatroom-text-muted disabled:hover:bg-transparent"
+              title={hasActiveRemote ? 'Cannot remove: active remote agents' : 'Remove workspace'}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+/**
  * Agents tab — shows a flat list of all agents for the team.
  * Uses InlineAgentCard for each agent to show full configuration details
  * (status, controls, machine, model, restart stats).
@@ -711,6 +818,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
+          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>

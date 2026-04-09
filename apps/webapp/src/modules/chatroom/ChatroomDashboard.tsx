@@ -264,7 +264,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'agents' | 'integrations' | undefined>(undefined);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab | undefined>(undefined);
 
   // Terminal output panel state
   const [terminalOpen, setTerminalOpen] = useState(false);
