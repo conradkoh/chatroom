@@ -1,12 +1,11 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { FileTree, FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import { useFileTree } from '../hooks/useFileTree';
 
 import { cn } from '@/lib/utils';
 
@@ -191,11 +190,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
 }: WorkspaceFileExplorerProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
-  // Fetch file tree reactively (uses cached data from backend)
-  const treeResult = useSessionQuery(api.workspaceFiles.getFileTree, {
-    machineId,
-    workingDir,
-  });
+  // Fetch file tree reactively (uses cached data from backend, handles decompression)
+  const treeResult = useFileTree({ machineId, workingDir });
 
   // Note: No auto-refresh on mount. Tree refresh is triggered on-demand
   // via the refresh button in FileExplorerPanel.
