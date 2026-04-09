@@ -110,8 +110,15 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
           {command.icon}
         </span>
       )}
-      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
-        {command.label}
+      <span className="flex-1 min-w-0">
+        <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary block truncate">
+          {command.label}
+        </span>
+        {command.detail && (
+          <span className="text-[10px] text-chatroom-text-muted block truncate">
+            {command.detail}
+          </span>
+        )}
       </span>
       {command.shortcut && (
         <span className="text-xs text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">

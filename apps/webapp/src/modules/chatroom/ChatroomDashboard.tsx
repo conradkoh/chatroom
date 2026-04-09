@@ -28,7 +28,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
-import { CommandPalette, useCommandPaletteCommands, type SettingsTab } from './components/CommandPalette';
+import { CommandPalette, useCommandPaletteCommands, WorkspaceCommandsAggregator, type SettingsTab, type CommandItem } from './components/CommandPalette';
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
@@ -62,6 +62,7 @@ import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
+import { toGitHubRepoUrl } from '@/lib/github';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -264,7 +265,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'setup' | 'team' | 'machine' | 'agents' | 'integrations' | undefined>(undefined);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab | undefined>(undefined);
 
   // Terminal output panel state
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -536,14 +537,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     if (gitState.status !== 'available') return null;
     const origin = gitState.remotes.find((r) => r.name === 'origin');
     if (!origin) return null;
-    const url = origin.url;
-    // SSH format: git@github.com:owner/repo.git
-    const sshMatch = url.match(/^git@github\.com:(.+?)(\.git)?$/);
-    if (sshMatch) return `https://github.com/${sshMatch[1]}`;
-    // HTTPS format: https://github.com/owner/repo.git
-    const httpsMatch = url.match(/^https:\/\/github\.com\/(.+?)(\.git)?$/);
-    if (httpsMatch) return `https://github.com/${httpsMatch[1]}`;
-    return null;
+    return toGitHubRepoUrl(origin.url);
   }, [gitState]);
 
   // Action command callbacks — stable, conditionally nulled
@@ -566,6 +560,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleViewGitHubPullRequests = useCallback(() => {
     if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
   }, [gitHubRepoUrl]);
+
+  const handleViewGitHubRepository = useCallback(() => {
+    if (gitHubRepoUrl) openExternalUrl(gitHubRepoUrl);
+  }, [gitHubRepoUrl]);
+
+  // ─── Multi-workspace command palette commands ──────────────────────────────
+  const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
+  const workspaceCommandCallbacks = useMemo(() => ({
+    sendAction,
+    openExternalUrl,
+    onOpenGitPanel: () => openGitPanelRef.current?.(),
+  }), [sendAction]);
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();
@@ -620,6 +626,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
+    onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
     onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
@@ -634,6 +641,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         }
       : null,
     onShowMessages: () => setActiveView('messages'),
+    workspaceCommands,
   });
 
   // Memoize the team entry point
@@ -1118,6 +1126,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
           {/* Command Palette (Cmd+Shift+P) */}
           <CommandPalette commands={commands} />
+          <WorkspaceCommandsAggregator
+            workspaces={chatroomWorkspaces}
+            callbacks={workspaceCommandCallbacks}
+            onCommandsChange={setWorkspaceCommands}
+          />
 
           {/* Terminal Output Panel */}
           <TerminalOutputPanel
