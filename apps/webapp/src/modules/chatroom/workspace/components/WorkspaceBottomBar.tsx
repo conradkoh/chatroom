@@ -422,7 +422,7 @@ const MobileStatusContent = memo(function MobileStatusContent({
 }: {
   workspace: WorkspaceWithMachine;
 }) {
-  const { isAvailable, isLoading, hasPR, branchDisplay, openPullRequests, diffStat } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, openPullRequests, diffStat, headCommitStatus } =
     useDerivedGitInfo(workspace, false);
 
   return (
@@ -450,6 +450,11 @@ const MobileStatusContent = memo(function MobileStatusContent({
           <div className="shrink-0">
             <InlineDiffStat diffStat={diffStat} showFileCount={false} />
           </div>
+
+          {/* Commit status */}
+          {headCommitStatus && (
+            <CommitStatusIndicator status={headCommitStatus} />
+          )}
         </>
       )}
 
@@ -490,7 +495,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   isLocal: boolean;
   sendAction: (machineId: string, action: 'open-vscode' | 'open-finder' | 'open-github-desktop', workingDir: string) => void;
 }) {
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat, primaryRemote } =
+  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat, primaryRemote, headCommitStatus } =
     useDerivedGitInfo(workspace, isLocal);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [remoteExpanded, setRemoteExpanded] = useState(false);
@@ -721,6 +726,11 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                   )}
                   {branchExpanded && (
                     <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
+                      {headCommitStatus && (
+                        <div className="px-2 py-1">
+                          <CommitStatusIndicator status={headCommitStatus} />
+                        </div>
+                      )}
                       {isLocal && (
                         <button
                           type="button"
