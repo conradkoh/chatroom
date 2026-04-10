@@ -3,6 +3,7 @@
 import { Check, Copy, FileText } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { decodeFileReferences } from '@/lib/fileReference';
+import { useFileReferenceClick } from './FileReferenceContext';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
@@ -268,11 +269,30 @@ const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: s
  * Rendered when a link with `fileref://` scheme is detected in markdown.
  */
 const FileReferenceChip = ({ filePath }: { filePath: string }) => {
+  const onClickFileReference = useFileReferenceClick();
+  const clickable = onClickFileReference != null;
   const fileName = filePath.split('/').pop() ?? filePath;
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-middle"
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-middle${
+        clickable
+          ? ' cursor-pointer hover:bg-chatroom-bg-secondary hover:border-chatroom-text-muted transition-colors'
+          : ''
+      }`}
       title={filePath}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? () => onClickFileReference(filePath) : undefined}
+      onKeyDown={
+        clickable
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClickFileReference(filePath);
+              }
+            }
+          : undefined
+      }
     >
       <FileText size={12} className="shrink-0 text-chatroom-text-muted" />
       <span className="truncate max-w-[200px]">{fileName}</span>
