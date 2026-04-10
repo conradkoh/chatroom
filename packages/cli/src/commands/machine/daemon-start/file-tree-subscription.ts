@@ -97,7 +97,7 @@ async function fulfillFileTreeRequests(
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
         workingDir: request.workingDir,
-        data: treeJsonCompressed,
+        data: { compression: 'gzip' as const, content: treeJsonCompressed },
         dataHash: treeHash,
         scannedAt: tree.scannedAt,
       });

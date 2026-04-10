@@ -42,7 +42,7 @@ export function useFileContent(args: {
 
     // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data)
+    decompressGzip(rawResult.data.content)
       .then((content) => {
         if (!cancelled) {
           setDecompressed({

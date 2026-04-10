@@ -35,7 +35,7 @@ export function useFileTree(
 
     // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data)
+    decompressGzip(rawResult.data.content)
       .then((treeJson) => {
         if (!cancelled) {
           setDecompressed({

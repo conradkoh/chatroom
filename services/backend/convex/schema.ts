@@ -1819,8 +1819,12 @@ export default defineSchema({
   chatroom_workspaceFileTreeV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
-    /** Base64-encoded gzip of FileTree JSON. Always compressed. */
-    data: v.string(),
+    /** Compressed data object: base64-encoded gzip of FileTree JSON. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    }),
     /** Hash of the uncompressed data for server-side dedup. */
     dataHash: v.string(),
     /** When the tree was last scanned. */
@@ -1829,13 +1833,17 @@ export default defineSchema({
 
   /**
    * V2 workspace full diff — compressed only.
-   * `data` is always a base64-encoded gzip of the diff content.
+   * `data` is a discriminated union object containing compression format and content.
    */
   chatroom_workspaceFullDiffV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
-    /** Base64-encoded gzip of the diff content. Always compressed. */
-    data: v.string(),
+    /** Compressed data object: base64-encoded gzip of the diff content. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    }),
     truncated: v.boolean(),
     diffStat: v.object({
       filesChanged: v.number(),
@@ -1847,7 +1855,7 @@ export default defineSchema({
 
   /**
    * V2 workspace commit detail — compressed only.
-   * Uses discriminated status field. `data` (base64-encoded gzip of diff)
+   * Uses discriminated status field. `data` (compressed object)
    * is only present when status === 'available'.
    */
   chatroom_workspaceCommitDetailV2: defineTable({
@@ -1861,8 +1869,12 @@ export default defineSchema({
       v.literal('error'),
       v.literal('not_found')
     ),
-    /** Base64-encoded gzip of the commit diff. Present only when status === 'available'. */
-    data: v.optional(v.string()),
+    /** Compressed data object. Present only when status === 'available'. */
+    data: v.optional(v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    })),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
       v.object({
@@ -1880,14 +1892,18 @@ export default defineSchema({
 
   /**
    * V2 workspace file content — compressed only.
-   * `data` is always a base64-encoded gzip of the file content.
+   * `data` is a discriminated union object containing compression format and content.
    */
   chatroom_workspaceFileContentV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    /** Base64-encoded gzip of the file content. Always compressed. */
-    data: v.string(),
+    /** Compressed data object: base64-encoded gzip of the file content. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    }),
     encoding: v.string(), // 'utf8'
     truncated: v.boolean(),
     /** When the content was fetched. */

@@ -149,7 +149,7 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      data: diffContentCompressed,
+      data: { compression: 'gzip' as const, content: diffContentCompressed },
       truncated: result.truncated,
       diffStat,
     });
@@ -165,7 +165,7 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      data: emptyCompressed,
+      data: { compression: 'gzip' as const, content: emptyCompressed },
       truncated: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
@@ -375,7 +375,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
     workingDir: req.workingDir,
     sha: req.sha,
     status: 'available',
-    data: diffContentCompressed,
+    data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,

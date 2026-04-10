@@ -555,8 +555,11 @@ export const syncFileTreeV2 = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
-    /** Base64-encoded gzip of FileTree JSON. */
-    data: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
     /** Hash of uncompressed data for server-side dedup. */
     dataHash: v.string(),
     scannedAt: v.number(),
@@ -570,7 +573,7 @@ export const syncFileTreeV2 = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Validate size
-    const sizeBytes = new TextEncoder().encode(args.data).length;
+    const sizeBytes = new TextEncoder().encode(args.data.content).length;
     if (sizeBytes > MAX_TREE_JSON_BYTES) {
       throw new Error('File tree too large');
     }
@@ -658,8 +661,11 @@ export const fulfillFileContentV2 = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    /** Base64-encoded gzip of the file content. */
-    data: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
     encoding: v.string(),
     truncated: v.boolean(),
   },
@@ -672,7 +678,7 @@ export const fulfillFileContentV2 = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Validate size
-    if (new TextEncoder().encode(args.data).length > MAX_CONTENT_BYTES) {
+    if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
       throw new Error('File content too large');
     }
 

@@ -1127,8 +1127,11 @@ export const upsertFullDiffV2 = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
-    /** Base64-encoded gzip of the diff content. */
-    data: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
     truncated: v.boolean(),
     diffStat: v.object({
       filesChanged: v.number(),
@@ -1234,8 +1237,11 @@ export const upsertCommitDetailV2 = mutation({
       v.literal('error'),
       v.literal('not_found')
     ),
-    /** Base64-encoded gzip of commit diff. Present only when status === 'available'. */
-    data: v.optional(v.string()),
+    /** Compressed data object. Present only when status === 'available'. */
+    data: v.optional(v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    })),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
       v.object({

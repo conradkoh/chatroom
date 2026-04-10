@@ -57,11 +57,11 @@ export function useFullDiff(
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
-  // V2: data is always base64-encoded gzip — always decompress
+  // V2: data is a compressed object { compression, content } — always decompress
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data)
+      decompressGzip(result.data.content)
         .then((content) => {
           if (!cancelled) setDecompressedContent(content);
         })
@@ -161,11 +161,11 @@ export function useCommitDetail(
     setDecompressedContent(null);
   }, []);
 
-  // V2: data is always base64-encoded gzip when status=available — always decompress
+  // V2: data is a compressed object when status=available — always decompress
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data)
+      decompressGzip(result.data.content)
         .then((content) => {
           if (!cancelled) setDecompressedContent(content);
         })

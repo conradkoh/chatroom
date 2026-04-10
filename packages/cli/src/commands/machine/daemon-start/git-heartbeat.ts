@@ -257,7 +257,7 @@ async function prefetchSingleCommit(
     workingDir,
     sha,
     status: 'available',
-    data: diffContentCompressed,
+    data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,

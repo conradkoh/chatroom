@@ -93,7 +93,7 @@ async function fulfillSingleRequest(
       machineId: ctx.machineId,
       workingDir,
       filePath,
-      data: binaryCompressed,
+      data: { compression: 'gzip' as const, content: binaryCompressed },
       encoding: 'utf8',
       truncated: false,
     });
@@ -130,7 +130,7 @@ async function fulfillSingleRequest(
     machineId: ctx.machineId,
     workingDir,
     filePath,
-    data: contentCompressed,
+    data: { compression: 'gzip' as const, content: contentCompressed },
     encoding: 'utf8',
     truncated,
   });
