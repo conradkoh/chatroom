@@ -110,7 +110,7 @@ async function fulfillFileTreeRequests(
       });
 
       console.log(
-        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries)`
+        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries, ${(Buffer.byteLength(treeJson) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
       );
     } catch (err) {
       console.warn(

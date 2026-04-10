@@ -42,16 +42,23 @@ export function useFileContent(args: {
 
     // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data).then((content) => {
-      if (!cancelled) {
-        setDecompressed({
-          content,
-          encoding: rawResult.encoding,
-          truncated: rawResult.truncated,
-          fetchedAt: rawResult.fetchedAt,
-        });
-      }
-    });
+    decompressGzip(rawResult.data)
+      .then((content) => {
+        if (!cancelled) {
+          setDecompressed({
+            content,
+            encoding: rawResult.encoding,
+            truncated: rawResult.truncated,
+            fetchedAt: rawResult.fetchedAt,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('[useFileContent] Failed to decompress file content:', err);
+        if (!cancelled) {
+          setDecompressed(null);
+        }
+      });
     return () => {
       cancelled = true;
     };

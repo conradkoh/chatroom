@@ -61,9 +61,14 @@ export function useFullDiff(
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data).then((content) => {
-        if (!cancelled) setDecompressedContent(content);
-      });
+      decompressGzip(result.data)
+        .then((content) => {
+          if (!cancelled) setDecompressedContent(content);
+        })
+        .catch((err) => {
+          console.error('[useFullDiff] Failed to decompress diff:', err);
+          if (!cancelled) setDecompressedContent(null);
+        });
       return () => { cancelled = true; };
     } else {
       setDecompressedContent(null);
@@ -160,9 +165,14 @@ export function useCommitDetail(
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data).then((content) => {
-        if (!cancelled) setDecompressedContent(content);
-      });
+      decompressGzip(result.data)
+        .then((content) => {
+          if (!cancelled) setDecompressedContent(content);
+        })
+        .catch((err) => {
+          console.error('[useCommitDetail] Failed to decompress commit detail:', err);
+          if (!cancelled) setDecompressedContent(null);
+        });
       return () => { cancelled = true; };
     } else {
       setDecompressedContent(null);

@@ -35,14 +35,21 @@ export function useFileTree(
 
     // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data).then((treeJson) => {
-      if (!cancelled) {
-        setDecompressed({
-          treeJson,
-          scannedAt: rawResult.scannedAt,
-        });
-      }
-    });
+    decompressGzip(rawResult.data)
+      .then((treeJson) => {
+        if (!cancelled) {
+          setDecompressed({
+            treeJson,
+            scannedAt: rawResult.scannedAt,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('[useFileTree] Failed to decompress file tree:', err);
+        if (!cancelled) {
+          setDecompressed(null);
+        }
+      });
     return () => {
       cancelled = true;
     };

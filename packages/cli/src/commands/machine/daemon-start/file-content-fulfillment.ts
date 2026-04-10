@@ -136,5 +136,5 @@ async function fulfillSingleRequest(
   });
 
   const elapsed = Date.now() - startTime;
-  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${elapsed}ms)`);
+  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`);
 }

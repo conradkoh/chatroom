@@ -155,7 +155,7 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
     });
 
     console.log(
-      `[${formatTimestamp()}] 📄 Full diff pushed: ${req.workingDir} (${diffStat.filesChanged} files, ${result.truncated ? 'truncated' : 'complete'})`
+      `[${formatTimestamp()}] 📄 Full diff pushed: ${req.workingDir} (${diffStat.filesChanged} files, ${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${result.truncated ? 'truncated' : 'complete'})`
     );
   } else {
     // For not_found / no_commits / error — push empty diff
@@ -384,7 +384,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   });
 
   console.log(
-    `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir}`
+    `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir} (${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
   );
 }
 
