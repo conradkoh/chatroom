@@ -56,9 +56,7 @@ async function enrichMessageAttachments(
   // Resolve attached tasks
   let attachedTasks: { _id: string; content: string; status: string }[] | undefined;
   if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-    const tasks = await Promise.all(
-      msg.attachedTaskIds.map((taskId) => ctx.db.get(taskId))
-    );
+    const tasks = await Promise.all(msg.attachedTaskIds.map((taskId) => ctx.db.get(taskId)));
     attachedTasks = tasks
       .filter((t): t is NonNullable<typeof t> => t !== null)
       .map((t) => ({ _id: t._id, content: t.content, status: t.status }));
@@ -67,9 +65,7 @@ async function enrichMessageAttachments(
   // Resolve attached backlog items
   let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
   if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
-    const items = await Promise.all(
-      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get(itemId))
-    );
+    const items = await Promise.all(msg.attachedBacklogItemIds.map((itemId) => ctx.db.get(itemId)));
     attachedBacklogItems = items
       .filter((i): i is NonNullable<typeof i> => i !== null)
       .map((i) => ({ id: i._id, content: i.content, status: i.status }));
@@ -80,9 +76,7 @@ async function enrichMessageAttachments(
     | { _id: string; content: string; senderRole: string; _creationTime: number }[]
     | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
-    const msgs = await Promise.all(
-      msg.attachedMessageIds.map((msgId) => ctx.db.get(msgId))
-    );
+    const msgs = await Promise.all(msg.attachedMessageIds.map((msgId) => ctx.db.get(msgId)));
     attachedMessages = msgs
       .filter((m): m is NonNullable<typeof m> => m !== null)
       .map((m) => ({
@@ -114,9 +108,7 @@ async function enrichMessageAttachments(
   // Resolve attached workflows
   let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
   if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
-    const workflows = await Promise.all(
-      msg.attachedWorkflowIds.map((wfId) => ctx.db.get(wfId))
-    );
+    const workflows = await Promise.all(msg.attachedWorkflowIds.map((wfId) => ctx.db.get(wfId)));
     attachedWorkflows = workflows
       .filter((w): w is NonNullable<typeof w> => w !== null)
       .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
@@ -129,6 +121,72 @@ async function enrichMessageAttachments(
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
     ...(attachedWorkflows && attachedWorkflows.length > 0 && { attachedWorkflows }),
   };
+}
+
+/**
+ * Enriches an array of chatroom messages with task status, attachments, and
+ * latest progress information. Shared by listPaginated, getLatestMessages,
+ * getMessagesSince, and getOlderMessages to ensure consistent message shape.
+ */
+async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
+  // Batch task lookups: collect unique taskIds, fetch in parallel
+  const uniqueTaskIds = [
+    ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
+  ];
+  const taskMap = new Map<string, { status: string } | null>();
+  const taskResults = await Promise.all(
+    uniqueTaskIds.map(async (id) => {
+      const task = await ctx.db.get(id);
+      return [id.toString(), task ? { status: task.status } : null] as const;
+    })
+  );
+  for (const [id, task] of taskResults) {
+    taskMap.set(id, task);
+  }
+
+  const enrichedMessages = await Promise.all(
+    messages.map(async (message) => {
+      // Use batched task lookup
+      let taskStatus: TaskStatus | undefined;
+      if (message.taskId) {
+        const task = taskMap.get(message.taskId.toString());
+        taskStatus = task?.status as TaskStatus | undefined;
+      }
+
+      // Resolve attachments (shared helper)
+      const attachments = await enrichMessageAttachments(ctx, message);
+
+      // Fetch latest progress message for tasks (for inline progress display)
+      let latestProgress:
+        | { content: string; senderRole: string; _creationTime: number }
+        | undefined;
+      if (message.taskId) {
+        const progressMessages = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
+          .filter((q) => q.eq(q.field('type'), 'progress'))
+          .order('desc')
+          .take(1);
+        if (progressMessages.length > 0) {
+          const latest = progressMessages[0];
+          latestProgress = {
+            content: latest.content,
+            senderRole: latest.senderRole,
+            _creationTime: latest._creationTime,
+          };
+        }
+      }
+
+      return {
+        ...message,
+        ...(taskStatus && { taskStatus }),
+        ...attachments,
+        ...(latestProgress && { latestProgress }),
+      };
+    })
+  );
+
+  return enrichedMessages;
 }
 
 // =============================================================================
@@ -503,7 +561,8 @@ async function _handoffHandler(
           success: false,
           error: {
             code: 'WORKFLOW_REQUIRED',
-            message: 'Active workflow required for planner → builder handoff. Create a workflow first.',
+            message:
+              'Active workflow required for planner → builder handoff. Create a workflow first.',
           },
           messageId: null,
           completedTaskIds: [],
@@ -1140,7 +1199,7 @@ export const list = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 1000;
+    const MAX_LIMIT = 50;
     const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
     // Fetch the most recent N messages (desc order) then reverse for chronological
@@ -1388,6 +1447,13 @@ export const listPaginated = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Server-side cap on page size to prevent unbounded queries
+    const MAX_PAGE_SIZE = 50;
+    const clampedPaginationOpts = {
+      ...args.paginationOpts,
+      numItems: Math.min(args.paginationOpts.numItems, MAX_PAGE_SIZE),
+    };
+
     // Paginate with descending order (newest first)
     // Filter out progress messages (shown inline in task headers) and
     // legacy join messages (no longer created) at the DB level so pagination
@@ -1397,71 +1463,149 @@ export const listPaginated = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
-      .paginate(args.paginationOpts);
+      .paginate(clampedPaginationOpts);
 
-    // Enrich messages with task status and attached task details
-    // Batch task lookups: collect unique taskIds, fetch in parallel
-    const uniqueTaskIds = [...new Set(
-      result.page
-        .filter((m) => m.taskId != null)
-        .map((m) => m.taskId!)
-    )];
-    const taskMap = new Map<string, { status: string } | null>();
-    const taskResults = await Promise.all(
-      uniqueTaskIds.map(async (id) => {
-        const task = await ctx.db.get(id);
-        return [id.toString(), task ? { status: task.status } : null] as const;
-      })
-    );
-    for (const [id, task] of taskResults) {
-      taskMap.set(id, task);
-    }
-
-    const enrichedPage = await Promise.all(
-      result.page.map(async (message) => {
-        // Use batched task lookup
-        let taskStatus: TaskStatus | undefined;
-        if (message.taskId) {
-          const task = taskMap.get(message.taskId.toString());
-          taskStatus = task?.status as TaskStatus | undefined;
-        }
-
-        // Resolve attachments (shared helper)
-        const attachments = await enrichMessageAttachments(ctx, message);
-
-        // Fetch latest progress message for tasks (for inline progress display)
-        let latestProgress:
-          | { content: string; senderRole: string; _creationTime: number }
-          | undefined;
-        if (message.taskId) {
-          const progressMessages = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
-            .filter((q) => q.eq(q.field('type'), 'progress'))
-            .order('desc')
-            .take(1);
-          if (progressMessages.length > 0) {
-            const latest = progressMessages[0];
-            latestProgress = {
-              content: latest.content,
-              senderRole: latest.senderRole,
-              _creationTime: latest._creationTime,
-            };
-          }
-        }
-
-        return {
-          ...message,
-          ...(taskStatus && { taskStatus }),
-          ...attachments,
-          ...(latestProgress && { latestProgress }),
-        };
-      })
-    );
+    // Enrich messages with task status, attachments, and latest progress
+    const enrichedPage = await enrichMessages(ctx, result.page);
 
     return {
       ...result,
       page: enrichedPage,
+    };
+  },
+});
+
+// =============================================================================
+// CURSOR-BASED MESSAGE LOADING QUERIES
+// =============================================================================
+
+/**
+ * Returns the last N messages for a chatroom (initial load).
+ * Messages are returned in ascending chronological order (oldest-to-newest).
+ * Also returns a cursor (_creationTime of the newest message) for subsequent
+ * reactive subscriptions via getMessagesSince.
+ */
+export const getLatestMessages = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const limit = args.limit ?? 5;
+
+    // Fetch limit + 1 messages in descending order to determine hasMore,
+    // then reverse for chronological (ascending) output. We filter out
+    // join/progress messages the same way listPaginated does.
+    const messagesDesc = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
+      .order('desc')
+      .take(limit + 1);
+
+    const hasMore = messagesDesc.length > limit;
+    // Trim to the requested limit and reverse to ascending chronological order
+    const trimmed = messagesDesc.slice(0, limit);
+    const messages = trimmed.reverse();
+
+    // Enrich with task status, attachments, and latest progress
+    const enrichedMessages = await enrichMessages(ctx, messages);
+
+    // Cursor is the _creationTime of the newest message, or null if empty
+    const cursor =
+      enrichedMessages.length > 0
+        ? enrichedMessages[enrichedMessages.length - 1]._creationTime
+        : null;
+
+    return {
+      messages: enrichedMessages,
+      cursor,
+      hasMore,
+    };
+  },
+});
+
+/**
+ * Returns all messages newer than the given cursor (tail subscription).
+ * Subscribed to reactively via useQuery — Convex re-runs whenever new messages
+ * arrive. Messages are returned in ascending chronological order.
+ * Capped at 200 messages to prevent unbounded returns.
+ */
+export const getMessagesSince = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    sinceCursor: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const MAX_MESSAGES = 200;
+
+    // Fetch messages with _creationTime strictly greater than the cursor.
+    // The by_chatroom index on ['chatroomId'] implicitly includes _creationTime,
+    // so .gt() gives us an efficient indexed range scan.
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).gt('_creationTime', args.sinceCursor)
+      )
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
+      .order('asc')
+      .take(MAX_MESSAGES);
+
+    // Enrich with task status, attachments, and latest progress
+    const enrichedMessages = await enrichMessages(ctx, messages);
+
+    return {
+      messages: enrichedMessages,
+    };
+  },
+});
+
+/**
+ * Returns older messages before the given cursor (reverse pagination).
+ * Called on-demand when the user scrolls up. Messages are returned in
+ * ascending chronological order (oldest-to-newest). Also returns a hasMore
+ * flag indicating if there are additional older messages.
+ */
+export const getOlderMessages = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    beforeCursor: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const limit = args.limit ?? 10;
+
+    // Fetch limit + 1 messages to determine hasMore, in descending order
+    // (newest-first within the "older" range), then reverse.
+    const messagesDesc = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).lt('_creationTime', args.beforeCursor)
+      )
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
+      .order('desc')
+      .take(limit + 1);
+
+    const hasMore = messagesDesc.length > limit;
+    // Trim to the requested limit and reverse to ascending chronological order
+    const trimmed = messagesDesc.slice(0, limit);
+    const messages = trimmed.reverse();
+
+    // Enrich with task status, attachments, and latest progress
+    const enrichedMessages = await enrichMessages(ctx, messages);
+
+    return {
+      messages: enrichedMessages,
+      hasMore,
     };
   },
 });

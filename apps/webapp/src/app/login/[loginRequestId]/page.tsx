@@ -141,7 +141,14 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
         pollIntervalRef.current = null;
       }
       toast.success('Login successful!');
-      router.push('/app');
+      // Check for a stored redirect destination (e.g. from /login?redirect=...)
+      const postLoginRedirect = sessionStorage.getItem('postLoginRedirect');
+      if (postLoginRedirect && postLoginRedirect.startsWith('/') && !postLoginRedirect.startsWith('//')) {
+        sessionStorage.removeItem('postLoginRedirect');
+        router.push(postLoginRedirect);
+      } else {
+        router.push('/app');
+      }
     } else if (loginStatus === 'failed') {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);

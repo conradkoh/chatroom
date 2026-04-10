@@ -4,6 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
 import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
+
+import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
 import { usePaginatedQuery } from 'convex/react';
 import {
   ChevronUp,
@@ -43,7 +45,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { getBacklogStatusBadge } from './backlog/presenters';
-import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
+import { AttachedArtifacts } from './ArtifactRenderer';
 import { AttachedMessageFeedChip } from './AttachedMessageFeedChip';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { AttachedWorkflowChip } from './AttachedWorkflowChip';
@@ -66,6 +68,7 @@ import {
 } from '../viewModels/eventStreamViewModel';
 import { useAttachments } from '../context/AttachmentsContext';
 import { useHandoffNotification } from '../hooks/useHandoffNotification';
+import { useMessageStore } from '../hooks/useMessageStore';
 
 import {
   FixedModal,
@@ -75,7 +78,6 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 // Stable reference for remarkPlugins — avoids re-allocation on every render
 // which would cause react-markdown to re-parse the AST unnecessarily
@@ -93,60 +95,7 @@ interface MessageFeedProps {
   onRegisterOpenEventStream?: (open: () => void) => void;
 }
 
-interface Message {
-  _id: string;
-  type: string;
-  senderRole: string;
-  targetRole?: string;
-  content: string;
-  _creationTime: number;
-  classification?: 'question' | 'new_feature' | 'follow_up';
-  taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
-  // Source platform for messages from external integrations (e.g. 'telegram')
-  sourcePlatform?: string;
-  // Feature metadata (only for new_feature classification)
-  featureTitle?: string;
-  featureDescription?: string;
-  featureTechSpecs?: string;
-  // Attached backlog tasks for context
-  attachedTasks?: AttachedTask[];
-  // Attached chatroom_backlog items for context (from "Attach to Context" button)
-  attachedBacklogItems?: AttachedBacklogItem[];
-  // Attached artifacts
-  attachedArtifacts?: ArtifactMeta[];
-  // Attached chatroom messages for context
-  attachedMessages?: AttachedMessage[];
-  // Attached workflows for visualizer
-  attachedWorkflows?: { _id: string; workflowKey: string; status: string }[];
-  // Latest progress message for inline display
-  latestProgress?: {
-    content: string;
-    senderRole: string;
-    _creationTime: number;
-  };
-  // Queued message flag (from chatroom_messageQueue)
-  isQueued?: boolean;
-}
-
-interface AttachedTask {
-  _id: string;
-  content: string;
-  backlogStatus?: TaskStatus;
-}
-
-interface AttachedBacklogItem {
-  id: string;
-  content: string;
-  status: string;
-}
-
-interface AttachedMessage {
-  _id: string;
-  content: string;
-  senderRole: string;
-  _creationTime: number;
-}
+// Message, AttachedTask, AttachedBacklogItem, AttachedMessage imported from ../types/message
 
 // Shared badge styling constants
 const BADGE_BASE =
@@ -1552,14 +1501,8 @@ const MessageItem = memo(function MessageItem({
   );
 });
 
-// Number of messages to load initially and per page
-const INITIAL_PAGE_SIZE = 5;
-const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
-// Cap on total loaded messages to prevent unbounded memory growth.
-// Once reached, the "Load older messages" button is hidden and auto-load stops.
-const MAX_LOADED_MESSAGES = 200;
 
 // State for feature detail modal
 interface FeatureModalState {
@@ -1647,16 +1590,14 @@ export const MessageFeed = memo(function MessageFeed({
   scrollToBottom,
   onRegisterOpenEventStream,
 }: MessageFeedProps) {
-  const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
-    api.messages.listPaginated,
-    { chatroomId: chatroomId as Id<'chatroom_rooms'> },
-    { initialNumItems: INITIAL_PAGE_SIZE }
-  ) as {
-    results: Message[];
-    status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-    isLoading: boolean;
-    loadMore: (numItems: number) => void;
-  };
+  const {
+    messages: storeMessages,
+    isLoading,
+    hasMoreOlder,
+    isLoadingOlder,
+    loadOlderMessages,
+    purgeOldMessages,
+  } = useMessageStore(chatroomId);
 
   // Fetch queued messages (from chatroom_messageQueue)
   const queuedMessages = useSessionQuery(api.messages.listQueued, {
@@ -1880,22 +1821,23 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Load more messages handler - stable reference for button onClick
   const handleLoadMore = useCallback(() => {
-    loadMore(LOAD_MORE_SIZE);
-  }, [loadMore]);
+    loadOlderMessages();
+  }, [loadOlderMessages]);
 
-  // Reverse to show oldest first (backend already filters out join/progress messages)
+  // Messages from store are already in chronological order (oldest-to-newest)
   const displayMessages = useMemo(() => {
-    // Reverse because paginated query returns newest first, we want oldest at top
-    const regularMessages = [...(results || [])].reverse();
-    return regularMessages; // Queued messages are shown separately (pinned at bottom)
-  }, [results]);
+    return storeMessages as Message[];
+  }, [storeMessages]);
+
+  // Ref to avoid re-creating handleScroll on every message change
+  const displayMessagesLengthRef = useRef(displayMessages.length);
+  displayMessagesLengthRef.current = displayMessages.length;
 
   // Fire browser notifications when an agent hands off to the user
   useHandoffNotification(displayMessages);
 
-  // Effective loadable status — respects the message cap to prevent unbounded memory growth
-  const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
-  const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
+  // Effective loadable status — cursor-based store manages its own cap/bounds
+  const canLoadMore = hasMoreOlder && !isLoadingOlder;
 
   // ─── Scroll controller ref callback ──────────────────────────────────
   // Attach/detach the external ScrollController to the DOM element
@@ -1916,8 +1858,8 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Update loading state ref when status changes
   useEffect(() => {
-    wasLoadingMoreRef.current = status === 'LoadingMore';
-  }, [status]);
+    wasLoadingMoreRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
 
   // Preserve scroll position when loading older messages at the top
   useLayoutEffect(() => {
@@ -1941,10 +1883,10 @@ export const MessageFeed = memo(function MessageFeed({
     if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
       if (scrollHeight <= clientHeight) {
-        loadMore(LOAD_MORE_SIZE);
+        loadOlderMessages();
       }
     }
-  }, [canLoadMore, loadMore, displayMessages.length]);
+  }, [canLoadMore, loadOlderMessages, displayMessages.length]);
 
   // Auto-scroll to bottom when queue section appears or disappears (only if pinned)
   // This ensures the last message stays visible when the queue section grows/shrinks
@@ -1953,15 +1895,28 @@ export const MessageFeed = memo(function MessageFeed({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayQueuedMessages.length]);
 
-  // Handle scroll: load more when near top
+  // Handle scroll: load more when near top, purge when scrolled back down
   const handleScroll = useCallback(() => {
     const pos = scrollController.current.getScrollPosition();
     if (pos && canLoadMore && pos.scrollTop < SCROLL_THRESHOLD) {
-      loadMore(LOAD_MORE_SIZE);
+      loadOlderMessages();
     }
-  }, [canLoadMore, loadMore, scrollController]);
 
-  if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
+    // Purge old messages when user scrolls back down near bottom
+    if (pos && feedRef.current && scrollController.current.isPinned) {
+      // Estimate which message is at the top of the viewport
+      // Simple heuristic: estimate average message height from container
+      const container = feedRef.current;
+      const msgCount = displayMessagesLengthRef.current;
+      const avgMessageHeight = msgCount > 0 ? container.scrollHeight / msgCount : 80;
+      const viewportTopIndex = Math.floor(pos.scrollTop / avgMessageHeight);
+      if (viewportTopIndex > 50) {
+        purgeOldMessages(viewportTopIndex);
+      }
+    }
+  }, [canLoadMore, loadOlderMessages, scrollController, purgeOldMessages]);
+
+  if (isLoading && displayMessages.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-4 min-h-0">
         <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
@@ -2005,12 +1960,12 @@ export const MessageFeed = memo(function MessageFeed({
             Load older messages
           </button>
         )}
-        {hasReachedCap && status !== 'Exhausted' && (
+        {!hasMoreOlder && displayMessages.length > 0 && (
           <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
-            Showing latest {MAX_LOADED_MESSAGES} messages
+            Beginning of conversation
           </div>
         )}
-        {status === 'LoadingMore' && (
+        {isLoadingOlder && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
             <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
             Loading...

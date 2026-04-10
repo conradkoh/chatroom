@@ -65,6 +65,24 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('abcdefgh', 'abc')).toBe(0);
   });
 
+  it('filters out scattered matches for long queries like "package.json"', () => {
+    // Direct filename match should score high
+    const directMatch = fuzzyMatch('package.json', 'package.json');
+    expect(directMatch).toBeGreaterThan(0);
+
+    // Path containing the file should also match
+    const pathMatch = fuzzyMatch('package.json', 'services/backend/package.json');
+    expect(pathMatch).toBeGreaterThan(0);
+
+    // Scattered characters across a long path should NOT match (or score very low)
+    // e.g., p-a-c-k-a-g-e-.-j-s-o-n scattered in "src/components/PageContainer/index.json"
+    const scatteredMatch = fuzzyMatch(
+      'package.json',
+      'src/components/PageContainer/KeyboardNavigation/helpers.ts'
+    );
+    expect(scatteredMatch).toBe(0);
+  });
+
   it('matches special characters like .ts in file extensions', () => {
     expect(fuzzyMatch('.ts', 'fuzzyMatch.ts')).toBeGreaterThan(0);
     expect(fuzzyMatch('.tsx', 'Component.tsx')).toBeGreaterThan(0);

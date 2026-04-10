@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -38,6 +39,7 @@ import {
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
+import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
@@ -472,6 +474,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
+  // Agent panel data (for Start All Remote Agents command)
+  const agentPanelData = useAgentPanelData(chatroomId);
+
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
@@ -534,18 +539,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setResolvedPreviewWorkspace(null);
   }, [fileSelector]);
 
-  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
-  const handleCmdPFileSelect = useCallback(
-    (filePath: string) => {
-      if (!filePath) return;
-      // Track in recent files and open preview dialog
-      fileSelector.selectFile(filePath);
-      // Close the file picker modal
-      fileSelector.setOpen(false);
-    },
-    [fileSelector]
-  );
-
   const handleOpenInExplorer = useCallback(
     (filePath: string) => {
       fileTabs.pinTab(filePath);
@@ -554,6 +547,23 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       setRevealPath(filePath);
     },
     [fileTabs.pinTab]
+  );
+
+  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
+  const handleCmdPFileSelect = useCallback(
+    (filePath: string) => {
+      if (!filePath) return;
+      // Close the file picker modal
+      fileSelector.setOpen(false);
+      // If already in explorer view, open inline instead of preview modal
+      if (activeView === 'explorer') {
+        handleOpenInExplorer(filePath);
+      } else {
+        // Track in recent files and open preview dialog
+        fileSelector.selectFile(filePath);
+      }
+    },
+    [fileSelector, activeView, handleOpenInExplorer]
   );
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
@@ -671,6 +681,48 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [sendAction]
   );
 
+  // Start all remote agents handler
+  const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
+  const handleStartAllRemoteAgents = useCallback(async () => {
+    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    // Check if all roles have a saved preference
+    const missingRoles = agentRoles.filter((role) => !agentPanelData.agentPreferenceMap.has(role));
+    if (missingRoles.length > 0) {
+      // Open settings modal at agents tab to configure
+      handleCmdOpenSettings('agents');
+      return;
+    }
+    // Start all agents in parallel using their saved preferences
+    setIsStartingAllAgents(true);
+    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const results = await Promise.allSettled(
+      agentRoles.map((role) => {
+        const pref = agentPanelData.agentPreferenceMap.get(role)!;
+        return agentPanelData.sendCommand({
+          machineId: pref.machineId,
+          type: 'start-agent' as const,
+          payload: {
+            chatroomId: chatroomIdTyped,
+            role,
+            model: pref.model,
+            agentHarness: pref.agentHarness,
+            workingDir: pref.workingDir,
+          },
+        });
+      })
+    );
+    setIsStartingAllAgents(false);
+
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
+      .filter(Boolean) as string[];
+    if (failed.length > 0) {
+      toast.error(`Failed to start: ${failed.join(', ')}`);
+    } else {
+      toast.success(`Started ${agentRoles.length} agent(s)`);
+    }
+  }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
+
   // Build command palette commands
   const { openDialog } = useCommandDialog();
 
@@ -740,6 +792,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       : null,
     onShowMessages: () => setActiveView('messages'),
     workspaceCommands,
+    onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
   });
 
   // Memoize the team entry point

@@ -35,11 +35,22 @@ function SearchParamsHandler() {
 }
 
 /**
+ * Validates a redirect URL is safe (relative path only, prevents open redirect).
+ */
+function safeRedirectTo(url: string | null): string | null {
+  if (!url) return null;
+  // Only allow relative paths on this domain (prevent open redirect)
+  if (url.startsWith('/') && !url.startsWith('//')) return url;
+  return null;
+}
+
+/**
  * Login page component providing multiple authentication options.
  * Includes Google OAuth, code-based login, and anonymous access.
  */
 function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const authState = useAuthState();
   const googleAuthAvailable = useGoogleAuthAvailable();
   const [sessionId] = useState<string | null>(() =>
@@ -47,12 +58,25 @@ function LoginPageContent() {
   );
   const isLoading = authState === undefined;
 
+  // Read redirect destination from search params
+  const redirectTo = searchParams.get('redirect');
+
+  // Store redirect in sessionStorage for the Google OAuth path
+  // (OAuth navigates away from this page, so we need to persist it)
+  useEffect(() => {
+    const safe = safeRedirectTo(redirectTo);
+    if (safe) {
+      sessionStorage.setItem('postLoginRedirect', safe);
+    }
+  }, [redirectTo]);
+
   /**
-   * Redirects authenticated users to the main application.
+   * Redirects authenticated users to the main application or original destination.
    */
   const redirectAuthenticated = useCallback(() => {
-    router.push('/app');
-  }, [router]);
+    const safe = safeRedirectTo(redirectTo);
+    router.push(safe ?? '/app');
+  }, [router, redirectTo]);
 
   // Redirect authenticated users to app
   useEffect(() => {
