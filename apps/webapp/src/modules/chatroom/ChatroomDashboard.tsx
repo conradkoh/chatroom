@@ -447,21 +447,26 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
-  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
-  const handleCmdPFileSelect = useCallback((filePath: string) => {
-    if (!filePath) return;
-    // Track in recent files and open preview dialog
-    fileSelector.selectFile(filePath);
-    // Close the file picker modal
-    fileSelector.setOpen(false);
-  }, [fileSelector]);
-
   const handleOpenInExplorer = useCallback((filePath: string) => {
     fileTabs.pinTab(filePath);
     setActiveView('explorer');
     setExplorerSidebarVisible(true);
     setRevealPath(filePath);
   }, [fileTabs.pinTab]);
+
+  // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
+  const handleCmdPFileSelect = useCallback((filePath: string) => {
+    if (!filePath) return;
+    // Close the file picker modal
+    fileSelector.setOpen(false);
+    // If already in explorer view, open inline instead of preview modal
+    if (activeView === 'explorer') {
+      handleOpenInExplorer(filePath);
+    } else {
+      // Track in recent files and open preview dialog
+      fileSelector.selectFile(filePath);
+    }
+  }, [fileSelector, activeView, handleOpenInExplorer]);
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
