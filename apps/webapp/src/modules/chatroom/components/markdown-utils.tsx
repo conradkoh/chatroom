@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, FileText } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
+import { decodeFileReferences } from '@/lib/fileReference';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
@@ -258,6 +259,111 @@ const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: s
   </a>
 );
 
+// ============================================================================
+// File Reference Rendering
+// ============================================================================
+
+/**
+ * Inline chip for file references in messages.
+ * Rendered when a link with `fileref://` scheme is detected in markdown.
+ */
+const FileReferenceChip = ({ filePath }: { filePath: string }) => {
+  const fileName = filePath.split('/').pop() ?? filePath;
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-middle"
+      title={filePath}
+    >
+      <FileText size={12} className="shrink-0 text-chatroom-text-muted" />
+      <span className="truncate max-w-[200px]">{fileName}</span>
+    </span>
+  );
+};
+
+/**
+ * Link component that renders file references as inline chips.
+ * Regular links open in a new tab. `fileref://` links render as file chips.
+ */
+const FileAwareMarkdownLink = ({
+  children,
+  href,
+}: {
+  children?: React.ReactNode;
+  href?: string;
+}) => {
+  if (href?.startsWith('fileref://')) {
+    // Extract workspace/path from fileref://workspace/path
+    const refContent = href.slice('fileref://'.length);
+    const firstSlash = refContent.indexOf('/');
+    const filePath = firstSlash !== -1 ? refContent.slice(firstSlash + 1) : refContent;
+    return <FileReferenceChip filePath={filePath} />;
+  }
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+};
+
+/**
+ * Pre-process message content to convert `{file://workspace/path}` tokens
+ * into markdown links that the FileAwareMarkdownLink component can render as chips.
+ *
+ * Skips file references inside code blocks (``` ... ```) and inline code (` ... `).
+ */
+export function preprocessFileReferences(content: string): string {
+  if (!content || !content.includes('{file://')) return content;
+
+  // Extract code block and inline code ranges to skip
+  const skipRanges: Array<{ start: number; end: number }> = [];
+
+  // Fenced code blocks (``` ... ```)
+  const fencedCodeRegex = /```[\s\S]*?```/g;
+  let match: RegExpExecArray | null;
+  while ((match = fencedCodeRegex.exec(content)) !== null) {
+    skipRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+
+  // Inline code (` ... `)
+  const inlineCodeRegex = /`[^`]+`/g;
+  while ((match = inlineCodeRegex.exec(content)) !== null) {
+    skipRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+
+  const refs = decodeFileReferences(content);
+  if (refs.length === 0) return content;
+
+  // Build the result by replacing refs that are NOT inside code blocks
+  let result = '';
+  let lastIndex = 0;
+
+  for (const ref of refs) {
+    // Check if this ref is inside a skip range
+    const isInCodeBlock = skipRanges.some(
+      (range) => ref.start >= range.start && ref.end <= range.end
+    );
+
+    if (isInCodeBlock) {
+      // Keep as-is
+      continue;
+    }
+
+    // Add text before this reference
+    result += content.slice(lastIndex, ref.start);
+
+    // Replace with markdown link using fileref:// scheme
+    const fileName = ref.filePath.split('/').pop() ?? ref.filePath;
+    result += `[${fileName}](fileref://${ref.workspace}/${ref.filePath})`;
+
+    lastIndex = ref.end;
+  }
+
+  // Add remaining text
+  result += content.slice(lastIndex);
+
+  return result;
+}
+
 /**
  * Base markdown components with just the link override.
  * Use this for Markdown instances that don't need compact or full styling
@@ -273,8 +379,8 @@ export const baseMarkdownComponents = {
  * Use with react-markdown's `components` prop.
  */
 export const fullMarkdownComponents = {
-  // Links: always open in a new window
-  a: MarkdownLink,
+  // Links: file references render as chips, regular links open in new window
+  a: FileAwareMarkdownLink,
   // Wrap pre elements with CodeBlock for copy functionality, or MermaidBlock for diagrams
   pre: ({ children }: { children?: React.ReactNode }) => {
     // The children of pre is usually a code element

@@ -55,6 +55,7 @@ import {
   fullMarkdownComponents,
   messageFeedProseClassNames,
   contextSummaryProseClassNames,
+  preprocessFileReferences,
 } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import {
@@ -1228,10 +1229,11 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
 // Shared message content renderer with Markdown support
 
 const MessageContent = memo(function MessageContent({ content }: { content: string }) {
+  const processed = useMemo(() => preprocessFileReferences(content), [content]);
   return (
     <div className={messageFeedProseClassNames}>
       <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-        {content}
+        {processed}
       </Markdown>
     </div>
   );

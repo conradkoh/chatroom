@@ -10,13 +10,25 @@ import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
 import { EditorModal } from './EditorModal';
-import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAttachments } from '../context/AttachmentsContext';
+import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
+import {
+  useAttachments,
+  useTaskAttachments,
+  useBacklogAttachments,
+  useMessageAttachments,
+} from '../context/AttachmentsContext';
+import type { FileEntry } from './FileSelector/useFileSelector';
+import { encodeFileReference } from '@/lib/fileReference';
 
 interface SendFormProps {
   chatroomId: string;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
+  /** Available workspace files for @ autocomplete */
+  files?: FileEntry[];
+  /** Workspace name used for file reference encoding */
+  workspaceName?: string;
 }
 
 /**
@@ -94,13 +106,31 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize, onRegisterFocus }: SendFormProps) {
+export const SendForm = memo(function SendForm({
+  chatroomId,
+  onBeforeResize,
+  onAfterResize,
+  onRegisterFocus,
+  files = [],
+  workspaceName,
+}: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
+
+  // ── @ autocomplete state ──────────────────────────────────────────────────
+  const [autocompleteVisible, setAutocompleteVisible] = useState(false);
+  const [autocompleteQuery, setAutocompleteQuery] = useState('');
+  const [autocompletePosition, setAutocompletePosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  /** Cursor index where the `@` trigger was typed */
+  const atTriggerIndexRef = useRef<number | null>(null);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -152,7 +182,6 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
 
     onBeforeResize?.();
 
-
     // Set height to 0 to get accurate scrollHeight (Safari workaround)
     textarea.style.height = '0px';
     const scrollHeight = textarea.scrollHeight;
@@ -166,37 +195,53 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   }, [message, onBeforeResize, onAfterResize]);
 
   // Shared send logic used by both inline submit and editor modal
-  const doSend = useCallback(async (text: string) => {
-    if (!text.trim() || sending) return;
-    setSending(true);
-    try {
-      await sendMessage({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        senderRole: 'user',
-        content: text.trim(),
-        type: 'message',
-        ...(attachedTasks.length > 0 && {
-          attachedTaskIds: attachedTasks.map((task) => task.id),
-        }),
-        ...(attachedBacklogItems.length > 0 && {
-          attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
-        }),
-        ...(attachedMessages.length > 0 && {
-          attachedMessageIds: attachedMessages.map((msg) => msg.id),
-        }),
-      });
-      setMessage('');
-      localStorage.removeItem(draftKey);
-      if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
-        clearAll();
+  const doSend = useCallback(
+    async (text: string) => {
+      if (!text.trim() || sending) return;
+      setSending(true);
+      try {
+        await sendMessage({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          senderRole: 'user',
+          content: text.trim(),
+          type: 'message',
+          ...(attachedTasks.length > 0 && {
+            attachedTaskIds: attachedTasks.map((task) => task.id),
+          }),
+          ...(attachedBacklogItems.length > 0 && {
+            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
+          }),
+          ...(attachedMessages.length > 0 && {
+            attachedMessageIds: attachedMessages.map((msg) => msg.id),
+          }),
+        });
+        setMessage('');
+        localStorage.removeItem(draftKey);
+        if (
+          attachedTasks.length > 0 ||
+          attachedBacklogItems.length > 0 ||
+          attachedMessages.length > 0
+        ) {
+          clearAll();
+        }
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      } finally {
+        setSending(false);
       }
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    } finally {
-      setSending(false);
-    }
-  }, [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+    },
+    [
+      sending,
+      sendMessage,
+      chatroomId,
+      attachedTasks,
+      attachedBacklogItems,
+      attachedMessages,
+      clearAll,
+      draftKey,
+    ]
+  );
 
   const handleSubmit = useCallback(async () => {
     await doSend(message);
@@ -204,6 +249,19 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // When autocomplete is visible, let it handle navigation keys
+      // The autocomplete component captures keydown events in capture phase
+      if (
+        autocompleteVisible &&
+        (e.key === 'Enter' ||
+          e.key === 'Tab' ||
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'Escape')
+      ) {
+        return;
+      }
+
       // On touch devices (mobile), Enter creates a newline
       // Submission only happens via the Send button
       if (isTouchDevice) {
@@ -218,7 +276,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice]
+    [handleSubmit, isTouchDevice, autocompleteVisible]
   );
 
   const handleFormSubmit = useCallback(
@@ -229,8 +287,83 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     [handleSubmit]
   );
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart;
+      setMessage(newValue);
+
+      // ── @ trigger detection ──────────────────────────────────────────────
+      if (files.length > 0 && workspaceName) {
+        // Look backwards from cursor for an unmatched @ trigger
+        const textBeforeCursor = newValue.slice(0, cursorPos);
+        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+        if (lastAtIndex !== -1) {
+          // @ must be at start of input or preceded by whitespace
+          const charBefore = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : ' ';
+          const isValidTrigger =
+            charBefore === ' ' || charBefore === '\n' || charBefore === '\t' || lastAtIndex === 0;
+
+          if (isValidTrigger) {
+            const query = textBeforeCursor.slice(lastAtIndex + 1);
+            // Don't show autocomplete if query contains whitespace (user moved on)
+            if (!/\s/.test(query)) {
+              atTriggerIndexRef.current = lastAtIndex;
+              setAutocompleteQuery(query);
+              setAutocompleteVisible(true);
+
+              // Position the dropdown above the textarea
+              // We use a simple fixed position: above the form container
+              setAutocompletePosition({ top: 4, left: 0 });
+              return;
+            }
+          }
+        }
+
+        // No valid trigger found — dismiss
+        setAutocompleteVisible(false);
+        atTriggerIndexRef.current = null;
+      }
+    },
+    [files.length, workspaceName]
+  );
+
+  // ── @ autocomplete callbacks ───────────────────────────────────────────────
+  const handleFileSelect = useCallback(
+    (filePath: string) => {
+      if (!workspaceName || atTriggerIndexRef.current === null) return;
+
+      const triggerStart = atTriggerIndexRef.current;
+      const textarea = textareaRef.current;
+      const cursorPos = textarea?.selectionStart ?? message.length;
+
+      // Replace @query with the encoded file reference
+      const encoded = encodeFileReference(workspaceName, filePath);
+      const before = message.slice(0, triggerStart);
+      const after = message.slice(cursorPos);
+      const newMessage = before + encoded + ' ' + after;
+
+      setMessage(newMessage);
+      setAutocompleteVisible(false);
+      atTriggerIndexRef.current = null;
+
+      // Restore focus and cursor position after the inserted reference
+      const newCursorPos = before.length + encoded.length + 1;
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = newCursorPos;
+          textarea.selectionEnd = newCursorPos;
+        }
+      }, 0);
+    },
+    [message, workspaceName]
+  );
+
+  const handleAutocompleteDismiss = useCallback(() => {
+    setAutocompleteVisible(false);
+    atTriggerIndexRef.current = null;
   }, []);
 
   // ── Editor modal callbacks ────────────────────────────────────────────────────
@@ -250,9 +383,21 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   );
 
   return (
-    <div className="bg-chatroom-bg-surface backdrop-blur-xl">
+    <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
+      {/* @ file reference autocomplete dropdown */}
+      <FileReferenceAutocomplete
+        files={files}
+        query={autocompleteQuery}
+        position={autocompletePosition}
+        onSelect={handleFileSelect}
+        onDismiss={handleAutocompleteDismiss}
+        visible={autocompleteVisible}
+      />
+
       {/* Attached Tasks Row */}
-      {(attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) && (
+      {(attachedTasks.length > 0 ||
+        attachedBacklogItems.length > 0 ||
+        attachedMessages.length > 0) && (
         <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
           {attachedTasks.map((task) => (
             <AttachedTaskChip
