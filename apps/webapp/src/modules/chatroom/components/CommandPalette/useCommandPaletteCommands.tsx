@@ -199,7 +199,7 @@ export function useCommandPaletteCommands({
           label: 'Github: View Current PR',
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR'],
+          keywords: ['PR', 'Github PR'],
           action: onOpenPROnGitHub,
         });
       }
