@@ -6,6 +6,10 @@
  * workingDir, spawnedAgentPid, spawnedAt) so the frontend never needs to see
  * raw table records.
  *
+ * An agent is considered "running" only if it has a spawned PID AND its
+ * daemon is connected. This matches the logic in list-chatroom-agent-overview.ts
+ * and prevents stale "running" status when a daemon disconnects without cleanup.
+ *
  * Workspace listing is now handled by the workspace registry
  * (chatroom_workspaces table + useChatroomWorkspaces hook).
  */
@@ -93,14 +97,23 @@ export async function getAgentStatusForChatroom(
 
     const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
 
+    // Check daemon connectivity for this agent's machine
+    const machineStatus = teamConfig.machineId ? statusMap.get(teamConfig.machineId) : undefined;
+    const daemonConnected = machineStatus?.daemonConnected ?? false;
+
     // Determine state
+    // An agent is only considered "running" if it has a PID AND its daemon is connected.
+    // This prevents stale "running" status when a daemon disconnects without cleanup.
     let state: AgentRoleView['state'] = 'stopped';
 
     if (teamConfig.circuitState === 'open') {
       state = 'circuit_open';
     } else if (teamConfig.desiredState === 'running') {
-      if (teamConfig.spawnedAgentPid != null) {
+      if (teamConfig.spawnedAgentPid != null && daemonConnected) {
         state = 'running';
+      } else if (teamConfig.spawnedAgentPid != null && !daemonConnected) {
+        // Daemon is offline but PID exists — agent cannot be running
+        state = 'stopped';
       } else {
         state = 'starting';
       }
