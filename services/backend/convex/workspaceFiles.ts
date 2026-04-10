@@ -88,7 +88,7 @@ export const syncFileTree = mutation({
   },
   handler: async () => {
     throw new Error(
-      '[DEPRECATED] syncFileTree is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      '[DEPRECATED] syncFileTree is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
       'Run: npm install -g chatroom-cli@latest'
     );
   },
@@ -320,7 +320,7 @@ export const fulfillFileContent = mutation({
   },
   handler: async () => {
     throw new Error(
-      '[DEPRECATED] fulfillFileContent is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      '[DEPRECATED] fulfillFileContent is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
       'Run: npm install -g chatroom-cli@latest'
     );
   },
