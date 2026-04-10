@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
@@ -48,8 +48,8 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter and score files based on query
-  const filteredFiles = (() => {
+  // Filter and score files based on query (memoized to avoid re-running fuzzyMatch on every render)
+  const filteredFiles = useMemo(() => {
     if (!query) {
       // Show first N files when no query
       return files.slice(0, MAX_VISIBLE_ITEMS * 3);
@@ -64,9 +64,13 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
       .sort((a, b) => b.score - a.score);
 
     return scored.map((item) => item.file);
-  })();
+  }, [files, query]);
 
   const displayFiles = filteredFiles.slice(0, MAX_VISIBLE_ITEMS * 3);
+
+  // Keep a ref to displayFiles so handleKeyDown never captures a stale closure
+  const displayFilesRef = useRef(displayFiles);
+  displayFilesRef.current = displayFiles;
 
   // Reset selection when query changes
   useEffect(() => {
@@ -88,11 +92,13 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     (e: KeyboardEvent) => {
       if (!visible) return;
 
+      const currentFiles = displayFilesRef.current;
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
           e.stopPropagation();
-          setSelectedIndex((prev) => Math.min(prev + 1, displayFiles.length - 1));
+          setSelectedIndex((prev) => Math.min(prev + 1, currentFiles.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -101,10 +107,10 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
           break;
         case 'Enter':
         case 'Tab':
-          if (displayFiles.length > 0 && selectedIndex < displayFiles.length) {
+          if (currentFiles.length > 0 && selectedIndex < currentFiles.length) {
             e.preventDefault();
             e.stopPropagation();
-            onSelect(displayFiles[selectedIndex]!.path);
+            onSelect(currentFiles[selectedIndex]!.path);
           }
           break;
         case 'Escape':
@@ -114,7 +120,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
           break;
       }
     },
-    [visible, displayFiles, selectedIndex, onSelect, onDismiss]
+    [visible, selectedIndex, onSelect, onDismiss]
   );
 
   // Attach keyboard listener
@@ -142,29 +148,35 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
         className="overflow-y-auto"
         style={{ maxHeight: `${MAX_VISIBLE_ITEMS * 32}px` }}
       >
-        {displayFiles.map((file, index) => (
-          <div
-            key={file.path}
-            data-autocomplete-item
-            onMouseDown={(e) => {
-              // Use mouseDown instead of click to fire before blur
-              e.preventDefault();
-              onSelect(file.path);
-            }}
-            onMouseEnter={() => setSelectedIndex(index)}
-            className={`flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary ${
-              index === selectedIndex ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
-            }`}
-          >
-            <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
-            <span className="text-sm font-medium truncate flex-1">{getFileName(file.path)}</span>
-            {getParentDir(file.path) && (
-              <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
-                {getParentDir(file.path)}
-              </span>
-            )}
-          </div>
-        ))}
+        {displayFiles.map((file, index) => {
+          const parentDir = getParentDir(file.path);
+          return (
+            <div
+              key={file.path}
+              data-autocomplete-item
+              onMouseDown={(e) => {
+                // Use mouseDown instead of click to fire before blur
+                e.preventDefault();
+                onSelect(file.path);
+              }}
+              onMouseEnter={() => setSelectedIndex(index)}
+              className={`flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary ${
+                index === selectedIndex ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
+              }`}
+            >
+              <FileTypeIcon
+                path={file.path}
+                className="h-4 w-4 shrink-0 text-chatroom-text-muted"
+              />
+              <span className="text-sm font-medium truncate flex-1">{getFileName(file.path)}</span>
+              {parentDir && (
+                <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                  {parentDir}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

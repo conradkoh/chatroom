@@ -131,6 +131,8 @@ export const SendForm = memo(function SendForm({
   } | null>(null);
   /** Cursor index where the `@` trigger was typed */
   const atTriggerIndexRef = useRef<number | null>(null);
+  /** Debounce timer for autocomplete query updates */
+  const autocompleteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -164,6 +166,15 @@ export const SendForm = memo(function SendForm({
     }, 500);
     return () => clearTimeout(timer);
   }, [message, draftKey]);
+
+  // Clean up autocomplete debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autocompleteDebounceRef.current) {
+        clearTimeout(autocompleteDebounceRef.current);
+      }
+    };
+  }, []);
 
   // Attachments context
   const { remove, clearAll } = useAttachments();
@@ -310,18 +321,26 @@ export const SendForm = memo(function SendForm({
             // Don't show autocomplete if query contains whitespace (user moved on)
             if (!/\s/.test(query)) {
               atTriggerIndexRef.current = lastAtIndex;
-              setAutocompleteQuery(query);
+              // Show dropdown immediately but debounce the query update
+              // so fuzzy matching doesn't run on every keystroke
               setAutocompleteVisible(true);
-
-              // Position the dropdown above the textarea
-              // We use a simple fixed position: above the form container
               setAutocompletePosition({ top: 4, left: 0 });
+
+              if (autocompleteDebounceRef.current) {
+                clearTimeout(autocompleteDebounceRef.current);
+              }
+              autocompleteDebounceRef.current = setTimeout(() => {
+                setAutocompleteQuery(query);
+              }, 80);
               return;
             }
           }
         }
 
         // No valid trigger found — dismiss
+        if (autocompleteDebounceRef.current) {
+          clearTimeout(autocompleteDebounceRef.current);
+        }
         setAutocompleteVisible(false);
         atTriggerIndexRef.current = null;
       }
