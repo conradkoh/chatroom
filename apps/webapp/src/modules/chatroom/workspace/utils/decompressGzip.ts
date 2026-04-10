@@ -1,4 +1,18 @@
 /**
+ * Workspace data can be either a legacy plain base64 string or the current
+ * compressed object format `{ compression: "gzip", content: string }`.
+ * This helper extracts the base64 content regardless of shape.
+ */
+export function extractBase64Content(
+  data: string | { compression: 'gzip'; content: string }
+): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  return data.content;
+}
+
+/**
  * Decompress a base64-encoded gzip string using the browser's DecompressionStream API.
  */
 export async function decompressGzip(base64Data: string): Promise<string> {

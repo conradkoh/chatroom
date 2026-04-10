@@ -1820,11 +1820,14 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     /** Compressed data object: base64-encoded gzip of FileTree JSON. */
-    data: v.object({
-      compression: v.literal('gzip'),
-      /** Base64-encoded compressed content. */
-      content: v.string(),
-    }),
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
     /** Hash of the uncompressed data for server-side dedup. */
     dataHash: v.string(),
     /** When the tree was last scanned. */
@@ -1839,11 +1842,14 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     /** Compressed data object: base64-encoded gzip of the diff content. */
-    data: v.object({
-      compression: v.literal('gzip'),
-      /** Base64-encoded compressed content. */
-      content: v.string(),
-    }),
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
     truncated: v.boolean(),
     diffStat: v.object({
       filesChanged: v.number(),
@@ -1870,11 +1876,14 @@ export default defineSchema({
       v.literal('not_found')
     ),
     /** Compressed data object. Present only when status === 'available'. */
-    data: v.optional(v.object({
-      compression: v.literal('gzip'),
-      /** Base64-encoded compressed content. */
-      content: v.string(),
-    })),
+    data: v.optional(v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    )),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
       v.object({

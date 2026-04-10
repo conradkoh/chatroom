@@ -12,7 +12,7 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState } from '../types/git';
-import { decompressGzip } from '../utils/decompressGzip';
+import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ export function useFullDiff(
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data.content)
+      decompressGzip(extractBase64Content(result.data))
         .then((content) => {
           if (!cancelled) setDecompressedContent(content);
         })
@@ -165,7 +165,7 @@ export function useCommitDetail(
   useEffect(() => {
     if (result && result.data) {
       let cancelled = false;
-      decompressGzip(result.data.content)
+      decompressGzip(extractBase64Content(result.data))
         .then((content) => {
           if (!cancelled) setDecompressedContent(content);
         })

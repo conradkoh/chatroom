@@ -1,7 +1,7 @@
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useEffect, useState } from 'react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { decompressGzip } from '../utils/decompressGzip';
+import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 interface FileTreeResult {
   treeJson: string;
@@ -35,7 +35,7 @@ export function useFileTree(
 
     // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data.content)
+    decompressGzip(extractBase64Content(rawResult.data))
       .then((treeJson) => {
         if (!cancelled) {
           setDecompressed({
