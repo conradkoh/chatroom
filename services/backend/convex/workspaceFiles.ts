@@ -86,45 +86,11 @@ export const syncFileTree = mutation({
     treeHash: v.optional(v.string()),
     scannedAt: v.number(),
   },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    await requireMachineAccess(ctx, args.machineId, auth.userId);
-
-    // Validate size
-    const sizeToCheck = new TextEncoder().encode(args.treeJson).length;
-    if (sizeToCheck > MAX_TREE_JSON_BYTES) {
-      throw new Error('File tree too large');
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
-
-    // Server-side dedup: skip write if tree content hasn't changed
-    if (existing && args.treeHash && existing.treeHash === args.treeHash) {
-      return; // No change — skip write
-    }
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      treeJson: args.treeJson,
-      treeHash: args.treeHash,
-      scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data as any);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTree', data as any);
-    }
+  handler: async () => {
+    throw new Error(
+      '[DEPRECATED] syncFileTree is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -352,68 +318,11 @@ export const fulfillFileContent = mutation({
     encoding: v.string(),
     truncated: v.boolean(),
   },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    await requireMachineAccess(ctx, args.machineId, auth.userId);
-
-    // Validate content size
-    if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
-      throw new Error('File content too large');
-    }
-
-    // Validate file path
-    validateFilePath(args.filePath);
-
-    const now = Date.now();
-
-    // Upsert file content
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      filePath: args.filePath,
-      content: args.content,
-      encoding: args.encoding,
-      truncated: args.truncated,
-      fetchedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data as any);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileContent', data as any);
-    }
-
-    // Mark request as done
-    const request = await ctx.db
-      .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    if (request) {
-      await ctx.db.patch(request._id, {
-        status: 'done' as const,
-        updatedAt: now,
-      });
-    }
+  handler: async () => {
+    throw new Error(
+      '[DEPRECATED] fulfillFileContent is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 

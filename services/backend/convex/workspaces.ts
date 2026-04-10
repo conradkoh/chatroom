@@ -551,36 +551,11 @@ export const upsertFullDiff = mutation({
       deletions: v.number(),
     }),
   },
-  handler: async (ctx, args): Promise<void> => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) {
-      throw new Error('Authentication required');
-    }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
-
-    const now = Date.now();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      diffContent: args.diffContent,
-      truncated: args.truncated,
-      diffStat: args.diffStat,
-      updatedAt: now,
-    };
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFullDiff')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data as any);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFullDiff', data as any);
-    }
+  handler: async (): Promise<void> => {
+    throw new Error(
+      '[DEPRECATED] upsertFullDiff is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -671,45 +646,11 @@ export const upsertCommitDetail = mutation({
     // Available when status === 'error'
     errorMessage: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<void> => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) {
-      throw new Error('Authentication required');
-    }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
-
-    const now = Date.now();
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceCommitDetail')
-      .withIndex('by_machine_workingDir_sha', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
-      )
-      .first();
-
-    // Never overwrite a successfully resolved result
-    if (existing?.status === 'available') return;
-
-    const data: Record<string, unknown> = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      sha: args.sha,
-      status: args.status,
-      diffContent: args.diffContent,
-      truncated: args.truncated,
-      diffStat: args.diffStat,
-      message: args.message,
-      author: args.author,
-      date: args.date,
-      errorMessage: args.errorMessage,
-      updatedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data as any);
-    } else {
-      await ctx.db.insert('chatroom_workspaceCommitDetail', data as any);
-    }
+  handler: async (): Promise<void> => {
+    throw new Error(
+      '[DEPRECATED] upsertCommitDetail is no longer supported. Please upgrade your CLI to v1.26.5 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
