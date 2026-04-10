@@ -74,13 +74,19 @@ function tagEntries(entries: FileEntry[], workspaceId: string | undefined): File
  * `useFileTree` exactly MAX_WORKSPACES times, using 'skip' for empty slots.
  */
 export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
-  // Memoize the slot computation to avoid unnecessary re-renders
+  // Memoize the slot computation to avoid unnecessary re-renders.
+  //
+  // Why JSON.stringify for the dependency?
+  // Workspace objects don't have stable references across renders — the parent
+  // may reconstruct the array each time. Comparing individual fields would mean
+  // tracking each of the MAX_WORKSPACES slots separately in the dep array, adding
+  // up to 20 deps. Instead we serialize the identity-significant fields
+  // (machineId + workingDir) into a single string. The array is capped at 10
+  // items so serialization cost is negligible.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const slots = useMemo(
     () => prepareSlots(workspaces),
     [
-      // We depend on the identity-significant fields of each workspace.
-      // JSON.stringify is fine here because workspaces is a small array (≤10).
       // eslint-disable-next-line react-hooks/exhaustive-deps
       JSON.stringify(
         workspaces.slice(0, MAX_WORKSPACES).map((w) => `${w.machineId}::${w.workingDir}`)

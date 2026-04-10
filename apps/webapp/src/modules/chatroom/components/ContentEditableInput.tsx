@@ -54,7 +54,17 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
     const divRef = useRef<HTMLDivElement>(null);
     /** Track the last HTML we set to avoid unnecessary re-renders */
     const lastHtmlRef = useRef<string>('');
-    /** Flag: when true, skip the next effect that syncs HTML from value */
+    /**
+     * Flag: when true, skip the next useLayoutEffect that syncs HTML from value.
+     *
+     * Flow: handleInput() sets suppressSync=true right before calling onChange(raw).
+     * That onChange triggers a value prop update, which fires the useLayoutEffect.
+     * If we let the effect re-render HTML into the contenteditable, it would reset
+     * the browser caret position — breaking mid-typing. So suppressSync skips that
+     * one cycle, and the effect resets the flag to false immediately, so that
+     * *external* value changes (autocomplete insertion, draft restore, send-clear)
+     * DO get synced into the DOM normally.
+     */
     const suppressSyncRef = useRef(false);
 
     // ── Imperative handle ──────────────────────────────────────────────────

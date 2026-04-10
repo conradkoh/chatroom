@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,6 +99,14 @@ export function useTriggerAutocomplete<T = unknown>(
   /** Ref for activeTrigger to avoid stale closure */
   const activeTriggerRef = useRef<TriggerDefinition<T> | null>(activeTrigger);
   activeTriggerRef.current = activeTrigger;
+
+  // Clean up the debounce timer on unmount so we don't fire a setState on
+  // an unmounted component (or keep a stale timeout running).
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // ── Input change: detect triggers ──────────────────────────────────────────
 
