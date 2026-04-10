@@ -3,20 +3,32 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Code2 } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
+import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
-import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAttachments } from '../context/AttachmentsContext';
+import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
+import {
+  useAttachments,
+  useTaskAttachments,
+  useBacklogAttachments,
+  useMessageAttachments,
+} from '../context/AttachmentsContext';
+import type { FileEntry } from './FileSelector/useFileSelector';
+import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
+import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
 
 interface SendFormProps {
   chatroomId: string;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
+  /** Available workspace files for @ autocomplete (tagged with workspaceId) */
+  files?: FileEntry[];
 }
 
 /**
@@ -94,31 +106,48 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onAfterResize, onRegisterFocus }: SendFormProps) {
+export const SendForm = memo(function SendForm({
+  chatroomId,
+  onBeforeResize: _onBeforeResize,
+  onAfterResize: _onAfterResize,
+  onRegisterFocus,
+  files = [],
+}: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<ContentEditableInputRef>(null);
+  const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
 
+  // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
+  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
+  const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
+
+  const getCaretPosition = useCallback(() => {
+    return inputRef.current?.getCaretPixelPosition() ?? null;
+  }, []);
+
+  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
+
   // Register focus callback for external callers
   useEffect(() => {
     onRegisterFocus?.(() => {
-      textareaRef.current?.focus();
+      inputRef.current?.focus();
     });
   }, [onRegisterFocus]);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
-  // Restore draft on mount (once per chatroomId) and auto-focus the textarea
+  // Restore draft on mount (once per chatroomId) and auto-focus the input
   useEffect(() => {
     const saved = parseDraft(localStorage.getItem(draftKey));
     if (saved) setMessage(saved);
     // Auto-focus when switching chatrooms (non-touch devices only)
     if (!isTouchDevice) {
-      setTimeout(() => textareaRef.current?.focus(), 0);
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroomId]);
@@ -143,67 +172,84 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
 
   const sendMessage = useSessionMutation(api.messages.send);
 
-  // Auto-resize textarea based on content
-  // Uses useLayoutEffect for synchronous DOM measurement before paint
-  // Uses height:0 technique for accurate scrollHeight in Safari
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    onBeforeResize?.();
-
-
-    // Set height to 0 to get accurate scrollHeight (Safari workaround)
-    textarea.style.height = '0px';
-    const scrollHeight = textarea.scrollHeight;
-    // Set to content height, capped at max with min of 40px (matches button height)
-    const newHeight = Math.max(40, Math.min(scrollHeight, 200));
-    textarea.style.height = `${newHeight}px`;
-    // Only show overflow when content exceeds max height
-    textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
-
-    onAfterResize?.();
-  }, [message, onBeforeResize, onAfterResize]);
-
   // Shared send logic used by both inline submit and editor modal
-  const doSend = useCallback(async (text: string) => {
-    if (!text.trim() || sending) return;
-    setSending(true);
-    try {
-      await sendMessage({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        senderRole: 'user',
-        content: text.trim(),
-        type: 'message',
-        ...(attachedTasks.length > 0 && {
-          attachedTaskIds: attachedTasks.map((task) => task.id),
-        }),
-        ...(attachedBacklogItems.length > 0 && {
-          attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
-        }),
-        ...(attachedMessages.length > 0 && {
-          attachedMessageIds: attachedMessages.map((msg) => msg.id),
-        }),
-      });
-      setMessage('');
-      localStorage.removeItem(draftKey);
-      if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
-        clearAll();
+  const doSend = useCallback(
+    async (text: string) => {
+      if (!text.trim() || sending) return;
+      setSending(true);
+      try {
+        await sendMessage({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          senderRole: 'user',
+          content: text.trim(),
+          type: 'message',
+          ...(attachedTasks.length > 0 && {
+            attachedTaskIds: attachedTasks.map((task) => task.id),
+          }),
+          ...(attachedBacklogItems.length > 0 && {
+            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
+          }),
+          ...(attachedMessages.length > 0 && {
+            attachedMessageIds: attachedMessages.map((msg) => msg.id),
+          }),
+        });
+        setMessage('');
+        localStorage.removeItem(draftKey);
+        if (
+          attachedTasks.length > 0 ||
+          attachedBacklogItems.length > 0 ||
+          attachedMessages.length > 0
+        ) {
+          clearAll();
+        }
+        setTimeout(() => inputRef.current?.focus(), 0);
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      } finally {
+        setSending(false);
       }
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    } finally {
-      setSending(false);
-    }
-  }, [sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
+    },
+    [
+      sending,
+      sendMessage,
+      chatroomId,
+      attachedTasks,
+      attachedBacklogItems,
+      attachedMessages,
+      clearAll,
+      draftKey,
+    ]
+  );
 
   const handleSubmit = useCallback(async () => {
     await doSend(message);
   }, [doSend, message]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // Let the trigger autocomplete hook handle navigation keys first
+      if (autocomplete.state.visible) {
+        // Arrow keys, Escape are handled by the hook
+        if (autocomplete.handleKeyDown(e.nativeEvent)) return;
+
+        // Enter/Tab: select the current result
+        if (
+          (e.key === 'Enter' || e.key === 'Tab') &&
+          autocomplete.state.results.length > 0 &&
+          autocomplete.state.selectedIndex < autocomplete.state.results.length
+        ) {
+          e.preventDefault();
+          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
+          const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
+          setMessage(newText);
+          setTimeout(() => {
+            inputRef.current?.focus();
+            inputRef.current?.setCursorOffset(newCursorPos);
+          }, 0);
+          return;
+        }
+      }
+
       // On touch devices (mobile), Enter creates a newline
       // Submission only happens via the Send button
       if (isTouchDevice) {
@@ -218,7 +264,7 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice]
+    [handleSubmit, isTouchDevice, autocomplete, message]
   );
 
   const handleFormSubmit = useCallback(
@@ -229,15 +275,42 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
     [handleSubmit]
   );
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-  }, []);
+  const handleContentChange = useCallback(
+    (newValue: string) => {
+      setMessage(newValue);
+
+      // Get cursor position from the contenteditable
+      const cursorPos = inputRef.current?.getCursorOffset() ?? newValue.length;
+
+      // Delegate trigger detection to the autocomplete hook
+      autocomplete.handleInputChange(newValue, cursorPos);
+    },
+    [autocomplete]
+  );
+
+  // ── Autocomplete file select callback ───────────────────────────────────────
+  const handleFileSelect = useCallback(
+    (filePath: string) => {
+      // Find the file entry from results that matches this path
+      const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
+      if (!fileEntry) return;
+
+      const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
+      setMessage(newText);
+
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.setCursorOffset(newCursorPos);
+      }, 0);
+    },
+    [autocomplete, message]
+  );
 
   // ── Editor modal callbacks ────────────────────────────────────────────────────
   const handleEditorClose = useCallback((editedText: string) => {
     setMessage(editedText);
     setEditorOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
   const handleEditorSend = useCallback(
@@ -250,9 +323,21 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
   );
 
   return (
-    <div className="bg-chatroom-bg-surface backdrop-blur-xl">
+    <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
+      {/* @ file reference autocomplete dropdown */}
+      <FileReferenceAutocomplete
+        results={autocomplete.state.results}
+        selectedIndex={autocomplete.state.selectedIndex}
+        position={autocomplete.state.position}
+        onSelect={handleFileSelect}
+        onHoverItem={autocomplete.setSelectedIndex}
+        visible={autocomplete.state.visible}
+      />
+
       {/* Attached Tasks Row */}
-      {(attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) && (
+      {(attachedTasks.length > 0 ||
+        attachedBacklogItems.length > 0 ||
+        attachedMessages.length > 0) && (
         <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
           {attachedTasks.map((task) => (
             <AttachedTaskChip
@@ -283,15 +368,13 @@ export const SendForm = memo(function SendForm({ chatroomId, onBeforeResize, onA
       )}
       {/* Input Form */}
       <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
-        <textarea
-          ref={textareaRef}
+        <ContentEditableInput
+          ref={inputRef}
           value={message}
-          onChange={handleChange}
+          onChange={handleContentChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           disabled={sending}
-          rows={1}
-          className="flex-1 min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle"
         />
 
         <div className="flex items-center gap-2 flex-shrink-0">

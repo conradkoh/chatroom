@@ -2,6 +2,10 @@
 
 import { Check, Copy } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
+import { defaultUrlTransform } from 'react-markdown';
+import { decodeFileReferences } from '@/lib/fileReference';
+import { FileReferenceChipUI } from './FileReferenceChipUI';
+import { useFileReferenceClick } from './FileReferenceContext';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
@@ -258,6 +262,148 @@ const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: s
   </a>
 );
 
+// ============================================================================
+// File Reference Rendering
+// ============================================================================
+
+/**
+ * Custom URL transform that preserves `fileref://` scheme URLs while delegating
+ * all others to react-markdown's default sanitizer.
+ *
+ * react-markdown v10's `defaultUrlTransform` only allows http/https/ircs/mailto/xmpp,
+ * so `fileref://` URLs get stripped to empty strings without this override.
+ */
+export function fileRefUrlTransform(url: string): string {
+  if (url.startsWith('fileref://')) return url;
+  return defaultUrlTransform(url);
+}
+
+/**
+ * Inline chip for file references in messages.
+ * Rendered when a link with `fileref://` scheme is detected in markdown.
+ * Wraps the presentational FileReferenceChipUI with click handling.
+ */
+const FileReferenceChip = ({
+  workspaceId,
+  filePath,
+}: {
+  workspaceId: string;
+  filePath: string;
+}) => {
+  const onClickFileReference = useFileReferenceClick();
+  const clickable = onClickFileReference != null;
+  const fileName = filePath.split('/').pop() ?? filePath;
+  return (
+    <span
+      className={
+        clickable
+          ? 'cursor-pointer hover:bg-chatroom-bg-secondary hover:border-chatroom-text-muted transition-colors rounded-sm'
+          : undefined
+      }
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? () => onClickFileReference(workspaceId, filePath) : undefined}
+      onKeyDown={
+        clickable
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClickFileReference(workspaceId, filePath);
+              }
+            }
+          : undefined
+      }
+    >
+      <FileReferenceChipUI fileName={fileName} filePath={filePath} />
+    </span>
+  );
+};
+
+/**
+ * Link component that renders file references as inline chips.
+ * Regular links open in a new tab. `fileref://` links render as file chips.
+ */
+const FileAwareMarkdownLink = ({
+  children,
+  href,
+}: {
+  children?: React.ReactNode;
+  href?: string;
+}) => {
+  if (href?.startsWith('fileref://')) {
+    // Extract workspace/path from fileref://workspace/path
+    const refContent = href.slice('fileref://'.length);
+    const firstSlash = refContent.indexOf('/');
+    const workspaceId = firstSlash !== -1 ? refContent.slice(0, firstSlash) : '';
+    const filePath = firstSlash !== -1 ? refContent.slice(firstSlash + 1) : refContent;
+    return <FileReferenceChip workspaceId={workspaceId} filePath={filePath} />;
+  }
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+};
+
+/**
+ * Pre-process message content to convert `{file://workspace/path}` tokens
+ * into markdown links that the FileAwareMarkdownLink component can render as chips.
+ *
+ * Skips file references inside code blocks (``` ... ```) and inline code (` ... `).
+ */
+export function preprocessFileReferences(content: string): string {
+  if (!content || !content.includes('{file://')) return content;
+
+  // Extract code block and inline code ranges to skip
+  const skipRanges: Array<{ start: number; end: number }> = [];
+
+  // Fenced code blocks (``` ... ```)
+  const fencedCodeRegex = /```[\s\S]*?```/g;
+  let match: RegExpExecArray | null;
+  while ((match = fencedCodeRegex.exec(content)) !== null) {
+    skipRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+
+  // Inline code (` ... `)
+  const inlineCodeRegex = /`[^`]+`/g;
+  while ((match = inlineCodeRegex.exec(content)) !== null) {
+    skipRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+
+  const refs = decodeFileReferences(content);
+  if (refs.length === 0) return content;
+
+  // Build the result by replacing refs that are NOT inside code blocks
+  let result = '';
+  let lastIndex = 0;
+
+  for (const ref of refs) {
+    // Check if this ref is inside a skip range
+    const isInCodeBlock = skipRanges.some(
+      (range) => ref.start >= range.start && ref.end <= range.end
+    );
+
+    if (isInCodeBlock) {
+      // Keep as-is
+      continue;
+    }
+
+    // Add text before this reference
+    result += content.slice(lastIndex, ref.start);
+
+    // Replace with markdown link using fileref:// scheme
+    const fileName = ref.filePath.split('/').pop() ?? ref.filePath;
+    result += `[${fileName}](fileref://${ref.workspace}/${ref.filePath})`;
+
+    lastIndex = ref.end;
+  }
+
+  // Add remaining text
+  result += content.slice(lastIndex);
+
+  return result;
+}
+
 /**
  * Base markdown components with just the link override.
  * Use this for Markdown instances that don't need compact or full styling
@@ -273,8 +419,8 @@ export const baseMarkdownComponents = {
  * Use with react-markdown's `components` prop.
  */
 export const fullMarkdownComponents = {
-  // Links: always open in a new window
-  a: MarkdownLink,
+  // Links: file references render as chips, regular links open in new window
+  a: FileAwareMarkdownLink,
   // Wrap pre elements with CodeBlock for copy functionality, or MermaidBlock for diagrams
   pre: ({ children }: { children?: React.ReactNode }) => {
     // The children of pre is usually a code element

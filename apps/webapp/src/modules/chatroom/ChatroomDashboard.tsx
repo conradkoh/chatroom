@@ -29,7 +29,13 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
-import { CommandPalette, useCommandPaletteCommands, WorkspaceCommandsAggregator, type SettingsTab, type CommandItem } from './components/CommandPalette';
+import {
+  CommandPalette,
+  useCommandPaletteCommands,
+  WorkspaceCommandsAggregator,
+  type SettingsTab,
+  type CommandItem,
+} from './components/CommandPalette';
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { useCommandDialog } from './context/CommandDialogContext';
@@ -39,7 +45,10 @@ import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
-import { FileExplorerPanel, FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import {
+  FileExplorerPanel,
+  FILE_EXPLORER_REFRESH_EVENT,
+} from './workspace/components/FileExplorerPanel';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
@@ -50,6 +59,10 @@ import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { FileReferenceProvider } from './components/FileReferenceContext';
+import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
+import { decodeWorkspaceId, getWorkspaceDisplayName } from '@/lib/workspaceIdentifier';
+import type { Workspace } from './types/workspace';
 
 import {
   DropdownMenu,
@@ -101,6 +114,37 @@ const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition>
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
+}
+
+// ─── Workspace Resolution ────────────────────────────────────────────────────
+// Resolves a workspace reference (either base64url-encoded ID or legacy directory basename)
+// to a concrete { machineId, workingDir } pair. Handles backward compatibility with
+// messages sent before workspace identity encoding was introduced.
+
+function resolveWorkspace(
+  workspaceRef: string,
+  workspaces: Workspace[]
+): { machineId: string; workingDir: string } | null {
+  if (!workspaceRef) return null;
+
+  // Try base64url decode first (new format)
+  try {
+    return decodeWorkspaceId(workspaceRef);
+  } catch {
+    // Fallback: treat as legacy directory basename
+    const byPath = workspaces.find(
+      (ws) => ws.workingDir && ws.workingDir.endsWith('/' + workspaceRef)
+    );
+    if (byPath?.machineId) return { machineId: byPath.machineId, workingDir: byPath.workingDir };
+
+    const byDisplayName = workspaces.find(
+      (ws) => ws.workingDir && getWorkspaceDisplayName(ws.workingDir) === workspaceRef
+    );
+    if (byDisplayName?.machineId)
+      return { machineId: byDisplayName.machineId, workingDir: byDisplayName.workingDir };
+
+    return null;
+  }
 }
 
 /**
@@ -274,7 +318,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Process Manager state
   const [processManagerOpen, setProcessManagerOpen] = useState(false);
-  const [processManagerInitialCommand, setProcessManagerInitialCommand] = useState<string | null>(null);
+  const [processManagerInitialCommand, setProcessManagerInitialCommand] = useState<string | null>(
+    null
+  );
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
@@ -296,45 +342,60 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     focusSendFormRef.current = fn;
   }, []);
 
-  const handleActivityViewChange = useCallback((view: ActivityView) => {
-    if (view === activeView) {
-      // Already on this view — toggle sub-state
-      if (view === 'explorer') {
-        setExplorerSidebarVisible(prev => !prev);
+  const handleActivityViewChange = useCallback(
+    (view: ActivityView) => {
+      if (view === activeView) {
+        // Already on this view — toggle sub-state
+        if (view === 'explorer') {
+          setExplorerSidebarVisible((prev) => !prev);
+        }
+      } else {
+        // Switch to different view
+        setActiveView(view);
+        // Focus message input when switching to messages
+        if (view === 'messages') {
+          setTimeout(() => focusSendFormRef.current?.(), 0);
+        }
       }
-    } else {
-      // Switch to different view
-      setActiveView(view);
-      // Focus message input when switching to messages
-      if (view === 'messages') {
-        setTimeout(() => focusSendFormRef.current?.(), 0);
-      }
-    }
-  }, [activeView]);
+    },
+    [activeView]
+  );
 
   // File tabs state
   const fileTabs = useFileTabs();
 
   // File select handler: single click = preview, double click = pin
-  const handleFileSelect = useCallback((filePath: string) => {
-    fileTabs.openPreview(filePath);
-  }, [fileTabs.openPreview]);
+  const handleFileSelect = useCallback(
+    (filePath: string) => {
+      fileTabs.openPreview(filePath);
+    },
+    [fileTabs.openPreview]
+  );
 
-  const handleFileDoubleClick = useCallback((filePath: string) => {
-    fileTabs.pinTab(filePath);
-  }, [fileTabs.pinTab]);
+  const handleFileDoubleClick = useCallback(
+    (filePath: string) => {
+      fileTabs.pinTab(filePath);
+    },
+    [fileTabs.pinTab]
+  );
 
   // Track the path to reveal in the file tree
   const [revealPath, setRevealPath] = useState<string | null>(null);
 
   // Right pane handlers
-  const handleOpenPreview = useCallback((filePath: string) => {
-    fileTabs.openRight(filePath, 'preview');
-  }, [fileTabs.openRight]);
+  const handleOpenPreview = useCallback(
+    (filePath: string) => {
+      fileTabs.openRight(filePath, 'preview');
+    },
+    [fileTabs.openRight]
+  );
 
-  const handleOpenTableView = useCallback((filePath: string) => {
-    fileTabs.openRight(filePath, 'table');
-  }, [fileTabs.openRight]);
+  const handleOpenTableView = useCallback(
+    (filePath: string) => {
+      fileTabs.openRight(filePath, 'table');
+    },
+    [fileTabs.openRight]
+  );
 
   // Update sidebar visibility when screen size changes
   useEffect(() => {
@@ -440,38 +501,75 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Workspace bar data
   const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
 
+  // Active workspace — the workspace currently used for file explorer, Cmd+P, git, etc.
+  // Defaults to the first connected workspace. Index-based to support future switching UI.
+  const [activeWorkspaceIndex] = useState(0);
+  const activeWorkspace =
+    chatroomWorkspaces.filter((ws) => ws.machineId)[activeWorkspaceIndex] ?? null;
+
   // File selector (Cmd+P)
-  const firstWorkspace = chatroomWorkspaces.find((ws) => ws.machineId);
   const fileSelector = useFileSelector({
-    machineId: firstWorkspace?.machineId ?? null,
-    workingDir: firstWorkspace?.workingDir ?? null,
+    machineId: activeWorkspace?.machineId ?? null,
+    workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  const handleOpenInExplorer = useCallback((filePath: string) => {
-    fileTabs.pinTab(filePath);
-    setActiveView('explorer');
-    setExplorerSidebarVisible(true);
-    setRevealPath(filePath);
-  }, [fileTabs.pinTab]);
+  // Multi-workspace file tree subscription for @ autocomplete in SendForm
+  const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
+
+  // Resolved workspace for file reference chip clicks (workspace-aware preview)
+  const [resolvedPreviewWorkspace, setResolvedPreviewWorkspace] = useState<{
+    machineId: string;
+    workingDir: string;
+  } | null>(null);
+
+  // Workspace-aware file reference click handler
+  // Resolves workspaceId → {machineId, workingDir} and opens the file preview
+  const handleFileReferenceClick = useCallback(
+    (workspaceId: string, filePath: string) => {
+      const resolved = resolveWorkspace(workspaceId, chatroomWorkspaces);
+      setResolvedPreviewWorkspace(resolved);
+      fileSelector.selectFile(filePath);
+    },
+    [chatroomWorkspaces, fileSelector]
+  );
+
+  // Clear resolved workspace when preview closes
+  const handleFilePreviewClose = useCallback(() => {
+    fileSelector.selectFile('');
+    setResolvedPreviewWorkspace(null);
+  }, [fileSelector]);
+
+  const handleOpenInExplorer = useCallback(
+    (filePath: string) => {
+      fileTabs.pinTab(filePath);
+      setActiveView('explorer');
+      setExplorerSidebarVisible(true);
+      setRevealPath(filePath);
+    },
+    [fileTabs.pinTab]
+  );
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
-  const handleCmdPFileSelect = useCallback((filePath: string) => {
-    if (!filePath) return;
-    // Close the file picker modal
-    fileSelector.setOpen(false);
-    // If already in explorer view, open inline instead of preview modal
-    if (activeView === 'explorer') {
-      handleOpenInExplorer(filePath);
-    } else {
-      // Track in recent files and open preview dialog
-      fileSelector.selectFile(filePath);
-    }
-  }, [fileSelector, activeView, handleOpenInExplorer]);
+  const handleCmdPFileSelect = useCallback(
+    (filePath: string) => {
+      if (!filePath) return;
+      // Close the file picker modal
+      fileSelector.setOpen(false);
+      // If already in explorer view, open inline instead of preview modal
+      if (activeView === 'explorer') {
+        handleOpenInExplorer(filePath);
+      } else {
+        // Track in recent files and open preview dialog
+        fileSelector.selectFile(filePath);
+      }
+    },
+    [fileSelector, activeView, handleOpenInExplorer]
+  );
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
-    machineId: firstWorkspace?.machineId ?? null,
-    workingDir: firstWorkspace?.workingDir ?? null,
+    machineId: activeWorkspace?.machineId ?? null,
+    workingDir: activeWorkspace?.workingDir ?? null,
   });
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
@@ -499,13 +597,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // Command palette open handlers — delegate to child refs
-  const handleCmdOpenSettings = useCallback(
-    (tab: SettingsTab) => {
-      setSettingsInitialTab(tab);
-      setSettingsModalOpen(true);
-    },
-    []
-  );
+  const handleCmdOpenSettings = useCallback((tab: SettingsTab) => {
+    setSettingsInitialTab(tab);
+    setSettingsModalOpen(true);
+  }, []);
 
   const handleCmdOpenGitPanel = useCallback(() => {
     openGitPanelRef.current?.();
@@ -528,11 +623,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, []);
 
   // ─── Workspace context for command palette actions ─────────────────────────
-  const { isConnected: isLocalWorkspace } = useDaemonConnected(firstWorkspace?.machineId ?? null);
+  const { isConnected: isLocalWorkspace } = useDaemonConnected(activeWorkspace?.machineId ?? null);
   const sendAction = useSendLocalAction();
   const gitState = useWorkspaceGit(
-    firstWorkspace?.machineId ?? '',
-    firstWorkspace?.workingDir ?? ''
+    activeWorkspace?.machineId ?? '',
+    activeWorkspace?.workingDir ?? ''
   );
 
   // Derive PR URL from git state
@@ -552,16 +647,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Action command callbacks — stable, conditionally nulled
   const handleOpenInVSCode = useCallback(() => {
-    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
-      sendAction(firstWorkspace.machineId, 'open-vscode', firstWorkspace.workingDir);
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
+      sendAction(activeWorkspace.machineId, 'open-vscode', activeWorkspace.workingDir);
     }
-  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenInGitHubDesktop = useCallback(() => {
-    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
-      sendAction(firstWorkspace.machineId, 'open-github-desktop', firstWorkspace.workingDir);
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
+      sendAction(activeWorkspace.machineId, 'open-github-desktop', activeWorkspace.workingDir);
     }
-  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenPROnGitHub = useCallback(() => {
     if (prUrl) openExternalUrl(prUrl);
@@ -577,11 +672,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // ─── Multi-workspace command palette commands ──────────────────────────────
   const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
-  const workspaceCommandCallbacks = useMemo(() => ({
-    sendAction,
-    openExternalUrl,
-    onOpenGitPanel: () => openGitPanelRef.current?.(),
-  }), [sendAction]);
+  const workspaceCommandCallbacks = useMemo(
+    () => ({
+      sendAction,
+      openExternalUrl,
+      onOpenGitPanel: () => openGitPanelRef.current?.(),
+    }),
+    [sendAction]
+  );
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
@@ -679,12 +777,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
-    onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
+    onOpenWorkspaceDetails: activeWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
-    onShowExplorer: firstWorkspace
+    onShowExplorer: activeWorkspace
       ? () => {
           setActiveView('explorer');
           setExplorerSidebarVisible(true);
@@ -929,7 +1027,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
-    firstWorkspace,
+    activeWorkspace,
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
@@ -955,148 +1053,157 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   return (
     <AttachmentsProvider>
-      <PromptsProvider
-        chatroomId={chatroomId}
-        teamId={chatroom?.teamId}
-        teamName={teamName}
-        teamRoles={teamRoles}
-        teamEntryPoint={teamEntryPoint}
-      >
-        <>
-          <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            <div className="flex flex-1 overflow-hidden relative min-h-0">
-              {/* Activity Bar — VSCode-style icon sidebar */}
-              {firstWorkspace && (
-                <ActivityBar
-                  activeView={activeView}
-                  onViewChange={handleActivityViewChange}
-                />
-              )}
-
-              {/* File Explorer Left Sidebar — shown in explorer view */}
-              {activeView === 'explorer' && firstWorkspace && !fileTabs.expandedTabPath && explorerSidebarVisible && (
-                <div
-                  className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
-                >
-                  <FileExplorerPanel
-                    machineId={firstWorkspace.machineId}
-                    workingDir={firstWorkspace.workingDir}
-                    onFileSelect={handleFileSelect}
-                    onFileDoubleClick={handleFileDoubleClick}
-                    revealPath={revealPath}
-                  />
-                </div>
-              )}
-
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {activeView === 'messages' ? (
-                  /* Message Feed — shown in messages view */
-                  <MessageFeed
-                    chatroomId={chatroomId}
-                    activeTask={activeTask}
-                    controller={scrollController}
-                    isPinned={isPinned}
-                    scrollToBottom={scrollToBottom}
-                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                  />
-                ) : (
-                  /* Explorer view — file tabs + content or empty state */
-                  <>
-                    {/* File Tab Bar — shown when tabs are open */}
-                    {fileTabs.tabs.length > 0 && (
-                      <FileTabBar
-                        tabs={fileTabs.tabs}
-                        activeTabPath={fileTabs.activeTabPath}
-                        onActivate={fileTabs.setActiveTab}
-                        onClose={fileTabs.closeTab}
-                        onPin={fileTabs.pinTab}
-                        onToggleExpanded={fileTabs.toggleExpanded}
-                      />
-                    )}
-
-                    {/* File Content Area — left pane + optional right pane */}
-                    {fileTabs.activeTabPath && firstWorkspace?.machineId && firstWorkspace?.workingDir ? (
-                      <div className="flex-1 flex min-h-0 overflow-hidden">
-                        {/* Left Pane — source code */}
-                        <div className={cn(
-                          'flex flex-col min-h-0 overflow-hidden',
-                          fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
-                        )}>
-                          <FileContentViewer
-                            key={fileTabs.activeTabPath}
-                            machineId={firstWorkspace.machineId}
-                            workingDir={firstWorkspace.workingDir}
-                            filePath={fileTabs.activeTabPath}
-                            onOpenPreview={handleOpenPreview}
-                            onOpenTableView={handleOpenTableView}
-                          />
-                        </div>
-
-                        {/* Right Pane — preview/table */}
-                        {fileTabs.rightTabs.length > 0 && (
-                          <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
-                            <RightPaneTabBar
-                              tabs={fileTabs.rightTabs}
-                              activeTabKey={fileTabs.activeRightTabKey}
-                              onActivate={fileTabs.setActiveRightTab}
-                              onClose={fileTabs.closeRight}
-                            />
-                            {(() => {
-                              const activeRight = fileTabs.rightTabs.find(t => t.key === fileTabs.activeRightTabKey);
-                              if (!activeRight) return null;
-                              if (activeRight.viewType === 'preview') {
-                                return (
-                                  <MarkdownPreviewPane
-                                    key={activeRight.key}
-                                    machineId={firstWorkspace.machineId!}
-                                    workingDir={firstWorkspace.workingDir!}
-                                    filePath={activeRight.filePath}
-                                  />
-                                );
-                              }
-                              if (activeRight.viewType === 'table') {
-                                return (
-                                  <CsvTablePane
-                                    key={activeRight.key}
-                                    machineId={firstWorkspace.machineId!}
-                                    workingDir={firstWorkspace.workingDir!}
-                                    filePath={activeRight.filePath}
-                                  />
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      /* Empty state — no files open in explorer view */
-                      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-                        <div className="text-center">
-                          <Files size={32} className="mx-auto mb-2 opacity-40" />
-                          <p>No files open</p>
-                          <p className="text-xs mt-1">Select a file from the explorer to view it</p>
-                        </div>
-                      </div>
-                    )}
-                  </>
+      <FileReferenceProvider onClickFileReference={handleFileReferenceClick}>
+        <PromptsProvider
+          chatroomId={chatroomId}
+          teamId={chatroom?.teamId}
+          teamName={teamName}
+          teamRoles={teamRoles}
+          teamEntryPoint={teamEntryPoint}
+        >
+          <>
+            <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+              <div className="flex flex-1 overflow-hidden relative min-h-0">
+                {/* Activity Bar — VSCode-style icon sidebar */}
+                {activeWorkspace && (
+                  <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
                 )}
-              </div>
 
-              {/* Sidebar Overlay for mobile - below app header */}
-              {sidebarVisible && isSmallScreen && (
+                {/* File Explorer Left Sidebar — shown in explorer view */}
+                {activeView === 'explorer' &&
+                  activeWorkspace &&
+                  !fileTabs.expandedTabPath &&
+                  explorerSidebarVisible && (
+                    <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
+                      <FileExplorerPanel
+                        machineId={activeWorkspace.machineId}
+                        workingDir={activeWorkspace.workingDir}
+                        onFileSelect={handleFileSelect}
+                        onFileDoubleClick={handleFileDoubleClick}
+                        revealPath={revealPath}
+                      />
+                    </div>
+                  )}
+
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  {activeView === 'messages' ? (
+                    /* Message Feed — shown in messages view */
+                    <MessageFeed
+                      chatroomId={chatroomId}
+                      activeTask={activeTask}
+                      controller={scrollController}
+                      isPinned={isPinned}
+                      scrollToBottom={scrollToBottom}
+                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    />
+                  ) : (
+                    /* Explorer view — file tabs + content or empty state */
+                    <>
+                      {/* File Tab Bar — shown when tabs are open */}
+                      {fileTabs.tabs.length > 0 && (
+                        <FileTabBar
+                          tabs={fileTabs.tabs}
+                          activeTabPath={fileTabs.activeTabPath}
+                          onActivate={fileTabs.setActiveTab}
+                          onClose={fileTabs.closeTab}
+                          onPin={fileTabs.pinTab}
+                          onToggleExpanded={fileTabs.toggleExpanded}
+                        />
+                      )}
+
+                      {/* File Content Area — left pane + optional right pane */}
+                      {fileTabs.activeTabPath &&
+                      activeWorkspace?.machineId &&
+                      activeWorkspace?.workingDir ? (
+                        <div className="flex-1 flex min-h-0 overflow-hidden">
+                          {/* Left Pane — source code */}
+                          <div
+                            className={cn(
+                              'flex flex-col min-h-0 overflow-hidden',
+                              fileTabs.rightTabs.length > 0
+                                ? 'w-1/2 border-r border-chatroom-border'
+                                : 'flex-1'
+                            )}
+                          >
+                            <FileContentViewer
+                              key={fileTabs.activeTabPath}
+                              machineId={activeWorkspace.machineId}
+                              workingDir={activeWorkspace.workingDir}
+                              filePath={fileTabs.activeTabPath}
+                              onOpenPreview={handleOpenPreview}
+                              onOpenTableView={handleOpenTableView}
+                            />
+                          </div>
+
+                          {/* Right Pane — preview/table */}
+                          {fileTabs.rightTabs.length > 0 && (
+                            <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+                              <RightPaneTabBar
+                                tabs={fileTabs.rightTabs}
+                                activeTabKey={fileTabs.activeRightTabKey}
+                                onActivate={fileTabs.setActiveRightTab}
+                                onClose={fileTabs.closeRight}
+                              />
+                              {(() => {
+                                const activeRight = fileTabs.rightTabs.find(
+                                  (t) => t.key === fileTabs.activeRightTabKey
+                                );
+                                if (!activeRight) return null;
+                                if (activeRight.viewType === 'preview') {
+                                  return (
+                                    <MarkdownPreviewPane
+                                      key={activeRight.key}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
+                                      filePath={activeRight.filePath}
+                                    />
+                                  );
+                                }
+                                if (activeRight.viewType === 'table') {
+                                  return (
+                                    <CsvTablePane
+                                      key={activeRight.key}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
+                                      filePath={activeRight.filePath}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Empty state — no files open in explorer view */
+                        <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
+                          <div className="text-center">
+                            <Files size={32} className="mx-auto mb-2 opacity-40" />
+                            <p>No files open</p>
+                            <p className="text-xs mt-1">
+                              Select a file from the explorer to view it
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Sidebar Overlay for mobile - below app header */}
+                {sidebarVisible && isSmallScreen && (
+                  <div
+                    className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                    onClick={toggleSidebar}
+                  />
+                )}
+
+                {/* Sidebar - positioned below app header on mobile */}
+                {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+                {/* On mobile: uses fixed positioning with translate for overlay effect */}
                 <div
-                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                  onClick={toggleSidebar}
-                />
-              )}
-
-              {/* Sidebar - positioned below app header on mobile */}
-              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-              {/* On mobile: uses fixed positioning with translate for overlay effect */}
-              <div
-                className={`
+                  className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -1105,124 +1212,136 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-              >
-                <AgentPanel
-                  chatroomId={chatroomId}
-                  teamRoles={teamRoles}
-                  lifecycle={lifecycle}
-                  onConfigure={handleOpenSettings}
-                  onOpenAgents={handleOpenAgents}
-                />
-                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} onRegisterActions={handleRegisterWorkQueueActions} />
+                >
+                  <AgentPanel
+                    chatroomId={chatroomId}
+                    teamRoles={teamRoles}
+                    lifecycle={lifecycle}
+                    onConfigure={handleOpenSettings}
+                    onOpenAgents={handleOpenAgents}
+                  />
+                  <WorkQueue
+                    chatroomId={chatroomId}
+                    lifecycle={lifecycle}
+                    onRegisterActions={handleRegisterWorkQueueActions}
+                  />
+                </div>
               </div>
-            </div>
-            {/* SendForm row — border-t-2 spans both main content and sidebar */}
-            <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+              {/* SendForm row — border-t-2 spans both main content and sidebar */}
+              <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                 <SendForm
                   chatroomId={chatroomId}
                   onBeforeResize={beginResize}
                   onAfterResize={endResize}
                   onRegisterFocus={handleRegisterSendFormFocus}
+                  files={autocompleteFiles}
                 />
+              </div>
+              <WorkspaceBottomBar
+                workspaces={chatroomWorkspaces}
+                chatroomId={chatroomId}
+                onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
+              />
             </div>
-            <WorkspaceBottomBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRegisterOpenGitPanel={handleRegisterOpenGitPanel} />
-          </div>
 
-          <PromptModal
-            isOpen={modalState.isOpen}
-            onClose={handleCloseModal}
-            role={modalState.role}
-          />
+            <PromptModal
+              isOpen={modalState.isOpen}
+              onClose={handleCloseModal}
+              role={modalState.role}
+            />
 
-          <AgentSettingsModal
-            isOpen={settingsModalOpen}
-            onClose={handleCloseSettings}
-            chatroomId={chatroomId}
-            currentTeamId={chatroom?.teamId}
-            currentTeamRoles={teamRoles}
-            initialTab={settingsInitialTab}
-          />
+            <AgentSettingsModal
+              isOpen={settingsModalOpen}
+              onClose={handleCloseSettings}
+              chatroomId={chatroomId}
+              currentTeamId={chatroom?.teamId}
+              currentTeamRoles={teamRoles}
+              initialTab={settingsInitialTab}
+            />
 
-          <FileSelectorModal
-            open={fileSelector.open}
-            onOpenChange={fileSelector.setOpen}
-            files={fileSelector.files}
-            recentFiles={fileSelector.recentFiles}
-            onSelectFile={handleCmdPFileSelect}
-            isLoading={fileSelector.isLoading}
-            hasWorkspace={fileSelector.hasWorkspace}
-          />
+            <FileSelectorModal
+              open={fileSelector.open}
+              onOpenChange={fileSelector.setOpen}
+              files={fileSelector.files}
+              recentFiles={fileSelector.recentFiles}
+              onSelectFile={handleCmdPFileSelect}
+              isLoading={fileSelector.isLoading}
+              hasWorkspace={fileSelector.hasWorkspace}
+            />
 
-          <FilePreviewDialog
-            filePath={!fileSelector.open ? fileSelector.selectedFile : null}
-            machineId={firstWorkspace?.machineId ?? null}
-            workingDir={firstWorkspace?.workingDir ?? null}
-            onClose={() => fileSelector.selectFile('')}
-            files={fileSelector.files}
-            onSelectFile={fileSelector.selectFile}
-            onOpenInExplorer={handleOpenInExplorer}
-          />
-
-          {/* Setup modal - only shown during setup mode */}
-          <SetupChecklistModal
-            isOpen={isSetupMode && setupModalOpen}
-            onClose={handleCloseSetup}
-            chatroomId={chatroomId}
-            teamName={teamName}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
-            participants={participants || []}
-            onViewPrompt={handleViewPrompt}
-            chatroomName={displayName}
-            onRenameChatroom={handleRenameChatroom}
-          />
-
-          {/* Command Palette (Cmd+Shift+P) */}
-          <CommandPalette commands={commands} />
-          <WorkspaceCommandsAggregator
-            workspaces={chatroomWorkspaces}
-            callbacks={workspaceCommandCallbacks}
-            onCommandsChange={setWorkspaceCommands}
-          />
-
-          {/* Terminal Output Panel */}
-          <TerminalOutputPanel
-            open={terminalOpen}
-            onOpenChange={setTerminalOpen}
-            commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
-            status={commandRunner.activeRunOutput.run?.status ?? null}
-            output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
-            onStop={() => {
-              if (commandRunner.activeRunId) {
-                commandRunner.stopCommand(commandRunner.activeRunId);
+            <FilePreviewDialog
+              filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+              machineId={resolvedPreviewWorkspace?.machineId ?? activeWorkspace?.machineId ?? null}
+              workingDir={
+                resolvedPreviewWorkspace?.workingDir ?? activeWorkspace?.workingDir ?? null
               }
-            }}
-            onRestart={() => {
-              const run = commandRunner.activeRunOutput.run;
-              if (run) {
-                const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
-                if (cmd) {
-                  handleRunCommand(cmd.name, cmd.script);
+              onClose={handleFilePreviewClose}
+              files={fileSelector.files}
+              onSelectFile={fileSelector.selectFile}
+              onOpenInExplorer={handleOpenInExplorer}
+            />
+
+            {/* Setup modal - only shown during setup mode */}
+            <SetupChecklistModal
+              isOpen={isSetupMode && setupModalOpen}
+              onClose={handleCloseSetup}
+              chatroomId={chatroomId}
+              teamName={teamName}
+              teamRoles={teamRoles}
+              teamEntryPoint={teamEntryPoint}
+              participants={participants || []}
+              onViewPrompt={handleViewPrompt}
+              chatroomName={displayName}
+              onRenameChatroom={handleRenameChatroom}
+            />
+
+            {/* Command Palette (Cmd+Shift+P) */}
+            <CommandPalette commands={commands} />
+            <WorkspaceCommandsAggregator
+              workspaces={chatroomWorkspaces}
+              callbacks={workspaceCommandCallbacks}
+              onCommandsChange={setWorkspaceCommands}
+            />
+
+            {/* Terminal Output Panel */}
+            <TerminalOutputPanel
+              open={terminalOpen}
+              onOpenChange={setTerminalOpen}
+              commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
+              status={commandRunner.activeRunOutput.run?.status ?? null}
+              output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
+              onStop={() => {
+                if (commandRunner.activeRunId) {
+                  commandRunner.stopCommand(commandRunner.activeRunId);
                 }
-              }
-            }}
-          />
+              }}
+              onRestart={() => {
+                const run = commandRunner.activeRunOutput.run;
+                if (run) {
+                  const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
+                  if (cmd) {
+                    handleRunCommand(cmd.name, cmd.script);
+                  }
+                }
+              }}
+            />
 
-          {/* Process Manager */}
-          <ProcessManager
-            open={processManagerOpen}
-            onOpenChange={setProcessManagerOpen}
-            commands={commandRunner.commands as any[]}
-            runs={commandRunner.runs as any[]}
-            activeRunOutput={commandRunner.activeRunOutput as any}
-            onRunCommand={handleRunFromProcessManager}
-            onStopCommand={(runId) => commandRunner.stopCommand(runId)}
-            onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
-            onClearRun={() => commandRunner.setActiveRunId(null)}
-            initialSelectedCommand={processManagerInitialCommand}
-          />
-        </>
-      </PromptsProvider>
+            {/* Process Manager */}
+            <ProcessManager
+              open={processManagerOpen}
+              onOpenChange={setProcessManagerOpen}
+              commands={commandRunner.commands as any[]}
+              runs={commandRunner.runs as any[]}
+              activeRunOutput={commandRunner.activeRunOutput as any}
+              onRunCommand={handleRunFromProcessManager}
+              onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+              onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+              onClearRun={() => commandRunner.setActiveRunId(null)}
+              initialSelectedCommand={processManagerInitialCommand}
+            />
+          </>
+        </PromptsProvider>
+      </FileReferenceProvider>
     </AttachmentsProvider>
   );
 }

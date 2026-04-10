@@ -54,9 +54,11 @@ import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import {
   compactMarkdownComponents,
+  fileRefUrlTransform,
   fullMarkdownComponents,
   messageFeedProseClassNames,
   contextSummaryProseClassNames,
+  preprocessFileReferences,
 } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import {
@@ -870,7 +872,11 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             ) : (
               <div className="p-6">
                 <div className={messageFeedProseClassNames}>
-                  <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                  <Markdown
+                    remarkPlugins={REMARK_PLUGINS}
+                    components={fullMarkdownComponents}
+                    urlTransform={fileRefUrlTransform}
+                  >
                     {message.content}
                   </Markdown>
                 </div>
@@ -1162,7 +1168,11 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           <FixedModalBody>
             <div className="p-6">
               <div className={contextSummaryProseClassNames}>
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                <Markdown
+                  remarkPlugins={REMARK_PLUGINS}
+                  components={fullMarkdownComponents}
+                  urlTransform={fileRefUrlTransform}
+                >
                   {message.content}
                 </Markdown>
               </div>
@@ -1177,10 +1187,15 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
 // Shared message content renderer with Markdown support
 
 const MessageContent = memo(function MessageContent({ content }: { content: string }) {
+  const processed = useMemo(() => preprocessFileReferences(content), [content]);
   return (
     <div className={messageFeedProseClassNames}>
-      <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-        {content}
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        components={fullMarkdownComponents}
+        urlTransform={fileRefUrlTransform}
+      >
+        {processed}
       </Markdown>
     </div>
   );

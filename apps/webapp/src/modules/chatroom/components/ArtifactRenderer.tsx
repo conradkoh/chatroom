@@ -8,7 +8,7 @@ import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { fullMarkdownComponents } from './markdown-utils';
+import { fileRefUrlTransform, fullMarkdownComponents } from './markdown-utils';
 
 import {
   FixedModal,
@@ -51,7 +51,11 @@ type ArtifactContentRenderer = React.FC<{ artifact: ArtifactFull }>;
 function MarkdownArtifactViewer({ artifact }: { artifact: ArtifactFull }) {
   return (
     <div className="prose dark:prose-invert prose-sm max-w-none text-chatroom-text-primary">
-      <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={fullMarkdownComponents}
+        urlTransform={fileRefUrlTransform}
+      >
         {artifact.content}
       </Markdown>
     </div>
