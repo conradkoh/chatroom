@@ -82,9 +82,7 @@ export const syncFileTree = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
-    treeJson: v.optional(v.string()),
-    treeJsonCompressed: v.optional(v.string()),
-    compression: v.optional(v.literal('gzip')),
+    treeJson: v.string(),
     treeHash: v.optional(v.string()),
     scannedAt: v.number(),
   },
@@ -96,12 +94,8 @@ export const syncFileTree = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
-    // Validate size: use compressed size if available, otherwise raw treeJson
-    const contentToCheck = args.treeJsonCompressed ?? args.treeJson;
-    if (!contentToCheck) {
-      throw new Error('Either treeJson or treeJsonCompressed must be provided');
-    }
-    const sizeToCheck = new TextEncoder().encode(contentToCheck).length;
+    // Validate size
+    const sizeToCheck = new TextEncoder().encode(args.treeJson).length;
     if (sizeToCheck > MAX_TREE_JSON_BYTES) {
       throw new Error('File tree too large');
     }
@@ -114,32 +108,17 @@ export const syncFileTree = mutation({
       .first();
 
     // Server-side dedup: skip write if tree content hasn't changed
-    // Hash is based on original content, not compressed
     if (existing && args.treeHash && existing.treeHash === args.treeHash) {
       return; // No change — skip write
     }
 
-    const data: Record<string, unknown> = {
+    const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
+      treeJson: args.treeJson,
       treeHash: args.treeHash,
       scannedAt: args.scannedAt,
     };
-
-    // Store compressed data when provided (preferred)
-    if (args.treeJsonCompressed && args.compression) {
-      data.treeJsonCompressed = args.treeJsonCompressed;
-      data.compression = args.compression;
-      // Store uncompressed too if provided (backward compat)
-      if (args.treeJson) {
-        data.treeJson = args.treeJson;
-      }
-    } else if (args.treeJson) {
-      // Legacy path: uncompressed only
-      data.treeJson = args.treeJson;
-      data.treeJsonCompressed = undefined;
-      data.compression = undefined;
-    }
 
     if (existing) {
       await ctx.db.patch(existing._id, data as any);
@@ -185,16 +164,8 @@ export const getFileTree = query({
     }
 
     // Return compressed data when available, otherwise uncompressed
-    if (tree.compression && tree.treeJsonCompressed) {
-      return {
-        treeJsonCompressed: tree.treeJsonCompressed,
-        compression: tree.compression,
-        scannedAt: tree.scannedAt,
-      };
-    }
-
     return {
-      treeJson: tree.treeJson ?? '',
+      treeJson: tree.treeJson,
       scannedAt: tree.scannedAt,
     };
   },
@@ -317,15 +288,12 @@ export const getFileContent = query({
       return null;
     }
 
-    // Return all fields — compressed data alongside regular fields for backward compat
+    // Return all fields
     return {
-      content: content.content ?? '',
+      content: content.content,
       encoding: content.encoding,
       truncated: content.truncated,
       fetchedAt: content.fetchedAt,
-      ...(content.compression && content.contentCompressed
-        ? { contentCompressed: content.contentCompressed, compression: content.compression }
-        : {}),
     };
   },
 });
@@ -380,11 +348,9 @@ export const fulfillFileContent = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    content: v.optional(v.string()),
+    content: v.string(),
     encoding: v.string(),
     truncated: v.boolean(),
-    contentCompressed: v.optional(v.string()),
-    compression: v.optional(v.literal('gzip')),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -395,11 +361,7 @@ export const fulfillFileContent = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
     // Validate content size
-    const contentToCheck = args.contentCompressed ?? args.content;
-    if (!contentToCheck) {
-      throw new Error('Either content or contentCompressed must be provided');
-    }
-    if (args.content && new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
+    if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
       throw new Error('File content too large');
     }
 
@@ -419,29 +381,15 @@ export const fulfillFileContent = mutation({
       )
       .first();
 
-    const data: Record<string, unknown> = {
+    const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
       filePath: args.filePath,
+      content: args.content,
       encoding: args.encoding,
       truncated: args.truncated,
       fetchedAt: now,
     };
-
-    // Store compressed data when provided (preferred)
-    if (args.contentCompressed && args.compression) {
-      data.contentCompressed = args.contentCompressed;
-      data.compression = args.compression;
-      // Store uncompressed too if provided (backward compat)
-      if (args.content) {
-        data.content = args.content;
-      }
-    } else if (args.content) {
-      // Legacy path: uncompressed only
-      data.content = args.content;
-      data.contentCompressed = undefined;
-      data.compression = undefined;
-    }
 
     if (existing) {
       await ctx.db.patch(existing._id, data as any);

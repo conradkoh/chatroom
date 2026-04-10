@@ -234,19 +234,15 @@ export const getFullDiff = query({
 
     if (!row) return null;
 
-    // Return compressed data when available alongside regular fields for backward compat
     return {
       _id: row._id,
       _creationTime: row._creationTime,
       machineId: row.machineId,
       workingDir: row.workingDir,
-      diffContent: row.diffContent ?? '',
+      diffContent: row.diffContent,
       truncated: row.truncated,
       diffStat: row.diffStat,
       updatedAt: row.updatedAt,
-      ...(row.compression && row.diffContentCompressed
-        ? { diffContentCompressed: row.diffContentCompressed, compression: row.compression }
-        : {}),
     };
   },
 });
@@ -547,15 +543,13 @@ export const upsertFullDiff = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
-    diffContent: v.optional(v.string()),
+    diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
       filesChanged: v.number(),
       insertions: v.number(),
       deletions: v.number(),
     }),
-    diffContentCompressed: v.optional(v.string()),
-    compression: v.optional(v.literal('gzip')),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -566,28 +560,14 @@ export const upsertFullDiff = mutation({
 
     const now = Date.now();
 
-    const data: Record<string, unknown> = {
+    const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
+      diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
       updatedAt: now,
     };
-
-    // Store compressed data when provided (preferred)
-    if (args.diffContentCompressed && args.compression) {
-      data.diffContentCompressed = args.diffContentCompressed;
-      data.compression = args.compression;
-      // Store uncompressed too if provided (backward compat)
-      if (args.diffContent) {
-        data.diffContent = args.diffContent;
-      }
-    } else if (args.diffContent) {
-      // Legacy path: uncompressed only
-      data.diffContent = args.diffContent;
-      data.diffContentCompressed = undefined;
-      data.compression = undefined;
-    }
 
     const existing = await ctx.db
       .query('chatroom_workspaceFullDiff')
@@ -684,8 +664,6 @@ export const upsertCommitDetail = mutation({
         deletions: v.number(),
       })
     ),
-    diffContentCompressed: v.optional(v.string()),
-    compression: v.optional(v.literal('gzip')),
     // Available when status === 'available' or 'too_large'
     message: v.optional(v.string()),
     author: v.optional(v.string()),
@@ -717,6 +695,7 @@ export const upsertCommitDetail = mutation({
       workingDir: args.workingDir,
       sha: args.sha,
       status: args.status,
+      diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
       message: args.message,
@@ -725,21 +704,6 @@ export const upsertCommitDetail = mutation({
       errorMessage: args.errorMessage,
       updatedAt: now,
     };
-
-    // Store compressed data when provided (preferred)
-    if (args.diffContentCompressed && args.compression) {
-      data.diffContentCompressed = args.diffContentCompressed;
-      data.compression = args.compression;
-      // Store uncompressed too if provided (backward compat)
-      if (args.diffContent) {
-        data.diffContent = args.diffContent;
-      }
-    } else if (args.diffContent) {
-      // Legacy path: uncompressed only
-      data.diffContent = args.diffContent;
-      data.diffContentCompressed = undefined;
-      data.compression = undefined;
-    }
 
     if (existing) {
       await ctx.db.patch(existing._id, data as any);
