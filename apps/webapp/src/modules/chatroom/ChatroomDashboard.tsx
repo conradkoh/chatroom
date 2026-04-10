@@ -496,11 +496,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Workspace bar data
   const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
 
+  // Active workspace — the workspace currently used for file explorer, Cmd+P, git, etc.
+  // Defaults to the first connected workspace. Index-based to support future switching UI.
+  const [activeWorkspaceIndex] = useState(0);
+  const activeWorkspace =
+    chatroomWorkspaces.filter((ws) => ws.machineId)[activeWorkspaceIndex] ?? null;
+
   // File selector (Cmd+P)
-  const firstWorkspace = chatroomWorkspaces.find((ws) => ws.machineId);
   const fileSelector = useFileSelector({
-    machineId: firstWorkspace?.machineId ?? null,
-    workingDir: firstWorkspace?.workingDir ?? null,
+    machineId: activeWorkspace?.machineId ?? null,
+    workingDir: activeWorkspace?.workingDir ?? null,
   });
 
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
@@ -553,8 +558,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
-    machineId: firstWorkspace?.machineId ?? null,
-    workingDir: firstWorkspace?.workingDir ?? null,
+    machineId: activeWorkspace?.machineId ?? null,
+    workingDir: activeWorkspace?.workingDir ?? null,
   });
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
@@ -608,11 +613,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, []);
 
   // ─── Workspace context for command palette actions ─────────────────────────
-  const { isConnected: isLocalWorkspace } = useDaemonConnected(firstWorkspace?.machineId ?? null);
+  const { isConnected: isLocalWorkspace } = useDaemonConnected(activeWorkspace?.machineId ?? null);
   const sendAction = useSendLocalAction();
   const gitState = useWorkspaceGit(
-    firstWorkspace?.machineId ?? '',
-    firstWorkspace?.workingDir ?? ''
+    activeWorkspace?.machineId ?? '',
+    activeWorkspace?.workingDir ?? ''
   );
 
   // Derive PR URL from git state
@@ -632,16 +637,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Action command callbacks — stable, conditionally nulled
   const handleOpenInVSCode = useCallback(() => {
-    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
-      sendAction(firstWorkspace.machineId, 'open-vscode', firstWorkspace.workingDir);
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
+      sendAction(activeWorkspace.machineId, 'open-vscode', activeWorkspace.workingDir);
     }
-  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenInGitHubDesktop = useCallback(() => {
-    if (firstWorkspace?.machineId && firstWorkspace?.workingDir) {
-      sendAction(firstWorkspace.machineId, 'open-github-desktop', firstWorkspace.workingDir);
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
+      sendAction(activeWorkspace.machineId, 'open-github-desktop', activeWorkspace.workingDir);
     }
-  }, [firstWorkspace?.machineId, firstWorkspace?.workingDir, sendAction]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenPROnGitHub = useCallback(() => {
     if (prUrl) openExternalUrl(prUrl);
@@ -720,12 +725,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
-    onOpenWorkspaceDetails: firstWorkspace ? handleCmdOpenGitPanel : null,
+    onOpenWorkspaceDetails: activeWorkspace ? handleCmdOpenGitPanel : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
     onOpenProcessManager: handleOpenProcessManager,
-    onShowExplorer: firstWorkspace
+    onShowExplorer: activeWorkspace
       ? () => {
           setActiveView('explorer');
           setExplorerSidebarVisible(true);
@@ -969,7 +974,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     displayName,
     setupModalOpen,
     handleOpenSetup,
-    firstWorkspace,
+    activeWorkspace,
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
@@ -1007,19 +1012,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
               <div className="flex flex-1 overflow-hidden relative min-h-0">
                 {/* Activity Bar — VSCode-style icon sidebar */}
-                {firstWorkspace && (
+                {activeWorkspace && (
                   <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
                 )}
 
                 {/* File Explorer Left Sidebar — shown in explorer view */}
                 {activeView === 'explorer' &&
-                  firstWorkspace &&
+                  activeWorkspace &&
                   !fileTabs.expandedTabPath &&
                   explorerSidebarVisible && (
                     <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
                       <FileExplorerPanel
-                        machineId={firstWorkspace.machineId}
-                        workingDir={firstWorkspace.workingDir}
+                        machineId={activeWorkspace.machineId}
+                        workingDir={activeWorkspace.workingDir}
                         onFileSelect={handleFileSelect}
                         onFileDoubleClick={handleFileDoubleClick}
                         revealPath={revealPath}
@@ -1056,8 +1061,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
                       {/* File Content Area — left pane + optional right pane */}
                       {fileTabs.activeTabPath &&
-                      firstWorkspace?.machineId &&
-                      firstWorkspace?.workingDir ? (
+                      activeWorkspace?.machineId &&
+                      activeWorkspace?.workingDir ? (
                         <div className="flex-1 flex min-h-0 overflow-hidden">
                           {/* Left Pane — source code */}
                           <div
@@ -1070,8 +1075,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                           >
                             <FileContentViewer
                               key={fileTabs.activeTabPath}
-                              machineId={firstWorkspace.machineId}
-                              workingDir={firstWorkspace.workingDir}
+                              machineId={activeWorkspace.machineId}
+                              workingDir={activeWorkspace.workingDir}
                               filePath={fileTabs.activeTabPath}
                               onOpenPreview={handleOpenPreview}
                               onOpenTableView={handleOpenTableView}
@@ -1096,8 +1101,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                                   return (
                                     <MarkdownPreviewPane
                                       key={activeRight.key}
-                                      machineId={firstWorkspace.machineId!}
-                                      workingDir={firstWorkspace.workingDir!}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
                                       filePath={activeRight.filePath}
                                     />
                                   );
@@ -1106,8 +1111,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                                   return (
                                     <CsvTablePane
                                       key={activeRight.key}
-                                      machineId={firstWorkspace.machineId!}
-                                      workingDir={firstWorkspace.workingDir!}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
                                       filePath={activeRight.filePath}
                                     />
                                   );
@@ -1213,9 +1218,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
             <FilePreviewDialog
               filePath={!fileSelector.open ? fileSelector.selectedFile : null}
-              machineId={resolvedPreviewWorkspace?.machineId ?? firstWorkspace?.machineId ?? null}
+              machineId={resolvedPreviewWorkspace?.machineId ?? activeWorkspace?.machineId ?? null}
               workingDir={
-                resolvedPreviewWorkspace?.workingDir ?? firstWorkspace?.workingDir ?? null
+                resolvedPreviewWorkspace?.workingDir ?? activeWorkspace?.workingDir ?? null
               }
               onClose={handleFilePreviewClose}
               files={fileSelector.files}
