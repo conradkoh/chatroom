@@ -1538,7 +1538,7 @@ const MessageItem = memo(function MessageItem({
 });
 
 // Number of messages to load initially and per page
-const INITIAL_PAGE_SIZE = 5;
+const INITIAL_PAGE_SIZE = 30;
 const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
