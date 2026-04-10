@@ -250,6 +250,9 @@ importers:
 
   services/backend:
     dependencies:
+      '@convex-dev/aggregate':
+        specifier: ^0.2.1
+        version: 0.2.1(convex@1.34.1(react@19.2.3))
       '@convex-dev/migrations':
         specifier: ^0.3.3
         version: 0.3.3(convex@1.34.1(react@19.2.3))
@@ -394,6 +397,11 @@ packages:
   '@babel/types@7.28.5':
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
+
+  '@convex-dev/aggregate@0.2.1':
+    resolution: {integrity: sha512-z8GeUC+cIZEgtMXecX6WTBQHNW4E2ioRsc5IkO8BWnCjgDOru/Mw8zXe9JPe35JkqDjlSVKuwxiQHKs/jaYAyA==}
+    peerDependencies:
+      convex: ^1.24.8
 
   '@convex-dev/eslint-plugin@1.2.2':
     resolution: {integrity: sha512-hLElzzSHuO83O/7PqaeFrMy8EOaDPMAUBNaqo7wkOzCsUCgA+tI9SXVSVLUozDGBBQjyXjAaPYRIBKoPeZbZKg==}
@@ -5481,6 +5489,10 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@convex-dev/aggregate@0.2.1(convex@1.34.1(react@19.2.3))':
+    dependencies:
+      convex: 1.34.1(react@19.2.3)
 
   '@convex-dev/eslint-plugin@1.2.2(convex@1.34.1(react@19.2.3))(eslint@9.26.0(jiti@2.4.2))(typescript@5.9.3)':
     dependencies:
