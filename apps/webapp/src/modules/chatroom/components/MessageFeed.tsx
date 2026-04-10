@@ -52,6 +52,7 @@ import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import {
   compactMarkdownComponents,
+  fileRefUrlTransform,
   fullMarkdownComponents,
   messageFeedProseClassNames,
   contextSummaryProseClassNames,
@@ -922,7 +923,11 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             ) : (
               <div className="p-6">
                 <div className={messageFeedProseClassNames}>
-                  <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                  <Markdown
+                    remarkPlugins={REMARK_PLUGINS}
+                    components={fullMarkdownComponents}
+                    urlTransform={fileRefUrlTransform}
+                  >
                     {message.content}
                   </Markdown>
                 </div>
@@ -1214,7 +1219,11 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           <FixedModalBody>
             <div className="p-6">
               <div className={contextSummaryProseClassNames}>
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                <Markdown
+                  remarkPlugins={REMARK_PLUGINS}
+                  components={fullMarkdownComponents}
+                  urlTransform={fileRefUrlTransform}
+                >
                   {message.content}
                 </Markdown>
               </div>
@@ -1232,7 +1241,11 @@ const MessageContent = memo(function MessageContent({ content }: { content: stri
   const processed = useMemo(() => preprocessFileReferences(content), [content]);
   return (
     <div className={messageFeedProseClassNames}>
-      <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        components={fullMarkdownComponents}
+        urlTransform={fileRefUrlTransform}
+      >
         {processed}
       </Markdown>
     </div>

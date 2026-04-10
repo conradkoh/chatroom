@@ -15,7 +15,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { fileRefUrlTransform, fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 interface Message {
   _id: string;
@@ -196,6 +196,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     <Markdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={fullMarkdownComponents}
+                      urlTransform={fileRefUrlTransform}
                     >
                       {message.featureDescription}
                     </Markdown>
@@ -216,6 +217,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     <Markdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={fullMarkdownComponents}
+                      urlTransform={fileRefUrlTransform}
                     >
                       {message.featureTechSpecs}
                     </Markdown>
@@ -235,6 +237,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   <Markdown
                     remarkPlugins={[remarkGfm, remarkBreaks]}
                     components={fullMarkdownComponents}
+                    urlTransform={fileRefUrlTransform}
                   >
                     {message.content}
                   </Markdown>
@@ -254,6 +257,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 <Markdown
                   remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={fullMarkdownComponents}
+                  urlTransform={fileRefUrlTransform}
                 >
                   {message.content}
                 </Markdown>

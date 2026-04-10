@@ -2,6 +2,7 @@
 
 import { Check, Copy, FileText } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
+import { defaultUrlTransform } from 'react-markdown';
 import { decodeFileReferences } from '@/lib/fileReference';
 import { useFileReferenceClick } from './FileReferenceContext';
 
@@ -263,6 +264,18 @@ const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: s
 // ============================================================================
 // File Reference Rendering
 // ============================================================================
+
+/**
+ * Custom URL transform that preserves `fileref://` scheme URLs while delegating
+ * all others to react-markdown's default sanitizer.
+ *
+ * react-markdown v10's `defaultUrlTransform` only allows http/https/ircs/mailto/xmpp,
+ * so `fileref://` URLs get stripped to empty strings without this override.
+ */
+export function fileRefUrlTransform(url: string): string {
+  if (url.startsWith('fileref://')) return url;
+  return defaultUrlTransform(url);
+}
 
 /**
  * Inline chip for file references in messages.

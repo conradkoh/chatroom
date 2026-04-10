@@ -6,7 +6,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { fileRefUrlTransform, fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 interface FeatureDetailModalProps {
   isOpen: boolean;
@@ -107,6 +107,7 @@ export const FeatureDetailModal = memo(function FeatureDetailModal({
                 <Markdown
                   remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={fullMarkdownComponents}
+                  urlTransform={fileRefUrlTransform}
                 >
                   {description}
                 </Markdown>
@@ -127,6 +128,7 @@ export const FeatureDetailModal = memo(function FeatureDetailModal({
                 <Markdown
                   remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={fullMarkdownComponents}
+                  urlTransform={fileRefUrlTransform}
                 >
                   {techSpecs}
                 </Markdown>

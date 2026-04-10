@@ -7,7 +7,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { CopyButton } from './CopyButton';
-import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { fileRefUrlTransform, fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -126,6 +126,7 @@ export const PromptModal = memo(function PromptModal({ isOpen, onClose, role }: 
               <Markdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={fullMarkdownComponents}
+                urlTransform={fileRefUrlTransform}
               >
                 {prompt}
               </Markdown>
