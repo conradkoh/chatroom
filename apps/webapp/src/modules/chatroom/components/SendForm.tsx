@@ -3,20 +3,13 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  useCallback,
-  memo,
-  useMemo,
-} from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Code2 } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
+import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import {
@@ -28,7 +21,6 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-import { getCaretCoordinates } from '@/lib/getCaretCoordinates';
 
 interface SendFormProps {
   chatroomId: string;
@@ -118,15 +110,15 @@ function cleanupOldDrafts(currentKey: string) {
 
 export const SendForm = memo(function SendForm({
   chatroomId,
-  onBeforeResize,
-  onAfterResize,
+  onBeforeResize: _onBeforeResize,
+  onAfterResize: _onAfterResize,
   onRegisterFocus,
   files = [],
   workspaceName,
 }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<ContentEditableInputRef>(null);
   const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
@@ -140,9 +132,7 @@ export const SendForm = memo(function SendForm({
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return null;
-    return getCaretCoordinates(textarea, textarea.selectionStart);
+    return inputRef.current?.getCaretPixelPosition() ?? null;
   }, []);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
@@ -150,20 +140,20 @@ export const SendForm = memo(function SendForm({
   // Register focus callback for external callers
   useEffect(() => {
     onRegisterFocus?.(() => {
-      textareaRef.current?.focus();
+      inputRef.current?.focus();
     });
   }, [onRegisterFocus]);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
-  // Restore draft on mount (once per chatroomId) and auto-focus the textarea
+  // Restore draft on mount (once per chatroomId) and auto-focus the input
   useEffect(() => {
     const saved = parseDraft(localStorage.getItem(draftKey));
     if (saved) setMessage(saved);
     // Auto-focus when switching chatrooms (non-touch devices only)
     if (!isTouchDevice) {
-      setTimeout(() => textareaRef.current?.focus(), 0);
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroomId]);
@@ -187,27 +177,6 @@ export const SendForm = memo(function SendForm({
   const attachedMessages = useMessageAttachments();
 
   const sendMessage = useSessionMutation(api.messages.send);
-
-  // Auto-resize textarea based on content
-  // Uses useLayoutEffect for synchronous DOM measurement before paint
-  // Uses height:0 technique for accurate scrollHeight in Safari
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    onBeforeResize?.();
-
-    // Set height to 0 to get accurate scrollHeight (Safari workaround)
-    textarea.style.height = '0px';
-    const scrollHeight = textarea.scrollHeight;
-    // Set to content height, capped at max with min of 40px (matches button height)
-    const newHeight = Math.max(40, Math.min(scrollHeight, 200));
-    textarea.style.height = `${newHeight}px`;
-    // Only show overflow when content exceeds max height
-    textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
-
-    onAfterResize?.();
-  }, [message, onBeforeResize, onAfterResize]);
 
   // Shared send logic used by both inline submit and editor modal
   const doSend = useCallback(
@@ -239,7 +208,7 @@ export const SendForm = memo(function SendForm({
         ) {
           clearAll();
         }
-        setTimeout(() => textareaRef.current?.focus(), 0);
+        setTimeout(() => inputRef.current?.focus(), 0);
       } catch (error) {
         console.error('Failed to send message:', error);
       } finally {
@@ -263,7 +232,7 @@ export const SendForm = memo(function SendForm({
   }, [doSend, message]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       // Let the trigger autocomplete hook handle navigation keys first
       if (autocomplete.state.visible) {
         // Arrow keys, Escape are handled by the hook
@@ -279,13 +248,9 @@ export const SendForm = memo(function SendForm({
           const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
           setMessage(newText);
-          const textarea = textareaRef.current;
           setTimeout(() => {
-            if (textarea) {
-              textarea.focus();
-              textarea.selectionStart = newCursorPos;
-              textarea.selectionEnd = newCursorPos;
-            }
+            inputRef.current?.focus();
+            inputRef.current?.setCursorOffset(newCursorPos);
           }, 0);
           return;
         }
@@ -316,11 +281,12 @@ export const SendForm = memo(function SendForm({
     [handleSubmit]
   );
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value;
-      const cursorPos = e.target.selectionStart;
+  const handleContentChange = useCallback(
+    (newValue: string) => {
       setMessage(newValue);
+
+      // Get cursor position from the contenteditable
+      const cursorPos = inputRef.current?.getCursorOffset() ?? newValue.length;
 
       // Delegate trigger detection to the autocomplete hook
       autocomplete.handleInputChange(newValue, cursorPos);
@@ -338,13 +304,9 @@ export const SendForm = memo(function SendForm({
       const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
       setMessage(newText);
 
-      const textarea = textareaRef.current;
       setTimeout(() => {
-        if (textarea) {
-          textarea.focus();
-          textarea.selectionStart = newCursorPos;
-          textarea.selectionEnd = newCursorPos;
-        }
+        inputRef.current?.focus();
+        inputRef.current?.setCursorOffset(newCursorPos);
       }, 0);
     },
     [autocomplete, message]
@@ -354,7 +316,7 @@ export const SendForm = memo(function SendForm({
   const handleEditorClose = useCallback((editedText: string) => {
     setMessage(editedText);
     setEditorOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
   const handleEditorSend = useCallback(
@@ -412,15 +374,13 @@ export const SendForm = memo(function SendForm({
       )}
       {/* Input Form */}
       <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
-        <textarea
-          ref={textareaRef}
+        <ContentEditableInput
+          ref={inputRef}
           value={message}
-          onChange={handleChange}
+          onChange={handleContentChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           disabled={sending}
-          rows={1}
-          className="flex-1 min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle"
         />
 
         <div className="flex items-center gap-2 flex-shrink-0">
