@@ -59,6 +59,8 @@ import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 import { FileReferenceProvider } from './components/FileReferenceContext';
 import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
+import { decodeWorkspaceId, getWorkspaceDisplayName } from '@/lib/workspaceIdentifier';
+import type { Workspace } from './types/workspace';
 
 import {
   DropdownMenu,
@@ -110,6 +112,37 @@ const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition>
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
+}
+
+// ─── Workspace Resolution ────────────────────────────────────────────────────
+// Resolves a workspace reference (either base64url-encoded ID or legacy directory basename)
+// to a concrete { machineId, workingDir } pair. Handles backward compatibility with
+// messages sent before workspace identity encoding was introduced.
+
+function resolveWorkspace(
+  workspaceRef: string,
+  workspaces: Workspace[]
+): { machineId: string; workingDir: string } | null {
+  if (!workspaceRef) return null;
+
+  // Try base64url decode first (new format)
+  try {
+    return decodeWorkspaceId(workspaceRef);
+  } catch {
+    // Fallback: treat as legacy directory basename
+    const byPath = workspaces.find(
+      (ws) => ws.workingDir && ws.workingDir.endsWith('/' + workspaceRef)
+    );
+    if (byPath?.machineId) return { machineId: byPath.machineId, workingDir: byPath.workingDir };
+
+    const byDisplayName = workspaces.find(
+      (ws) => ws.workingDir && getWorkspaceDisplayName(ws.workingDir) === workspaceRef
+    );
+    if (byDisplayName?.machineId)
+      return { machineId: byDisplayName.machineId, workingDir: byDisplayName.workingDir };
+
+    return null;
+  }
 }
 
 /**
@@ -472,6 +505,29 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
   const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
+
+  // Resolved workspace for file reference chip clicks (workspace-aware preview)
+  const [resolvedPreviewWorkspace, setResolvedPreviewWorkspace] = useState<{
+    machineId: string;
+    workingDir: string;
+  } | null>(null);
+
+  // Workspace-aware file reference click handler
+  // Resolves workspaceId → {machineId, workingDir} and opens the file preview
+  const handleFileReferenceClick = useCallback(
+    (workspaceId: string, filePath: string) => {
+      const resolved = resolveWorkspace(workspaceId, chatroomWorkspaces);
+      setResolvedPreviewWorkspace(resolved);
+      fileSelector.selectFile(filePath);
+    },
+    [chatroomWorkspaces, fileSelector]
+  );
+
+  // Clear resolved workspace when preview closes
+  const handleFilePreviewClose = useCallback(() => {
+    fileSelector.selectFile('');
+    setResolvedPreviewWorkspace(null);
+  }, [fileSelector]);
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
   const handleCmdPFileSelect = useCallback(
@@ -939,7 +995,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   return (
     <AttachmentsProvider>
-      <FileReferenceProvider onClickFileReference={fileSelector.selectFile}>
+      <FileReferenceProvider onClickFileReference={handleFileReferenceClick}>
         <PromptsProvider
           chatroomId={chatroomId}
           teamId={chatroom?.teamId}
@@ -1157,9 +1213,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
             <FilePreviewDialog
               filePath={!fileSelector.open ? fileSelector.selectedFile : null}
-              machineId={firstWorkspace?.machineId ?? null}
-              workingDir={firstWorkspace?.workingDir ?? null}
-              onClose={() => fileSelector.selectFile('')}
+              machineId={resolvedPreviewWorkspace?.machineId ?? firstWorkspace?.machineId ?? null}
+              workingDir={
+                resolvedPreviewWorkspace?.workingDir ?? firstWorkspace?.workingDir ?? null
+              }
+              onClose={handleFilePreviewClose}
               files={fileSelector.files}
               onSelectFile={fileSelector.selectFile}
               onOpenInExplorer={handleOpenInExplorer}

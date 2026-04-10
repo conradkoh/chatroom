@@ -283,7 +283,13 @@ export function fileRefUrlTransform(url: string): string {
  * Rendered when a link with `fileref://` scheme is detected in markdown.
  * Wraps the presentational FileReferenceChipUI with click handling.
  */
-const FileReferenceChip = ({ filePath }: { filePath: string }) => {
+const FileReferenceChip = ({
+  workspaceId,
+  filePath,
+}: {
+  workspaceId: string;
+  filePath: string;
+}) => {
   const onClickFileReference = useFileReferenceClick();
   const clickable = onClickFileReference != null;
   const fileName = filePath.split('/').pop() ?? filePath;
@@ -296,13 +302,13 @@ const FileReferenceChip = ({ filePath }: { filePath: string }) => {
       }
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? () => onClickFileReference(filePath) : undefined}
+      onClick={clickable ? () => onClickFileReference(workspaceId, filePath) : undefined}
       onKeyDown={
         clickable
           ? (e: React.KeyboardEvent) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onClickFileReference(filePath);
+                onClickFileReference(workspaceId, filePath);
               }
             }
           : undefined
@@ -328,8 +334,9 @@ const FileAwareMarkdownLink = ({
     // Extract workspace/path from fileref://workspace/path
     const refContent = href.slice('fileref://'.length);
     const firstSlash = refContent.indexOf('/');
+    const workspaceId = firstSlash !== -1 ? refContent.slice(0, firstSlash) : '';
     const filePath = firstSlash !== -1 ? refContent.slice(firstSlash + 1) : refContent;
-    return <FileReferenceChip filePath={filePath} />;
+    return <FileReferenceChip workspaceId={workspaceId} filePath={filePath} />;
   }
   return (
     <a href={href} target="_blank" rel="noopener noreferrer">

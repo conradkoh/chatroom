@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
 interface FileReferenceContextValue {
-  onClickFileReference: ((filePath: string) => void) | null;
+  onClickFileReference: ((workspaceId: string, filePath: string) => void) | null;
 }
 
 const FileReferenceContext = createContext<FileReferenceContextValue>({
@@ -14,7 +14,7 @@ export function FileReferenceProvider({
   onClickFileReference,
   children,
 }: {
-  onClickFileReference: (filePath: string) => void;
+  onClickFileReference: (workspaceId: string, filePath: string) => void;
   children: ReactNode;
 }) {
   return (
