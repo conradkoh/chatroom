@@ -106,47 +106,88 @@ export function createDefaultDeps(): DaemonDeps {
   };
 }
 
+/** How often (ms) to poll for auth file changes when waiting for login. */
+const AUTH_POLL_INTERVAL_MS = 2000;
+/** Maximum time (ms) to wait for authentication before giving up. */
+const AUTH_WAIT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Wait for authentication credentials to appear.
+ * Polls the auth file every 2 seconds until a valid session ID is found
+ * or the timeout (5 minutes) is reached.
+ */
+async function waitForAuthentication(convexUrl: string): Promise<string> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < AUTH_WAIT_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, AUTH_POLL_INTERVAL_MS));
+    const sessionId = getSessionId();
+    if (sessionId) {
+      console.log(`\n✅ Authentication detected. Resuming daemon initialization...`);
+      return sessionId;
+    }
+  }
+  // Timeout reached
+  console.error(`\n❌ Authentication timeout (5 minutes). Exiting.`);
+  releaseLock();
+  process.exit(1);
+}
+
 /**
  * Validate that the user is authenticated for the current Convex deployment.
- * Returns the session ID if valid, or exits the process with an error.
+ * Returns the session ID if valid, or waits for the user to authenticate.
  */
-function validateAuthentication(convexUrl: string): string {
+async function validateAuthentication(convexUrl: string): Promise<string> {
   const sessionId = getSessionId();
-  if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
-
-    console.error(`❌ Not authenticated for: ${convexUrl}`);
-
-    if (otherUrls.length > 0) {
-      console.error(`\n💡 You have sessions for other environments:`);
-      for (const url of otherUrls) {
-        console.error(`   • ${url}`);
-      }
-    }
-
-    console.error(`\nRun: chatroom auth login`);
-    releaseLock();
-    process.exit(1);
+  if (sessionId) {
+    return sessionId;
   }
-  return sessionId;
+
+  const otherUrls = getOtherSessionUrls();
+  console.error(`❌ Not authenticated for: ${convexUrl}`);
+
+  if (otherUrls.length > 0) {
+    console.error(`\n💡 You have sessions for other environments:`);
+    for (const url of otherUrls) {
+      console.error(`   • ${url}`);
+    }
+  }
+
+  console.error(`\nRun: chatroom auth login`);
+  console.log(`\n⏳ Waiting for authentication (timeout: 5 minutes)...`);
+  return waitForAuthentication(convexUrl);
 }
 
 /**
  * Validate the session with the backend to catch expired/revoked tokens early.
- * Exits the process if validation fails.
+ * If the session is invalid, waits for the user to re-authenticate.
  */
 async function validateSession(
   client: ConvexHttpClient,
   sessionId: SessionId,
   convexUrl: string
-): Promise<void> {
+): Promise<SessionId> {
   const validation = await client.query(api.cliAuth.validateSession, { sessionId });
-  if (!validation.valid) {
-    console.error(`❌ Session invalid: ${validation.reason}`);
-    console.error(`\nRun: chatroom auth login`);
+  if (validation.valid) {
+    return sessionId;
+  }
+
+  console.error(`❌ Session invalid: ${validation.reason}`);
+  console.error(`\nRun: chatroom auth login`);
+  console.log(`\n⏳ Waiting for re-authentication (timeout: 5 minutes)...`);
+
+  // Wait for new auth credentials, then re-validate
+  const newSessionId = await waitForAuthentication(convexUrl);
+  const typedNewSession: SessionId = newSessionId;
+
+  // Validate the new session
+  const revalidation = await client.query(api.cliAuth.validateSession, { sessionId: typedNewSession });
+  if (!revalidation.valid) {
+    console.error(`❌ New session is also invalid: ${revalidation.reason}`);
     releaseLock();
     process.exit(1);
   }
+
+  return typedNewSession;
 }
 
 /**
@@ -292,17 +333,17 @@ export async function initDaemon(): Promise<DaemonContext> {
   }
 
   const convexUrl = getConvexUrl();
-  const sessionId = validateAuthentication(convexUrl);
+  const sessionId = await validateAuthentication(convexUrl);
   const client = await getConvexClient();
 
   // SessionId is validated above as non-null. Cast once at the boundary
   // between our storage format and Convex's branded type system.
-  const typedSessionId: SessionId = sessionId;
+  let typedSessionId: SessionId = sessionId;
 
   // Retry loop for network errors — waits 1s between attempts
   while (true) {
     try {
-      await validateSession(client, typedSessionId, convexUrl);
+      typedSessionId = await validateSession(client, typedSessionId, convexUrl);
 
       const config = setupMachine();
       const { machineId } = config;

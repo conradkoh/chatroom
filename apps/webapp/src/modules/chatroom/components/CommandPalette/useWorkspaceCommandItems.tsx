@@ -123,7 +123,7 @@ export function useWorkspaceCommandItems(
           detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', hostname, workspace.workingDir],
+          keywords: ['PR', 'Github PR', hostname, workspace.workingDir],
           action: () => openExternalUrl(pr.url),
         });
 
