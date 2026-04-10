@@ -1377,3 +1377,87 @@ export const getMissingCommitShasV2 = query({
     return missingShas;
   },
 });
+
+// ─── Purge V2 Functions ─────────────────────────────────────────────────────
+
+/**
+ * Purges all full diff data for a workspace (v1 + v2).
+ */
+export const purgeFullDiffV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Delete v2 full diff
+    const diffV2 = await ctx.db
+      .query('chatroom_workspaceFullDiffV2')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (diffV2) await ctx.db.delete(diffV2._id);
+
+    // Delete v1 full diff
+    const diffV1 = await ctx.db
+      .query('chatroom_workspaceFullDiff')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (diffV1) await ctx.db.delete(diffV1._id);
+  },
+});
+
+/**
+ * Purges all commit detail data for a workspace (v1 + v2).
+ */
+export const purgeCommitDetailV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Delete v2 commit details
+    const detailsV2 = await ctx.db
+      .query('chatroom_workspaceCommitDetailV2')
+      .filter((q) => q.and(
+        q.eq(q.field('machineId'), args.machineId),
+        q.eq(q.field('workingDir'), args.workingDir)
+      ))
+      .collect();
+    for (const d of detailsV2) await ctx.db.delete(d._id);
+
+    // Delete v1 commit details
+    const detailsV1 = await ctx.db
+      .query('chatroom_workspaceCommitDetail')
+      .filter((q) => q.and(
+        q.eq(q.field('machineId'), args.machineId),
+        q.eq(q.field('workingDir'), args.workingDir)
+      ))
+      .collect();
+    for (const d of detailsV1) await ctx.db.delete(d._id);
+  },
+});

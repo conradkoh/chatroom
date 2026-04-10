@@ -781,3 +781,96 @@ export const getFileContentV2 = query({
     };
   },
 });
+
+// ─── Purge V2 Functions ─────────────────────────────────────────────────────
+
+/**
+ * Purges all file tree data for a workspace (v1 + v2 + requests).
+ */
+export const purgeFileTreeV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete v2 file tree
+    const treeV2 = await ctx.db
+      .query('chatroom_workspaceFileTreeV2')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (treeV2) await ctx.db.delete(treeV2._id);
+
+    // Delete v1 file tree
+    const treeV1 = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (treeV1) await ctx.db.delete(treeV1._id);
+
+    // Delete pending requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of requests) await ctx.db.delete(req._id);
+  },
+});
+
+/**
+ * Purges all file content data for a workspace (v1 + v2 + requests).
+ */
+export const purgeFileContentV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete v2 file content
+    const contentsV2 = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const c of contentsV2) await ctx.db.delete(c._id);
+
+    // Delete v1 file content
+    const contentsV1 = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const c of contentsV1) await ctx.db.delete(c._id);
+
+    // Delete file content requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId)
+      )
+      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .collect();
+    for (const req of requests) await ctx.db.delete(req._id);
+  },
+});
