@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
+import { useFileEntries } from '@/modules/chatroom/hooks/useFileEntries';
 
 interface UseFileSelectorOptions {
   machineId: string | null;
@@ -45,19 +46,8 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     }
   }, [open, machineId, workingDir, requestFileTreeMutation]);
 
-  // Parse file tree entries
-  const entries: FileEntry[] = (() => {
-    if (!treeResult?.treeJson) return [];
-    try {
-      const tree = JSON.parse(treeResult.treeJson);
-      return (tree.entries ?? []) as FileEntry[];
-    } catch {
-      return [];
-    }
-  })();
-
-  // Files only (no directories) for the list
-  const files = entries.filter((e) => e.type === 'file');
+  // Parse file tree entries (files only)
+  const files = useFileEntries(treeResult);
 
   // Register Cmd+P / Ctrl+P shortcut
   useEffect(() => {

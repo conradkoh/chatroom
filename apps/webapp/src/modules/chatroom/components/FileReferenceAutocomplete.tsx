@@ -5,6 +5,8 @@ import { memo, useEffect, useRef } from 'react';
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
 
+import { getFileName, getParentDir } from '@/lib/pathUtils';
+
 interface FileReferenceAutocompleteProps {
   /** Pre-filtered results from the trigger system */
   results: FileEntry[];
@@ -22,18 +24,6 @@ interface FileReferenceAutocompleteProps {
 
 /** Max items visible in the dropdown (for scroll height calculation) */
 const MAX_VISIBLE_ITEMS = 8;
-
-/** Extract filename from a path for display. */
-function getFileName(path: string): string {
-  return path.split('/').pop() ?? path;
-}
-
-/** Get parent directory for display. */
-function getParentDir(path: string): string {
-  const parts = path.split('/');
-  if (parts.length <= 1) return '';
-  return parts.slice(0, -1).join('/');
-}
 
 export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete({
   results,

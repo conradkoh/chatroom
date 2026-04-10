@@ -58,6 +58,7 @@ import { useFileTree } from './workspace/hooks/useFileTree';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { useFileEntries } from './hooks/useFileEntries';
 
 import {
   DropdownMenu,
@@ -475,17 +476,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       ? { machineId: firstWorkspace.machineId, workingDir: firstWorkspace.workingDir }
       : 'skip'
   );
-  const autocompleteFiles = useMemo(() => {
-    if (!alwaysOnFileTree?.treeJson) return [];
-    try {
-      const tree = JSON.parse(alwaysOnFileTree.treeJson);
-      return ((tree.entries ?? []) as Array<{ path: string; type: string }>).filter(
-        (e) => e.type === 'file'
-      ) as Array<{ path: string; type: 'file' }>;
-    } catch {
-      return [];
-    }
-  }, [alwaysOnFileTree?.treeJson]);
+  const autocompleteFiles = useFileEntries(alwaysOnFileTree);
   const workspaceName = useMemo(() => {
     if (!firstWorkspace?.workingDir) return undefined;
     const parts = firstWorkspace.workingDir.split('/');

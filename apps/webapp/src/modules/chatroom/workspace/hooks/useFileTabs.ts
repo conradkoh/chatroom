@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 
+import { getFileName } from '@/lib/pathUtils';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface FileTab {
@@ -46,11 +48,6 @@ export interface UseFileTabsReturn {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getFileName(filePath: string): string {
-  const parts = filePath.split('/');
-  return parts[parts.length - 1] || filePath;
-}
-
 function rightTabKey(filePath: string, viewType: RightPaneViewType): string {
   return `${filePath}::${viewType}`;
 }
@@ -79,10 +76,7 @@ export function useFileTabs(): UseFileTabsReturn {
       const existing = prev.find((t) => t.filePath === filePath);
       if (existing) return prev;
       const withoutPreview = prev.filter((t) => t.isPinned);
-      return [
-        ...withoutPreview,
-        { filePath, name: getFileName(filePath), isPinned: false },
-      ];
+      return [...withoutPreview, { filePath, name: getFileName(filePath), isPinned: false }];
     });
     setActiveTabPath(filePath);
   }, []);
@@ -91,15 +85,10 @@ export function useFileTabs(): UseFileTabsReturn {
     setTabs((prev) => {
       const existing = prev.find((t) => t.filePath === filePath);
       if (existing) {
-        return prev.map((t) =>
-          t.filePath === filePath ? { ...t, isPinned: true } : t
-        );
+        return prev.map((t) => (t.filePath === filePath ? { ...t, isPinned: true } : t));
       }
       const withoutPreview = prev.filter((t) => t.isPinned);
-      return [
-        ...withoutPreview,
-        { filePath, name: getFileName(filePath), isPinned: true },
-      ];
+      return [...withoutPreview, { filePath, name: getFileName(filePath), isPinned: true }];
     });
     setActiveTabPath(filePath);
   }, []);
