@@ -138,7 +138,15 @@ export function useMessageStore(chatroomId: string) {
   // Track the cursor we've already processed for older loads
   const processedOlderCursorRef = useRef<number | null>(null);
 
-  // Pin the tail cursor so the getMessagesSince subscription doesn't churn
+  // Pin the tail cursor so the getMessagesSince subscription doesn't churn.
+  //
+  // Race condition safety: tailCursorRef is set inside a useEffect (after the
+  // initial getLatestMessages data resolves), so getMessagesSince won't subscribe
+  // until the next render. Any messages created between the initial query's
+  // snapshot and subscription start are NOT lost because getMessagesSince uses
+  // `_creationTime > sinceCursor` — Convex re-evaluates the reactive query
+  // against the current DB state when the subscription begins, so it will
+  // return all messages newer than the cursor regardless of when they arrived.
   const tailCursorRef = useRef<number | null>(null);
 
   // ── Reset on chatroom navigation (must run BEFORE initialization) ──
