@@ -566,7 +566,7 @@ export async function getOpenPRsForBranch(
   const repoOwner = repoSlug?.split('/')[0] ?? null;
 
   const result = await runCommand(
-    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state,headRepositoryOwner --limit 5${repoFlag}`,
+    `gh pr list --head ${JSON.stringify(branch)} --state open --author @me --json number,title,url,headRefName,state,headRepositoryOwner --limit 5${repoFlag}`,
     cwd
   );
 
