@@ -13,11 +13,14 @@ import { api } from '../../../api.js';
 import { discoverCommands } from '../../../infrastructure/services/workspace/command-discovery.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
+/** Track directories we've already logged as skipped to avoid log spam. */
+const skippedCommandSyncDirs = new Set<string>();
+
 /**
  * Discover and sync commands for all tracked workspaces.
  */
 export async function pushCommands(ctx: DaemonContext): Promise<void> {
-  let workspaces: Array<{ workingDir: string }>;
+  let workspaces: Array<{ workingDir: string; hasActiveAgents: boolean }>;
   try {
     workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
       sessionId: ctx.sessionId,
@@ -30,7 +33,26 @@ export async function pushCommands(ctx: DaemonContext): Promise<void> {
     return;
   }
 
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+  // Filter to only workspaces with active agents
+  const activeWorkspaces = workspaces.filter((ws) => ws.hasActiveAgents);
+  const inactiveWorkspaces = workspaces.filter((ws) => !ws.hasActiveAgents);
+
+  // Log skipped directories (only on first skip to avoid log spam)
+  for (const ws of inactiveWorkspaces) {
+    if (!skippedCommandSyncDirs.has(ws.workingDir)) {
+      console.log(
+        `[${formatTimestamp()}] ⏭️ Skipping command sync for ${ws.workingDir} (no active agents)`
+      );
+      skippedCommandSyncDirs.add(ws.workingDir);
+    }
+  }
+
+  // Clear skip tracking for directories that are now active again
+  for (const ws of activeWorkspaces) {
+    skippedCommandSyncDirs.delete(ws.workingDir);
+  }
+
+  const uniqueWorkingDirs = new Set(activeWorkspaces.map((ws) => ws.workingDir));
   if (uniqueWorkingDirs.size === 0) return;
 
   for (const workingDir of uniqueWorkingDirs) {
