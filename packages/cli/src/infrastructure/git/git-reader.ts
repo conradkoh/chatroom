@@ -562,9 +562,11 @@ export async function getOpenPRsForBranch(
   // Resolve the origin repo slug to target the correct repository
   const repoSlug = await getOriginRepoSlug(cwd);
   const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+  // Extract owner from repo slug (e.g., 'owner/repo' → 'owner')
+  const repoOwner = repoSlug?.split('/')[0] ?? null;
 
   const result = await runCommand(
-    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state --limit 5${repoFlag}`,
+    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state,headRepositoryOwner --limit 5${repoFlag}`,
     cwd
   );
 
@@ -582,7 +584,7 @@ export async function getOpenPRsForBranch(
 
     return parsed
       .filter(
-        (item: unknown): item is { number: number; title: string; url: string; headRefName: string; state: string } =>
+        (item: unknown): item is { number: number; title: string; url: string; headRefName: string; state: string; headRepositoryOwner?: { login?: string } } =>
           typeof item === 'object' &&
           item !== null &&
           typeof (item as Record<string, unknown>).number === 'number' &&
@@ -591,6 +593,12 @@ export async function getOpenPRsForBranch(
           typeof (item as Record<string, unknown>).headRefName === 'string' &&
           typeof (item as Record<string, unknown>).state === 'string'
       )
+      .filter((item) => {
+        // Filter out cross-fork PRs: only include PRs from the same repo owner
+        // This prevents PRs from forks (e.g., fork's main → upstream's main) from showing
+        if (!repoOwner || !item.headRepositoryOwner?.login) return true;
+        return item.headRepositoryOwner.login === repoOwner;
+      })
       .map((item) => ({
         number: item.number,
         title: item.title,
