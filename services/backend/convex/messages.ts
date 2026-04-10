@@ -1140,7 +1140,7 @@ export const list = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 1000;
+    const MAX_LIMIT = 50;
     const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
     // Fetch the most recent N messages (desc order) then reverse for chronological
@@ -1388,6 +1388,13 @@ export const listPaginated = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Server-side cap on page size to prevent unbounded queries
+    const MAX_PAGE_SIZE = 50;
+    const clampedPaginationOpts = {
+      ...args.paginationOpts,
+      numItems: Math.min(args.paginationOpts.numItems, MAX_PAGE_SIZE),
+    };
+
     // Paginate with descending order (newest first)
     // Filter out progress messages (shown inline in task headers) and
     // legacy join messages (no longer created) at the DB level so pagination
@@ -1397,7 +1404,7 @@ export const listPaginated = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
-      .paginate(args.paginationOpts);
+      .paginate(clampedPaginationOpts);
 
     // Enrich messages with task status and attached task details
     // Batch task lookups: collect unique taskIds, fetch in parallel

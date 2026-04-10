@@ -1538,13 +1538,13 @@ const MessageItem = memo(function MessageItem({
 });
 
 // Number of messages to load initially and per page
-const INITIAL_PAGE_SIZE = 30;
+const INITIAL_PAGE_SIZE = 50;
 const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
 // Cap on total loaded messages to prevent unbounded memory growth.
 // Once reached, the "Load older messages" button is hidden and auto-load stops.
-const MAX_LOADED_MESSAGES = 200;
+const MAX_LOADED_MESSAGES = 50;
 
 // State for feature detail modal
 interface FeatureModalState {
