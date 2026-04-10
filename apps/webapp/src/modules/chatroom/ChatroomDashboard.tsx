@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -578,6 +579,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }), [sendAction]);
 
   // Start all remote agents handler
+  const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
   const handleStartAllRemoteAgents = useCallback(async () => {
     const agentRoles = teamRoles.filter((r) => r !== 'user');
     // Check if all roles have a saved preference
@@ -587,12 +589,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       handleCmdOpenSettings('agents');
       return;
     }
-    // Start all agents using their saved preferences
+    // Start all agents in parallel using their saved preferences
+    setIsStartingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    for (const role of agentRoles) {
-      const pref = agentPanelData.agentPreferenceMap.get(role)!;
-      try {
-        await agentPanelData.sendCommand({
+    const results = await Promise.allSettled(
+      agentRoles.map((role) => {
+        const pref = agentPanelData.agentPreferenceMap.get(role)!;
+        return agentPanelData.sendCommand({
           machineId: pref.machineId,
           type: 'start-agent' as const,
           payload: {
@@ -603,9 +606,17 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             workingDir: pref.workingDir,
           },
         });
-      } catch (err) {
-        console.error(`[StartAllAgents] Failed to start ${role}:`, err);
-      }
+      })
+    );
+    setIsStartingAllAgents(false);
+
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
+      .filter(Boolean) as string[];
+    if (failed.length > 0) {
+      toast.error(`Failed to start: ${failed.join(', ')}`);
+    } else {
+      toast.success(`Started ${agentRoles.length} agent(s)`);
     }
   }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
 
@@ -678,7 +689,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       : null,
     onShowMessages: () => setActiveView('messages'),
     workspaceCommands,
-    onStartAllRemoteAgents: handleStartAllRemoteAgents,
+    onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
   });
 
   // Memoize the team entry point
