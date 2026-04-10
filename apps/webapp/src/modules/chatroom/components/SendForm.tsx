@@ -3,7 +3,15 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  memo,
+  useMemo,
+} from 'react';
 import { Code2 } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
@@ -18,7 +26,8 @@ import {
   useMessageAttachments,
 } from '../context/AttachmentsContext';
 import type { FileEntry } from './FileSelector/useFileSelector';
-import { encodeFileReference } from '@/lib/fileReference';
+import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
+import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
 
 interface SendFormProps {
   chatroomId: string;
@@ -122,17 +131,13 @@ export const SendForm = memo(function SendForm({
 
   const [editorOpen, setEditorOpen] = useState(false);
 
-  // ── @ autocomplete state ──────────────────────────────────────────────────
-  const [autocompleteVisible, setAutocompleteVisible] = useState(false);
-  const [autocompleteQuery, setAutocompleteQuery] = useState('');
-  const [autocompletePosition, setAutocompletePosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  /** Cursor index where the `@` trigger was typed */
-  const atTriggerIndexRef = useRef<number | null>(null);
-  /** Debounce timer for autocomplete query updates */
-  const autocompleteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
+  const fileRefTrigger = useMemo(
+    () => createFileReferenceTrigger(files, workspaceName),
+    [files, workspaceName]
+  );
+  const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
+  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -166,15 +171,6 @@ export const SendForm = memo(function SendForm({
     }, 500);
     return () => clearTimeout(timer);
   }, [message, draftKey]);
-
-  // Clean up autocomplete debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (autocompleteDebounceRef.current) {
-        clearTimeout(autocompleteDebounceRef.current);
-      }
-    };
-  }, []);
 
   // Attachments context
   const { remove, clearAll } = useAttachments();
@@ -260,17 +256,31 @@ export const SendForm = memo(function SendForm({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // When autocomplete is visible, let it handle navigation keys
-      // The autocomplete component captures keydown events in capture phase
-      if (
-        autocompleteVisible &&
-        (e.key === 'Enter' ||
-          e.key === 'Tab' ||
-          e.key === 'ArrowUp' ||
-          e.key === 'ArrowDown' ||
-          e.key === 'Escape')
-      ) {
-        return;
+      // Let the trigger autocomplete hook handle navigation keys first
+      if (autocomplete.state.visible) {
+        // Arrow keys, Escape are handled by the hook
+        if (autocomplete.handleKeyDown(e.nativeEvent)) return;
+
+        // Enter/Tab: select the current result
+        if (
+          (e.key === 'Enter' || e.key === 'Tab') &&
+          autocomplete.state.results.length > 0 &&
+          autocomplete.state.selectedIndex < autocomplete.state.results.length
+        ) {
+          e.preventDefault();
+          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
+          const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
+          setMessage(newText);
+          const textarea = textareaRef.current;
+          setTimeout(() => {
+            if (textarea) {
+              textarea.focus();
+              textarea.selectionStart = newCursorPos;
+              textarea.selectionEnd = newCursorPos;
+            }
+          }, 0);
+          return;
+        }
       }
 
       // On touch devices (mobile), Enter creates a newline
@@ -287,7 +297,7 @@ export const SendForm = memo(function SendForm({
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice, autocompleteVisible]
+    [handleSubmit, isTouchDevice, autocomplete, message]
   );
 
   const handleFormSubmit = useCallback(
@@ -304,71 +314,23 @@ export const SendForm = memo(function SendForm({
       const cursorPos = e.target.selectionStart;
       setMessage(newValue);
 
-      // ── @ trigger detection ──────────────────────────────────────────────
-      if (files.length > 0 && workspaceName) {
-        // Look backwards from cursor for an unmatched @ trigger
-        const textBeforeCursor = newValue.slice(0, cursorPos);
-        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-        if (lastAtIndex !== -1) {
-          // @ must be at start of input or preceded by whitespace
-          const charBefore = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : ' ';
-          const isValidTrigger =
-            charBefore === ' ' || charBefore === '\n' || charBefore === '\t' || lastAtIndex === 0;
-
-          if (isValidTrigger) {
-            const query = textBeforeCursor.slice(lastAtIndex + 1);
-            // Don't show autocomplete if query contains whitespace (user moved on)
-            if (!/\s/.test(query)) {
-              atTriggerIndexRef.current = lastAtIndex;
-              // Show dropdown immediately but debounce the query update
-              // so fuzzy matching doesn't run on every keystroke
-              setAutocompleteVisible(true);
-              setAutocompletePosition({ top: 4, left: 0 });
-
-              if (autocompleteDebounceRef.current) {
-                clearTimeout(autocompleteDebounceRef.current);
-              }
-              autocompleteDebounceRef.current = setTimeout(() => {
-                setAutocompleteQuery(query);
-              }, 80);
-              return;
-            }
-          }
-        }
-
-        // No valid trigger found — dismiss
-        if (autocompleteDebounceRef.current) {
-          clearTimeout(autocompleteDebounceRef.current);
-        }
-        setAutocompleteVisible(false);
-        atTriggerIndexRef.current = null;
-      }
+      // Delegate trigger detection to the autocomplete hook
+      autocomplete.handleInputChange(newValue, cursorPos);
     },
-    [files.length, workspaceName]
+    [autocomplete]
   );
 
-  // ── @ autocomplete callbacks ───────────────────────────────────────────────
+  // ── Autocomplete file select callback ───────────────────────────────────────
   const handleFileSelect = useCallback(
     (filePath: string) => {
-      if (!workspaceName || atTriggerIndexRef.current === null) return;
+      // Find the file entry from results that matches this path
+      const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
+      if (!fileEntry) return;
 
-      const triggerStart = atTriggerIndexRef.current;
+      const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
+      setMessage(newText);
+
       const textarea = textareaRef.current;
-      const cursorPos = textarea?.selectionStart ?? message.length;
-
-      // Replace @query with the encoded file reference
-      const encoded = encodeFileReference(workspaceName, filePath);
-      const before = message.slice(0, triggerStart);
-      const after = message.slice(cursorPos);
-      const newMessage = before + encoded + ' ' + after;
-
-      setMessage(newMessage);
-      setAutocompleteVisible(false);
-      atTriggerIndexRef.current = null;
-
-      // Restore focus and cursor position after the inserted reference
-      const newCursorPos = before.length + encoded.length + 1;
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
@@ -377,13 +339,8 @@ export const SendForm = memo(function SendForm({
         }
       }, 0);
     },
-    [message, workspaceName]
+    [autocomplete, message]
   );
-
-  const handleAutocompleteDismiss = useCallback(() => {
-    setAutocompleteVisible(false);
-    atTriggerIndexRef.current = null;
-  }, []);
 
   // ── Editor modal callbacks ────────────────────────────────────────────────────
   const handleEditorClose = useCallback((editedText: string) => {
@@ -405,12 +362,12 @@ export const SendForm = memo(function SendForm({
     <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
-        files={files}
-        query={autocompleteQuery}
-        position={autocompletePosition}
+        results={autocomplete.state.results}
+        selectedIndex={autocomplete.state.selectedIndex}
+        position={autocomplete.state.position}
         onSelect={handleFileSelect}
-        onDismiss={handleAutocompleteDismiss}
-        visible={autocompleteVisible}
+        onHoverItem={autocomplete.setSelectedIndex}
+        visible={autocomplete.state.visible}
       />
 
       {/* Attached Tasks Row */}

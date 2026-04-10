@@ -1,28 +1,26 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
 
-import { fuzzyMatch } from '@/lib/fuzzyMatch';
-
 interface FileReferenceAutocompleteProps {
-  /** All available workspace files */
-  files: FileEntry[];
-  /** The search query after the @ trigger */
-  query: string;
+  /** Pre-filtered results from the trigger system */
+  results: FileEntry[];
+  /** Currently highlighted item index */
+  selectedIndex: number;
   /** Position of the dropdown (relative to the textarea) */
   position: { top: number; left: number } | null;
-  /** Called when a file is selected */
+  /** Called when a file is selected (via mouse click) */
   onSelect: (filePath: string) => void;
-  /** Called when the autocomplete should be dismissed */
-  onDismiss: () => void;
+  /** Called when mouse hovers over an item */
+  onHoverItem: (index: number) => void;
   /** Whether the autocomplete is visible */
   visible: boolean;
 }
 
-/** Max items visible in the dropdown */
+/** Max items visible in the dropdown (for scroll height calculation) */
 const MAX_VISIBLE_ITEMS = 8;
 
 /** Extract filename from a path for display. */
@@ -38,44 +36,14 @@ function getParentDir(path: string): string {
 }
 
 export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete({
-  files,
-  query,
+  results,
+  selectedIndex,
   position,
   onSelect,
-  onDismiss,
+  onHoverItem,
   visible,
 }: FileReferenceAutocompleteProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-
-  // Filter and score files based on query (memoized to avoid re-running fuzzyMatch on every render)
-  const filteredFiles = useMemo(() => {
-    if (!query) {
-      // Show first N files when no query
-      return files.slice(0, MAX_VISIBLE_ITEMS * 3);
-    }
-
-    const scored = files
-      .map((file) => ({
-        file,
-        score: fuzzyMatch(query, file.path),
-      }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    return scored.map((item) => item.file);
-  }, [files, query]);
-
-  const displayFiles = filteredFiles.slice(0, MAX_VISIBLE_ITEMS * 3);
-
-  // Keep a ref to displayFiles so handleKeyDown never captures a stale closure
-  const displayFilesRef = useRef(displayFiles);
-  displayFilesRef.current = displayFiles;
-
-  // Reset selection when query changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -87,51 +55,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     }
   }, [selectedIndex]);
 
-  // Keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!visible) return;
-
-      const currentFiles = displayFilesRef.current;
-
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          e.stopPropagation();
-          setSelectedIndex((prev) => Math.min(prev + 1, currentFiles.length - 1));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          e.stopPropagation();
-          setSelectedIndex((prev) => Math.max(prev - 1, 0));
-          break;
-        case 'Enter':
-        case 'Tab':
-          if (currentFiles.length > 0 && selectedIndex < currentFiles.length) {
-            e.preventDefault();
-            e.stopPropagation();
-            onSelect(currentFiles[selectedIndex]!.path);
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          e.stopPropagation();
-          onDismiss();
-          break;
-      }
-    },
-    [visible, selectedIndex, onSelect, onDismiss]
-  );
-
-  // Attach keyboard listener
-  useEffect(() => {
-    if (!visible) return;
-    // Use capture phase so we intercept before textarea's keydown handler
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [visible, handleKeyDown]);
-
-  if (!visible || !position || displayFiles.length === 0) {
+  if (!visible || !position || results.length === 0) {
     return null;
   }
 
@@ -148,7 +72,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
         className="overflow-y-auto"
         style={{ maxHeight: `${MAX_VISIBLE_ITEMS * 32}px` }}
       >
-        {displayFiles.map((file, index) => {
+        {results.map((file, index) => {
           const parentDir = getParentDir(file.path);
           return (
             <div
@@ -159,7 +83,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
                 e.preventDefault();
                 onSelect(file.path);
               }}
-              onMouseEnter={() => setSelectedIndex(index)}
+              onMouseEnter={() => onHoverItem(index)}
               className={`flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary ${
                 index === selectedIndex ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
               }`}
