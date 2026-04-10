@@ -1,9 +1,10 @@
 'use client';
 
-import { Check, Copy, FileText } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { defaultUrlTransform } from 'react-markdown';
 import { decodeFileReferences } from '@/lib/fileReference';
+import { FileReferenceChipUI } from './FileReferenceChipUI';
 import { useFileReferenceClick } from './FileReferenceContext';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
@@ -280,6 +281,7 @@ export function fileRefUrlTransform(url: string): string {
 /**
  * Inline chip for file references in messages.
  * Rendered when a link with `fileref://` scheme is detected in markdown.
+ * Wraps the presentational FileReferenceChipUI with click handling.
  */
 const FileReferenceChip = ({ filePath }: { filePath: string }) => {
   const onClickFileReference = useFileReferenceClick();
@@ -287,12 +289,11 @@ const FileReferenceChip = ({ filePath }: { filePath: string }) => {
   const fileName = filePath.split('/').pop() ?? filePath;
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-middle${
+      className={
         clickable
-          ? ' cursor-pointer hover:bg-chatroom-bg-secondary hover:border-chatroom-text-muted transition-colors'
-          : ''
-      }`}
-      title={filePath}
+          ? 'cursor-pointer hover:bg-chatroom-bg-secondary hover:border-chatroom-text-muted transition-colors rounded-sm'
+          : undefined
+      }
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? () => onClickFileReference(filePath) : undefined}
@@ -307,8 +308,7 @@ const FileReferenceChip = ({ filePath }: { filePath: string }) => {
           : undefined
       }
     >
-      <FileText size={12} className="shrink-0 text-chatroom-text-muted" />
-      <span className="truncate max-w-[200px]">{fileName}</span>
+      <FileReferenceChipUI fileName={fileName} filePath={filePath} />
     </span>
   );
 };

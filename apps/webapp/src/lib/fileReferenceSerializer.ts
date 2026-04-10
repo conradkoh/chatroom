@@ -1,5 +1,6 @@
 import { decodeFileReferences } from './fileReference';
 import { getFileName } from './pathUtils';
+import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenceChipUI';
 
 /**
  * Convert raw message text (with {file://workspace/path} tokens) to HTML
@@ -45,12 +46,12 @@ export function rawTextToHtml(text: string): string {
 
 /**
  * Build the HTML for a single file reference chip.
+ * Delegates to the shared buildFileRefChipHtml for unified styling.
  * The chip is non-editable so the browser treats it as an atomic unit
  * (backspace deletes the whole thing).
  */
 function buildChipHtml(rawToken: string, fileName: string): string {
-  const escaped = escapeAttr(rawToken);
-  return `<span contenteditable="false" data-file-ref="${escaped}" class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-chatroom-bg-hover text-chatroom-text-primary text-sm font-medium align-baseline cursor-default select-none border border-chatroom-border">\u{1F4C4} ${escapeHtml(fileName)}</span>`;
+  return buildFileRefChipHtml(rawToken, fileName);
 }
 
 /**
@@ -298,12 +299,4 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function escapeAttr(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
