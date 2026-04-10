@@ -121,7 +121,7 @@ export async function viewFile(options: FileViewOptions, deps?: FileDeps) {
 
   const startTime = Date.now();
   let content: {
-    data: string;
+    data: { compression: 'gzip'; content: string };
     encoding: string;
     truncated: boolean;
     fetchedAt: number;
@@ -154,7 +154,7 @@ export async function viewFile(options: FileViewOptions, deps?: FileDeps) {
   // ── Decompress and display ──────────────────────────────────────────────
   let fileContent: string;
   try {
-    fileContent = zlib.gunzipSync(Buffer.from(content.data, 'base64')).toString('utf-8');
+    fileContent = zlib.gunzipSync(Buffer.from(content.data.content, 'base64')).toString('utf-8');
   } catch (err) {
     formatError('Failed to decompress file content', [`File: ${filePath}`, (err as Error).message]);
     process.exit(1);
