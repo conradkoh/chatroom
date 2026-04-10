@@ -71,14 +71,28 @@ export interface FullCliOutputParams {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
+ * Extract all `{file://...}` reference tokens from a text string.
+ * Skips escaped references (preceded by a backslash).
+ * Returns deduplicated raw tokens (e.g. `{file://ws/path}`).
+ */
+function extractFileRefsFromText(text: string): string[] {
+  if (!text || !text.includes('{file://')) return [];
+  const results: string[] = [];
+  const regex = /\{file:\/\/[^}]+\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > 0 && text[match.index - 1] === '\\') continue;
+    results.push(match[0]);
+  }
+  return results;
+}
+
+/**
  * If `user` is among the available handoff targets, add a verification
  * reminder before the handoff command so the planner/coordinator verifies
  * the codebase before delivering to the user.
  */
-function maybeAddVerificationReminder(
-  lines: string[],
-  availableHandoffTargets: string[]
-): void {
+function maybeAddVerificationReminder(lines: string[], availableHandoffTargets: string[]): void {
   if (availableHandoffTargets.includes('user')) {
     lines.push('');
     lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');
@@ -223,6 +237,29 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   if (existingClassification) {
     lines.push('');
     lines.push(`Classification: ${existingClassification.toUpperCase()}`);
+  }
+
+  // File reference hints — scan task and message content for {file://...} tokens
+  const fileRefSources = [task.content, message?.content, originMessage?.content].filter(
+    (s): s is string => !!s
+  );
+
+  const allFileRefs: string[] = [];
+  for (const source of fileRefSources) {
+    allFileRefs.push(...extractFileRefsFromText(source));
+  }
+  // Deduplicate and limit
+  const uniqueFileRefs = [...new Set(allFileRefs)].slice(0, 10);
+
+  if (uniqueFileRefs.length > 0) {
+    lines.push('');
+    lines.push('## File References');
+    lines.push('This task references workspace files. To view them:');
+    lines.push('```');
+    for (const ref of uniqueFileRefs) {
+      lines.push(`${cliEnvPrefix}chatroom file view --file-reference="${ref}"`);
+    }
+    lines.push('```');
   }
 
   lines.push('</task>');
