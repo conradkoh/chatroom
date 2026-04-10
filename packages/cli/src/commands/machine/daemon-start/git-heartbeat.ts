@@ -181,7 +181,7 @@ async function prefetchMissingCommitDetails(
   const shas = commits.map((c) => c.sha);
 
   // Ask backend which SHAs we don't have yet
-  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShas, {
+  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShasV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
@@ -215,7 +215,7 @@ async function prefetchSingleCommit(
   const result = await gitReader.getCommitDetail(workingDir, sha);
 
   if (result.status === 'not_found') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -229,7 +229,7 @@ async function prefetchSingleCommit(
   }
 
   if (result.status === 'error') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -245,13 +245,19 @@ async function prefetchSingleCommit(
 
   // available or truncated
   const diffStat = extractDiffStatFromShowOutput(result.content);
-  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+
+  // Compress diff content for v2 (always compressed)
+  const { gzipSync } = await import('node:zlib');
+  const compressed = gzipSync(Buffer.from(result.content));
+  const diffContentCompressed = compressed.toString('base64');
+
+  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
     sha,
     status: 'available',
-    diffContent: result.content,
+    data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,

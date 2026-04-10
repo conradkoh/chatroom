@@ -232,7 +232,18 @@ export const getFullDiff = query({
       )
       .first();
 
-    return row ?? null;
+    if (!row) return null;
+
+    return {
+      _id: row._id,
+      _creationTime: row._creationTime,
+      machineId: row.machineId,
+      workingDir: row.workingDir,
+      diffContent: row.diffContent,
+      truncated: row.truncated,
+      diffStat: row.diffStat,
+      updatedAt: row.updatedAt,
+    };
   },
 });
 
@@ -293,7 +304,10 @@ export const getCommitDetail = query({
       )
       .first();
 
-    return row ?? null;
+    if (!row) return null;
+
+    // Return all fields — compressed data alongside regular fields for backward compat
+    return row;
   },
 });
 
@@ -537,36 +551,11 @@ export const upsertFullDiff = mutation({
       deletions: v.number(),
     }),
   },
-  handler: async (ctx, args): Promise<void> => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) {
-      throw new Error('Authentication required');
-    }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
-
-    const now = Date.now();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      diffContent: args.diffContent,
-      truncated: args.truncated,
-      diffStat: args.diffStat,
-      updatedAt: now,
-    };
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFullDiff')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFullDiff', existing._id, data);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFullDiff', data);
-    }
+  handler: async (): Promise<void> => {
+    throw new Error(
+      '[DEPRECATED] upsertFullDiff is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -657,45 +646,11 @@ export const upsertCommitDetail = mutation({
     // Available when status === 'error'
     errorMessage: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<void> => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) {
-      throw new Error('Authentication required');
-    }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
-
-    const now = Date.now();
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceCommitDetail')
-      .withIndex('by_machine_workingDir_sha', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
-      )
-      .first();
-
-    // Never overwrite a successfully resolved result
-    if (existing?.status === 'available') return;
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      sha: args.sha,
-      status: args.status,
-      diffContent: args.diffContent,
-      truncated: args.truncated,
-      diffStat: args.diffStat,
-      message: args.message,
-      author: args.author,
-      date: args.date,
-      errorMessage: args.errorMessage,
-      updatedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceCommitDetail', existing._id, data);
-    } else {
-      await ctx.db.insert('chatroom_workspaceCommitDetail', data);
-    }
+  handler: async (): Promise<void> => {
+    throw new Error(
+      '[DEPRECATED] upsertCommitDetail is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -1151,5 +1106,358 @@ export const upsertPRCommits = mutation({
         updatedAt: now,
       });
     }
+  },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V2 Functions — Compressed-Only
+// ═══════════════════════════════════════════════════════════════════════════════
+// These functions read/write the v2 tables which use a single `data` field
+// (always base64-encoded gzip). No raw/compressed branching.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Full Diff V2 (daemon → backend) ───────────────────────────────────────
+
+/**
+ * Persists the full diff for a workspace (v2, compressed only).
+ * `data` is always base64-encoded gzip of the diff content.
+ */
+export const upsertFullDiffV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    const now = Date.now();
+
+    const row = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      data: args.data,
+      truncated: args.truncated,
+      diffStat: args.diffStat,
+      updatedAt: now,
+    };
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFullDiffV2')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFullDiffV2', row);
+    }
+  },
+});
+
+// ─── Full Diff Query V2 (frontend) ─────────────────────────────────────────
+
+/**
+ * Returns the full diff for a workspace (v2, compressed only).
+ * Returns `{ data, truncated, diffStat, updatedAt }` or null.
+ */
+export const getFullDiffV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return null;
+
+    const row = await ctx.db
+      .query('chatroom_workspaceFullDiffV2')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (!row) return null;
+
+    return {
+      data: row.data,
+      truncated: row.truncated,
+      diffStat: row.diffStat,
+      updatedAt: row.updatedAt,
+    };
+  },
+});
+
+// ─── Commit Detail V2 (daemon → backend) ───────────────────────────────────
+
+/**
+ * Persists the diff content and metadata for a specific commit (v2, compressed only).
+ * `data` is base64-encoded gzip of the commit diff (present only when status === 'available').
+ * Never overwrites a successfully resolved (available) result.
+ */
+export const upsertCommitDetailV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found')
+    ),
+    /** Compressed data object. Present only when status === 'available'. */
+    data: v.optional(v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    })),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceCommitDetailV2')
+      .withIndex('by_machine_workingDir_sha', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
+      )
+      .first();
+
+    // Never overwrite a successfully resolved result
+    if (existing?.status === 'available') return;
+
+    const row = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      sha: args.sha,
+      status: args.status,
+      data: args.data,
+      truncated: args.truncated,
+      diffStat: args.diffStat,
+      message: args.message,
+      author: args.author,
+      date: args.date,
+      errorMessage: args.errorMessage,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceCommitDetailV2', row);
+    }
+  },
+});
+
+// ─── Commit Detail Query V2 (frontend) ──────────────────────────────────────
+
+/**
+ * Returns the commit detail for a specific SHA (v2, compressed only).
+ * Returns the full row or null.
+ */
+export const getCommitDetailV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return null;
+
+    const row = await ctx.db
+      .query('chatroom_workspaceCommitDetailV2')
+      .withIndex('by_machine_workingDir_sha', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
+      )
+      .first();
+
+    return row ?? null;
+  },
+});
+
+// ─── Missing Commit SHAs V2 (daemon) ───────────────────────────────────────
+
+/**
+ * Returns the subset of provided SHAs that are NOT yet in chatroom_workspaceCommitDetailV2.
+ * Used by the daemon to skip pre-fetching commits already stored.
+ */
+export const getMissingCommitShasV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    shas: v.array(v.string()),
+  },
+  handler: async (ctx, args): Promise<string[]> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) return [];
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return [];
+
+    if (args.shas.length === 0) return [];
+
+    const missingShas: string[] = [];
+    for (const sha of args.shas) {
+      const existing = await ctx.db
+        .query('chatroom_workspaceCommitDetailV2')
+        .withIndex('by_machine_workingDir_sha', (q) =>
+          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', sha)
+        )
+        .first();
+      if (!existing) {
+        missingShas.push(sha);
+      }
+    }
+    return missingShas;
+  },
+});
+
+// ─── Purge V2 Functions ─────────────────────────────────────────────────────
+
+/**
+ * Purges all full diff data for a workspace (v1 + v2).
+ */
+export const purgeFullDiffV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Delete v2 full diff
+    const diffV2 = await ctx.db
+      .query('chatroom_workspaceFullDiffV2')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (diffV2) await ctx.db.delete(diffV2._id);
+
+    // Delete v1 full diff
+    const diffV1 = await ctx.db
+      .query('chatroom_workspaceFullDiff')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (diffV1) await ctx.db.delete(diffV1._id);
+  },
+});
+
+/**
+ * Purges all commit detail data for a workspace (v1 + v2).
+ */
+export const purgeCommitDetailV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Delete v2 commit details
+    const detailsV2 = await ctx.db
+      .query('chatroom_workspaceCommitDetailV2')
+      .filter((q) => q.and(
+        q.eq(q.field('machineId'), args.machineId),
+        q.eq(q.field('workingDir'), args.workingDir)
+      ))
+      .collect();
+    for (const d of detailsV2) await ctx.db.delete(d._id);
+
+    // Delete v1 commit details
+    const detailsV1 = await ctx.db
+      .query('chatroom_workspaceCommitDetail')
+      .filter((q) => q.and(
+        q.eq(q.field('machineId'), args.machineId),
+        q.eq(q.field('workingDir'), args.workingDir)
+      ))
+      .collect();
+    for (const d of detailsV1) await ctx.db.delete(d._id);
   },
 });

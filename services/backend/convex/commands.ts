@@ -21,7 +21,7 @@ import { checkAccess, requireAccess } from './auth/accessCheck';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Max commands per workspace sync to prevent abuse. */
-const MAX_COMMANDS_PER_SYNC = 200;
+const MAX_COMMANDS_PER_SYNC = 500;
 
 /** Max output chunk size (100KB). */
 const MAX_OUTPUT_CHUNK_BYTES = 100 * 1024;

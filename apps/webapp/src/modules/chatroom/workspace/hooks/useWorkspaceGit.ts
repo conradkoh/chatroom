@@ -9,9 +9,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState } from '../types/git';
+import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -46,26 +47,46 @@ export function useFullDiff(
   machineId: string,
   workingDir: string
 ): { state: FullDiffState; request: () => void } {
-  const result = useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir });
+  const result = useSessionQuery(api.workspaces.getFullDiffV2, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
   const requestedRef = useRef(false);
+  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   const request = useCallback(() => {
     requestedRef.current = true;
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
+  // V2: data is a compressed object { compression, content } — always decompress
+  useEffect(() => {
+    if (result && result.data) {
+      let cancelled = false;
+      decompressGzip(extractBase64Content(result.data))
+        .then((content) => {
+          if (!cancelled) setDecompressedContent(content);
+        })
+        .catch((err) => {
+          console.error('[useFullDiff] Failed to decompress diff:', err);
+          if (!cancelled) setDecompressedContent(null);
+        });
+      return () => { cancelled = true; };
+    } else {
+      setDecompressedContent(null);
+    }
+  }, [result]);
+
   const state: FullDiffState = useMemo(() => {
     if (!result) {
       return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
+
     return {
       status: 'available',
-      content: result.diffContent,
+      content: decompressedContent ?? '',
       truncated: result.truncated,
       diffStat: result.diffStat,
     };
-  }, [result]);
+  }, [result, decompressedContent]);
 
   return { state, request };
 }
@@ -119,10 +140,11 @@ export function useCommitDetail(
 ): { state: CommitDetailState; request: (sha: string) => void; clear: () => void } {
   const [activeSha, setActiveSha] = useState<string | null>(null);
   const requestMutation = useSessionMutation(api.workspaces.requestCommitDetail);
+  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   // Only subscribe when we have a sha to fetch
   const result = useSessionQuery(
-    api.workspaces.getCommitDetail,
+    api.workspaces.getCommitDetailV2,
     activeSha ? { machineId, workingDir, sha: activeSha } : 'skip'
   );
 
@@ -136,7 +158,26 @@ export function useCommitDetail(
 
   const clear = useCallback(() => {
     setActiveSha(null);
+    setDecompressedContent(null);
   }, []);
+
+  // V2: data is a compressed object when status=available — always decompress
+  useEffect(() => {
+    if (result && result.data) {
+      let cancelled = false;
+      decompressGzip(extractBase64Content(result.data))
+        .then((content) => {
+          if (!cancelled) setDecompressedContent(content);
+        })
+        .catch((err) => {
+          console.error('[useCommitDetail] Failed to decompress commit detail:', err);
+          if (!cancelled) setDecompressedContent(null);
+        });
+      return () => { cancelled = true; };
+    } else {
+      setDecompressedContent(null);
+    }
+  }, [result]);
 
   const state: CommitDetailState = useMemo(() => {
     if (!activeSha) return { status: 'idle' };
@@ -145,7 +186,7 @@ export function useCommitDetail(
     if (result.status === 'available') {
       return {
         status: 'available',
-        content: result.diffContent ?? '',
+        content: decompressedContent ?? '',
         truncated: result.truncated ?? false,
         message: result.message ?? '',
         author: result.author ?? '',
@@ -166,7 +207,7 @@ export function useCommitDetail(
     }
     // error
     return { status: 'error', message: result.errorMessage ?? 'Unknown error' };
-  }, [activeSha, result]);
+  }, [activeSha, result, decompressedContent]);
 
   return { state, request, clear };
 }

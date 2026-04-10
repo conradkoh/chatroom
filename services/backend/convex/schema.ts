@@ -1802,4 +1802,120 @@ export default defineSchema({
     timestamp: v.number(),
   })
     .index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // V2 Workspace Tables — Compressed-Only
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // These tables replace their v1 counterparts with clean, compressed-only schemas.
+  // All `data` fields are base64-encoded gzip — no optional raw/compressed split.
+  // v1 tables are preserved for migration but should not be used in new code.
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * V2 workspace file tree — compressed only.
+   * `data` is always a base64-encoded gzip of the FileTree JSON.
+   * `dataHash` is used for server-side dedup (skip write if unchanged).
+   */
+  chatroom_workspaceFileTreeV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: base64-encoded gzip of FileTree JSON. */
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
+    /** Hash of the uncompressed data for server-side dedup. */
+    dataHash: v.string(),
+    /** When the tree was last scanned. */
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * V2 workspace full diff — compressed only.
+   * `data` is a discriminated union object containing compression format and content.
+   */
+  chatroom_workspaceFullDiffV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: base64-encoded gzip of the diff content. */
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * V2 workspace commit detail — compressed only.
+   * Uses discriminated status field. `data` (compressed object)
+   * is only present when status === 'available'.
+   */
+  chatroom_workspaceCommitDetailV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+    updatedAt: v.number(),
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found')
+    ),
+    /** Compressed data object. Present only when status === 'available'. */
+    data: v.optional(v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    )),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+    /** Present only when status === 'error'. */
+    errorMessage: v.optional(v.string()),
+  }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  /**
+   * V2 workspace file content — compressed only.
+   * `data` is a discriminated union object containing compression format and content.
+   */
+  chatroom_workspaceFileContentV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    /** Compressed data object: base64-encoded gzip of the file content. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    }),
+    encoding: v.string(), // 'utf8'
+    truncated: v.boolean(),
+    /** When the content was fetched. */
+    fetchedAt: v.number(),
+  }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 });

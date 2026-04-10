@@ -7,6 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -84,14 +85,15 @@ async function fulfillSingleRequest(
     return;
   }
 
-  // Binary file: upload empty content with truncated flag
+  // Binary file: upload compressed placeholder
   if (isBinaryFile(filePath)) {
-    await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContent, {
+    const binaryCompressed = gzipSync(Buffer.from('[Binary file]')).toString('base64');
+    await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
       filePath,
-      content: '[Binary file]',
+      data: { compression: 'gzip' as const, content: binaryCompressed },
       encoding: 'utf8',
       truncated: false,
     });
@@ -119,16 +121,20 @@ async function fulfillSingleRequest(
     truncated = false;
   }
 
-  await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContent, {
+  // Compress content for efficient transport
+  const compressed = gzipSync(Buffer.from(content));
+  const contentCompressed = compressed.toString('base64');
+
+  await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
     filePath,
-    content,
+    data: { compression: 'gzip' as const, content: contentCompressed },
     encoding: 'utf8',
     truncated,
   });
 
   const elapsed = Date.now() - startTime;
-  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${elapsed}ms)`);
+  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`);
 }

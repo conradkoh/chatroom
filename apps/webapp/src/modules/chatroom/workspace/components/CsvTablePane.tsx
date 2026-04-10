@@ -1,9 +1,10 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { memo, useEffect, useState } from 'react';
 import { CsvTableRenderer } from '../file-renderers';
+import { useFileContent } from '../hooks/useFileContent';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,8 +30,8 @@ export const CsvTablePane = memo(function CsvTablePane({
     requestContent({ machineId, workingDir, filePath }).catch(() => {});
   }, [machineId, workingDir, filePath, requestContent]);
 
-  // Reactively fetch cached content
-  const content = useSessionQuery(api.workspaceFiles.getFileContent, {
+  // Reactively fetch cached content (with transparent decompression)
+  const content = useFileContent({
     machineId,
     workingDir,
     filePath,

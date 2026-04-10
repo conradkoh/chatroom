@@ -125,6 +125,17 @@ export const cleanupCommitDetails = internalMutation({
       deleted++;
     }
 
+    // V2 commit details
+    const oldDetailsV2 = await ctx.db
+      .query('chatroom_workspaceCommitDetailV2')
+      .order('asc')
+      .filter((q) => q.lt(q.field('_creationTime'), cutoff))
+      .take(BATCH_SIZE);
+    for (const detail of oldDetailsV2) {
+      await ctx.db.delete(detail._id);
+      deleted++;
+    }
+
     if (deleted > 0) {
       console.log(`[StorageCleanup] Deleted ${deleted} old commit details`);
     }
@@ -157,6 +168,17 @@ export const cleanupCachedContent = internalMutation({
       totalDeleted++;
     }
 
+    // 1b. Full diffs V2
+    const oldDiffsV2 = await ctx.db
+      .query('chatroom_workspaceFullDiffV2')
+      .order('asc')
+      .filter((q) => q.lt(q.field('_creationTime'), cutoff))
+      .take(SMALL_BATCH_SIZE);
+    for (const diff of oldDiffsV2) {
+      await ctx.db.delete(diff._id);
+      totalDeleted++;
+    }
+
     // 2. File content
     const oldContent = await ctx.db
       .query('chatroom_workspaceFileContent')
@@ -165,6 +187,17 @@ export const cleanupCachedContent = internalMutation({
       .take(SMALL_BATCH_SIZE);
     for (const content of oldContent) {
       await ctx.db.delete(content._id);
+      totalDeleted++;
+    }
+
+    // 2b. File content V2
+    const oldContentV2 = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .order('asc')
+      .filter((q) => q.lt(q.field('_creationTime'), cutoff))
+      .take(SMALL_BATCH_SIZE);
+    for (const contentV2 of oldContentV2) {
+      await ctx.db.delete(contentV2._id);
       totalDeleted++;
     }
 

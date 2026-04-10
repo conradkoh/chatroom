@@ -18,6 +18,7 @@
 import { exec } from 'child_process';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { gzipSync } from 'node:zlib';
 import { promisify } from 'util';
 
 import type { DaemonContext } from './types.js';
@@ -140,25 +141,31 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
         ? diffStatResult.diffStat
         : { filesChanged: 0, insertions: 0, deletions: 0 };
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
+    // Compress diff content for efficient transport
+    const compressed = gzipSync(Buffer.from(result.content));
+    const diffContentCompressed = compressed.toString('base64');
+
+    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiffV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContent: result.content,
+      data: { compression: 'gzip' as const, content: diffContentCompressed },
       truncated: result.truncated,
       diffStat,
     });
 
     console.log(
-      `[${formatTimestamp()}] 📄 Full diff pushed: ${req.workingDir} (${diffStat.filesChanged} files, ${result.truncated ? 'truncated' : 'complete'})`
+      `[${formatTimestamp()}] 📄 Full diff pushed: ${req.workingDir} (${diffStat.filesChanged} files, ${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${result.truncated ? 'truncated' : 'complete'})`
     );
   } else {
     // For not_found / no_commits / error — push empty diff
-    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiff, {
+    // Empty diff — compress empty string for consistency
+    const emptyCompressed = gzipSync(Buffer.from('')).toString('base64');
+    await ctx.deps.backend.mutation(api.workspaces.upsertFullDiffV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
-      diffContent: '',
+      data: { compression: 'gzip' as const, content: emptyCompressed },
       truncated: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
@@ -327,7 +334,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   ]);
 
   if (result.status === 'not_found') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
@@ -341,7 +348,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   }
 
   if (result.status === 'error') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
@@ -358,13 +365,17 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   // result.status is 'available' or 'truncated'
   const diffStat = extractDiffStatFromShowOutput(result.content);
 
-  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+  // Compress diff content for efficient transport
+  const compressed = gzipSync(Buffer.from(result.content));
+  const diffContentCompressed = compressed.toString('base64');
+
+  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir: req.workingDir,
     sha: req.sha,
     status: 'available',
-    diffContent: result.content,
+    data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
     author: metadata?.author,
@@ -373,7 +384,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
   });
 
   console.log(
-    `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir}`
+    `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir} (${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
   );
 }
 

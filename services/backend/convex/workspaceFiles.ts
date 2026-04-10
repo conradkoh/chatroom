@@ -86,44 +86,11 @@ export const syncFileTree = mutation({
     treeHash: v.optional(v.string()),
     scannedAt: v.number(),
   },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    await requireMachineAccess(ctx, args.machineId, auth.userId);
-
-    // Validate treeJson size to prevent oversized documents
-    if (new TextEncoder().encode(args.treeJson).length > MAX_TREE_JSON_BYTES) {
-      throw new Error('File tree too large');
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
-
-    // Server-side dedup: skip write if tree content hasn't changed
-    if (existing && args.treeHash && existing.treeHash === args.treeHash) {
-      return; // No change — skip write
-    }
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      treeJson: args.treeJson,
-      treeHash: args.treeHash,
-      scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTree', data);
-    }
+  handler: async () => {
+    throw new Error(
+      '[DEPRECATED] syncFileTree is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -162,6 +129,7 @@ export const getFileTree = query({
       return null;
     }
 
+    // Return compressed data when available, otherwise uncompressed
     return {
       treeJson: tree.treeJson,
       scannedAt: tree.scannedAt,
@@ -286,6 +254,7 @@ export const getFileContent = query({
       return null;
     }
 
+    // Return all fields
     return {
       content: content.content,
       encoding: content.encoding,
@@ -349,68 +318,11 @@ export const fulfillFileContent = mutation({
     encoding: v.string(),
     truncated: v.boolean(),
   },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    await requireMachineAccess(ctx, args.machineId, auth.userId);
-
-    // Validate content size
-    if (new TextEncoder().encode(args.content).length > MAX_CONTENT_BYTES) {
-      throw new Error('File content too large');
-    }
-
-    // Validate file path
-    validateFilePath(args.filePath);
-
-    const now = Date.now();
-
-    // Upsert file content
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      filePath: args.filePath,
-      content: args.content,
-      encoding: args.encoding,
-      truncated: args.truncated,
-      fetchedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileContent', data);
-    }
-
-    // Mark request as done
-    const request = await ctx.db
-      .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    if (request) {
-      await ctx.db.patch(request._id, {
-        status: 'done' as const,
-        updatedAt: now,
-      });
-    }
+  handler: async () => {
+    throw new Error(
+      '[DEPRECATED] fulfillFileContent is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
+      'Run: npm install -g chatroom-cli@latest'
+    );
   },
 });
 
@@ -554,5 +466,411 @@ export const fulfillFileTreeRequest = mutation({
         updatedAt: Date.now(),
       });
     }
+  },
+});
+
+// ─── Purge Workspace Data ───────────────────────────────────────────────────
+
+/**
+ * Purge file tree data for a specific workspace (machineId + workingDir).
+ * Deletes the stored tree and any pending requests.
+ */
+export const purgeFileTree = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete stored file tree
+    const tree = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (tree) {
+      await ctx.db.delete(tree._id);
+    }
+
+    // Delete pending requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of requests) {
+      await ctx.db.delete(req._id);
+    }
+
+    // Delete file content cache
+    const contents = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const content of contents) {
+      await ctx.db.delete(content._id);
+    }
+
+    // Delete file content requests (uses different index)
+    const contentRequests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId)
+      )
+      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .collect();
+    for (const req of contentRequests) {
+      await ctx.db.delete(req._id);
+    }
+  },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V2 Functions — Compressed-Only
+// ═══════════════════════════════════════════════════════════════════════════════
+// These functions read/write the v2 tables which use a single `data` field
+// (always base64-encoded gzip). No raw/compressed branching.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── File Tree Sync V2 (daemon → backend) ───────────────────────────────────
+
+/**
+ * Upserts the file tree for a workspace (v2, compressed only).
+ * `data` is always base64-encoded gzip of FileTree JSON.
+ * Dedup: skip write if `dataHash` matches existing row.
+ */
+export const syncFileTreeV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    /** Hash of uncompressed data for server-side dedup. */
+    dataHash: v.string(),
+    scannedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Validate size
+    const sizeBytes = new TextEncoder().encode(args.data.content).length;
+    if (sizeBytes > MAX_TREE_JSON_BYTES) {
+      throw new Error('File tree too large');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileTreeV2')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    // Server-side dedup: skip write if hash unchanged
+    if (existing && existing.dataHash === args.dataHash) {
+      return;
+    }
+
+    const row = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      data: args.data,
+      dataHash: args.dataHash,
+      scannedAt: args.scannedAt,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTreeV2', row);
+    }
+  },
+});
+
+// ─── File Tree Query V2 (frontend) ──────────────────────────────────────────
+
+/**
+ * Returns the file tree for a workspace (v2, compressed only).
+ * Returns `{ data, scannedAt }` or null.
+ */
+export const getFileTreeV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const tree = await ctx.db
+      .query('chatroom_workspaceFileTreeV2')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    if (!tree) {
+      return null;
+    }
+
+    return {
+      data: tree.data,
+      scannedAt: tree.scannedAt,
+    };
+  },
+});
+
+// ─── Daemon: Fulfill File Content V2 ────────────────────────────────────────
+
+/**
+ * Uploads file content from the daemon (v2, compressed only).
+ * `data` is always base64-encoded gzip of the file content.
+ * Upserts content and marks any pending request as done.
+ */
+export const fulfillFileContentV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    /** Compressed data object: { compression, content }. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    encoding: v.string(),
+    truncated: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Validate size
+    if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
+      throw new Error('File content too large');
+    }
+
+    // Validate file path
+    validateFilePath(args.filePath);
+
+    const now = Date.now();
+
+    // Upsert file content
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    const row = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      filePath: args.filePath,
+      data: args.data,
+      encoding: args.encoding,
+      truncated: args.truncated,
+      fetchedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileContentV2', row);
+    }
+
+    // Mark request as done (requests table is shared, not v2-specific)
+    const request = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch(request._id, {
+        status: 'done' as const,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// ─── File Content Query V2 (frontend) ───────────────────────────────────────
+
+/**
+ * Returns file content for a specific file (v2, compressed only).
+ * Returns `{ data, encoding, truncated, fetchedAt }` or null.
+ */
+export const getFileContentV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const content = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (!content) {
+      return null;
+    }
+
+    return {
+      data: content.data,
+      encoding: content.encoding,
+      truncated: content.truncated,
+      fetchedAt: content.fetchedAt,
+    };
+  },
+});
+
+// ─── Purge V2 Functions ─────────────────────────────────────────────────────
+
+/**
+ * Purges all file tree data for a workspace (v1 + v2 + requests).
+ */
+export const purgeFileTreeV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete v2 file tree
+    const treeV2 = await ctx.db
+      .query('chatroom_workspaceFileTreeV2')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (treeV2) await ctx.db.delete(treeV2._id);
+
+    // Delete v1 file tree
+    const treeV1 = await ctx.db
+      .query('chatroom_workspaceFileTree')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (treeV1) await ctx.db.delete(treeV1._id);
+
+    // Delete pending requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of requests) await ctx.db.delete(req._id);
+  },
+});
+
+/**
+ * Purges all file content data for a workspace (v1 + v2 + requests).
+ */
+export const purgeFileContentV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    // Delete v2 file content
+    const contentsV2 = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const c of contentsV2) await ctx.db.delete(c._id);
+
+    // Delete v1 file content
+    const contentsV1 = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const c of contentsV1) await ctx.db.delete(c._id);
+
+    // Delete file content requests
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId)
+      )
+      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .collect();
+    for (const req of requests) await ctx.db.delete(req._id);
   },
 });

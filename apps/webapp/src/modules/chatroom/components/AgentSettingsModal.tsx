@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X, Plug, HardDrive, Trash2 } from 'lucide-react';
+import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X, Plug, HardDrive, Trash2, Database } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
@@ -33,6 +33,13 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { TEAMS_CONFIG } from '../config/teams';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -537,6 +544,10 @@ const WorkspacesContent = memo(function WorkspacesContent({
   );
   const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, { agentViews });
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const purgeFileTreeMutation = useSessionMutation(api.workspaceFiles.purgeFileTreeV2);
+  const purgeFileContentMutation = useSessionMutation(api.workspaceFiles.purgeFileContentV2);
+  const purgeFullDiffMutation = useSessionMutation(api.workspaces.purgeFullDiffV2);
+  const purgeCommitDetailMutation = useSessionMutation(api.workspaces.purgeCommitDetailV2);
 
   // Build a set of workingDirs that have active remote agents
   const activeRemoteWorkingDirs = useMemo(() => {
@@ -564,6 +575,27 @@ const WorkspacesContent = memo(function WorkspacesContent({
       }
     },
     [removeWorkspace]
+  );
+
+  // Purge cache dialog state
+  const [purgeDialogWs, setPurgeDialogWs] = useState<{ machineId: string; workingDir: string; id: string } | null>(null);
+  const [purgingCategory, setPurgingCategory] = useState<string | null>(null);
+  const [purgedCategories, setPurgedCategories] = useState<Set<string>>(new Set());
+
+  const handlePurgeCategory = useCallback(
+    async (category: string, mutationFn: (args: { machineId: string; workingDir: string }) => Promise<unknown>) => {
+      if (!purgeDialogWs) return;
+      setPurgingCategory(category);
+      try {
+        await mutationFn({ machineId: purgeDialogWs.machineId, workingDir: purgeDialogWs.workingDir });
+        setPurgedCategories((prev) => new Set(prev).add(category));
+      } catch (err) {
+        console.warn('Purge failed:', err instanceof Error ? err.message : err);
+      } finally {
+        setPurgingCategory(null);
+      }
+    },
+    [purgeDialogWs]
   );
 
   if (isLoading) {
@@ -622,6 +654,17 @@ const WorkspacesContent = memo(function WorkspacesContent({
                   Active remote agents — cannot remove
                 </div>
               )}
+              {/* Data purge controls */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => ws.machineId && setPurgeDialogWs({ machineId: ws.machineId, workingDir: ws.workingDir, id: ws.id })}
+                  className="text-[10px] px-2 py-0.5 rounded border border-chatroom-border text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-colors flex items-center gap-1"
+                >
+                  <Database size={10} />
+                  Purge Cache
+                </button>
+              </div>
             </div>
             <button
               type="button"
@@ -635,6 +678,54 @@ const WorkspacesContent = memo(function WorkspacesContent({
           </div>
         );
       })}
+
+      {/* Purge Cache Dialog */}
+      <Dialog
+        open={!!purgeDialogWs}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPurgeDialogWs(null);
+            setPurgedCategories(new Set());
+            setPurgingCategory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Purge Cache</DialogTitle>
+            <DialogDescription>
+              Clear cached data for this workspace. Data will be re-fetched automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {[
+              { key: 'fileTree', label: 'File Tree', desc: 'Cached file tree data', fn: purgeFileTreeMutation },
+              { key: 'fileContent', label: 'File Content', desc: 'Cached file contents', fn: purgeFileContentMutation },
+              { key: 'fullDiff', label: 'Git Diffs', desc: 'Cached git diff output', fn: purgeFullDiffMutation },
+              { key: 'commitDetail', label: 'Commit Details', desc: 'Cached commit detail data', fn: purgeCommitDetailMutation },
+            ].map(({ key, label, desc, fn }) => (
+              <div key={key} className="flex items-center justify-between gap-3 px-3 py-2 rounded border border-border bg-card/50">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground">{label}</div>
+                  <div className="text-xs text-muted-foreground">{desc}</div>
+                </div>
+                <button
+                  type="button"
+                  disabled={purgingCategory === key || purgedCategories.has(key)}
+                  onClick={() => handlePurgeCategory(key, fn)}
+                  className="shrink-0 text-xs px-3 py-1 rounded border border-border text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[80px] text-center"
+                >
+                  {purgingCategory === key
+                    ? 'Purging...'
+                    : purgedCategories.has(key)
+                      ? 'Purged \u2713'
+                      : 'Purge'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

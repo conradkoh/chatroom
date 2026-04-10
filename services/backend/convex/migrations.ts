@@ -270,6 +270,42 @@ export const purgeWorkspaceCommitDetails = migrations.define({
   },
 });
 
+/**
+ * Migration: Purge all v1 workspace file tree records.
+ * Run before removing compression fields from v1 schema.
+ * Usage: npx convex run migrations:run '{"fn": "migrations:purgeWorkspaceFileTree"}'
+ */
+export const purgeWorkspaceFileTree = migrations.define({
+  table: 'chatroom_workspaceFileTree',
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete('chatroom_workspaceFileTree', row._id);
+  },
+});
+
+/**
+ * Migration: Purge all v1 workspace full diff records.
+ * Run before removing compression fields from v1 schema.
+ * Usage: npx convex run migrations:run '{"fn": "migrations:purgeWorkspaceFullDiff"}'
+ */
+export const purgeWorkspaceFullDiff = migrations.define({
+  table: 'chatroom_workspaceFullDiff',
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete('chatroom_workspaceFullDiff', row._id);
+  },
+});
+
+/**
+ * Migration: Purge all v1 workspace file content records.
+ * Run before removing compression fields from v1 schema.
+ * Usage: npx convex run migrations:run '{"fn": "migrations:purgeWorkspaceFileContent"}'
+ */
+export const purgeWorkspaceFileContent = migrations.define({
+  table: 'chatroom_workspaceFileContent',
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete('chatroom_workspaceFileContent', row._id);
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================

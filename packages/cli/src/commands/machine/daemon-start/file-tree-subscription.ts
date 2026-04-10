@@ -7,6 +7,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 
 import type { ConvexClient } from 'convex/browser';
 
@@ -87,13 +88,17 @@ async function fulfillFileTreeRequests(
       const treeJson = JSON.stringify(tree);
       const treeHash = createHash('md5').update(treeJson).digest('hex');
 
-      // Upload the tree
-      await ctx.deps.backend.mutation(api.workspaceFiles.syncFileTree, {
+      // Compress the tree JSON for efficient transport
+      const compressed = gzipSync(Buffer.from(treeJson));
+      const treeJsonCompressed = compressed.toString('base64');
+
+      // Upload the tree (v2: compressed only)
+      await ctx.deps.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
         workingDir: request.workingDir,
-        treeJson,
-        treeHash,
+        data: { compression: 'gzip' as const, content: treeJsonCompressed },
+        dataHash: treeHash,
         scannedAt: tree.scannedAt,
       });
 
@@ -105,7 +110,7 @@ async function fulfillFileTreeRequests(
       });
 
       console.log(
-        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries)`
+        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries, ${(Buffer.byteLength(treeJson) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
       );
     } catch (err) {
       console.warn(

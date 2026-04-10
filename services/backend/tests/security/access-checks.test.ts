@@ -109,6 +109,10 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   'presentations.ts': ['getPresentationState', 'setCurrentSlide', 'startPresenting', 'stopPresenting'],
   // tasks.ts: PRE-EXISTING — getTaskLimits is a public config query
   'tasks.ts': ['getTaskLimits'],
+  // workspaceFiles.ts: deprecated v1 mutations — throw immediately, no data written
+  'workspaceFiles.ts': ['syncFileTree', 'fulfillFileContent'],
+  // workspaces.ts: deprecated v1 mutations — throw immediately, no data written
+  'workspaces.ts': ['upsertFullDiff', 'upsertCommitDetail'],
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

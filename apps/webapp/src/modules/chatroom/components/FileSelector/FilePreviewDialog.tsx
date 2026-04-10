@@ -1,10 +1,11 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
 import { isMarkdownFile, isCsvFile, getDefaultViewMode, type FileViewMode, MarkdownRenderer, CsvTableRenderer } from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useFileContent } from '../../workspace/hooks/useFileContent';
 
 import { FileTypeIcon } from './fileIcons';
 import { isBinaryFile } from './binaryDetection';
@@ -315,9 +316,8 @@ const FileContentPanel = memo(function FileContentPanel({
   workingDir: string | null;
   viewMode: FileViewMode;
 }) {
-  // Fetch cached content
-  const contentResult = useSessionQuery(
-    api.workspaceFiles.getFileContent,
+  // Fetch cached content (with transparent decompression)
+  const contentResult = useFileContent(
     machineId && workingDir && filePath
       ? { machineId, workingDir, filePath }
       : 'skip'
@@ -438,9 +438,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
     setMobileTreeOpen(false);
   }, [onSelectFile]);
 
-  // Fetch content result for header metadata
-  const contentResult = useSessionQuery(
-    api.workspaceFiles.getFileContent,
+  // Fetch content result for header metadata (with transparent decompression)
+  const contentResult = useFileContent(
     machineId && workingDir && filePath
       ? { machineId, workingDir, filePath }
       : 'skip'

@@ -40,6 +40,16 @@ export const cleanupWorkspaceFileTree = internalMutation({
       deleted++;
     }
 
+    // V2 file trees
+    const staleRowsV2 = await ctx.db
+      .query('chatroom_workspaceFileTreeV2')
+      .filter((q) => q.lt(q.field('scannedAt'), cutoff))
+      .take(BATCH_SIZE);
+    for (const row of staleRowsV2) {
+      await ctx.db.delete(row._id);
+      deleted++;
+    }
+
     if (deleted > 0) {
       console.log(`[ChatroomCleanup] Deleted ${deleted} stale workspaceFileTree rows`);
     }
@@ -181,17 +191,35 @@ export const cleanupMachines = internalMutation({
         .collect();
       for (const row of fileTrees) await ctx.db.delete(row._id);
 
+      const fileTreesV2 = await ctx.db
+        .query('chatroom_workspaceFileTreeV2')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of fileTreesV2) await ctx.db.delete(row._id);
+
       const fileContents = await ctx.db
         .query('chatroom_workspaceFileContent')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of fileContents) await ctx.db.delete(row._id);
 
+      const fileContentsV2 = await ctx.db
+        .query('chatroom_workspaceFileContentV2')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of fileContentsV2) await ctx.db.delete(row._id);
+
       const fullDiffs = await ctx.db
         .query('chatroom_workspaceFullDiff')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of fullDiffs) await ctx.db.delete(row._id);
+
+      const fullDiffsV2 = await ctx.db
+        .query('chatroom_workspaceFullDiffV2')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of fullDiffsV2) await ctx.db.delete(row._id);
 
       const prDiffs = await ctx.db
         .query('chatroom_workspacePRDiffs')
@@ -222,6 +250,12 @@ export const cleanupMachines = internalMutation({
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of commitDetails) await ctx.db.delete(row._id);
+
+      const commitDetailsV2 = await ctx.db
+        .query('chatroom_workspaceCommitDetailV2')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of commitDetailsV2) await ctx.db.delete(row._id);
 
       const runnableCommands = await ctx.db
         .query('chatroom_runnableCommands')
