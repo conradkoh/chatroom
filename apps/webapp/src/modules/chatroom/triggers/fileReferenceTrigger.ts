@@ -5,10 +5,7 @@ import { encodeFileReference } from '@/lib/fileReference';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
 
-export function createFileReferenceTrigger(
-  files: FileEntry[],
-  workspaceName: string | undefined
-): TriggerDefinition<FileEntry> {
+export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinition<FileEntry> {
   return {
     triggerChar: '@',
     isValidPosition: (_textBeforeCursor, triggerIndex) => {
@@ -16,7 +13,7 @@ export function createFileReferenceTrigger(
       const charBefore = _textBeforeCursor[triggerIndex - 1];
       return charBefore === ' ' || charBefore === '\n' || charBefore === '\t';
     },
-    isEnabled: () => files.length > 0 && !!workspaceName,
+    isEnabled: () => files.length > 0,
     getResults: (query) => {
       if (!query) return files.slice(0, MAX_DISPLAY);
       return files
@@ -26,7 +23,11 @@ export function createFileReferenceTrigger(
         .map((item) => item.file)
         .slice(0, MAX_DISPLAY);
     },
-    serialize: (item) => encodeFileReference(workspaceName!, item.path),
+    serialize: (item) => {
+      // Use the per-file workspaceId if available, otherwise skip encoding
+      if (!item.workspaceId) return item.path;
+      return encodeFileReference(item.workspaceId, item.path);
+    },
     maxDisplayItems: MAX_DISPLAY,
   };
 }

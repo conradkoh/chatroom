@@ -1,11 +1,12 @@
 'use client';
 
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
 
 import { getFileName, getParentDir } from '@/lib/pathUtils';
+import { decodeWorkspaceId, getWorkspaceDisplayName } from '@/lib/workspaceIdentifier';
 
 interface FileReferenceAutocompleteProps {
   /** Pre-filtered results from the trigger system */
@@ -27,6 +28,31 @@ const MAX_VISIBLE_ITEMS = 8;
 /** Dropdown width in pixels */
 const DROPDOWN_WIDTH = 400;
 
+/**
+ * Resolve workspace display names for a set of results.
+ * Returns a Map from workspaceId → display name.
+ * Returns an empty map if all results share the same workspace (no disambiguation needed).
+ */
+function resolveWorkspaceLabels(results: FileEntry[]): Map<string, string> {
+  const ids = new Set<string>();
+  for (const f of results) {
+    if (f.workspaceId) ids.add(f.workspaceId);
+  }
+  // Only show labels when multiple workspaces are present
+  if (ids.size <= 1) return new Map();
+
+  const labels = new Map<string, string>();
+  for (const id of ids) {
+    try {
+      const decoded = decodeWorkspaceId(id);
+      labels.set(id, getWorkspaceDisplayName(decoded.workingDir));
+    } catch {
+      labels.set(id, '?');
+    }
+  }
+  return labels;
+}
+
 export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete({
   results,
   selectedIndex,
@@ -37,6 +63,9 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
 }: FileReferenceAutocompleteProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Resolve workspace labels only when multiple workspaces are present
+  const workspaceLabels = useMemo(() => resolveWorkspaceLabels(results), [results]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -79,9 +108,10 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
       >
         {results.map((file, index) => {
           const parentDir = getParentDir(file.path);
+          const wsLabel = file.workspaceId ? workspaceLabels.get(file.workspaceId) : undefined;
           return (
             <div
-              key={file.path}
+              key={file.workspaceId ? `${file.workspaceId}:${file.path}` : file.path}
               data-autocomplete-item
               onMouseDown={(e) => {
                 // Use mouseDown instead of click to fire before blur
@@ -99,8 +129,13 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
               />
               <span className="text-sm font-medium truncate flex-1">{getFileName(file.path)}</span>
               {parentDir && (
-                <span className="text-xs text-chatroom-text-muted truncate max-w-[50%]">
+                <span className="text-xs text-chatroom-text-muted truncate max-w-[40%]">
                   {parentDir}
+                </span>
+              )}
+              {wsLabel && (
+                <span className="text-[10px] text-chatroom-accent/70 font-medium shrink-0 ml-1">
+                  {wsLabel}
                 </span>
               )}
             </div>

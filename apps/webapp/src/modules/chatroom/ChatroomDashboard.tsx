@@ -54,12 +54,11 @@ import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane'
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
-import { useFileTree } from './workspace/hooks/useFileTree';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 import { FileReferenceProvider } from './components/FileReferenceContext';
-import { useFileEntries } from './hooks/useFileEntries';
+import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
 
 import {
   DropdownMenu,
@@ -471,18 +470,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: firstWorkspace?.workingDir ?? null,
   });
 
-  // Always-on file tree subscription for @ autocomplete in SendForm
-  const alwaysOnFileTree = useFileTree(
-    firstWorkspace?.machineId && firstWorkspace?.workingDir
-      ? { machineId: firstWorkspace.machineId, workingDir: firstWorkspace.workingDir }
-      : 'skip'
-  );
-  const autocompleteFiles = useFileEntries(alwaysOnFileTree);
-  const workspaceName = useMemo(() => {
-    if (!firstWorkspace?.workingDir) return undefined;
-    const parts = firstWorkspace.workingDir.split('/');
-    return parts[parts.length - 1] || undefined;
-  }, [firstWorkspace?.workingDir]);
+  // Multi-workspace file tree subscription for @ autocomplete in SendForm
+  const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
   const handleCmdPFileSelect = useCallback(
@@ -1132,7 +1121,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onAfterResize={endResize}
                   onRegisterFocus={handleRegisterSendFormFocus}
                   files={autocompleteFiles}
-                  workspaceName={workspaceName}
                 />
               </div>
               <WorkspaceBottomBar

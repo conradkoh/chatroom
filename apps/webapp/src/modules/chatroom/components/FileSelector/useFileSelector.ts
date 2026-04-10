@@ -18,6 +18,8 @@ export interface FileEntry {
   type: 'file' | 'directory';
   size?: number;
   modifiedAt?: number;
+  /** Encoded workspace identifier (base64url of machineId::workingDir). Present for multi-workspace autocomplete. */
+  workspaceId?: string;
 }
 
 export function useFileSelector({ machineId, workingDir }: UseFileSelectorOptions) {

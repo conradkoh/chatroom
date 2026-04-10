@@ -27,10 +27,8 @@ interface SendFormProps {
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
-  /** Available workspace files for @ autocomplete */
+  /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
-  /** Workspace name used for file reference encoding */
-  workspaceName?: string;
 }
 
 /**
@@ -114,7 +112,6 @@ export const SendForm = memo(function SendForm({
   onAfterResize: _onAfterResize,
   onRegisterFocus,
   files = [],
-  workspaceName,
 }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -125,10 +122,7 @@ export const SendForm = memo(function SendForm({
   const [editorOpen, setEditorOpen] = useState(false);
 
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
-  const fileRefTrigger = useMemo(
-    () => createFileReferenceTrigger(files, workspaceName),
-    [files, workspaceName]
-  );
+  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {
