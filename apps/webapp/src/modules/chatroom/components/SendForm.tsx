@@ -28,6 +28,7 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
+import { getCaretCoordinates } from '@/lib/getCaretCoordinates';
 
 interface SendFormProps {
   chatroomId: string;
@@ -137,7 +138,14 @@ export const SendForm = memo(function SendForm({
     [files, workspaceName]
   );
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
-  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers);
+
+  const getCaretPosition = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return null;
+    return getCaretCoordinates(textarea, textarea.selectionStart);
+  }, []);
+
+  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
 
   // Register focus callback for external callers
   useEffect(() => {

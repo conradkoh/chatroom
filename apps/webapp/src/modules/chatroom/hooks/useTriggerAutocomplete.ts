@@ -60,6 +60,13 @@ export interface UseTriggerAutocompleteReturn<T = unknown> {
   setSelectedIndex: (index: number) => void;
 }
 
+// ── Options ──────────────────────────────────────────────────────────────────
+
+export interface UseTriggerAutocompleteOptions {
+  /** Calculate caret pixel coordinates for positioning the dropdown */
+  getCaretPosition?: () => { top: number; left: number; height: number } | null;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const DEBOUNCE_MS = 80;
@@ -72,7 +79,8 @@ const DEBOUNCE_MS = 80;
  * definitions. The first enabled trigger whose character matches wins.
  */
 export function useTriggerAutocomplete<T = unknown>(
-  triggers: TriggerDefinition<T>[]
+  triggers: TriggerDefinition<T>[],
+  options?: UseTriggerAutocompleteOptions
 ): UseTriggerAutocompleteReturn<T> {
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
@@ -114,7 +122,15 @@ export function useTriggerAutocomplete<T = unknown>(
         // Found a valid trigger — show dropdown immediately, debounce query
         triggerIndexRef.current = lastTriggerIndex;
         setVisible(true);
-        setPosition({ top: 4, left: 0 });
+
+        // Calculate position from caret if available, otherwise use default
+        const caretPos = options?.getCaretPosition?.();
+        if (caretPos) {
+          setPosition({ top: caretPos.height + 4, left: caretPos.left });
+        } else {
+          setPosition({ top: 4, left: 0 });
+        }
+
         setActiveTrigger(trigger);
 
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -135,7 +151,7 @@ export function useTriggerAutocomplete<T = unknown>(
       setActiveTrigger(null);
       triggerIndexRef.current = null;
     },
-    [triggers]
+    [triggers, options]
   );
 
   // ── Selection ──────────────────────────────────────────────────────────────

@@ -24,6 +24,8 @@ interface FileReferenceAutocompleteProps {
 
 /** Max items visible in the dropdown (for scroll height calculation) */
 const MAX_VISIBLE_ITEMS = 8;
+/** Dropdown width in pixels */
+const DROPDOWN_WIDTH = 400;
 
 export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete({
   results,
@@ -34,6 +36,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
   visible,
 }: FileReferenceAutocompleteProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -45,12 +48,24 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     }
   }, [selectedIndex]);
 
+  // Clamp the left position so the dropdown doesn't overflow the parent
+  useEffect(() => {
+    if (!containerRef.current || !visible || !position) return;
+    const parent = containerRef.current.parentElement;
+    if (!parent) return;
+    const parentWidth = parent.offsetWidth;
+    const maxLeft = Math.max(0, parentWidth - DROPDOWN_WIDTH);
+    const clampedLeft = Math.min(position.left, maxLeft);
+    containerRef.current.style.left = `${clampedLeft}px`;
+  }, [visible, position]);
+
   if (!visible || !position || results.length === 0) {
     return null;
   }
 
   return (
     <div
+      ref={containerRef}
       className="absolute z-50 w-[400px] max-w-[90vw] border-2 border-chatroom-border bg-chatroom-bg-primary shadow-lg overflow-hidden"
       style={{
         bottom: position.top,
