@@ -1496,18 +1496,20 @@ export const getLatestMessages = query({
 
     const limit = args.limit ?? 5;
 
-    // Fetch the last N messages in descending order, then reverse for
-    // chronological (ascending) output. We filter out join/progress messages
-    // the same way listPaginated does.
+    // Fetch limit + 1 messages in descending order to determine hasMore,
+    // then reverse for chronological (ascending) output. We filter out
+    // join/progress messages the same way listPaginated does.
     const messagesDesc = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
-      .take(limit);
+      .take(limit + 1);
 
-    // Reverse to ascending chronological order
-    const messages = messagesDesc.reverse();
+    const hasMore = messagesDesc.length > limit;
+    // Trim to the requested limit and reverse to ascending chronological order
+    const trimmed = messagesDesc.slice(0, limit);
+    const messages = trimmed.reverse();
 
     // Enrich with task status, attachments, and latest progress
     const enrichedMessages = await enrichMessages(ctx, messages);
@@ -1521,6 +1523,7 @@ export const getLatestMessages = query({
     return {
       messages: enrichedMessages,
       cursor,
+      hasMore,
     };
   },
 });

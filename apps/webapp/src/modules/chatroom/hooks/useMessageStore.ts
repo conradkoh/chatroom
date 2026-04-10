@@ -5,34 +5,12 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useReducer, useEffect, useCallback, useRef } from 'react';
 
-// ─── Types ──────────────────────────────────────
+import type { Message } from '../types/message';
 
-/** Message shape returned by the cursor-based query endpoints. */
-export interface StoreMessage {
-  _id: string;
-  type: string;
-  senderRole: string;
-  targetRole?: string;
-  content: string;
-  _creationTime: number;
-  classification?: 'question' | 'new_feature' | 'follow_up';
-  taskId?: string;
-  taskStatus?: string;
-  sourcePlatform?: string;
-  featureTitle?: string;
-  featureDescription?: string;
-  featureTechSpecs?: string;
-  attachedTasks?: { _id: string; content: string; status: string }[];
-  attachedBacklogItems?: { id: string; content: string; status: string }[];
-  attachedArtifacts?: { _id: string; filename: string; description?: string; mimeType?: string }[];
-  attachedMessages?: { _id: string; content: string; senderRole: string; _creationTime: number }[];
-  attachedWorkflows?: { _id: string; workflowKey: string; status: string }[];
-  latestProgress?: { content: string; senderRole: string; _creationTime: number };
-  isQueued?: boolean;
-}
+// ─── State ──────────────────────────────────────
 
 interface MessageStoreState {
-  messages: StoreMessage[];
+  messages: Message[];
   oldestCursor: number | null;
   newestCursor: number | null;
   isInitialized: boolean;
@@ -45,15 +23,14 @@ interface MessageStoreState {
 // ─── Reducer actions ────────────────────────────
 
 type Action =
-  | { type: 'INITIALIZE'; messages: StoreMessage[]; cursor: number | null }
-  | { type: 'APPEND_NEW'; messages: StoreMessage[] }
-  | { type: 'PREPEND_OLDER'; messages: StoreMessage[]; hasMore: boolean }
+  | { type: 'INITIALIZE'; messages: Message[]; cursor: number | null; hasMore: boolean }
+  | { type: 'APPEND_NEW'; messages: Message[] }
+  | { type: 'PREPEND_OLDER'; messages: Message[]; hasMore: boolean }
   | { type: 'PURGE_OLD'; keepAboveCount: number; viewportTopIndex: number }
-  | { type: 'SET_LOADING_OLDER'; loading: boolean }
   | { type: 'REQUEST_OLDER' }
-  | { type: 'CLEAR_OLDER_REQUEST' };
+  | { type: 'RESET' };
 
-function deduplicateMessages(existing: StoreMessage[], incoming: StoreMessage[]): StoreMessage[] {
+function deduplicateMessages(existing: Message[], incoming: Message[]): Message[] {
   const existingIds = new Set(existing.map((m) => m._id));
   return incoming.filter((m) => !existingIds.has(m._id));
 }
@@ -71,9 +48,7 @@ function messageStoreReducer(state: MessageStoreState, action: Action): MessageS
         oldestCursor,
         newestCursor,
         isInitialized: true,
-        // If we got fewer messages than requested, there are no older ones
-        // (we don't know the limit here, so assume there could be more)
-        hasMoreOlder: messages.length > 0,
+        hasMoreOlder: action.hasMore,
       };
     }
 
@@ -127,9 +102,6 @@ function messageStoreReducer(state: MessageStoreState, action: Action): MessageS
       };
     }
 
-    case 'SET_LOADING_OLDER':
-      return { ...state, isLoadingOlder: action.loading };
-
     case 'REQUEST_OLDER': {
       if (state.isLoadingOlder || !state.hasMoreOlder || !state.oldestCursor) return state;
       return {
@@ -139,8 +111,8 @@ function messageStoreReducer(state: MessageStoreState, action: Action): MessageS
       };
     }
 
-    case 'CLEAR_OLDER_REQUEST':
-      return { ...state, olderQueryCursor: null };
+    case 'RESET':
+      return initialState;
 
     default:
       return state;
@@ -163,33 +135,52 @@ export function useMessageStore(chatroomId: string) {
   const [state, dispatch] = useReducer(messageStoreReducer, initialState);
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
 
+  // Track the cursor we've already processed for older loads
+  const processedOlderCursorRef = useRef<number | null>(null);
+
+  // Pin the tail cursor so the getMessagesSince subscription doesn't churn
+  const tailCursorRef = useRef<number | null>(null);
+
+  // ── Reset on chatroom navigation (must run BEFORE initialization) ──
+  const prevChatroomIdRef = useRef(chatroomId);
+  useEffect(() => {
+    if (prevChatroomIdRef.current !== chatroomId) {
+      prevChatroomIdRef.current = chatroomId;
+      dispatch({ type: 'RESET' });
+      processedOlderCursorRef.current = null;
+      tailCursorRef.current = null;
+    }
+  }, [chatroomId]);
+
   // ── Initial load ──────────────────────────────
-  const initialData = useSessionQuery(api.messages.getLatestMessages, {
-    chatroomId: typedChatroomId,
-    limit: 5,
-  });
+  const initialData = useSessionQuery(
+    api.messages.getLatestMessages,
+    state.isInitialized ? 'skip' : { chatroomId: typedChatroomId, limit: 5 }
+  );
 
   useEffect(() => {
     if (initialData && !state.isInitialized) {
+      tailCursorRef.current = initialData.cursor;
       dispatch({
         type: 'INITIALIZE',
-        messages: initialData.messages as StoreMessage[],
+        messages: initialData.messages as Message[],
         cursor: initialData.cursor,
+        hasMore: initialData.hasMore,
       });
     }
   }, [initialData, state.isInitialized]);
 
-  // ── Tail subscription ─────────────────────────
+  // ── Tail subscription (pinned cursor) ─────────
   const tailData = useSessionQuery(
     api.messages.getMessagesSince,
-    state.newestCursor != null
-      ? { chatroomId: typedChatroomId, sinceCursor: state.newestCursor }
+    tailCursorRef.current != null
+      ? { chatroomId: typedChatroomId, sinceCursor: tailCursorRef.current }
       : 'skip'
   );
 
   useEffect(() => {
     if (tailData && tailData.messages.length > 0) {
-      dispatch({ type: 'APPEND_NEW', messages: tailData.messages as StoreMessage[] });
+      dispatch({ type: 'APPEND_NEW', messages: tailData.messages as Message[] });
     }
   }, [tailData]);
 
@@ -201,9 +192,6 @@ export function useMessageStore(chatroomId: string) {
       : 'skip'
   );
 
-  // Track the cursor we've already processed to avoid re-dispatching
-  const processedOlderCursorRef = useRef<number | null>(null);
-
   useEffect(() => {
     if (
       olderData &&
@@ -213,7 +201,7 @@ export function useMessageStore(chatroomId: string) {
       processedOlderCursorRef.current = state.olderQueryCursor;
       dispatch({
         type: 'PREPEND_OLDER',
-        messages: olderData.messages as StoreMessage[],
+        messages: olderData.messages as Message[],
         hasMore: olderData.hasMore,
       });
     }
