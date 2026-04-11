@@ -363,14 +363,8 @@ function handleBackwardDelete(
 
   if (!brNode) return false;
 
-  // For Backspace, we need to check if either:
-  // 1. The content after the <br> starts with a chip (cursor is at start of text, chip follows)
-  // 2. The cursor is right after the <br> at a container level, and next node is a chip
-  // In both cases, the <br> is between content and a chip-adjacent position.
-
-  // Check what's after the <br> — is it a chip or a text node at position 0 before a chip?
+  // For Backspace, check what's around the <br>
   const afterBr = brNode.nextSibling;
-  // If after <br> is a chip, or the cursor is at start of text and the <br> precedes a chip line
   const beforeBr = brNode.previousSibling;
 
   // We intercept if either side of the <br> has a chip

@@ -222,16 +222,14 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
     if (found) return true;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const fullText = node.textContent ?? '';
-      const rawLen = fullText.length;
-      if (remaining <= rawLen) {
+      const len = (node.textContent ?? '').length;
+      if (remaining <= len) {
         targetNode = node;
-        // No ZWS, so raw offset equals DOM offset directly
         targetDomOffset = remaining;
         found = true;
         return true;
       }
-      remaining -= rawLen;
+      remaining -= len;
       return false;
     }
 

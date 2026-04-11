@@ -15,7 +15,7 @@ import React from 'react';
  * bg-chatroom-bg-tertiary, text-xs, font-mono, rounded-sm, align-middle.
  */
 export const FILE_REF_CHIP_BASE_CLASSES =
-  'inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-middle';
+  'inline-flex items-center gap-1 px-1.5 py-0.5 bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary text-xs font-mono rounded-sm align-baseline';
 
 /**
  * Raw SVG string of Lucide's FileText icon at 12x12.
@@ -66,7 +66,7 @@ export function FileReferenceChipUI({
  */
 export function buildFileRefChipHtml(rawToken: string, fileName: string): string {
   const escaped = escapeAttr(rawToken);
-  return `<span contenteditable="false" data-file-ref="${escaped}" class="${FILE_REF_CHIP_BASE_CLASSES} mr-1 cursor-default select-none">${FILE_REF_ICON_SVG} <span class="truncate" style="max-width: 200px;">${escapeHtml(fileName)}</span></span>`;
+  return `<span contenteditable="false" data-file-ref="${escaped}" class="${FILE_REF_CHIP_BASE_CLASSES} mr-1 cursor-default">${FILE_REF_ICON_SVG} <span class="truncate" style="max-width: 200px;">${escapeHtml(fileName)}</span></span>`;
 }
 
 // ============================================================================
