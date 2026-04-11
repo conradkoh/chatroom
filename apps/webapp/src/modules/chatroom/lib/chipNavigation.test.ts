@@ -477,11 +477,22 @@ describe('handleChipNavigation — edge cases', () => {
     expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }))).toBe(false);
   });
 
-  it('returns false for Meta+Arrow (line navigation)', () => {
+  it('handles Meta+Arrow (Cmd+Arrow line navigation)', () => {
     const token = fileToken('a.ts');
-    const el = makeContainer(token);
-    setCursor(el, 0);
-    expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }))).toBe(false);
+    const el = makeContainer(`hello ${token} world`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3); // mid-text
+
+    // Cmd+Left should move to position 0
+    const handledLeft = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(handledLeft).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+
+    // Cmd+Right should move to end
+    const totalLen = 'hello '.length + token.length + ' world'.length;
+    const handledRight = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(handledRight).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
   });
 
   it('navigates between adjacent chips with single arrow keys', () => {
@@ -1055,5 +1066,92 @@ describe('handleChipNavigation — hardening edge cases: round 2', () => {
     // Alt+Left 2: skip back over "👋hello " — all \S chars then whitespace
     handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
     expect(getRawOffset(el)).toBe(0);
+  });
+});
+
+// ── Cmd+Left/Right (line start/end) ─────────────────────────────────────────
+
+describe('handleChipNavigation — Cmd+Left/Right (line start/end)', () => {
+  it('Cmd+Left with chip at line start → caret moves to position 0 (before chip)', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`${token} world`);
+    // Cursor in the middle of " world"
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0); // Before the chip
+  });
+
+  it('Cmd+Left with text then chip at start → caret moves to position 0', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`hello ${token} world`);
+    // Cursor at end of " world"
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, (lastText.textContent ?? '').length);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('Cmd+Right with chip at line end → caret moves to end of content', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`hello ${token}`);
+    // Cursor at beginning
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    const totalLen = 6 + token.length;
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  it('Cmd+Right with chip then text at end → caret moves to end of content', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`${token} hello world`);
+    // Cursor at beginning (before chip)
+    setCursor(el, 0);
+
+    const totalLen = token.length + ' hello world'.length;
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  it('Cmd+Left already at position 0 → still returns true (handled)', () => {
+    const el = makeContainer('hello');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('Cmd+Right already at end → still returns true (handled)', () => {
+    const el = makeContainer('hello');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(5);
+  });
+
+  it('Shift+Cmd+Arrow still falls through to browser (not handled)', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`${token} world`);
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 3);
+
+    // Shift+Cmd+Left should NOT be handled (browser does selection)
+    const handled = handleChipNavigation(
+      el,
+      makeKeyEvent('ArrowLeft', { metaKey: true, shiftKey: true })
+    );
+    expect(handled).toBe(false);
   });
 });

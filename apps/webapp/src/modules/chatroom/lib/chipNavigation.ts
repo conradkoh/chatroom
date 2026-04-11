@@ -107,8 +107,11 @@ export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): 
   if (e.shiftKey) return false;
 
   const isAlt = e.altKey;
-  // NOTE: e.metaKey (Cmd on macOS) + Arrow moves to line start/end — let browser handle
-  if (e.metaKey) return false;
+
+  // Cmd+Arrow (macOS) — move to line start/end, handling chips correctly
+  if (e.metaKey) {
+    return handleLineJump(container, e.key === 'ArrowLeft' ? 'start' : 'end');
+  }
 
   if (isAlt) {
     return handleWordSkip(container, e.key === 'ArrowLeft' ? 'left' : 'right');
@@ -146,6 +149,25 @@ function handleWordSkip(container: HTMLElement, direction: 'left' | 'right'): bo
   if (targetOffset === currentOffset) return false;
 
   setCursorToRawOffsetInContainer(container, targetOffset);
+  return true;
+}
+
+// ── Internal: line-jump navigation (Cmd+Arrow) ──────────────────────────────
+
+function handleLineJump(container: HTMLElement, target: 'start' | 'end'): boolean {
+  if (target === 'start') {
+    setCursorToRawOffsetInContainer(container, 0);
+  } else {
+    const segments = buildSegments(container);
+    const totalLength =
+      segments.length > 0
+        ? (() => {
+            const last = segments[segments.length - 1]!;
+            return last.start + (last.type === 'text' ? last.text.length : last.token.length);
+          })()
+        : 0;
+    setCursorToRawOffsetInContainer(container, totalLength);
+  }
   return true;
 }
 
