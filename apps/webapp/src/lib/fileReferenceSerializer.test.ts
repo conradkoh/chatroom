@@ -274,6 +274,53 @@ describe('domOffsetToRawOffset', () => {
     // At container level offset 3 (after first 3 children): raw = tokenA.length
     expect(domOffsetToRawOffset(el, el, 3)).toBe(tokenA.length);
   });
+
+  // ── Bug scenario tests: chip + typed text + @ ────────────────────────────
+
+  it('calculates correct offset after chip + typed text + @ (simulated typing)', () => {
+    // After autocomplete inserts a chip, the DOM has:
+    // [ZWS text][chip][ZWS text + user typed content]
+    // Simulates: user selected file, then typed " hello @"
+    const token = fileToken('a.ts');
+    const html = rawTextToHtml(`${token} `); // initial after autocomplete: chip + space
+    const el = createElement(html);
+    // Simulate typing by modifying the last text node (browser behavior)
+    const lastTextNode = el.lastChild!;
+    lastTextNode.textContent = `${ZWS} hello @`; // browser appends to existing ZWS text node
+
+    // Cursor at end of last text node
+    const domOffset = lastTextNode.textContent!.length; // 9
+    const rawOffset = domOffsetToRawOffset(el, lastTextNode, domOffset);
+    // Expected: tokenLen + " hello @".length = tokenLen + 8
+    expect(rawOffset).toBe(token.length + 8);
+  });
+
+  it('calculates correct offset when cursor is right after ZWS (DOM offset 1)', () => {
+    // Text node: "\u200B hello @"
+    // DOM offset 1 = right after ZWS = raw offset 0 for this text node
+    const token = fileToken('a.ts');
+    const html = rawTextToHtml(`${token} `);
+    const el = createElement(html);
+    const lastTextNode = el.lastChild!;
+    lastTextNode.textContent = `${ZWS} hello @`;
+
+    const rawOffset = domOffsetToRawOffset(el, lastTextNode, 1);
+    // After ZWS, raw contribution = 0; preceding nodes = token.length
+    expect(rawOffset).toBe(token.length + 0);
+  });
+
+  it('calculates correct offset when DOM offset 0 (before ZWS)', () => {
+    // Text node: "\u200B hello @"
+    // DOM offset 0 = before ZWS = raw offset 0 for this text node
+    const token = fileToken('a.ts');
+    const html = rawTextToHtml(`${token} `);
+    const el = createElement(html);
+    const lastTextNode = el.lastChild!;
+    lastTextNode.textContent = `${ZWS} hello @`;
+
+    const rawOffset = domOffsetToRawOffset(el, lastTextNode, 0);
+    expect(rawOffset).toBe(token.length + 0);
+  });
 });
 
 // ── setCursorToRawOffset ─────────────────────────────────────────────────────
