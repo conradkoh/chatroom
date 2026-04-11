@@ -29,10 +29,11 @@ export function rawTextToHtml(text: string): string {
     const before = text.slice(lastEnd, ref.start);
     html += escapeHtml(before).replace(/\n/g, '<br>');
 
-    // The chip span
+    // The chip span — wrap with zero-width spaces to create word boundaries
+    // for native Alt+Arrow word-skip navigation
     const rawToken = text.slice(ref.start, ref.end);
     const fileName = getFileName(ref.filePath);
-    html += buildChipHtml(rawToken, fileName);
+    html += '\u200B' + buildChipHtml(rawToken, fileName) + '\u200B';
 
     lastEnd = ref.end;
   }
@@ -65,7 +66,8 @@ export function htmlToRawText(element: HTMLElement): string {
 
   for (const node of Array.from(element.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent ?? '';
+      // Strip zero-width spaces used for word boundary navigation
+      result += (node.textContent ?? '').replace(/\u200B/g, '');
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
 
@@ -124,7 +126,10 @@ export function domOffsetToRawOffset(
 
     if (node === anchorNode) {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += anchorOffset;
+        // Exclude zero-width spaces before the cursor position from the raw offset
+        const textBeforeCursor = (node.textContent ?? '').slice(0, anchorOffset);
+        const zwsCount = (textBeforeCursor.match(/\u200B/g) || []).length;
+        offset += anchorOffset - zwsCount;
       } else {
         // Element node — anchorOffset is the child index
         for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
@@ -136,7 +141,9 @@ export function domOffsetToRawOffset(
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += node.textContent?.length ?? 0;
+      // Exclude zero-width spaces from raw offset calculation
+      const text = (node.textContent ?? '').replace(/\u200B/g, '');
+      offset += text.length;
       return false;
     }
 
@@ -179,7 +186,9 @@ export function domOffsetToRawOffset(
   /** Accumulate the full raw text length of a node subtree. */
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += node.textContent?.length ?? 0;
+      // Exclude zero-width spaces from raw offset calculation
+      const text = (node.textContent ?? '').replace(/\u200B/g, '');
+      offset += text.length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -222,14 +231,26 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
     if (found) return true;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const len = node.textContent?.length ?? 0;
-      if (remaining <= len) {
+      const fullText = node.textContent ?? '';
+      // Count only non-ZWS characters for raw offset tracking
+      const rawLen = fullText.replace(/\u200B/g, '').length;
+      if (remaining <= rawLen) {
         targetNode = node;
-        targetDomOffset = remaining;
+        // Map raw offset back to DOM offset by counting ZWS chars
+        // Walk through the full text, counting non-ZWS chars until we reach `remaining`
+        let rawCount = 0;
+        let domPos = 0;
+        for (domPos = 0; domPos < fullText.length; domPos++) {
+          if (rawCount === remaining) break;
+          if (fullText[domPos] !== '\u200B') {
+            rawCount++;
+          }
+        }
+        targetDomOffset = domPos;
         found = true;
         return true;
       }
-      remaining -= len;
+      remaining -= rawLen;
       return false;
     }
 
