@@ -126,7 +126,25 @@ export const SendForm = memo(function SendForm({
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {
-    return inputRef.current?.getCaretPixelPosition() ?? null;
+    const caretPos = inputRef.current?.getCaretPixelPosition() ?? null;
+    if (!caretPos) return null;
+
+    // The caret position is relative to the contenteditable element, but the
+    // dropdown is absolutely positioned within formContainerRef. Adjust left
+    // by the horizontal offset between the two containers so the dropdown
+    // aligns with the trigger character, not shifted by ~2 chars.
+    const inputEl = inputRef.current?.getElement();
+    const formEl = formContainerRef.current;
+    if (inputEl && formEl) {
+      const inputRect = inputEl.getBoundingClientRect();
+      const formRect = formEl.getBoundingClientRect();
+      return {
+        ...caretPos,
+        left: caretPos.left + (inputRect.left - formRect.left),
+      };
+    }
+
+    return caretPos;
   }, []);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });

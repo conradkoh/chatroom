@@ -27,6 +27,8 @@ export interface ContentEditableInputRef {
   getCaretPixelPosition: () => { top: number; left: number; height: number } | null;
   /** Set cursor position to a character offset in the raw text */
   setCursorOffset: (offset: number) => void;
+  /** Get the underlying contenteditable DOM element */
+  getElement: () => HTMLDivElement | null;
 }
 
 interface ContentEditableInputProps {
@@ -106,6 +108,10 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           const el = divRef.current;
           if (!el) return;
           setCursorToRawOffset(el, offset);
+        },
+
+        getElement() {
+          return divRef.current;
         },
       }),
       []
