@@ -1626,3 +1626,265 @@ describe('handleChipNavigation — combinatoric matrix', () => {
     setCursor(container, container.childNodes.length);
   }
 });
+
+// ── Sequence tests ───────────────────────────────────────────────────────────
+
+describe('handleChipNavigation — sequence tests', () => {
+  // Helper: set cursor to a raw offset within a container (same as combinatoric matrix helper)
+  function setCursorToOffset(container: HTMLElement, targetOffset: number): void {
+    if (targetOffset === 0 && container.childNodes.length > 0) {
+      const first = container.childNodes[0]!;
+      if (first.nodeType === Node.TEXT_NODE) {
+        setCursor(first, 0);
+      } else {
+        setCursor(container, 0);
+      }
+      return;
+    }
+
+    let remaining = targetOffset;
+
+    for (let i = 0; i < container.childNodes.length; i++) {
+      const node = container.childNodes[i]!;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const len = (node.textContent ?? '').length;
+        if (remaining <= len) {
+          setCursor(node, remaining);
+          return;
+        }
+        remaining -= len;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          if (remaining === 0) {
+            setCursor(container, i);
+            return;
+          }
+          if (remaining <= fileRef.length) {
+            setCursor(container, i + 1);
+            remaining = 0;
+            if (remaining === 0) return;
+          }
+          remaining -= fileRef.length;
+        } else {
+          const innerLen = (el.textContent ?? '').length;
+          if (remaining <= innerLen) {
+            setCursor(node, remaining);
+            return;
+          }
+          remaining -= innerLen;
+        }
+      }
+    }
+
+    setCursor(container, container.childNodes.length);
+  }
+
+  const CHIP_A = fileToken('a.ts'); // 23 chars
+  const CHIP_B = fileToken('b.ts'); // 23 chars
+  const CHIP_C = fileToken('c.ts'); // 23 chars
+  const CHIP_LEN = CHIP_A.length; // 23
+
+  // Sequence 1: Cmd+Left then ArrowRight — on layout "{chip} world"
+  it('Cmd+Left → ArrowRight: jumps to start then skips chip', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    // Start at end of " world" (offset = 23 + 6 = 29)
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, (lastText.textContent ?? '').length);
+
+    // Step 1: Cmd+Left → offset 0
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+
+    // Step 2: ArrowRight → skip chip → offset 23
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN);
+  });
+
+  // Sequence 2: ArrowRight through multiple consecutive chips
+  it('ArrowRight ×3 through {chipA}{chipB}{chipC}', () => {
+    const el = makeContainer(`${CHIP_A}${CHIP_B}${CHIP_C}`);
+    setCursor(el, 0); // Start at 0
+
+    // Step 1: ArrowRight → after chipA (23)
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN);
+
+    // Step 2: ArrowRight → after chipB (46)
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN * 2);
+
+    // Step 3: ArrowRight → after chipC (69)
+    const h3 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h3).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN * 3);
+  });
+
+  // Sequence 3: ArrowLeft back through multiple chips
+  it('ArrowLeft ×3 back through {chipA}{chipB}{chipC}', () => {
+    const el = makeContainer(`${CHIP_A}${CHIP_B}${CHIP_C}`);
+    setCursor(el, 3); // Start at end (container level after all 3 chips)
+
+    // Step 1: ArrowLeft → before chipC (46)
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN * 2);
+
+    // Step 2: ArrowLeft → before chipB (23)
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(CHIP_LEN);
+
+    // Step 3: ArrowLeft → before chipA (0)
+    const h3 = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(h3).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Sequence 4: Alt+Left multiple times through "hello {chipA} world {chipB} end"
+  it('Alt+Left ×5 traverses all boundaries in "hello {chipA} world {chipB} end"', () => {
+    // Layout: "hello " (6) + chipA (23) + " world " (7) + chipB (23) + " end" (4) = 63
+    const el = makeContainer(`hello ${CHIP_A} world ${CHIP_B} end`);
+    const chipAEnd = 6 + CHIP_LEN; // 29
+    const chipBStart = chipAEnd + 7; // 36
+    const chipBEnd = chipBStart + CHIP_LEN; // 59
+    const totalLen = chipBEnd + 4; // 63
+
+    // Start at end
+    setCursorToOffset(el, totalLen);
+
+    // Alt+Left 1: jump to start of "end" within " end" → offset 60
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chipBEnd + 1); // 60 — after " ", before "end"
+
+    // Alt+Left 2: at offset 60, whitespace " " before → skip whitespace then chip → before chipB (36)
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chipBStart); // 36
+
+    // Alt+Left 3: at chipBStart (36), which is end of " world " → skip whitespace then "world"
+    // findWordBoundaryLeft from 36: at boundary of " world " text segment (end at 36).
+    // Skip trailing " " (whitespace), then "world" → land at start of "world" = 29 + 1 = 30
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chipAEnd + 1); // 30 — start of "world"
+
+    // Alt+Left 4: at offset 30, only " " (whitespace) between start of segment and offset → skip whitespace → then skip chip → before chipA (6)
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6); // before chipA
+
+    // Alt+Left 5: at offset 6, end of "hello " → skip " " then "hello" → 0
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Sequence 5: Cmd+Right then ArrowLeft — on layout "hello {chip}"
+  it('Cmd+Right → ArrowLeft: jumps to end then skips chip back', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const totalLen = 6 + CHIP_LEN; // 29
+
+    // Start at 0
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    // Step 1: Cmd+Right → end (29)
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+
+    // Step 2: ArrowLeft → before chip (6)
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(6);
+  });
+
+  // Sequence 6: ArrowRight past chip then Alt+Left back — "hello {chip} world"
+  it('ArrowRight past chip → Alt+Left back: round-trip around chip', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+
+    // Start at offset 6 (end of "hello ", before chip)
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6);
+
+    // Step 1: ArrowRight → skip chip → offset 29 (after chip)
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(6 + CHIP_LEN); // 29
+
+    // Step 2: Alt+Left → back before chip
+    // At offset 29, start of " world" text. findWordBoundaryLeft from 29:
+    // At the boundary of text segment " world" (start=29). It's actually at segment start,
+    // so it checks previous segment (chip) → jumps before chip → offset 6
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(6);
+  });
+
+  // Sequence 7: Navigate through chip-text-chip layout: {chipA} mid {chipB}
+  it('navigate through {chipA} mid {chipB}: Arrow→ skip chip, then reach chipB, skip it', () => {
+    // Layout: chipA (23) + " mid " (5) + chipB (23) = 51
+    const el = makeContainer(`${CHIP_A} mid ${CHIP_B}`);
+    const chipAEnd = CHIP_LEN; // 23
+    const chipBStart = chipAEnd + 5; // 28
+    const chipBEnd = chipBStart + CHIP_LEN; // 51
+
+    // Start at 0 (before chipA)
+    setCursor(el, 0);
+
+    // Step 1: ArrowRight → skip chipA → offset 23
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(chipAEnd);
+
+    // Step 2: ArrowRight from offset 23 — cursor is at start of " mid " text.
+    // No chip adjacent after, so handler returns false (browser would move cursor).
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h2).toBe(false);
+    // jsdom doesn't move cursor when handler returns false, so manually advance
+    // to simulate browser moving cursor to before chipB
+    setCursorToOffset(el, chipBStart);
+
+    // Step 3: ArrowRight → skip chipB → offset 51
+    const h3 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h3).toBe(true);
+    expect(getRawOffset(el)).toBe(chipBEnd);
+
+    // Step 4: ArrowRight at end → handled=false (nothing after)
+    const h4 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(h4).toBe(false);
+  });
+
+  // Sequence 8: Cmd+Left twice (idempotent) — stays at 0
+  it('Cmd+Left ×2 is idempotent: stays at offset 0', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+
+    // Start at midpoint
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    // Step 1: Cmd+Left → 0
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(h1).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+
+    // Step 2: Cmd+Left again → still 0, still handled
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { metaKey: true }));
+    expect(h2).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+
+    // Step 3: Cmd+Right → end
+    const totalLen = 6 + CHIP_LEN + 6; // 35
+    const h3 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(h3).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+
+    // Step 4: Cmd+Right again → still end, still handled
+    const h4 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
+    expect(h4).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+});
