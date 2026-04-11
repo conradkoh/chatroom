@@ -48,11 +48,12 @@ export function rawTextToHtml(text: string): string {
     const before = text.slice(lastEnd, ref.start);
     html += escapeHtml(before).replace(/\n/g, '<br>');
 
-    // Insert ZWS before chip if it's at line start:
-    // - at the very beginning of the output (html is empty so far), OR
-    // - right after a <br> (the text before this chip ended with a newline)
-    const chipAtLineStart = html.length === 0 || html.endsWith('<br>');
-    if (chipAtLineStart) {
+    // Insert ZWS before chip if it's at the very beginning of the output.
+    // This allows Safari to position the caret before the first chip.
+    // Note: we do NOT insert ZWS after <br> because it renders as a visible
+    // blank line, causing a double-newline visual artifact.
+    const chipAtContainerStart = html.length === 0;
+    if (chipAtContainerStart) {
       html += ZWS;
     }
 
