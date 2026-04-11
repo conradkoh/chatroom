@@ -2415,3 +2415,192 @@ describe('handleChipNavigation — Home/End keys', () => {
     expect(handled).toBe(false);
   });
 });
+
+// ── Ctrl+Arrow word-skip tests (Windows/Linux) ─────────────────────────────
+
+describe('handleChipNavigation — Ctrl+Arrow word skip', () => {
+  const CHIP_A = fileToken('a.ts'); // {file://workspace/a.ts} = 23 chars
+  const CHIP_A_LEN = CHIP_A.length;
+
+  /** Make a Ctrl+key event. */
+  function makeCtrlKeyEvent(key: string, options?: { shiftKey?: boolean }): KeyboardEvent {
+    return new KeyboardEvent('keydown', {
+      key,
+      ctrlKey: true,
+      shiftKey: options?.shiftKey ?? false,
+      bubbles: true,
+    });
+  }
+
+  /**
+   * Helper: compute the raw offset of a DOM position (node, offset) in a container.
+   */
+  function computeRawOffsetAt(
+    container: HTMLElement,
+    targetNode: Node,
+    targetOffset: number
+  ): number {
+    let offset = 0;
+    let found = false;
+
+    function walk(node: Node): boolean {
+      if (found) return true;
+      if (node === targetNode) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          offset += targetOffset;
+        } else {
+          for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
+            accumulateLength(node.childNodes[i]!);
+          }
+        }
+        found = true;
+        return true;
+      }
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return false;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          if (el.contains(targetNode)) {
+            offset += fileRef.length;
+            found = true;
+            return true;
+          }
+          offset += fileRef.length;
+          return false;
+        }
+        for (const child of Array.from(node.childNodes)) {
+          if (walk(child)) return true;
+        }
+      }
+      return false;
+    }
+
+    function accumulateLength(node: Node): void {
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          offset += fileRef.length;
+          return;
+        }
+        for (const child of Array.from(el.childNodes)) {
+          accumulateLength(child);
+        }
+      }
+    }
+
+    walk(container);
+    return offset;
+  }
+
+  /** Get selection as { anchor, focus } in raw offset terms. */
+  function getSelectionRawOffsets(
+    container: HTMLElement
+  ): { anchor: number; focus: number } | null {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    if (!selection.anchorNode || !selection.focusNode) return null;
+
+    const anchor = computeRawOffsetAt(container, selection.anchorNode, selection.anchorOffset);
+    const focus = computeRawOffsetAt(container, selection.focusNode, selection.focusOffset);
+    return { anchor, focus };
+  }
+
+  // ── Ctrl+Arrow (word skip, no shift) ──────────────────────────────────
+
+  it('Ctrl+ArrowRight with chip ahead → skips past chip', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6); // end of "hello ", right before chip
+
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowRight'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(6 + CHIP_A_LEN); // past the chip
+  });
+
+  it('Ctrl+ArrowLeft with chip behind → skips past chip', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const textNode = el.childNodes[2]!; // " world"
+    setCursor(textNode, 0); // start of " world", right after chip
+
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowLeft'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(6); // before the chip, at end of "hello "
+  });
+
+  it('Ctrl+ArrowRight in text-only content → same word-skip behavior as Alt+ArrowRight', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    // Ctrl+ArrowRight from start should skip to end of first word + whitespace
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowRight'));
+    expect(handled).toBe(true);
+
+    const ctrlOffset = getRawOffset(el);
+
+    // Reset and do the same with Alt+ArrowRight
+    setCursor(textNode, 0);
+    const handled2 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(handled2).toBe(true);
+    const altOffset = getRawOffset(el);
+
+    expect(ctrlOffset).toBe(altOffset);
+  });
+
+  it('Ctrl+ArrowLeft in text-only content → same word-skip behavior as Alt+ArrowLeft', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 11); // end
+
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowLeft'));
+    expect(handled).toBe(true);
+    const ctrlOffset = getRawOffset(el);
+
+    // Reset and do the same with Alt+ArrowLeft
+    setCursor(textNode, 11);
+    const handled2 = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(handled2).toBe(true);
+    const altOffset = getRawOffset(el);
+
+    expect(ctrlOffset).toBe(altOffset);
+  });
+
+  // ── Ctrl+Shift+Arrow (select by word) ─────────────────────────────────
+
+  it('Ctrl+Shift+ArrowRight → selects to next word boundary', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6); // end of "hello ", before chip
+
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowRight', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(6);
+    expect(offsets!.focus).toBe(6 + CHIP_A_LEN); // past chip
+  });
+
+  it('Ctrl+Shift+ArrowLeft → selects to previous word boundary', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const textNode = el.childNodes[2]!; // " world"
+    setCursor(textNode, 0); // right after chip
+
+    const handled = handleChipNavigation(el, makeCtrlKeyEvent('ArrowLeft', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(6 + CHIP_A_LEN);
+    expect(offsets!.focus).toBe(6); // before chip
+  });
+});

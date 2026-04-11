@@ -6,10 +6,9 @@
  * to provide deterministic cursor behavior around those chips:
  *
  * - **Left/Right Arrow**: skip over a chip as a unit when the cursor is adjacent to it
- * - **Alt+Arrow** (macOS word-skip): treat each chip as a "word" boundary
+ * - **Alt+Arrow** (macOS) / **Ctrl+Arrow** (Windows/Linux): treat each chip as a "word" boundary
  *
- * NOTE: Windows/Linux use Ctrl+Arrow for word-skip. Only Alt+Arrow is handled here.
- * A future change could add Ctrl+Arrow support if needed.
+ * Both Alt+Arrow (macOS) and Ctrl+Arrow (Windows/Linux) are handled for word-skip.
  */
 
 // ── Public helpers ───────────────────────────────────────────────────────────
@@ -163,8 +162,8 @@ export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): 
       // Cmd+Shift+Arrow (macOS) — extend selection to line start/end
       return handleShiftLineJump(container, direction === 'left' ? 'start' : 'end');
     }
-    if (e.altKey) {
-      // Alt+Shift+Arrow (macOS) — extend selection by word
+    if (e.altKey || e.ctrlKey) {
+      // Alt+Shift+Arrow (macOS) or Ctrl+Shift+Arrow (Win/Linux) — extend selection by word
       return handleShiftWordSkip(container, direction);
     }
     // Shift+Arrow — extend selection across adjacent chip
@@ -176,7 +175,8 @@ export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): 
     return handleLineJump(container, direction === 'left' ? 'start' : 'end');
   }
 
-  if (e.altKey) {
+  if (e.altKey || e.ctrlKey) {
+    // Alt+Arrow (macOS) or Ctrl+Arrow (Win/Linux) — word skip
     return handleWordSkip(container, direction);
   }
 
