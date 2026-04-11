@@ -226,7 +226,13 @@ function findWordBoundaryLeft(segments: Segment[], fromOffset: number): number {
     const offsetInText = pos - seg.start;
     const newOffsetInText = findTextWordBoundaryLeft(seg.text, offsetInText);
     if (newOffsetInText < offsetInText) {
-      return seg.start + newOffsetInText;
+      // If we landed at position 0 and only consumed whitespace (no word chars),
+      // continue scanning backward to skip an adjacent chip as part of the same word-skip.
+      const onlySkippedWhitespace =
+        newOffsetInText === 0 && /^\s+$/.test(seg.text.substring(0, offsetInText));
+      if (!onlySkippedWhitespace) {
+        return seg.start + newOffsetInText;
+      }
     }
     // Reached start of text segment — continue to previous segment
     pos = seg.start;
@@ -246,7 +252,10 @@ function findWordBoundaryLeft(segments: Segment[], fromOffset: number): number {
     // At end of text segment — find word boundary within
     const newOffsetInText = findTextWordBoundaryLeft(seg.text, seg.text.length);
     if (newOffsetInText < seg.text.length) {
-      return seg.start + newOffsetInText;
+      const onlySkippedWhitespace = newOffsetInText === 0 && /^\s+$/.test(seg.text);
+      if (!onlySkippedWhitespace) {
+        return seg.start + newOffsetInText;
+      }
     }
     // Continue to earlier segment
     pos = seg.start;
@@ -261,7 +270,10 @@ function findWordBoundaryLeft(segments: Segment[], fromOffset: number): number {
       }
       const prevOffset = findTextWordBoundaryLeft(prevSeg.text, prevSeg.text.length);
       if (prevOffset < prevSeg.text.length) {
-        return prevSeg.start + prevOffset;
+        const prevOnlyWhitespace = prevOffset === 0 && /^\s+$/.test(prevSeg.text);
+        if (!prevOnlyWhitespace) {
+          return prevSeg.start + prevOffset;
+        }
       }
       pos = prevSeg.start;
     }
@@ -300,7 +312,14 @@ function findWordBoundaryRight(segments: Segment[], fromOffset: number): number 
     const offsetInText = pos - seg.start;
     const newOffsetInText = findTextWordBoundaryRight(seg.text, offsetInText);
     if (newOffsetInText > offsetInText) {
-      return seg.start + newOffsetInText;
+      // If we landed at the end of the text segment and only consumed whitespace (no word chars),
+      // continue scanning forward to skip an adjacent chip as part of the same word-skip.
+      const onlySkippedWhitespace =
+        newOffsetInText === seg.text.length &&
+        /^\s+$/.test(seg.text.substring(offsetInText, newOffsetInText));
+      if (!onlySkippedWhitespace) {
+        return seg.start + newOffsetInText;
+      }
     }
     // Reached end of text segment — continue to next segment
     pos = segEnd;
@@ -318,7 +337,10 @@ function findWordBoundaryRight(segments: Segment[], fromOffset: number): number 
 
     const newOffsetInText = findTextWordBoundaryRight(seg.text, 0);
     if (newOffsetInText > 0) {
-      return seg.start + newOffsetInText;
+      const onlySkippedWhitespace = newOffsetInText === seg.text.length && /^\s+$/.test(seg.text);
+      if (!onlySkippedWhitespace) {
+        return seg.start + newOffsetInText;
+      }
     }
     // Continue to next segment
     pos = seg.start + seg.text.length;
@@ -330,7 +352,10 @@ function findWordBoundaryRight(segments: Segment[], fromOffset: number): number 
       }
       const nextOffset = findTextWordBoundaryRight(nextSeg.text, 0);
       if (nextOffset > 0) {
-        return nextSeg.start + nextOffset;
+        const nextOnlyWhitespace = nextOffset === nextSeg.text.length && /^\s+$/.test(nextSeg.text);
+        if (!nextOnlyWhitespace) {
+          return nextSeg.start + nextOffset;
+        }
       }
       pos = nextSeg.start + nextSeg.text.length;
     }

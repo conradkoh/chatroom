@@ -590,4 +590,38 @@ describe('findWordBoundary', () => {
     const el = makeContainer('hello');
     expect(findWordBoundary(el, 5, 'right')).toBe(5);
   });
+
+  // ── Alt+Arrow chip-skip after whitespace ────────────────────────────────────
+
+  it('skips chip after consuming whitespace going left: <chip><space><caret> → <caret><chip><space>', () => {
+    const token = fileToken('a.ts');
+    // Layout: <chip>" " with caret at the end
+    const el = makeContainer(`${token} `);
+    const totalLen = token.length + 1;
+    expect(findWordBoundary(el, totalLen, 'left')).toBe(0);
+  });
+
+  it('skips chip after consuming whitespace going right: <caret><space><chip> → <space><chip><caret>', () => {
+    const token = fileToken('a.ts');
+    // Layout: " "<chip> with caret at position 0
+    const el = makeContainer(` ${token}`);
+    expect(findWordBoundary(el, 0, 'right')).toBe(1 + token.length);
+  });
+
+  it('stops before chip (not before text) going left: text<chip><space><caret>', () => {
+    const token = fileToken('a.ts');
+    // Layout: "text"<chip>" " with caret at the end
+    const el = makeContainer(`text${token} `);
+    const totalLen = 4 + token.length + 1;
+    // Should stop before chip (at offset 4), not before "text" (at offset 0)
+    expect(findWordBoundary(el, totalLen, 'left')).toBe(4);
+  });
+
+  it('stops after chip (not after more) going right: <caret><space><chip>more', () => {
+    const token = fileToken('a.ts');
+    // Layout: " "<chip>"more" with caret at position 0
+    const el = makeContainer(` ${token}more`);
+    // Should stop after chip (at offset 1 + token.length), not after "more"
+    expect(findWordBoundary(el, 0, 'right')).toBe(1 + token.length);
+  });
 });
