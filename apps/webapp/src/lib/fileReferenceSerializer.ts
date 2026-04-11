@@ -1,21 +1,10 @@
 import { decodeFileReferences } from './fileReference';
 import { getFileName } from './pathUtils';
 import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenceChipUI';
+import { ZWS, stripZws, computeRawOffset } from './domOffsetUtils';
 
-/**
- * Zero-width space character used before chips at line start positions.
- * Gives Safari a text node to place the caret before the chip, preventing
- * caret-overlap issues in contenteditable elements.
- */
-export const ZWS = '\u200B';
-
-/**
- * Strip all ZWS characters from a string.
- * Used when converting DOM text content back to raw text.
- */
-export function stripZws(text: string): string {
-  return text.replace(/\u200B/g, '');
-}
+// Re-export shared utilities so existing consumers don't break
+export { ZWS, stripZws };
 
 /**
  * Convert raw message text (with {file://workspace/path} tokens) to HTML
@@ -131,200 +120,24 @@ export function htmlToRawText(element: HTMLElement): string {
 /**
  * Compute the raw text cursor offset from a DOM selection within a contenteditable.
  *
- * Walks the DOM tree in document order, accumulating character counts:
- * - Text nodes contribute their textContent length
- * - Chip spans (data-file-ref) contribute the length of their raw token
- * - <br> contributes 1 (newline)
- * - <div> contributes 1 (newline) if not the first child
- *
- * Returns the offset into the raw text string where the cursor is.
+ * Delegates to the shared computeRawOffset from domOffsetUtils.
+ * This wrapper preserves the public API name used by existing consumers.
  */
 export function domOffsetToRawOffset(
   container: HTMLElement,
   anchorNode: Node,
   anchorOffset: number
 ): number {
-  let offset = 0;
-  let found = false;
-
-  function walk(node: Node): boolean {
-    if (found) return true;
-
-    if (node === anchorNode) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        // Count only non-ZWS chars up to anchorOffset
-        const text = node.textContent ?? '';
-        const beforeCursor = text.slice(0, anchorOffset);
-        offset += stripZws(beforeCursor).length;
-      } else {
-        // Element node — anchorOffset is the child index
-        for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
-          accumulateLength(node.childNodes[i]!);
-        }
-      }
-      found = true;
-      return true;
-    }
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
-      return false;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-
-      // Chip span — count the raw token length as a whole
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        // If the anchor is inside the chip, treat it as being at the end
-        if (el.contains(anchorNode)) {
-          offset += fileRef.length;
-          found = true;
-          return true;
-        }
-        offset += fileRef.length;
-        return false;
-      }
-
-      // <br> → 1 character
-      if (el.tagName === 'BR') {
-        offset += 1;
-        return false;
-      }
-
-      // <div> newline (contenteditable line break behavior)
-      if (el.tagName === 'DIV' && el.previousSibling) {
-        offset += 1;
-      }
-
-      // Recurse into children
-      for (const child of Array.from(node.childNodes)) {
-        if (walk(child)) return true;
-      }
-    }
-
-    return false;
-  }
-
-  /** Accumulate the full raw text length of a node subtree. */
-  function accumulateLength(node: Node): void {
-    if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
-      return;
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        offset += fileRef.length;
-        return;
-      }
-      if (el.tagName === 'BR') {
-        offset += 1;
-        return;
-      }
-      if (el.tagName === 'DIV' && el.previousSibling) {
-        offset += 1;
-      }
-      for (const child of Array.from(el.childNodes)) {
-        accumulateLength(child);
-      }
-    }
-  }
-
-  walk(container);
-  return offset;
+  return computeRawOffset(container, anchorNode, anchorOffset);
 }
 
 /**
  * Set the cursor to a specific raw text offset within a contenteditable element.
  *
- * Walks the DOM tree mapping raw text offsets to DOM positions, then sets the
- * selection using the Range API.
+ * Delegates to the shared setCursorToRawOffset from domOffsetUtils.
+ * Re-exported here to preserve the existing public API.
  */
-export function setCursorToRawOffset(container: HTMLElement, targetOffset: number): void {
-  let remaining = targetOffset;
-  let targetNode: Node | null = null;
-  let targetDomOffset = 0;
-  let found = false;
-
-  function walk(node: Node): boolean {
-    if (found) return true;
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const rawLen = stripZws(text).length;
-      if (remaining <= rawLen) {
-        targetNode = node;
-        // Map raw offset to DOM offset by counting ZWS chars
-        targetDomOffset = rawOffsetToDomOffset(text, remaining);
-        found = true;
-        return true;
-      }
-      remaining -= rawLen;
-      return false;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        if (remaining <= fileRef.length) {
-          // Place cursor after the chip
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= fileRef.length;
-        return false;
-      }
-
-      if (el.tagName === 'BR') {
-        if (remaining <= 1) {
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= 1;
-        return false;
-      }
-
-      if (el.tagName === 'DIV' && el.previousSibling) {
-        if (remaining <= 1) {
-          // Place at the beginning of this div
-          targetNode = el;
-          targetDomOffset = 0;
-          found = true;
-          return true;
-        }
-        remaining -= 1;
-      }
-
-      for (const child of Array.from(node.childNodes)) {
-        if (walk(child)) return true;
-      }
-    }
-
-    return false;
-  }
-
-  walk(container);
-
-  if (targetNode) {
-    const selection = window.getSelection();
-    if (selection) {
-      const range = document.createRange();
-      range.setStart(targetNode, targetDomOffset);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  }
-}
+export { setCursorToRawOffset } from './domOffsetUtils';
 
 /**
  * Extract raw text (with {file://...} tokens) from the current DOM selection
@@ -408,23 +221,6 @@ function nodeToRawText(node: Node): string {
   }
 
   return '';
-}
-
-/**
- * Map a raw text offset (ZWS-free) to a DOM offset within a text node
- * that may contain ZWS characters. Skips over ZWS chars when counting.
- *
- * Example: text = "\u200Bhello", rawOffset = 2 → domOffset = 3
- * (skip the ZWS at position 0, then count 'h' at 1, 'e' at 2 → DOM position 3)
- */
-function rawOffsetToDomOffset(text: string, rawOffset: number): number {
-  let rawCount = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === ZWS) continue;
-    if (rawCount === rawOffset) return i;
-    rawCount++;
-  }
-  return text.length;
 }
 
 function escapeHtml(text: string): string {

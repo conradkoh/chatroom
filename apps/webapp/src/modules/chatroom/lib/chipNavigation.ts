@@ -11,7 +11,12 @@
  * Both Alt+Arrow (macOS) and Ctrl+Arrow (Windows/Linux) are handled for word-skip.
  */
 
-import { stripZws, ZWS } from '@/lib/fileReferenceSerializer';
+import {
+  stripZws,
+  computeRawOffset,
+  resolveRawOffsetToDom,
+  setCursorToRawOffset,
+} from '@/lib/domOffsetUtils';
 
 // ── Public helpers ───────────────────────────────────────────────────────────
 
@@ -446,7 +451,7 @@ function handleWordSkip(container: HTMLElement, direction: 'left' | 'right'): bo
   const targetOffset = findWordBoundary(container, currentOffset, direction);
   if (targetOffset === currentOffset) return false;
 
-  setCursorToRawOffsetInContainer(container, targetOffset);
+  setCursorToRawOffset(container, targetOffset);
   return true;
 }
 
@@ -454,7 +459,7 @@ function handleWordSkip(container: HTMLElement, direction: 'left' | 'right'): bo
 
 function handleLineJump(container: HTMLElement, target: 'start' | 'end'): boolean {
   if (target === 'start') {
-    setCursorToRawOffsetInContainer(container, 0);
+    setCursorToRawOffset(container, 0);
   } else {
     const segments = buildSegments(container);
     const totalLength =
@@ -464,7 +469,7 @@ function handleLineJump(container: HTMLElement, target: 'start' | 'end'): boolea
             return last.start + (last.type === 'text' ? last.text.length : last.token.length);
           })()
         : 0;
-    setCursorToRawOffsetInContainer(container, totalLength);
+    setCursorToRawOffset(container, totalLength);
   }
   return true;
 }
@@ -580,82 +585,6 @@ function extendSelectionToRawOffset(container: HTMLElement, targetOffset: number
     selection.removeAllRanges();
     selection.addRange(newRange);
   }
-}
-
-/**
- * Resolve a raw offset into a DOM (node, offset) pair.
- * Returns the node and offset suitable for Range/Selection APIs.
- */
-function resolveRawOffsetToDom(
-  container: HTMLElement,
-  targetOffset: number
-): { node: Node; offset: number } {
-  let remaining = targetOffset;
-  let resultNode: Node = container;
-  let resultOffset = 0;
-  let found = false;
-
-  function walk(node: Node): boolean {
-    if (found) return true;
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const rawLen = stripZws(text).length;
-      if (remaining <= rawLen) {
-        resultNode = node;
-        resultOffset = rawToDomOffset(text, remaining);
-        found = true;
-        return true;
-      }
-      remaining -= rawLen;
-      return false;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        if (remaining === 0) {
-          resultNode = el.parentNode!;
-          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el);
-          found = true;
-          return true;
-        }
-        if (remaining <= fileRef.length) {
-          resultNode = el.parentNode!;
-          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= fileRef.length;
-        return false;
-      }
-      if (el.tagName === 'BR') {
-        if (remaining <= 1) {
-          resultNode = el.parentNode!;
-          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= 1;
-        return false;
-      }
-      for (const child of Array.from(node.childNodes)) {
-        if (walk(child)) return true;
-      }
-    }
-    return false;
-  }
-
-  walk(container);
-
-  if (!found) {
-    // Past end — position at end of container
-    resultNode = container;
-    resultOffset = container.childNodes.length;
-  }
-
-  return { node: resultNode, offset: resultOffset };
 }
 
 // ── Internal: segment model ──────────────────────────────────────────────────
@@ -910,22 +839,6 @@ function findTextWordBoundaryRight(text: string, offset: number): number {
   return pos;
 }
 
-// ── Internal: ZWS offset mapping helper ─────────────────────────────────────
-
-/**
- * Map a raw text offset (ZWS-free) to a DOM offset within a text node
- * that may contain ZWS characters. Skips over ZWS chars when counting.
- */
-function rawToDomOffset(text: string, rawOffset: number): number {
-  let rawCount = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === ZWS) continue;
-    if (rawCount === rawOffset) return i;
-    rawCount++;
-  }
-  return text.length;
-}
-
 // ── Internal: cursor positioning helpers ─────────────────────────────────────
 
 function setCursorBeforeNode(node: Node): void {
@@ -961,163 +874,5 @@ function getCurrentRawOffset(container: HTMLElement): number | null {
   const { anchorNode, anchorOffset } = selection;
   if (!anchorNode || !container.contains(anchorNode)) return null;
 
-  // Use domOffsetToRawOffset logic inline to avoid circular dependency
   return computeRawOffset(container, anchorNode, anchorOffset);
-}
-
-/**
- * Compute raw offset from DOM position. Mirrors domOffsetToRawOffset from the serializer
- * but kept here to avoid coupling with the serializer module.
- */
-function computeRawOffset(container: HTMLElement, anchorNode: Node, anchorOffset: number): number {
-  let offset = 0;
-  let found = false;
-
-  function walk(node: Node): boolean {
-    if (found) return true;
-
-    if (node === anchorNode) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent ?? '';
-        const beforeCursor = text.slice(0, anchorOffset);
-        offset += stripZws(beforeCursor).length;
-      } else {
-        for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
-          accumulateLength(node.childNodes[i]!);
-        }
-      }
-      found = true;
-      return true;
-    }
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
-      return false;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        if (el.contains(anchorNode)) {
-          offset += fileRef.length;
-          found = true;
-          return true;
-        }
-        offset += fileRef.length;
-        return false;
-      }
-      if (el.tagName === 'BR') {
-        offset += 1;
-        return false;
-      }
-      for (const child of Array.from(node.childNodes)) {
-        if (walk(child)) return true;
-      }
-    }
-    return false;
-  }
-
-  function accumulateLength(node: Node): void {
-    if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
-      return;
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        offset += fileRef.length;
-        return;
-      }
-      if (el.tagName === 'BR') {
-        offset += 1;
-        return;
-      }
-      for (const child of Array.from(el.childNodes)) {
-        accumulateLength(child);
-      }
-    }
-  }
-
-  walk(container);
-  return offset;
-}
-
-/**
- * Set the cursor to a raw offset within the container using the Range API.
- * Walks child nodes to find the target DOM position.
- */
-function setCursorToRawOffsetInContainer(container: HTMLElement, targetOffset: number): void {
-  let remaining = targetOffset;
-  let targetNode: Node | null = null;
-  let targetDomOffset = 0;
-  let found = false;
-
-  function walk(node: Node): boolean {
-    if (found) return true;
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const rawLen = stripZws(text).length;
-      if (remaining <= rawLen) {
-        targetNode = node;
-        targetDomOffset = rawToDomOffset(text, remaining);
-        found = true;
-        return true;
-      }
-      remaining -= rawLen;
-      return false;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        if (remaining === 0) {
-          // Place cursor before the chip
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el);
-          found = true;
-          return true;
-        }
-        if (remaining <= fileRef.length) {
-          // Place cursor after the chip (cursor is within the chip's raw token range)
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= fileRef.length;
-        return false;
-      }
-      if (el.tagName === 'BR') {
-        if (remaining <= 1) {
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= 1;
-        return false;
-      }
-      for (const child of Array.from(node.childNodes)) {
-        if (walk(child)) return true;
-      }
-    }
-    return false;
-  }
-
-  walk(container);
-
-  if (targetNode) {
-    const selection = window.getSelection();
-    if (selection) {
-      const range = document.createRange();
-      range.setStart(targetNode, targetDomOffset);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  }
 }
