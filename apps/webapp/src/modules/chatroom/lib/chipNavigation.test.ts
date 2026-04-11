@@ -625,3 +625,219 @@ describe('findWordBoundary', () => {
     expect(findWordBoundary(el, 0, 'right')).toBe(1 + token.length);
   });
 });
+
+// ── Hardening edge cases ─────────────────────────────────────────────────────
+
+describe('handleChipNavigation — hardening edge cases', () => {
+  // Case 1: Multiple spaces between text and chip
+  it('Alt+Left: word<3 spaces><chip><caret> skips chip and all whitespace', () => {
+    const token = fileToken('a.ts');
+    // Layout: "word   "<chip> with caret at end
+    const el = makeContainer(`word   ${token}`);
+    // Set cursor at end (after chip)
+    setCursor(el, el.childNodes.length);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(handled).toBe(true);
+    // Should land before chip, at position 7 ("word   " boundary)
+    // Then another Alt+Left should land at "word" start
+    expect(getRawOffset(el)).toBe(7);
+  });
+
+  // Case 2: Chip surrounded by only whitespace
+  it('Alt+Right: <caret><space><chip><space> jumps past chip', () => {
+    const token = fileToken('a.ts');
+    // Layout: " "<chip>" " with caret at position 0
+    const el = makeContainer(` ${token} `);
+
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(handled).toBe(true);
+    // Should skip whitespace + chip, landing after chip at offset 1 + token.length
+    expect(getRawOffset(el)).toBe(1 + token.length);
+  });
+
+  // Case 3: Tab character as whitespace near chip
+  it('Alt+Left: <chip><tab><caret> treats tab as whitespace and skips chip', () => {
+    const token = fileToken('a.ts');
+    // Layout: <chip>\t with caret at end
+    const el = makeContainer(`${token}\t`);
+    // Position cursor at end of tab text node
+    const textNode = el.childNodes[1]!; // text node "\t"
+    setCursor(textNode, 1);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0); // Before the chip
+  });
+
+  // Case 4: Alt+Left repeated traversal through mixed content
+  it('Alt+Left repeated: word1 <chip1> <chip2> word2<caret> traverses all boundaries', () => {
+    const chip1 = fileToken('a.ts');
+    const chip2 = fileToken('b.ts');
+    // Layout: "word1 "<chip1>" "<chip2>" word2"
+    const el = makeContainer(`word1 ${chip1} ${chip2} word2`);
+    const chip1End = 6 + chip1.length;
+    const chip2Start = chip1End + 1; // " " after chip1
+    const chip2End = chip2Start + chip2.length;
+
+    // Start at end
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, (lastText.textContent ?? '').length);
+
+    // Alt+Left 1: jump to start of "word2" within " word2"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip2End + 1); // after " " before "word2"
+
+    // Alt+Left 2: jump before chip2 (skip whitespace " " at start of " word2" then skip chip2)
+    // Whitespace consumed but no word chars → continues past chip2, lands at chip2Start
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip2Start); // before chip2
+
+    // Alt+Left 3: now at chip1End (29), which is the start of " " text segment
+    // This is at a segment boundary — find word boundary left goes into chip1
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6); // before chip1, after "word1 "
+
+    // Alt+Left 4: jump to start of "word1"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Case 5: Alt+Right repeated traversal through mixed content
+  it('Alt+Right repeated: <caret>word1 <chip1> <chip2> word2 traverses all boundaries', () => {
+    const chip1 = fileToken('a.ts');
+    const chip2 = fileToken('b.ts');
+    // Layout: "word1 "<chip1>" "<chip2>" word2"
+    const el = makeContainer(`word1 ${chip1} ${chip2} word2`);
+    const chip1End = 6 + chip1.length;
+    const chip2Start = chip1End + 1;
+    const chip2End = chip2Start + chip2.length;
+
+    // Start at beginning
+    const firstText = el.childNodes[0]!;
+    setCursor(firstText, 0);
+
+    // Alt+Right 1: jump past "word1 " (word chars + trailing whitespace)
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6);
+
+    // Alt+Right 2: at chip1 boundary → skip chip1
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip1End);
+
+    // Alt+Right 3: skip " " (whitespace-only segment) + chip2
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip2End);
+
+    // Alt+Right 4: in " word2", skip the leading space
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip2End + 1); // past space, at start of "word2"
+
+    // Alt+Right 5: skip "word2" to end
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip2End + 6); // end of " word2"
+  });
+
+  // Case 6: Adjacent chips with text after — Right arrow at boundary
+  it('Right arrow skips chip2 when between <chip1><chip2>text', () => {
+    const tokenA = fileToken('a.ts');
+    const tokenB = fileToken('b.ts');
+    const el = makeContainer(`${tokenA}${tokenB}text`);
+
+    // Set cursor at container level between chip1 and chip2 (index 1)
+    setCursor(el, 1);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(tokenA.length + tokenB.length); // after chip2, before "text"
+  });
+
+  // Case 7: Single character text node between two chips
+  it('Left/Right returns false when cursor is inside single-char text between chips', () => {
+    const tokenA = fileToken('a.ts');
+    const tokenB = fileToken('b.ts');
+    const el = makeContainer(`${tokenA}x${tokenB}`);
+
+    // Find the "x" text node (should be childNodes[1])
+    let textNode: Node | null = null;
+    for (const child of Array.from(el.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE && child.textContent === 'x') {
+        textNode = child;
+        break;
+      }
+    }
+    expect(textNode).not.toBeNull();
+
+    // Cursor at offset 1 in "x" (end of "x") — chip is after
+    setCursor(textNode!, 1);
+    const handledRight = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(handledRight).toBe(true); // Adjacent to chip after
+
+    // Cursor at offset 0 in "x" (start of "x") — chip is before
+    setCursor(textNode!, 0);
+    const handledLeft = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(handledLeft).toBe(true); // Adjacent to chip before
+  });
+
+  // Case 8: Chip at start, Alt+Left from inside adjacent text word
+  it('Alt+Left from <chip>word<caret> jumps to start of "word", not past chip', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`${token}word`);
+
+    // Set cursor at end of "word"
+    const textNode = el.childNodes[1]!; // "word" text node
+    setCursor(textNode, 4);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(handled).toBe(true);
+    // Should jump to start of "word" (after chip), not before chip
+    expect(getRawOffset(el)).toBe(token.length);
+  });
+
+  // Case 9: Only whitespace in the input (no chips)
+  it('Alt+Right in whitespace-only input jumps to end', () => {
+    const el = makeContainer('   ');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(3);
+  });
+
+  it('Alt+Left in whitespace-only input jumps to start', () => {
+    const el = makeContainer('   ');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Case 10: Three adjacent chips with Alt+Left from end
+  it('Alt+Left through 3 adjacent chips skips one at a time', () => {
+    const tokenA = fileToken('a.ts');
+    const tokenB = fileToken('b.ts');
+    const tokenC = fileToken('c.ts');
+    const el = makeContainer(`${tokenA}${tokenB}${tokenC}`);
+
+    // Start at end (after chip_c)
+    setCursor(el, 3);
+
+    // Alt+Left 1: before chip_c
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(tokenA.length + tokenB.length);
+
+    // Alt+Left 2: before chip_b
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(tokenA.length);
+
+    // Alt+Left 3: before chip_a
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+});
