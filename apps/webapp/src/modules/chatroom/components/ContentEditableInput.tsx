@@ -16,6 +16,8 @@ import {
   setCursorToRawOffset,
 } from '@/lib/fileReferenceSerializer';
 
+import { handleChipNavigation } from '@/modules/chatroom/lib/chipNavigation';
+
 // ── Public types ─────────────────────────────────────────────────────────────
 
 export interface ContentEditableInputRef {
@@ -190,6 +192,12 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
+        // Intercept arrow keys near chips for deterministic navigation
+        const el = divRef.current;
+        if (el && handleChipNavigation(el, e.nativeEvent)) {
+          e.preventDefault();
+          return;
+        }
         // Forward to parent handler
         onKeyDown?.(e);
       },

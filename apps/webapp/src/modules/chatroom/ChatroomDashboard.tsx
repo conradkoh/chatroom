@@ -718,8 +718,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       .filter(Boolean) as string[];
     if (failed.length > 0) {
       toast.error(`Failed to start: ${failed.join(', ')}`);
-    } else {
-      toast.success(`Started ${agentRoles.length} agent(s)`);
     }
   }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
 
