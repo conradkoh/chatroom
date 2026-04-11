@@ -16,7 +16,11 @@ import {
   setCursorToRawOffset,
 } from '@/lib/fileReferenceSerializer';
 
-import { handleChipNavigation, handleChipClick } from '@/modules/chatroom/lib/chipNavigation';
+import {
+  handleChipNavigation,
+  handleChipClick,
+  sanitizeCursorPosition,
+} from '@/modules/chatroom/lib/chipNavigation';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -213,6 +217,16 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       }
     }, []);
 
+    // ── Focus handler ──────────────────────────────────────────────────────
+
+    const handleFocus = useCallback(() => {
+      const el = divRef.current;
+      if (el) {
+        // Ensure cursor isn't stuck inside a chip after focus restore
+        sanitizeCursorPosition(el);
+      }
+    }, []);
+
     // ── Focus management ───────────────────────────────────────────────────
 
     // Set initial content on mount
@@ -240,6 +254,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onClick={handleClick}
+          onFocus={handleFocus}
           onPaste={handlePaste}
           className={
             className ??

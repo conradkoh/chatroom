@@ -3,6 +3,7 @@ import { rawTextToHtml } from '@/lib/fileReferenceSerializer';
 import {
   handleChipNavigation,
   handleChipClick,
+  sanitizeCursorPosition,
   isChipNode,
   getAdjacentChip,
   findWordBoundary,
@@ -2743,5 +2744,98 @@ describe('handleChipClick — mouse click on chip', () => {
     expect(handled).toBe(false);
 
     document.body.removeChild(outsideNode);
+  });
+});
+
+// ── sanitizeCursorPosition tests ────────────────────────────────────────────
+
+describe('sanitizeCursorPosition — focus restore', () => {
+  const CHIP_A = fileToken('a.ts');
+
+  /**
+   * Force the selection's anchorNode inside a chip by manually setting it
+   * to a text node within the chip span.
+   */
+  function setCursorInsideChip(chip: HTMLElement): void {
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+
+    // Try to position inside the chip's first child (usually a text node)
+    const inner = chip.firstChild ?? chip;
+    if (inner.nodeType === Node.TEXT_NODE) {
+      range.setStart(inner, 0);
+    } else {
+      range.setStart(chip, 0);
+    }
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  // ── Cursor inside chip → moved after chip ─────────────────────────────
+
+  it('cursor inside chip → moved after chip, returns true', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const chip = el.querySelector('[data-file-ref]')! as HTMLElement;
+    setCursorInsideChip(chip);
+
+    const corrected = sanitizeCursorPosition(el);
+    expect(corrected).toBe(true);
+
+    // Cursor should now be after the chip (not inside it)
+    const cursor = getCursor();
+    expect(cursor).not.toBeNull();
+    const chipIndex = Array.from(el.childNodes).indexOf(chip);
+    expect(cursor!.node).toBe(el);
+    expect(cursor!.offset).toBe(chipIndex + 1);
+  });
+
+  // ── Cursor in valid text position → no change ─────────────────────────
+
+  it('cursor in text position → returns false, no change', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3); // mid "hello "
+
+    const corrected = sanitizeCursorPosition(el);
+    expect(corrected).toBe(false);
+
+    // Cursor unchanged
+    const cursor = getCursor();
+    expect(cursor!.node).toBe(textNode);
+    expect(cursor!.offset).toBe(3);
+  });
+
+  // ── Cursor before chip → no change ────────────────────────────────────
+
+  it('cursor before chip (at container level) → returns false', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    setCursor(el, 0); // before chip, at container level
+
+    const corrected = sanitizeCursorPosition(el);
+    expect(corrected).toBe(false);
+  });
+
+  // ── Cursor after chip → no change ────────────────────────────────────
+
+  it('cursor after chip → returns false', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    const textNode = el.childNodes[1]!; // " world"
+    setCursor(textNode, 0);
+
+    const corrected = sanitizeCursorPosition(el);
+    expect(corrected).toBe(false);
+  });
+
+  // ── No selection → returns false ──────────────────────────────────────
+
+  it('no selection → returns false', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    // Clear all selections
+    window.getSelection()?.removeAllRanges();
+
+    const corrected = sanitizeCursorPosition(el);
+    expect(corrected).toBe(false);
   });
 });

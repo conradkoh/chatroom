@@ -226,6 +226,33 @@ function findChipAncestor(node: Node, container: HTMLElement): HTMLElement | nul
   return null;
 }
 
+// ── Focus restore ────────────────────────────────────────────────────────────
+
+/**
+ * Sanitize the cursor position after focus is restored to the contenteditable.
+ *
+ * When the input regains focus (e.g., after a dialog closes or React re-render),
+ * the browser may place the cursor inside a chip span. This function detects that
+ * and moves the cursor to after the chip.
+ *
+ * @returns true if a correction was made, false otherwise.
+ */
+export function sanitizeCursorPosition(container: HTMLElement): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return false;
+
+  const { anchorNode } = selection;
+  if (!anchorNode || !container.contains(anchorNode)) return false;
+
+  // Check if anchorNode is inside a chip
+  const chip = findChipAncestor(anchorNode, container);
+  if (!chip) return false;
+
+  // Move cursor to after the chip
+  setCursorAfterNode(chip);
+  return true;
+}
+
 // ── Internal: single-step navigation ─────────────────────────────────────────
 
 function handleSingleStep(container: HTMLElement, direction: 'left' | 'right'): boolean {
