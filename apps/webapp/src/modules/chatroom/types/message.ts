@@ -36,7 +36,7 @@ export interface Message {
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  taskStatus?: 'pending' | 'acknowledged' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
   /** Source platform for messages from external integrations (e.g. 'telegram') */
   sourcePlatform?: string;
   /** Feature metadata (only for new_feature classification) */
