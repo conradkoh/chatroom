@@ -66,7 +66,7 @@ export function FileReferenceChipUI({
  */
 export function buildFileRefChipHtml(rawToken: string, fileName: string): string {
   const escaped = escapeAttr(rawToken);
-  return `<span contenteditable="false" data-file-ref="${escaped}" class="${FILE_REF_CHIP_BASE_CLASSES} mx-0.5 cursor-default select-none">${FILE_REF_ICON_SVG} <span class="truncate" style="max-width: 200px;">${escapeHtml(fileName)}</span></span>`;
+  return `<span contenteditable="false" data-file-ref="${escaped}" class="${FILE_REF_CHIP_BASE_CLASSES} mr-1 cursor-default select-none">${FILE_REF_ICON_SVG} <span class="truncate" style="max-width: 200px;">${escapeHtml(fileName)}</span></span>`;
 }
 
 // ============================================================================
