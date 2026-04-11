@@ -144,6 +144,15 @@ export function findWordBoundary(
  * @returns true if the event was handled (caller should preventDefault), false otherwise.
  */
 export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): boolean {
+  // Home/End keys — line jump (equivalent to Cmd+Arrow on macOS)
+  if (e.key === 'Home' || e.key === 'End') {
+    const target = e.key === 'Home' ? 'start' : 'end';
+    if (e.shiftKey) {
+      return handleShiftLineJump(container, target);
+    }
+    return handleLineJump(container, target);
+  }
+
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
 
   const direction = e.key === 'ArrowLeft' ? 'left' : 'right';

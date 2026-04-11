@@ -2140,3 +2140,278 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
     expect(handled).toBe(false);
   });
 });
+
+// ── Home/End key tests ──────────────────────────────────────────────────────
+
+describe('handleChipNavigation — Home/End keys', () => {
+  const CHIP_A = fileToken('a.ts'); // {file://workspace/a.ts} = 23 chars
+  const CHIP_A_LEN = CHIP_A.length;
+  const CHIP_B = fileToken('b.ts');
+  const CHIP_B_LEN = CHIP_B.length;
+
+  /**
+   * Helper: compute the raw offset of a DOM position (node, offset) in a container.
+   */
+  function computeRawOffsetAt(
+    container: HTMLElement,
+    targetNode: Node,
+    targetOffset: number
+  ): number {
+    let offset = 0;
+    let found = false;
+
+    function walk(node: Node): boolean {
+      if (found) return true;
+      if (node === targetNode) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          offset += targetOffset;
+        } else {
+          for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
+            accumulateLength(node.childNodes[i]!);
+          }
+        }
+        found = true;
+        return true;
+      }
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return false;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          if (el.contains(targetNode)) {
+            offset += fileRef.length;
+            found = true;
+            return true;
+          }
+          offset += fileRef.length;
+          return false;
+        }
+        for (const child of Array.from(node.childNodes)) {
+          if (walk(child)) return true;
+        }
+      }
+      return false;
+    }
+
+    function accumulateLength(node: Node): void {
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          offset += fileRef.length;
+          return;
+        }
+        for (const child of Array.from(el.childNodes)) {
+          accumulateLength(child);
+        }
+      }
+    }
+
+    walk(container);
+    return offset;
+  }
+
+  /** Get selection as { anchor, focus } in raw offset terms. */
+  function getSelectionRawOffsets(
+    container: HTMLElement
+  ): { anchor: number; focus: number } | null {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    if (!selection.anchorNode || !selection.focusNode) return null;
+
+    const anchor = computeRawOffsetAt(container, selection.anchorNode, selection.anchorOffset);
+    const focus = computeRawOffsetAt(container, selection.focusNode, selection.focusOffset);
+    return { anchor, focus };
+  }
+
+  // ── Home key (cursor to start) ──────────────────────────────────────────
+
+  it('Home moves cursor to position 0 from middle of text', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('Home moves cursor to position 0 when after a chip', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('Home at position 0 stays at 0', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('Home in content with multiple chips moves to start', () => {
+    const el = makeContainer(`hello ${CHIP_A} mid ${CHIP_B} world`);
+    // Position cursor in " world" after chipB
+    const lastTextNode = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastTextNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // ── End key (cursor to end) ───────────────────────────────────────────
+
+  it('End moves cursor to end of content from middle of text', () => {
+    const el = makeContainer('hello world');
+    const totalLen = 11;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  it('End moves cursor to end when before a chip', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const totalLen = 6 + CHIP_A_LEN;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  it('End at end of content stays at end', () => {
+    const el = makeContainer('hello');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(5);
+  });
+
+  it('End in content with multiple chips moves to end', () => {
+    const el = makeContainer(`hello ${CHIP_A} mid ${CHIP_B} world`);
+    const totalLen = 6 + CHIP_A_LEN + 5 + CHIP_B_LEN + 6;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 2);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  // ── Shift+Home (select to start) ─────────────────────────────────────
+
+  it('Shift+Home selects from cursor to start', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(5); // anchor stays
+    expect(offsets!.focus).toBe(0); // focus to start
+  });
+
+  it('Shift+Home selects from after chip to start', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 3); // mid " world"
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(CHIP_A_LEN + 3);
+    expect(offsets!.focus).toBe(0);
+  });
+
+  // ── Shift+End (select to end) ─────────────────────────────────────────
+
+  it('Shift+End selects from cursor to end', () => {
+    const el = makeContainer('hello world');
+    const totalLen = 11;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(5);
+    expect(offsets!.focus).toBe(totalLen);
+  });
+
+  it('Shift+End selects from before chip to end', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const totalLen = 6 + CHIP_A_LEN;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3); // mid "hello "
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(3);
+    expect(offsets!.focus).toBe(totalLen);
+  });
+
+  // ── Home/End correctly position around chips ──────────────────────────
+
+  it('Home correctly positions before first chip when content starts with chip', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('Home'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  it('End correctly positions after last chip when content ends with chip', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const totalLen = 6 + CHIP_A_LEN;
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 2);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('End'));
+    expect(handled).toBe(true);
+    expect(getRawOffset(el)).toBe(totalLen);
+  });
+
+  // ── Unrelated keys still return false ─────────────────────────────────
+
+  it('other keys like ArrowUp are not handled', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowUp'));
+    expect(handled).toBe(false);
+  });
+});
