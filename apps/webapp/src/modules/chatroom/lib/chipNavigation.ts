@@ -183,6 +183,49 @@ export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): 
   return handleSingleStep(container, direction);
 }
 
+// ── Mouse click handler ──────────────────────────────────────────────────────
+
+/**
+ * Handle mouse clicks on chip elements in a contenteditable container.
+ *
+ * When a user clicks directly on a chip (contenteditable="false" span), the browser
+ * may leave the cursor inside the chip or at an inconsistent position. This handler
+ * detects clicks on chips and positions the cursor before or after the chip based
+ * on whether the click was closer to the left or right edge.
+ *
+ * @returns true if the click was on a chip and cursor was repositioned, false otherwise.
+ */
+export function handleChipClick(container: HTMLElement, e: MouseEvent): boolean {
+  const target = e.target as Node;
+  if (!target || !container.contains(target)) return false;
+
+  // Walk up from click target to find a chip node (but stop at the container)
+  const chip = findChipAncestor(target, container);
+  if (!chip) return false;
+
+  // Determine if the click is closer to the left or right edge of the chip
+  const rect = chip.getBoundingClientRect();
+  const midpoint = rect.left + rect.width / 2;
+
+  if (e.clientX < midpoint) {
+    setCursorBeforeNode(chip);
+  } else {
+    setCursorAfterNode(chip);
+  }
+
+  return true;
+}
+
+/** Walk up from a node to find a chip ancestor (stops at container). */
+function findChipAncestor(node: Node, container: HTMLElement): HTMLElement | null {
+  let current: Node | null = node;
+  while (current && current !== container) {
+    if (isChipNode(current)) return current;
+    current = current.parentNode;
+  }
+  return null;
+}
+
 // ── Internal: single-step navigation ─────────────────────────────────────────
 
 function handleSingleStep(container: HTMLElement, direction: 'left' | 'right'): boolean {

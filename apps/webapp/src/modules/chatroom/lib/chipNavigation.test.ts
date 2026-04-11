@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { rawTextToHtml } from '@/lib/fileReferenceSerializer';
 import {
   handleChipNavigation,
+  handleChipClick,
   isChipNode,
   getAdjacentChip,
   findWordBoundary,
@@ -2602,5 +2603,145 @@ describe('handleChipNavigation — Ctrl+Arrow word skip', () => {
     expect(offsets).not.toBeNull();
     expect(offsets!.anchor).toBe(6 + CHIP_A_LEN);
     expect(offsets!.focus).toBe(6); // before chip
+  });
+});
+
+// ── handleChipClick tests ───────────────────────────────────────────────────
+
+describe('handleChipClick — mouse click on chip', () => {
+  const CHIP_A = fileToken('a.ts');
+
+  /**
+   * Create a MouseEvent with a specific clientX targeting a node.
+   * In jsdom, we can't rely on real layout, so we mock getBoundingClientRect.
+   */
+  function makeMouseEvent(clientX: number, target: EventTarget): MouseEvent {
+    const event = new MouseEvent('click', {
+      clientX,
+      bubbles: true,
+    });
+    // jsdom doesn't set target from constructor — we need to dispatch from the element.
+    // Instead we'll override the target property for direct calls.
+    Object.defineProperty(event, 'target', { value: target, writable: false });
+    return event;
+  }
+
+  /**
+   * Mock getBoundingClientRect on a chip element so we can test left/right positioning.
+   */
+  function mockChipRect(chip: HTMLElement, left: number, width: number): void {
+    chip.getBoundingClientRect = () => ({
+      left,
+      right: left + width,
+      top: 0,
+      bottom: 20,
+      width,
+      height: 20,
+      x: left,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+
+  // ── Click on left half of chip → cursor before chip ───────────────────
+
+  it('click on left half of chip → cursor positioned before chip', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const chip = el.querySelector('[data-file-ref]')!;
+    mockChipRect(chip as HTMLElement, 100, 80); // left=100, width=80, midpoint=140
+
+    const event = makeMouseEvent(120, chip); // 120 < 140 → left half
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(true);
+
+    // Cursor should be before the chip
+    const cursor = getCursor();
+    expect(cursor).not.toBeNull();
+    // The chip's parent is the container; cursor offset should be the chip's index
+    const chipIndex = Array.from(el.childNodes).indexOf(chip as ChildNode);
+    expect(cursor!.node).toBe(el);
+    expect(cursor!.offset).toBe(chipIndex);
+  });
+
+  // ── Click on right half of chip → cursor after chip ───────────────────
+
+  it('click on right half of chip → cursor positioned after chip', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const chip = el.querySelector('[data-file-ref]')!;
+    mockChipRect(chip as HTMLElement, 100, 80); // midpoint=140
+
+    const event = makeMouseEvent(160, chip); // 160 > 140 → right half
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(true);
+
+    // Cursor should be after the chip
+    const cursor = getCursor();
+    expect(cursor).not.toBeNull();
+    const chipIndex = Array.from(el.childNodes).indexOf(chip as ChildNode);
+    expect(cursor!.node).toBe(el);
+    expect(cursor!.offset).toBe(chipIndex + 1);
+  });
+
+  // ── Click on text (not chip) → returns false ──────────────────────────
+
+  it('click on text (not chip) → returns false', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+
+    const event = makeMouseEvent(50, textNode);
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(false);
+  });
+
+  // ── Click on nested element inside chip → still corrects ──────────────
+
+  it('click on nested element inside chip → positions cursor at chip boundary', () => {
+    const el = makeContainer(`${CHIP_A}`);
+    const chip = el.querySelector('[data-file-ref]')! as HTMLElement;
+    mockChipRect(chip, 0, 100); // midpoint=50
+
+    // Simulate clicking on a text node inside the chip
+    const innerNode = chip.firstChild ?? chip;
+    const event = makeMouseEvent(70, innerNode); // 70 > 50 → right half
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(true);
+
+    const cursor = getCursor();
+    expect(cursor).not.toBeNull();
+    const chipIndex = Array.from(el.childNodes).indexOf(chip);
+    expect(cursor!.node).toBe(el);
+    expect(cursor!.offset).toBe(chipIndex + 1); // after chip
+  });
+
+  // ── Click exactly at midpoint → goes after chip ───────────────────────
+
+  it('click at midpoint of chip → cursor positioned after chip', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const chip = el.querySelector('[data-file-ref]')!;
+    mockChipRect(chip as HTMLElement, 100, 80); // midpoint=140
+
+    const event = makeMouseEvent(140, chip); // exactly at midpoint → !(140 < 140) → after
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(true);
+
+    const cursor = getCursor();
+    expect(cursor).not.toBeNull();
+    const chipIndex = Array.from(el.childNodes).indexOf(chip as ChildNode);
+    expect(cursor!.node).toBe(el);
+    expect(cursor!.offset).toBe(chipIndex + 1);
+  });
+
+  // ── Click outside container → returns false ───────────────────────────
+
+  it('click with target outside container → returns false', () => {
+    const el = makeContainer(`hello ${CHIP_A}`);
+    const outsideNode = document.createElement('div');
+    document.body.appendChild(outsideNode);
+
+    const event = makeMouseEvent(50, outsideNode);
+    const handled = handleChipClick(el, event);
+    expect(handled).toBe(false);
+
+    document.body.removeChild(outsideNode);
   });
 });

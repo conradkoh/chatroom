@@ -16,7 +16,7 @@ import {
   setCursorToRawOffset,
 } from '@/lib/fileReferenceSerializer';
 
-import { handleChipNavigation } from '@/modules/chatroom/lib/chipNavigation';
+import { handleChipNavigation, handleChipClick } from '@/modules/chatroom/lib/chipNavigation';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -204,6 +204,15 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       [onKeyDown]
     );
 
+    // ── Click handler ──────────────────────────────────────────────────────
+
+    const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      const el = divRef.current;
+      if (el && handleChipClick(el, e.nativeEvent)) {
+        e.preventDefault();
+      }
+    }, []);
+
     // ── Focus management ───────────────────────────────────────────────────
 
     // Set initial content on mount
@@ -230,6 +239,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           data-placeholder={placeholder}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
+          onClick={handleClick}
           onPaste={handlePaste}
           className={
             className ??
