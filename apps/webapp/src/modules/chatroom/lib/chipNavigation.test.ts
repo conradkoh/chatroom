@@ -470,11 +470,12 @@ describe('handleChipNavigation — edge cases', () => {
     expect(handleChipNavigation(el, makeKeyEvent('a'))).toBe(false);
   });
 
-  it('returns false for Shift+Arrow (selection extending)', () => {
+  it('handles Shift+Arrow across chip (selection extending)', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
     setCursor(el, 0);
-    expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }))).toBe(false);
+    // Shift+ArrowRight adjacent to chip is now handled (extends selection over chip)
+    expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }))).toBe(true);
   });
 
   it('handles Meta+Arrow (Cmd+Arrow line navigation)', () => {
@@ -1141,18 +1142,18 @@ describe('handleChipNavigation — Cmd+Left/Right (line start/end)', () => {
     expect(getRawOffset(el)).toBe(5);
   });
 
-  it('Shift+Cmd+Arrow still falls through to browser (not handled)', () => {
+  it('Shift+Cmd+Arrow extends selection to line boundary (handled)', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} world`);
     const textNode = el.childNodes[1]!;
     setCursor(textNode, 3);
 
-    // Shift+Cmd+Left should NOT be handled (browser does selection)
+    // Shift+Cmd+Left now handled (extends selection to line start)
     const handled = handleChipNavigation(
       el,
       makeKeyEvent('ArrowLeft', { metaKey: true, shiftKey: true })
     );
-    expect(handled).toBe(false);
+    expect(handled).toBe(true);
   });
 });
 
@@ -1508,9 +1509,17 @@ describe('handleChipNavigation — combinatoric matrix', () => {
           let expectedHandled: boolean;
           let expectedOffset: number | undefined;
 
-          if (hotkey.name === 'Shift+Arrow' || hotkey.name === 'Shift+Cmd+Arrow') {
-            // Always falls through to browser
-            expectedHandled = false;
+          if (hotkey.name === 'Shift+Arrow') {
+            // Shift+Arrow: handled=true only when adjacent to chip (same as Arrow)
+            const result = isAdjacentToChip(layout, startOffset, direction);
+            expectedHandled = result.handled;
+            // Don't check offset for shift variants (selection is non-collapsed,
+            // getRawOffset doesn't work; offset verified in dedicated test block)
+            expectedOffset = undefined;
+          } else if (hotkey.name === 'Shift+Cmd+Arrow') {
+            // Cmd+Shift+Arrow: always handled (extends selection to line boundary)
+            expectedHandled = true;
+            expectedOffset = undefined; // non-collapsed selection
           } else if (hotkey.name === 'Cmd+Arrow') {
             // Always handled: jump to start or end
             expectedHandled = true;
@@ -1886,5 +1895,248 @@ describe('handleChipNavigation — sequence tests', () => {
     const h4 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { metaKey: true }));
     expect(h4).toBe(true);
     expect(getRawOffset(el)).toBe(totalLen);
+  });
+});
+
+// ── Shift+Arrow selection tests ──────────────────────────────────────────────
+
+describe('handleChipNavigation — Shift+Arrow selection', () => {
+  /**
+   * Helper: compute the raw offset of a DOM position (node, offset) in a container.
+   * Mirrors getRawOffset but for an arbitrary DOM position, not just the cursor.
+   */
+  function computeRawOffsetAt(
+    container: HTMLElement,
+    targetNode: Node,
+    targetOffset: number
+  ): number {
+    let offset = 0;
+    let found = false;
+
+    function walk(node: Node): boolean {
+      if (found) return true;
+      if (node === targetNode) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          offset += targetOffset;
+        } else {
+          for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
+            accumulateLength(node.childNodes[i]!);
+          }
+        }
+        found = true;
+        return true;
+      }
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return false;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          if (el.contains(targetNode)) {
+            offset += fileRef.length;
+            found = true;
+            return true;
+          }
+          offset += fileRef.length;
+          return false;
+        }
+        for (const child of Array.from(node.childNodes)) {
+          if (walk(child)) return true;
+        }
+      }
+      return false;
+    }
+
+    function accumulateLength(node: Node): void {
+      if (node.nodeType === Node.TEXT_NODE) {
+        offset += (node.textContent ?? '').length;
+        return;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          offset += fileRef.length;
+          return;
+        }
+        for (const child of Array.from(el.childNodes)) {
+          accumulateLength(child);
+        }
+      }
+    }
+
+    walk(container);
+    return offset;
+  }
+
+  /** Get selection as { anchorOffset, focusOffset } in raw terms. */
+  function getSelectionRawOffsets(
+    container: HTMLElement
+  ): { anchor: number; focus: number } | null {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    if (!selection.anchorNode || !selection.focusNode) return null;
+
+    const anchor = computeRawOffsetAt(container, selection.anchorNode, selection.anchorOffset);
+    const focus = computeRawOffsetAt(container, selection.focusNode, selection.focusOffset);
+    return { anchor, focus };
+  }
+
+  const CHIP_A = fileToken('a.ts');
+  const CHIP_B = fileToken('b.ts');
+  const CHIP_LEN = CHIP_A.length; // 23
+
+  // ── Shift+ArrowRight: select across chip ──────────────────────────────────
+
+  it('Shift+ArrowRight when cursor is before a chip → chip is fully selected', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    // Cursor at end of "hello " (offset 6), right before chip
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(6); // anchor stays at original position
+    expect(offsets!.focus).toBe(6 + CHIP_LEN); // focus moved past chip
+  });
+
+  // ── Shift+ArrowLeft: select across chip ───────────────────────────────────
+
+  it('Shift+ArrowLeft when cursor is after a chip → chip is fully selected', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    // Cursor at start of " world" text (offset = chip length, right after chip)
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { shiftKey: true }));
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets).not.toBeNull();
+    expect(offsets!.anchor).toBe(CHIP_LEN); // anchor at original position
+    expect(offsets!.focus).toBe(0); // focus moved before chip
+  });
+
+  // ── Shift+ArrowRight across multiple chips ────────────────────────────────
+
+  it('Shift+ArrowRight ×2 across adjacent chips selects both', () => {
+    const el = makeContainer(`${CHIP_A}${CHIP_B}`);
+    setCursor(el, 0); // Before chipA
+
+    // Step 1: Shift+ArrowRight → select chipA
+    const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }));
+    expect(h1).toBe(true);
+    let offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(0);
+    expect(offsets!.focus).toBe(CHIP_LEN);
+
+    // Step 2: Shift+ArrowRight → extend selection to include chipB
+    const h2 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }));
+    expect(h2).toBe(true);
+    offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(0);
+    expect(offsets!.focus).toBe(CHIP_LEN * 2);
+  });
+
+  // ── Cmd+Shift+ArrowRight: select to end ───────────────────────────────────
+
+  it('Cmd+Shift+ArrowRight from middle → selects to end including chips', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    const totalLen = 6 + CHIP_LEN + 6; // 35
+    // Cursor at "hel|lo "
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(
+      el,
+      makeKeyEvent('ArrowRight', { metaKey: true, shiftKey: true })
+    );
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(3);
+    expect(offsets!.focus).toBe(totalLen);
+  });
+
+  // ── Cmd+Shift+ArrowLeft: select to start ──────────────────────────────────
+
+  it('Cmd+Shift+ArrowLeft from middle → selects to start including chips', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    // Cursor in " world" at offset 3 (raw offset = 6 + 23 + 3 = 32)
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, 3);
+
+    const handled = handleChipNavigation(
+      el,
+      makeKeyEvent('ArrowLeft', { metaKey: true, shiftKey: true })
+    );
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(6 + CHIP_LEN + 3); // 32
+    expect(offsets!.focus).toBe(0);
+  });
+
+  // ── Alt+Shift+ArrowRight: word-select ─────────────────────────────────────
+
+  it('Alt+Shift+ArrowRight → selects to next word boundary (past chip)', () => {
+    const el = makeContainer(`hello ${CHIP_A} world`);
+    // Cursor at end of "hello " (offset 6), right before chip
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6);
+
+    const handled = handleChipNavigation(
+      el,
+      makeKeyEvent('ArrowRight', { altKey: true, shiftKey: true })
+    );
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(6);
+    expect(offsets!.focus).toBe(6 + CHIP_LEN); // past chip
+  });
+
+  // ── Alt+Shift+ArrowLeft: word-select backward ─────────────────────────────
+
+  it('Alt+Shift+ArrowLeft → selects to previous word boundary (before chip)', () => {
+    const el = makeContainer(`${CHIP_A} world`);
+    // Cursor at start of " world" (raw offset = chip length)
+    const textNode = el.childNodes[1]!;
+    setCursor(textNode, 0);
+
+    const handled = handleChipNavigation(
+      el,
+      makeKeyEvent('ArrowLeft', { altKey: true, shiftKey: true })
+    );
+    expect(handled).toBe(true);
+
+    const offsets = getSelectionRawOffsets(el);
+    expect(offsets!.anchor).toBe(CHIP_LEN);
+    expect(offsets!.focus).toBe(0); // before chip
+  });
+
+  // ── Shift+Arrow in plain text (no chip adjacent) returns false ────────────
+
+  it('Shift+ArrowRight in middle of text (no chip adjacent) returns false', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }));
+    expect(handled).toBe(false);
+  });
+
+  it('Shift+ArrowLeft in middle of text (no chip adjacent) returns false', () => {
+    const el = makeContainer('hello world');
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { shiftKey: true }));
+    expect(handled).toBe(false);
   });
 });

@@ -67,6 +67,49 @@ export function getAdjacentChip(
 }
 
 /**
+ * Like getAdjacentChip but checks the selection's focus point (not anchor).
+ * Works with both collapsed and non-collapsed selections, enabling Shift+Arrow
+ * to extend selection across chips.
+ */
+function getAdjacentChipFromFocus(
+  container: HTMLElement,
+  direction: 'before' | 'after'
+): HTMLElement | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+
+  const focusNode = selection.focusNode;
+  const focusOffset = selection.focusOffset;
+  if (!focusNode || !container.contains(focusNode)) return null;
+
+  if (focusNode === container || focusNode.nodeType === Node.ELEMENT_NODE) {
+    const parent = focusNode as HTMLElement;
+    if (direction === 'before') {
+      const prev = parent.childNodes[focusOffset - 1];
+      if (prev && isChipNode(prev)) return prev;
+    } else {
+      const next = parent.childNodes[focusOffset];
+      if (next && isChipNode(next)) return next;
+    }
+    return null;
+  }
+
+  if (focusNode.nodeType === Node.TEXT_NODE) {
+    const text = focusNode.textContent ?? '';
+    if (direction === 'after' && focusOffset === text.length) {
+      const next = focusNode.nextSibling;
+      if (next && isChipNode(next)) return next;
+    }
+    if (direction === 'before' && focusOffset === 0) {
+      const prev = focusNode.previousSibling;
+      if (prev && isChipNode(prev)) return prev;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Find a word boundary in the contenteditable, treating chips as atomic words.
  *
  * Linearizes the container's content into a sequence of segments (text runs and chips),
@@ -103,21 +146,32 @@ export function findWordBoundary(
 export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): boolean {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
 
-  // Don't intercept selection-extending (Shift+Arrow)
-  if (e.shiftKey) return false;
+  const direction = e.key === 'ArrowLeft' ? 'left' : 'right';
 
-  const isAlt = e.altKey;
+  // Shift+Arrow — selection-extending variants
+  if (e.shiftKey) {
+    if (e.metaKey) {
+      // Cmd+Shift+Arrow (macOS) — extend selection to line start/end
+      return handleShiftLineJump(container, direction === 'left' ? 'start' : 'end');
+    }
+    if (e.altKey) {
+      // Alt+Shift+Arrow (macOS) — extend selection by word
+      return handleShiftWordSkip(container, direction);
+    }
+    // Shift+Arrow — extend selection across adjacent chip
+    return handleShiftSingleStep(container, direction);
+  }
 
   // Cmd+Arrow (macOS) — move to line start/end, handling chips correctly
   if (e.metaKey) {
-    return handleLineJump(container, e.key === 'ArrowLeft' ? 'start' : 'end');
+    return handleLineJump(container, direction === 'left' ? 'start' : 'end');
   }
 
-  if (isAlt) {
-    return handleWordSkip(container, e.key === 'ArrowLeft' ? 'left' : 'right');
+  if (e.altKey) {
+    return handleWordSkip(container, direction);
   }
 
-  return handleSingleStep(container, e.key === 'ArrowLeft' ? 'left' : 'right');
+  return handleSingleStep(container, direction);
 }
 
 // ── Internal: single-step navigation ─────────────────────────────────────────
@@ -169,6 +223,194 @@ function handleLineJump(container: HTMLElement, target: 'start' | 'end'): boolea
     setCursorToRawOffsetInContainer(container, totalLength);
   }
   return true;
+}
+
+// ── Internal: Shift+Arrow selection handlers ─────────────────────────────────
+
+/** Shift+Arrow: extend selection across an adjacent chip. */
+function handleShiftSingleStep(container: HTMLElement, direction: 'left' | 'right'): boolean {
+  const chip = getAdjacentChipFromFocus(container, direction === 'left' ? 'before' : 'after');
+  if (!chip) return false;
+
+  if (direction === 'left') {
+    extendSelectionToRawOffset(container, getNodeRawOffset(container, chip));
+  } else {
+    const chipRef = chip.getAttribute('data-file-ref') ?? '';
+    extendSelectionToRawOffset(container, getNodeRawOffset(container, chip) + chipRef.length);
+  }
+  return true;
+}
+
+/** Alt+Shift+Arrow: extend selection to word boundary. */
+function handleShiftWordSkip(container: HTMLElement, direction: 'left' | 'right'): boolean {
+  const currentOffset = getSelectionFocusRawOffset(container);
+  if (currentOffset === null) return false;
+
+  const targetOffset = findWordBoundary(container, currentOffset, direction);
+  if (targetOffset === currentOffset) return false;
+
+  extendSelectionToRawOffset(container, targetOffset);
+  return true;
+}
+
+/** Cmd+Shift+Arrow: extend selection to line start/end. */
+function handleShiftLineJump(container: HTMLElement, target: 'start' | 'end'): boolean {
+  if (target === 'start') {
+    extendSelectionToRawOffset(container, 0);
+  } else {
+    const segments = buildSegments(container);
+    const totalLength =
+      segments.length > 0
+        ? (() => {
+            const last = segments[segments.length - 1]!;
+            return last.start + (last.type === 'text' ? last.text.length : last.token.length);
+          })()
+        : 0;
+    extendSelectionToRawOffset(container, totalLength);
+  }
+  return true;
+}
+
+/** Get the raw offset of the selection's focus point (not anchor). */
+function getSelectionFocusRawOffset(container: HTMLElement): number | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+
+  const { focusNode, focusOffset } = selection;
+  if (!focusNode || !container.contains(focusNode)) return null;
+
+  return computeRawOffset(container, focusNode, focusOffset);
+}
+
+/** Get the raw offset of a chip node's start within the container. */
+function getNodeRawOffset(container: HTMLElement, targetNode: Node): number {
+  let offset = 0;
+
+  for (const node of Array.from(container.childNodes)) {
+    if (node === targetNode) return offset;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      offset += (node.textContent ?? '').length;
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      const fileRef = el.getAttribute('data-file-ref');
+      if (fileRef) {
+        offset += fileRef.length;
+      } else if (el.tagName === 'BR') {
+        offset += 1;
+      } else {
+        offset += (el.textContent ?? '').length;
+      }
+    }
+  }
+  return offset;
+}
+
+/**
+ * Extend the current selection's focus to a raw offset, preserving the anchor.
+ * Uses selection.extend() to move only the focus point.
+ */
+function extendSelectionToRawOffset(container: HTMLElement, targetOffset: number): void {
+  const { node: targetNode, offset: targetDomOffset } = resolveRawOffsetToDom(
+    container,
+    targetOffset
+  );
+  if (!targetNode) return;
+
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  // selection.extend() moves the focus while keeping the anchor
+  try {
+    selection.extend(targetNode, targetDomOffset);
+  } catch {
+    // Fallback: manually construct the range if extend() fails
+    if (selection.rangeCount === 0) return;
+    const anchorNode = selection.anchorNode;
+    const anchorOffset = selection.anchorOffset;
+    if (!anchorNode) return;
+
+    const newRange = document.createRange();
+    newRange.setStart(anchorNode, anchorOffset);
+    newRange.setEnd(targetNode, targetDomOffset);
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+  }
+}
+
+/**
+ * Resolve a raw offset into a DOM (node, offset) pair.
+ * Returns the node and offset suitable for Range/Selection APIs.
+ */
+function resolveRawOffsetToDom(
+  container: HTMLElement,
+  targetOffset: number
+): { node: Node; offset: number } {
+  let remaining = targetOffset;
+  let resultNode: Node = container;
+  let resultOffset = 0;
+  let found = false;
+
+  function walk(node: Node): boolean {
+    if (found) return true;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = (node.textContent ?? '').length;
+      if (remaining <= len) {
+        resultNode = node;
+        resultOffset = remaining;
+        found = true;
+        return true;
+      }
+      remaining -= len;
+      return false;
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      const fileRef = el.getAttribute('data-file-ref');
+      if (fileRef) {
+        if (remaining === 0) {
+          resultNode = el.parentNode!;
+          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el);
+          found = true;
+          return true;
+        }
+        if (remaining <= fileRef.length) {
+          resultNode = el.parentNode!;
+          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
+          found = true;
+          return true;
+        }
+        remaining -= fileRef.length;
+        return false;
+      }
+      if (el.tagName === 'BR') {
+        if (remaining <= 1) {
+          resultNode = el.parentNode!;
+          resultOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
+          found = true;
+          return true;
+        }
+        remaining -= 1;
+        return false;
+      }
+      for (const child of Array.from(node.childNodes)) {
+        if (walk(child)) return true;
+      }
+    }
+    return false;
+  }
+
+  walk(container);
+
+  if (!found) {
+    // Past end — position at end of container
+    resultNode = container;
+    resultOffset = container.childNodes.length;
+  }
+
+  return { node: resultNode, offset: resultOffset };
 }
 
 // ── Internal: segment model ──────────────────────────────────────────────────
