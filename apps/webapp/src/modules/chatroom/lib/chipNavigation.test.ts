@@ -841,3 +841,219 @@ describe('handleChipNavigation — hardening edge cases', () => {
     expect(getRawOffset(el)).toBe(0);
   });
 });
+
+// ── Hardening edge cases: Round 2 ───────────────────────────────────────────
+
+describe('handleChipNavigation — hardening edge cases: round 2', () => {
+  // Case 1: Punctuation as word boundary near chip
+  // Punctuation chars are \S (non-whitespace) so they're treated as word chars by the algorithm.
+  // Tests that "word." before a chip behaves correctly — Alt+Left should stop at the right boundary.
+  it('Alt+Left: word.<chip><caret> — punctuation treated as word chars', () => {
+    const token = fileToken('a.ts');
+    // Layout: "word."<chip> — caret after chip
+    const el = makeContainer(`word.${token}`);
+    setCursor(el, el.childNodes.length);
+
+    // Alt+Left should jump before chip (since chip is atomic word)
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5); // before chip, after "word."
+
+    // Alt+Left again should jump to start of "word." (all non-whitespace)
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Case 2: Mixed punctuation and spaces before chip
+  // "hello! " has a word boundary between "!" and " ", then whitespace before chip
+  it('Alt+Left: hello! <chip><caret> — stops before chip, then before hello!', () => {
+    const token = fileToken('a.ts');
+    // Layout: "hello! "<chip> — caret after chip
+    const el = makeContainer(`hello! ${token}`);
+    setCursor(el, el.childNodes.length);
+
+    // Alt+Left 1: skip chip (atomic)
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(7); // before chip, after "hello! "
+
+    // Alt+Left 2: whitespace-only before segment boundary → skip past whitespace
+    // findWordBoundaryLeft from offset 7 (end of "hello! "): skip " " → "!" → "hello!" is all \S
+    // Actually: skip whitespace " " (pos 6→7), then skip non-whitespace "hello!" → lands at 0
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Case 3: Alt+Right from middle of a word that precedes a chip
+  // Should jump to end of word + trailing space, not skip the chip
+  it('Alt+Right from mid-word before chip: hel|lo <chip> — stops after "lo ", not after chip', () => {
+    const token = fileToken('a.ts');
+    // Layout: "hello "<chip>
+    const el = makeContainer(`hello ${token}`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 3); // hel|lo
+
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6); // after "hello " (word + trailing whitespace)
+  });
+
+  // Case 4: Alt+Left from middle of a word that follows a chip
+  // Should jump to start of word, not skip the chip
+  it('Alt+Left from mid-word after chip: <chip>hel|lo — stops at start of "hello", not before chip', () => {
+    const token = fileToken('a.ts');
+    // Layout: <chip>"hello"
+    const el = makeContainer(`${token}hello`);
+    const textNode = el.childNodes[1]!; // "hello" text node
+    setCursor(textNode, 3); // hel|lo
+
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    // Should stop at start of "hello" (offset = token.length), not skip the chip
+    expect(getRawOffset(el)).toBe(token.length);
+  });
+
+  // Case 5: Ping-pong — alternating left/right around a single chip
+  // Verifies cursor position stability after repeated direction changes
+  it('ping-pong: alternating Left/Right around single chip stays stable', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`hello ${token} world`);
+
+    // Position cursor right before chip (end of "hello ")
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 6);
+
+    // Right → skip chip → after chip
+    handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(getRawOffset(el)).toBe(6 + token.length);
+
+    // Left → skip chip back → before chip
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(getRawOffset(el)).toBe(6);
+
+    // Right → skip chip again → after chip
+    handleChipNavigation(el, makeKeyEvent('ArrowRight'));
+    expect(getRawOffset(el)).toBe(6 + token.length);
+
+    // Left → back to before chip
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
+    expect(getRawOffset(el)).toBe(6);
+  });
+
+  // Case 6: Long text with multiple words before chip
+  // Alt+Left from after chip should skip chip, not jump into the multi-word text
+  it('Alt+Left: the quick brown fox <chip><caret> — skips chip, lands after "fox "', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`the quick brown fox ${token}`);
+    setCursor(el, el.childNodes.length);
+
+    // Alt+Left 1: skip chip
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(20); // before chip, after "the quick brown fox "
+
+    // Alt+Left 2: jump to start of "fox"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(16); // start of "fox "
+
+    // Alt+Left 3: jump to start of "brown"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(10); // start of "brown"
+  });
+
+  // Case 7: Chip between two words with no spaces (direct adjacency)
+  // Tests behavior when chip is "glued" to words on both sides
+  it('Alt+Left/Right: word1<chip>word2 — word boundaries respect chip as separator', () => {
+    const token = fileToken('a.ts');
+    // Layout: "word1"<chip>"word2"
+    const el = makeContainer(`word1${token}word2`);
+
+    // Alt+Right from start: skip "word1" (non-whitespace), but there's no trailing whitespace
+    // so it should stop at end of "word1" = offset 5, which is right before chip
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 0);
+
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5); // end of "word1", before chip
+
+    // Alt+Right again: at chip boundary → skip chip
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5 + token.length); // after chip, before "word2"
+
+    // Alt+Right again: skip "word2"
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5 + token.length + 5); // end
+
+    // Now reverse: Alt+Left from end
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, (lastText.textContent ?? '').length);
+
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5 + token.length); // start of "word2"
+
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(5); // before chip
+
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0); // start of "word1"
+  });
+
+  // Case 8: Multiple chips separated by single spaces — Alt+Right full traversal
+  it('Alt+Right: <caret><chip1> <chip2> <chip3> — traverses each chip+space pair', () => {
+    const chip1 = fileToken('a.ts');
+    const chip2 = fileToken('b.ts');
+    const chip3 = fileToken('c.ts');
+    // Layout: <chip1>" "<chip2>" "<chip3>
+    const el = makeContainer(`${chip1} ${chip2} ${chip3}`);
+
+    setCursor(el, 0);
+
+    // Alt+Right 1: skip chip1
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip1.length);
+
+    // Alt+Right 2: skip " " (whitespace) + chip2
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip1.length + 1 + chip2.length);
+
+    // Alt+Right 3: skip " " (whitespace) + chip3
+    handleChipNavigation(el, makeKeyEvent('ArrowRight', { altKey: true }));
+    expect(getRawOffset(el)).toBe(chip1.length + 1 + chip2.length + 1 + chip3.length);
+  });
+
+  // Case 9: Single chip with text on both sides — repeated Alt+Left from end
+  it('Alt+Left repeated: hello <chip> world — full left traversal', () => {
+    const token = fileToken('a.ts');
+    const el = makeContainer(`hello ${token} world`);
+
+    // Start at end of "world"
+    const lastText = el.childNodes[el.childNodes.length - 1]!;
+    setCursor(lastText, (lastText.textContent ?? '').length);
+
+    // Alt+Left 1: jump to start of "world" within " world"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6 + token.length + 1); // skip back over "world", land after " "
+
+    // Alt+Left 2: at " " before "world" — whitespace-only → skip chip too
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(6); // before chip
+
+    // Alt+Left 3: skip whitespace " " at end of "hello " then skip "hello"
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+
+  // Case 10: Emoji/unicode in text adjacent to chip
+  // Emoji are multi-byte but single "characters" in JS string terms (may be 2 code units).
+  // Tests that word boundary detection handles non-ASCII non-whitespace correctly.
+  it('Alt+Left: 👋hello <chip><caret> — treats emoji as part of word', () => {
+    const token = fileToken('a.ts');
+    // "👋hello " is the text before chip — emoji is \S so included in word
+    const el = makeContainer(`👋hello ${token}`);
+    setCursor(el, el.childNodes.length);
+
+    // Alt+Left 1: skip chip
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    const emojiWord = '👋hello ';
+    expect(getRawOffset(el)).toBe(emojiWord.length); // before chip
+
+    // Alt+Left 2: skip back over "👋hello " — all \S chars then whitespace
+    handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
+    expect(getRawOffset(el)).toBe(0);
+  });
+});
