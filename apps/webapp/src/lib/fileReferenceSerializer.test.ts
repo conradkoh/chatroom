@@ -44,8 +44,8 @@ describe('rawTextToHtml', () => {
     // Should contain the chip span with data-file-ref
     expect(html).toContain('data-file-ref');
     expect(html).toContain('contenteditable="false"');
-    // Should NOT contain any ZWS characters
-    expect(html).not.toContain('\u200B');
+    // Chip is at line start, so ZWS is inserted before it for Safari caret positioning
+    expect(html).toContain('\u200B');
   });
 
   it('renders chip directly adjacent to surrounding text', () => {
@@ -57,11 +57,14 @@ describe('rawTextToHtml', () => {
     expect(html).toContain('data-file-ref');
   });
 
-  it('handles multiple file references without ZWS', () => {
+  it('handles multiple file references (ZWS before line-start chip only)', () => {
     const raw = `${fileToken('a.ts')} and ${fileToken('b.ts')}`;
     const html = rawTextToHtml(raw);
-    // No ZWS characters
-    expect(html).not.toContain('\u200B');
+    // First chip is at line start so ZWS is inserted before it
+    expect(html).toContain('\u200B');
+    // Only one ZWS (before the first chip, not the second)
+    const zwsCount = (html.match(/\u200B/g) || []).length;
+    expect(zwsCount).toBe(1);
     // Both chips present
     const chipCount = (html.match(/data-file-ref/g) || []).length;
     expect(chipCount).toBe(2);
@@ -70,7 +73,8 @@ describe('rawTextToHtml', () => {
   it('handles file reference at the START of text', () => {
     const raw = `${fileToken('a.ts')} some text`;
     const html = rawTextToHtml(raw);
-    expect(html).not.toContain('\u200B');
+    // Chip at line start gets ZWS before it
+    expect(html).toContain('\u200B');
     expect(html).toContain('data-file-ref');
   });
 
@@ -84,8 +88,11 @@ describe('rawTextToHtml', () => {
   it('handles adjacent file references (back to back)', () => {
     const raw = `${fileToken('a.ts')}${fileToken('b.ts')}`;
     const html = rawTextToHtml(raw);
-    // No ZWS characters
-    expect(html).not.toContain('\u200B');
+    // First chip at line start gets ZWS before it
+    expect(html).toContain('\u200B');
+    // Only one ZWS (before first chip)
+    const zwsCount = (html.match(/\u200B/g) || []).length;
+    expect(zwsCount).toBe(1);
     // Both chips present
     const chipCount = (html.match(/data-file-ref/g) || []).length;
     expect(chipCount).toBe(2);
@@ -229,8 +236,9 @@ describe('domOffsetToRawOffset', () => {
     const token = fileToken('a.ts');
     const html = rawTextToHtml(token);
     const el = createElement(html);
-    // The chip span is the first child (no ZWS text node before it)
-    const chipSpan = el.childNodes[0]!;
+    // Line-start chip: DOM is [ZWS text node][chip span]
+    // The chip span is the second child (index 1)
+    const chipSpan = el.childNodes[1]!;
     // Any anchor inside the chip should be treated as at the end of the raw token
     const innerNode = chipSpan.childNodes[0] || chipSpan;
     const result = domOffsetToRawOffset(el, innerNode, 0);
@@ -243,9 +251,9 @@ describe('domOffsetToRawOffset', () => {
     const raw = `${tokenA}${tokenB}`;
     const html = rawTextToHtml(raw);
     const el = createElement(html);
-    // DOM structure: [chip_a][chip_b]
-    // At container level offset 1 (after first child chip_a): raw = tokenA.length
-    expect(domOffsetToRawOffset(el, el, 1)).toBe(tokenA.length);
+    // DOM structure: [ZWS text][chip_a][chip_b]
+    // At container level offset 2 (after ZWS text + chip_a): raw = tokenA.length
+    expect(domOffsetToRawOffset(el, el, 2)).toBe(tokenA.length);
   });
 
   it('calculates correct offset after chip + typed text (simulated typing)', () => {

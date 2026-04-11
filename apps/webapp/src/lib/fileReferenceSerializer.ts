@@ -3,6 +3,21 @@ import { getFileName } from './pathUtils';
 import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenceChipUI';
 
 /**
+ * Zero-width space character used before chips at line start positions.
+ * Gives Safari a text node to place the caret before the chip, preventing
+ * caret-overlap issues in contenteditable elements.
+ */
+export const ZWS = '\u200B';
+
+/**
+ * Strip all ZWS characters from a string.
+ * Used when converting DOM text content back to raw text.
+ */
+export function stripZws(text: string): string {
+  return text.replace(/\u200B/g, '');
+}
+
+/**
  * Convert raw message text (with {file://workspace/path} tokens) to HTML
  * for rendering inside a contenteditable div.
  *
@@ -12,6 +27,10 @@ import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenc
  * </span>
  *
  * Regular text is HTML-escaped. Newlines become <br>.
+ *
+ * A ZWS (zero-width space) is inserted before chips that appear at the start
+ * of a line (beginning of content or right after <br>). This gives Safari a
+ * text node where it can position the caret before the chip.
  */
 export function rawTextToHtml(text: string): string {
   if (!text) return '';
@@ -28,6 +47,14 @@ export function rawTextToHtml(text: string): string {
     // Text before this reference
     const before = text.slice(lastEnd, ref.start);
     html += escapeHtml(before).replace(/\n/g, '<br>');
+
+    // Insert ZWS before chip if it's at line start:
+    // - at the very beginning of the output (html is empty so far), OR
+    // - right after a <br> (the text before this chip ended with a newline)
+    const chipAtLineStart = html.length === 0 || html.endsWith('<br>');
+    if (chipAtLineStart) {
+      html += ZWS;
+    }
 
     // The chip span (non-editable, atomic for caret navigation)
     const rawToken = text.slice(ref.start, ref.end);
@@ -65,7 +92,7 @@ export function htmlToRawText(element: HTMLElement): string {
 
   for (const node of Array.from(element.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent ?? '';
+      result += stripZws(node.textContent ?? '');
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
 
@@ -124,7 +151,10 @@ export function domOffsetToRawOffset(
 
     if (node === anchorNode) {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += anchorOffset;
+        // Count only non-ZWS chars up to anchorOffset
+        const text = node.textContent ?? '';
+        const beforeCursor = text.slice(0, anchorOffset);
+        offset += stripZws(beforeCursor).length;
       } else {
         // Element node — anchorOffset is the child index
         for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
@@ -136,7 +166,7 @@ export function domOffsetToRawOffset(
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += (node.textContent ?? '').length;
+      offset += stripZws(node.textContent ?? '').length;
       return false;
     }
 
@@ -179,7 +209,7 @@ export function domOffsetToRawOffset(
   /** Accumulate the full raw text length of a node subtree. */
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += (node.textContent ?? '').length;
+      offset += stripZws(node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -222,14 +252,16 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
     if (found) return true;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const len = (node.textContent ?? '').length;
-      if (remaining <= len) {
+      const text = node.textContent ?? '';
+      const rawLen = stripZws(text).length;
+      if (remaining <= rawLen) {
         targetNode = node;
-        targetDomOffset = remaining;
+        // Map raw offset to DOM offset by counting ZWS chars
+        targetDomOffset = rawOffsetToDomOffset(text, remaining);
         found = true;
         return true;
       }
-      remaining -= len;
+      remaining -= rawLen;
       return false;
     }
 
@@ -337,7 +369,7 @@ function fragmentToRawText(fragment: DocumentFragment): string {
  */
 function nodeToRawText(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ?? '';
+    return stripZws(node.textContent ?? '');
   }
 
   if (node.nodeType === Node.ELEMENT_NODE) {
@@ -375,6 +407,23 @@ function nodeToRawText(node: Node): string {
   }
 
   return '';
+}
+
+/**
+ * Map a raw text offset (ZWS-free) to a DOM offset within a text node
+ * that may contain ZWS characters. Skips over ZWS chars when counting.
+ *
+ * Example: text = "\u200Bhello", rawOffset = 2 → domOffset = 3
+ * (skip the ZWS at position 0, then count 'h' at 1, 'e' at 2 → DOM position 3)
+ */
+function rawOffsetToDomOffset(text: string, rawOffset: number): number {
+  let rawCount = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === ZWS) continue;
+    if (rawCount === rawOffset) return i;
+    rawCount++;
+  }
+  return text.length;
 }
 
 function escapeHtml(text: string): string {

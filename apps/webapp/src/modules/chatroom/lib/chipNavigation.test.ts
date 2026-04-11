@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { rawTextToHtml } from '@/lib/fileReferenceSerializer';
+import { rawTextToHtml, stripZws } from '@/lib/fileReferenceSerializer';
 import {
   handleChipNavigation,
   handleChipClick,
@@ -74,7 +74,9 @@ function getRawOffset(container: HTMLElement): number {
     if (found) return true;
     if (node === cursor!.node) {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += cursor!.offset;
+        const text = node.textContent ?? '';
+        const beforeCursor = text.slice(0, cursor!.offset);
+        offset += stripZws(beforeCursor).length;
       } else {
         for (let i = 0; i < cursor!.offset && i < node.childNodes.length; i++) {
           accumulateLength(node.childNodes[i]!);
@@ -84,7 +86,7 @@ function getRawOffset(container: HTMLElement): number {
       return true;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += (node.textContent ?? '').length;
+      offset += stripZws(node.textContent ?? '').length;
       return false;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -108,7 +110,7 @@ function getRawOffset(container: HTMLElement): number {
 
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += (node.textContent ?? '').length;
+      offset += stripZws(node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -126,6 +128,72 @@ function getRawOffset(container: HTMLElement): number {
 
   walk(container);
   return offset;
+}
+
+/**
+ * Find the text node within a container whose stripped content matches,
+ * or that contains the given substring. Useful for locating text nodes
+ * after ZWS insertion shifts child indices.
+ */
+function findTextNode(container: HTMLElement, content: string): Node {
+  for (const node of Array.from(container.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const stripped = stripZws(node.textContent ?? '');
+      if (stripped === content || stripped.includes(content)) return node;
+    }
+  }
+  throw new Error(`Text node containing "${content}" not found`);
+}
+
+/**
+ * Map a raw text offset (ZWS-free) to a DOM offset within a text node
+ * that may contain ZWS characters.
+ */
+function rawToDomOffsetHelper(text: string, rawOffset: number): number {
+  let rawCount = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\u200B') continue;
+    if (rawCount === rawOffset) return i;
+    rawCount++;
+  }
+  return text.length;
+}
+
+/**
+ * Check if a node is a ZWS-only text node.
+ */
+function isZwsNode(node: Node): boolean {
+  return (
+    node.nodeType === Node.TEXT_NODE &&
+    node.textContent !== null &&
+    node.textContent.length > 0 &&
+    stripZws(node.textContent).length === 0
+  );
+}
+
+/**
+ * Set cursor at the container level, adjusting for ZWS text nodes.
+ * logicalOffset is relative to "meaningful" children (non-ZWS).
+ * A leading ZWS text node is skipped in the count.
+ *
+ * For logicalOffset 0 with a leading ZWS node, the cursor is placed
+ * at the end of the ZWS text node (so adjacent-chip detection works).
+ */
+function setCursorLogical(container: HTMLElement, logicalOffset: number): void {
+  const firstChild = container.childNodes[0];
+  const hasLeadingZws = firstChild && isZwsNode(firstChild);
+
+  if (hasLeadingZws) {
+    if (logicalOffset === 0) {
+      // Place cursor at end of ZWS text node so next sibling = chip
+      setCursor(firstChild, firstChild.textContent!.length);
+    } else {
+      // Shift by 1 to account for ZWS text node
+      setCursor(container, logicalOffset + 1);
+    }
+  } else {
+    setCursor(container, logicalOffset);
+  }
 }
 
 // Track containers for cleanup
@@ -190,8 +258,8 @@ describe('getAdjacentChip', () => {
   it('finds chip before cursor when cursor is at start of following text node', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} hello`);
-    // After chip, there should be a text node " hello"
-    const textNode = el.childNodes[1]!;
+    // After ZWS + chip, there should be a text node " hello"
+    const textNode = findTextNode(el, ' hello');
     setCursor(textNode, 0);
     expect(getAdjacentChip(el, 'before')).not.toBeNull();
   });
@@ -213,16 +281,16 @@ describe('getAdjacentChip', () => {
   it('finds chip when cursor is at container level right before chip', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    // Set cursor at container level, offset 0 (before chip)
-    setCursor(el, 0);
+    // DOM: [ZWS text][chip] — set cursor at container level offset 1 (before chip)
+    setCursor(el, 1);
     expect(getAdjacentChip(el, 'after')).not.toBeNull();
   });
 
   it('finds chip when cursor is at container level right after chip', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    // Set cursor at container level, offset 1 (after chip)
-    setCursor(el, 1);
+    // DOM: [ZWS text][chip] — set cursor at container level offset 2 (after chip)
+    setCursor(el, 2);
     expect(getAdjacentChip(el, 'before')).not.toBeNull();
   });
 });
@@ -234,7 +302,7 @@ describe('handleChipNavigation — Left Arrow', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} world`);
     // Put cursor at start of " world" text node (right after chip)
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 0);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
@@ -263,7 +331,7 @@ describe('handleChipNavigation — Left Arrow', () => {
   it('returns false when cursor is after text that follows a chip', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} world`);
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 3); // middle of " world"
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
@@ -273,7 +341,8 @@ describe('handleChipNavigation — Left Arrow', () => {
   it('moves cursor before chip when at container level after chip', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    setCursor(el, 1); // container level, after chip
+    // DOM: [ZWS text][chip] — container offset 2 = after chip
+    setCursor(el, 2);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
     expect(handled).toBe(true);
@@ -327,7 +396,8 @@ describe('handleChipNavigation — Right Arrow', () => {
   it('moves cursor after chip when at container level before chip', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    setCursor(el, 0); // container level, before chip
+    // DOM: [ZWS text][chip] — container offset 1 = before chip
+    setCursor(el, 1);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
     expect(handled).toBe(true);
@@ -342,7 +412,7 @@ describe('handleChipNavigation — Alt+Left', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} world`);
     // Cursor right after chip: start of " world"
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 0);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -353,10 +423,9 @@ describe('handleChipNavigation — Alt+Left', () => {
   it('jumps to previous word boundary in text (not past chip)', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} hello world`);
-    // Cursor at end of "world"
-    const textNode = el.childNodes[1]!;
-    const text = textNode.textContent ?? '';
-    setCursor(textNode, text.length);
+    // Cursor at end of " hello world" text node
+    const textNode = findTextNode(el, ' hello world');
+    setCursor(textNode, (textNode.textContent ?? '').length);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
     expect(handled).toBe(true);
@@ -368,8 +437,8 @@ describe('handleChipNavigation — Alt+Left', () => {
     const tokenA = fileToken('a.ts');
     const tokenB = fileToken('b.ts');
     const el = makeContainer(`${tokenA}${tokenB}`);
-    // Cursor at container level after chip_b = offset 2
-    setCursor(el, 2);
+    // DOM: [ZWS text][chipA][chipB] — cursor at container level after chip_b = offset 3
+    setCursor(el, 3);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
     expect(handled).toBe(true);
@@ -475,7 +544,7 @@ describe('handleChipNavigation — edge cases', () => {
   it('handles Shift+Arrow across chip (selection extending)', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    setCursor(el, 0);
+    setCursorLogical(el, 0); // before chip (after ZWS)
     // Shift+ArrowRight adjacent to chip is now handled (extends selection over chip)
     expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }))).toBe(true);
   });
@@ -504,7 +573,7 @@ describe('handleChipNavigation — edge cases', () => {
     const el = makeContainer(`${tokenA}${tokenB}`);
 
     // Start before chip_a
-    setCursor(el, 0);
+    setCursorLogical(el, 0);
 
     // Right → after chip_a
     handleChipNavigation(el, makeKeyEvent('ArrowRight'));
@@ -526,7 +595,7 @@ describe('handleChipNavigation — edge cases', () => {
   it('chip at start — Left returns false when already before it', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token} text`);
-    setCursor(el, 0); // Before chip
+    setCursorLogical(el, 0); // Before chip
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
     expect(handled).toBe(false);
@@ -549,7 +618,7 @@ describe('handleChipNavigation — edge cases', () => {
     const el = makeContainer(`${tokenA}${tokenB}${tokenC}`);
 
     // Start at end
-    setCursor(el, 3);
+    setCursor(el, el.childNodes.length);
 
     // Left → before chip_c
     handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
@@ -679,7 +748,7 @@ describe('handleChipNavigation — hardening edge cases', () => {
     // Layout: <chip>\t with caret at end
     const el = makeContainer(`${token}\t`);
     // Position cursor at end of tab text node
-    const textNode = el.childNodes[1]!; // text node "\t"
+    const textNode = findTextNode(el, '\t'); // text node "\t" (after ZWS and chip)
     setCursor(textNode, 1);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -761,8 +830,8 @@ describe('handleChipNavigation — hardening edge cases', () => {
     const tokenB = fileToken('b.ts');
     const el = makeContainer(`${tokenA}${tokenB}text`);
 
-    // Set cursor at container level between chip1 and chip2 (index 1)
-    setCursor(el, 1);
+    // Set cursor at container level between chip1 and chip2
+    setCursorLogical(el, 1);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
     expect(handled).toBe(true);
@@ -802,7 +871,7 @@ describe('handleChipNavigation — hardening edge cases', () => {
     const el = makeContainer(`${token}word`);
 
     // Set cursor at end of "word"
-    const textNode = el.childNodes[1]!; // "word" text node
+    const textNode = findTextNode(el, 'word'); // "word" text node (after ZWS + chip)
     setCursor(textNode, 4);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -840,7 +909,7 @@ describe('handleChipNavigation — hardening edge cases', () => {
     const el = makeContainer(`${tokenA}${tokenB}${tokenC}`);
 
     // Start at end (after chip_c)
-    setCursor(el, 3);
+    setCursor(el, el.childNodes.length);
 
     // Alt+Left 1: before chip_c
     handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -915,7 +984,7 @@ describe('handleChipNavigation — hardening edge cases: round 2', () => {
     const token = fileToken('a.ts');
     // Layout: <chip>"hello"
     const el = makeContainer(`${token}hello`);
-    const textNode = el.childNodes[1]!; // "hello" text node
+    const textNode = findTextNode(el, 'hello'); // "hello" text node (after ZWS + chip)
     setCursor(textNode, 3); // hel|lo
 
     handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -1598,12 +1667,14 @@ describe('handleChipNavigation — combinatoric matrix', () => {
       const node = container.childNodes[i]!;
 
       if (node.nodeType === Node.TEXT_NODE) {
-        const len = (node.textContent ?? '').length;
-        if (remaining <= len) {
-          setCursor(node, remaining);
+        const text = node.textContent ?? '';
+        const rawLen = stripZws(text).length;
+        if (remaining <= rawLen) {
+          // Map raw offset to DOM offset accounting for ZWS
+          setCursor(node, rawToDomOffsetHelper(text, remaining));
           return;
         }
-        remaining -= len;
+        remaining -= rawLen;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         const fileRef = el.getAttribute('data-file-ref');
@@ -1622,10 +1693,10 @@ describe('handleChipNavigation — combinatoric matrix', () => {
           }
           remaining -= fileRef.length;
         } else {
-          const innerLen = (el.textContent ?? '').length;
+          const innerLen = stripZws(el.textContent ?? '').length;
           if (remaining <= innerLen) {
             // Recurse into inner text
-            setCursor(node, remaining);
+            setCursor(node, rawToDomOffsetHelper(el.textContent ?? '', remaining));
             return;
           }
           remaining -= innerLen;
@@ -1659,12 +1730,13 @@ describe('handleChipNavigation — sequence tests', () => {
       const node = container.childNodes[i]!;
 
       if (node.nodeType === Node.TEXT_NODE) {
-        const len = (node.textContent ?? '').length;
-        if (remaining <= len) {
-          setCursor(node, remaining);
+        const text = node.textContent ?? '';
+        const rawLen = stripZws(text).length;
+        if (remaining <= rawLen) {
+          setCursor(node, rawToDomOffsetHelper(text, remaining));
           return;
         }
-        remaining -= len;
+        remaining -= rawLen;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         const fileRef = el.getAttribute('data-file-ref');
@@ -1680,9 +1752,9 @@ describe('handleChipNavigation — sequence tests', () => {
           }
           remaining -= fileRef.length;
         } else {
-          const innerLen = (el.textContent ?? '').length;
+          const innerLen = stripZws(el.textContent ?? '').length;
           if (remaining <= innerLen) {
-            setCursor(node, remaining);
+            setCursor(node, rawToDomOffsetHelper(el.textContent ?? '', remaining));
             return;
           }
           remaining -= innerLen;
@@ -1719,7 +1791,7 @@ describe('handleChipNavigation — sequence tests', () => {
   // Sequence 2: ArrowRight through multiple consecutive chips
   it('ArrowRight ×3 through {chipA}{chipB}{chipC}', () => {
     const el = makeContainer(`${CHIP_A}${CHIP_B}${CHIP_C}`);
-    setCursor(el, 0); // Start at 0
+    setCursorLogical(el, 0); // Start before chipA
 
     // Step 1: ArrowRight → after chipA (23)
     const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
@@ -1740,7 +1812,7 @@ describe('handleChipNavigation — sequence tests', () => {
   // Sequence 3: ArrowLeft back through multiple chips
   it('ArrowLeft ×3 back through {chipA}{chipB}{chipC}', () => {
     const el = makeContainer(`${CHIP_A}${CHIP_B}${CHIP_C}`);
-    setCursor(el, 3); // Start at end (container level after all 3 chips)
+    setCursor(el, el.childNodes.length); // Start at end (after all chips)
 
     // Step 1: ArrowLeft → before chipC (46)
     const h1 = handleChipNavigation(el, makeKeyEvent('ArrowLeft'));
@@ -1844,7 +1916,7 @@ describe('handleChipNavigation — sequence tests', () => {
     const chipBEnd = chipBStart + CHIP_LEN; // 51
 
     // Start at 0 (before chipA)
-    setCursor(el, 0);
+    setCursorLogical(el, 0);
 
     // Step 1: ArrowRight → skip chipA → offset 23
     const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight'));
@@ -1919,7 +1991,9 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
       if (found) return true;
       if (node === targetNode) {
         if (node.nodeType === Node.TEXT_NODE) {
-          offset += targetOffset;
+          const text = node.textContent ?? '';
+          const beforeCursor = text.slice(0, targetOffset);
+          offset += stripZws(beforeCursor).length;
         } else {
           for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
             accumulateLength(node.childNodes[i]!);
@@ -1929,7 +2003,7 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
         return true;
       }
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return false;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -1953,7 +2027,7 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
 
     function accumulateLength(node: Node): void {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2012,7 +2086,7 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
   it('Shift+ArrowLeft when cursor is after a chip → chip is fully selected', () => {
     const el = makeContainer(`${CHIP_A} world`);
     // Cursor at start of " world" text (offset = chip length, right after chip)
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 0);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { shiftKey: true }));
@@ -2028,7 +2102,7 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
 
   it('Shift+ArrowRight ×2 across adjacent chips selects both', () => {
     const el = makeContainer(`${CHIP_A}${CHIP_B}`);
-    setCursor(el, 0); // Before chipA
+    setCursorLogical(el, 0); // Before chipA
 
     // Step 1: Shift+ArrowRight → select chipA
     const h1 = handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }));
@@ -2108,7 +2182,7 @@ describe('handleChipNavigation — Shift+Arrow selection', () => {
   it('Alt+Shift+ArrowLeft → selects to previous word boundary (before chip)', () => {
     const el = makeContainer(`${CHIP_A} world`);
     // Cursor at start of " world" (raw offset = chip length)
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 0);
 
     const handled = handleChipNavigation(
@@ -2166,7 +2240,9 @@ describe('handleChipNavigation — Home/End keys', () => {
       if (found) return true;
       if (node === targetNode) {
         if (node.nodeType === Node.TEXT_NODE) {
-          offset += targetOffset;
+          const text = node.textContent ?? '';
+          const beforeCursor = text.slice(0, targetOffset);
+          offset += stripZws(beforeCursor).length;
         } else {
           for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
             accumulateLength(node.childNodes[i]!);
@@ -2176,7 +2252,7 @@ describe('handleChipNavigation — Home/End keys', () => {
         return true;
       }
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return false;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2200,7 +2276,7 @@ describe('handleChipNavigation — Home/End keys', () => {
 
     function accumulateLength(node: Node): void {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2339,7 +2415,7 @@ describe('handleChipNavigation — Home/End keys', () => {
 
   it('Shift+Home selects from after chip to start', () => {
     const el = makeContainer(`${CHIP_A} world`);
-    const textNode = el.childNodes[1]!;
+    const textNode = findTextNode(el, ' world');
     setCursor(textNode, 3); // mid " world"
 
     const handled = handleChipNavigation(el, makeKeyEvent('Home', { shiftKey: true }));
@@ -2449,7 +2525,9 @@ describe('handleChipNavigation — Ctrl+Arrow word skip', () => {
       if (found) return true;
       if (node === targetNode) {
         if (node.nodeType === Node.TEXT_NODE) {
-          offset += targetOffset;
+          const text = node.textContent ?? '';
+          const beforeCursor = text.slice(0, targetOffset);
+          offset += stripZws(beforeCursor).length;
         } else {
           for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
             accumulateLength(node.childNodes[i]!);
@@ -2459,7 +2537,7 @@ describe('handleChipNavigation — Ctrl+Arrow word skip', () => {
         return true;
       }
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return false;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2483,7 +2561,7 @@ describe('handleChipNavigation — Ctrl+Arrow word skip', () => {
 
     function accumulateLength(node: Node): void {
       if (node.nodeType === Node.TEXT_NODE) {
-        offset += (node.textContent ?? '').length;
+        offset += stripZws(node.textContent ?? '').length;
         return;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2821,7 +2899,7 @@ describe('sanitizeCursorPosition — focus restore', () => {
 
   it('cursor after chip → returns false', () => {
     const el = makeContainer(`${CHIP_A} world`);
-    const textNode = el.childNodes[1]!; // " world"
+    const textNode = findTextNode(el, ' world'); // " world" text node
     setCursor(textNode, 0);
 
     const corrected = sanitizeCursorPosition(el);
@@ -2891,17 +2969,15 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
   });
 
   it('Delete at end of chip before <br> + chip → removes only <br>', () => {
-    // DOM: <chip_a> <br> <chip_b>
+    // DOM (with ZWS): [ZWS][chip_a][<br>][ZWS][chip_b]
     const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
-    // Cursor at container level, after chip_a (index 1 = after chip)
-    const chipA = el.childNodes[0]!;
-    expect((chipA as HTMLElement).hasAttribute('data-file-ref')).toBe(true);
+    // Find chip_a and set cursor after it
+    const chipA = el.querySelector('[data-file-ref]')!;
+    expect(chipA).not.toBeNull();
 
-    // Set cursor at container level after chip_a: anchorNode=container, anchorOffset=1
-    // But <br> is at index 1, so the child at offset 1 is the <br>.
-    // Actually: childNodes = [chip_a, <br>, chip_b]
-    // cursor at container offset 1 means "between child 0 and child 1" → next child is <br>
-    setCursor(el, 1);
+    // Set cursor at container level after chip_a — the <br> should be the next child
+    const chipAIndex = Array.from(el.childNodes).indexOf(chipA);
+    setCursor(el, chipAIndex + 1);
 
     const event = makeKeyEvent('Delete');
     const handled = handleChipNavigation(el, event);
@@ -2929,10 +3005,9 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
   // ── Backspace key: chip + <br> + cursor at start of text ──────────────
 
   it('Backspace at start of text after <br> preceded by chip → removes only <br>', () => {
-    // DOM: <chip_a> <br> "world"
+    // DOM (with ZWS): [ZWS][chip_a][<br>]["world"]
     const el = makeContainer(`${CHIP_A}\nworld`);
-    // childNodes: [chip_a, <br>, "world"]
-    const textNode = el.childNodes[2]!; // "world"
+    const textNode = findTextNode(el, 'world');
     expect(textNode.textContent).toBe('world');
 
     // Position cursor at start of "world"
@@ -2946,8 +3021,6 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
     expect(el.querySelector('br')).toBeNull();
     const chip = el.querySelector('[data-file-ref]');
     expect(chip).not.toBeNull();
-    // Container should have: chip + "world"
-    expect(el.childNodes.length).toBe(2);
   });
 
   it('Backspace at start of chip after <br> preceded by text → removes only <br>', () => {
@@ -2988,7 +3061,7 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
 
   it('Backspace in middle of text → not intercepted', () => {
     const el = makeContainer(`${CHIP_A}\nworld`);
-    const textNode = el.childNodes[2]!; // "world"
+    const textNode = findTextNode(el, 'world');
 
     // Cursor in middle of "world", not at start
     setCursor(textNode, 3);
@@ -3000,11 +3073,13 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
   });
 
   it('Backspace at container level after <br> between two chips → removes only <br>', () => {
-    // DOM: <chip_a> <br> <chip_b>
+    // DOM (with ZWS): [ZWS][chip_a][<br>][ZWS][chip_b]
     const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
-    // childNodes: [chip_a, <br>, chip_b]
-    // Cursor at container level offset 2 → prevChild is <br> at index 1
-    setCursor(el, 2);
+    // Find the <br> and set cursor after it
+    const brNode = el.querySelector('br')!;
+    const brIndex = Array.from(el.childNodes).indexOf(brNode);
+    // Cursor at container level after <br> → prevChild is <br>
+    setCursor(el, brIndex + 1);
 
     const event = makeKeyEvent('Backspace');
     const handled = handleChipNavigation(el, event);
