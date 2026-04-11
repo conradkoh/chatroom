@@ -14,6 +14,7 @@ import {
   htmlToRawText,
   domOffsetToRawOffset,
   setCursorToRawOffset,
+  extractRawTextFromSelection,
 } from '@/lib/fileReferenceSerializer';
 
 import {
@@ -168,6 +169,36 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
     const handlePaste = useCallback(
       (e: React.ClipboardEvent<HTMLDivElement>) => {
         e.preventDefault();
+
+        // Check for our custom MIME type first (copy/paste within chatroom preserves chips)
+        const chatroomRaw = e.clipboardData.getData('text/x-chatroom-raw');
+        if (chatroomRaw) {
+          const html = rawTextToHtml(chatroomRaw);
+          const selection = window.getSelection();
+          if (!selection || selection.rangeCount === 0) return;
+
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+
+          // Insert the HTML as a fragment to reconstruct chips
+          const fragment = range.createContextualFragment(html);
+          // Keep a reference to the last node so we can position cursor after it
+          const lastNode = fragment.lastChild;
+          range.insertNode(fragment);
+
+          // Move cursor to end of inserted content
+          if (lastNode) {
+            range.setStartAfter(lastNode);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+
+          handleInput();
+          return;
+        }
+
+        // Fall back to plain text behavior (unchanged)
         const text = e.clipboardData.getData('text/plain');
         if (!text) return;
 
@@ -187,6 +218,48 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         selection.addRange(range);
 
         // Trigger input handling
+        handleInput();
+      },
+      [handleInput]
+    );
+
+    // ── Copy handler ─────────────────────────────────────────────────────────
+    // Intercept copy to serialize chips as raw tokens in clipboard data.
+
+    const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+      const el = divRef.current;
+      if (!el) return;
+
+      const rawText = extractRawTextFromSelection(el);
+      if (rawText == null) return;
+
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', rawText);
+      e.clipboardData.setData('text/x-chatroom-raw', rawText);
+    }, []);
+
+    // ── Cut handler ──────────────────────────────────────────────────────────
+    // Same as copy, but also deletes the selection and triggers input handling.
+
+    const handleCut = useCallback(
+      (e: React.ClipboardEvent<HTMLDivElement>) => {
+        const el = divRef.current;
+        if (!el) return;
+
+        const rawText = extractRawTextFromSelection(el);
+        if (rawText == null) return;
+
+        e.preventDefault();
+        e.clipboardData.setData('text/plain', rawText);
+        e.clipboardData.setData('text/x-chatroom-raw', rawText);
+
+        // Delete the selection
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+        }
+
         handleInput();
       },
       [handleInput]
@@ -256,6 +329,8 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           onClick={handleClick}
           onFocus={handleFocus}
           onPaste={handlePaste}
+          onCopy={handleCopy}
+          onCut={handleCut}
           className={
             className ??
             [

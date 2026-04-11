@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 
 import {
   rawTextToHtml,
   htmlToRawText,
   domOffsetToRawOffset,
   setCursorToRawOffset,
+  extractRawTextFromSelection,
 } from './fileReferenceSerializer';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -342,5 +343,128 @@ describe('setCursorToRawOffset', () => {
     } finally {
       document.body.removeChild(el);
     }
+  });
+});
+
+// ── extractRawTextFromSelection ──────────────────────────────────────────────
+
+describe('extractRawTextFromSelection', () => {
+  /** Create a container, append to body, and select a range within it. */
+  function createAndSelect(html: string): HTMLDivElement {
+    const el = document.createElement('div');
+    el.contentEditable = 'true';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  /** Select all content within a container. */
+  function selectAll(container: HTMLElement): void {
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /** Set a selection range by offsets within text nodes. */
+  function setSelection(
+    startNode: Node,
+    startOffset: number,
+    endNode: Node,
+    endOffset: number
+  ): void {
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  afterEach(() => {
+    // Clean up any containers we appended
+    const editables = document.querySelectorAll('[contenteditable]');
+    editables.forEach((el) => el.parentNode?.removeChild(el));
+    window.getSelection()?.removeAllRanges();
+  });
+
+  it('returns null when no selection exists', () => {
+    const el = createAndSelect(rawTextToHtml('hello'));
+    window.getSelection()?.removeAllRanges();
+    expect(extractRawTextFromSelection(el)).toBeNull();
+  });
+
+  it('returns null when selection is collapsed (no range selected)', () => {
+    const el = createAndSelect(rawTextToHtml('hello'));
+    const textNode = el.childNodes[0]!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.setStart(textNode, 2);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    expect(extractRawTextFromSelection(el)).toBeNull();
+  });
+
+  it('extracts plain text from selection', () => {
+    const el = createAndSelect(rawTextToHtml('hello world'));
+    selectAll(el);
+    expect(extractRawTextFromSelection(el)).toBe('hello world');
+  });
+
+  it('extracts raw token from selected chip', () => {
+    const token = fileToken('index.ts');
+    const el = createAndSelect(rawTextToHtml(token));
+    selectAll(el);
+    expect(extractRawTextFromSelection(el)).toBe(token);
+  });
+
+  it('extracts mixed text + chip + text', () => {
+    const token = fileToken('a.ts');
+    const raw = `hello ${token} world`;
+    const el = createAndSelect(rawTextToHtml(raw));
+    selectAll(el);
+    expect(extractRawTextFromSelection(el)).toBe(raw);
+  });
+
+  it('extracts partial text selection (no chip)', () => {
+    const el = createAndSelect(rawTextToHtml('hello world'));
+    // Select "llo wo" (offset 2 to 8)
+    const textNode = el.childNodes[0]!;
+    setSelection(textNode, 2, textNode, 8);
+    expect(extractRawTextFromSelection(el)).toBe('llo wo');
+  });
+
+  it('extracts selection spanning text and chip', () => {
+    const token = fileToken('a.ts');
+    const raw = `hello ${token} world`;
+    const el = createAndSelect(rawTextToHtml(raw));
+
+    // Select from middle of "hello " through the chip to " world"
+    // DOM: [text "hello "][chip span][text " world"]
+    const firstTextNode = el.childNodes[0]!;
+    const lastTextNode = el.childNodes[2]!;
+    setSelection(firstTextNode, 3, lastTextNode, 3);
+    const result = extractRawTextFromSelection(el);
+    expect(result).toBe(`lo ${token} wo`);
+  });
+
+  it('returns null when selection is outside the container', () => {
+    const el = createAndSelect(rawTextToHtml('hello'));
+    const other = document.createElement('div');
+    other.textContent = 'other';
+    document.body.appendChild(other);
+
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(other);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(extractRawTextFromSelection(el)).toBeNull();
+    document.body.removeChild(other);
   });
 });
