@@ -152,6 +152,11 @@ export function handleChipNavigation(container: HTMLElement, e: KeyboardEvent): 
     return handleLineJump(container, target);
   }
 
+  // Delete/Backspace at newline+chip boundary — remove only the newline
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    return handleDeleteAtNewlineChipBoundary(container, e.key);
+  }
+
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
 
   const direction = e.key === 'ArrowLeft' ? 'left' : 'right';
@@ -251,6 +256,138 @@ export function sanitizeCursorPosition(container: HTMLElement): boolean {
   // Move cursor to after the chip
   setCursorAfterNode(chip);
   return true;
+}
+
+// ── Internal: Delete/Backspace at newline+chip boundary ──────────────────────
+
+/**
+ * Handle Delete or Backspace when the cursor is at a newline boundary adjacent to a chip.
+ *
+ * Problem: The browser's default Delete/Backspace behavior at a `<br>` element followed by
+ * (or preceded by) a `contenteditable="false"` chip span removes both the `<br>` AND the chip.
+ * We want to remove only the `<br>` and preserve the chip.
+ *
+ * Strategy:
+ * - For Delete: check if the next content is `<br>` followed by a chip
+ * - For Backspace: check if the previous content is `<br>` preceded by any content
+ *   where the element after `<br>` is a chip (or cursor is at start of line with chip)
+ * - Remove only the `<br>` from the DOM
+ * - Dispatch an `input` event so ContentEditableInput's onInput handler fires
+ *
+ * @returns true if handled (caller should preventDefault), false to let browser handle normally.
+ */
+function handleDeleteAtNewlineChipBoundary(
+  container: HTMLElement,
+  key: 'Delete' | 'Backspace'
+): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+
+  const { anchorNode, anchorOffset } = selection;
+  if (!anchorNode || !container.contains(anchorNode)) return false;
+
+  if (key === 'Delete') {
+    return handleDeleteForward(container, anchorNode, anchorOffset);
+  } else {
+    return handleBackwardDelete(container, anchorNode, anchorOffset);
+  }
+}
+
+/**
+ * Delete key: cursor is at end of line, next sibling chain is <br> + chip.
+ * Remove only the <br>.
+ */
+function handleDeleteForward(
+  container: HTMLElement,
+  anchorNode: Node,
+  anchorOffset: number
+): boolean {
+  let brNode: Node | null = null;
+
+  if (anchorNode.nodeType === Node.TEXT_NODE) {
+    const text = anchorNode.textContent ?? '';
+    if (anchorOffset !== text.length) return false; // Not at end of text node
+    // Check if next sibling is <br>
+    const next = anchorNode.nextSibling;
+    if (next && isElementWithTag(next, 'BR')) {
+      brNode = next;
+    }
+  } else if (anchorNode === container || anchorNode.nodeType === Node.ELEMENT_NODE) {
+    // Cursor at container/element level — anchorOffset is child index
+    const parent = anchorNode as HTMLElement;
+    const nextChild = parent.childNodes[anchorOffset];
+    if (nextChild && isElementWithTag(nextChild, 'BR')) {
+      brNode = nextChild;
+    }
+  }
+
+  if (!brNode) return false;
+
+  // Check what follows the <br>
+  const afterBr = brNode.nextSibling;
+  if (!afterBr || !isChipNode(afterBr)) return false;
+
+  // We have <br> followed by a chip — remove only the <br>
+  brNode.parentNode?.removeChild(brNode);
+  container.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+/**
+ * Backspace key: cursor is at start of line, previous sibling chain includes <br>.
+ * The <br> is between previous content and the current line which starts with a chip (or cursor).
+ * Remove only the <br>.
+ */
+function handleBackwardDelete(
+  container: HTMLElement,
+  anchorNode: Node,
+  anchorOffset: number
+): boolean {
+  let brNode: Node | null = null;
+
+  if (anchorNode.nodeType === Node.TEXT_NODE) {
+    if (anchorOffset !== 0) return false; // Not at start of text node
+    // Check if previous sibling is <br>
+    const prev = anchorNode.previousSibling;
+    if (prev && isElementWithTag(prev, 'BR')) {
+      brNode = prev;
+    }
+  } else if (anchorNode === container || anchorNode.nodeType === Node.ELEMENT_NODE) {
+    // Cursor at container/element level
+    const parent = anchorNode as HTMLElement;
+    const prevChild = parent.childNodes[anchorOffset - 1];
+    if (prevChild && isElementWithTag(prevChild, 'BR')) {
+      brNode = prevChild;
+    }
+  }
+
+  if (!brNode) return false;
+
+  // For Backspace, we need to check if either:
+  // 1. The content after the <br> starts with a chip (cursor is at start of text, chip follows)
+  // 2. The cursor is right after the <br> at a container level, and next node is a chip
+  // In both cases, the <br> is between content and a chip-adjacent position.
+
+  // Check what's after the <br> — is it a chip or a text node at position 0 before a chip?
+  const afterBr = brNode.nextSibling;
+  // If after <br> is a chip, or the cursor is at start of text and the <br> precedes a chip line
+  const beforeBr = brNode.previousSibling;
+
+  // We intercept if either side of the <br> has a chip
+  const chipAfterBr = afterBr && isChipNode(afterBr);
+  const chipBeforeBr = beforeBr && isChipNode(beforeBr);
+
+  if (!chipAfterBr && !chipBeforeBr) return false;
+
+  // Remove only the <br>
+  brNode.parentNode?.removeChild(brNode);
+  container.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+/** Check if a node is an element with a specific tag name. */
+function isElementWithTag(node: Node, tag: string): boolean {
+  return node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === tag;
 }
 
 // ── Internal: single-step navigation ─────────────────────────────────────────

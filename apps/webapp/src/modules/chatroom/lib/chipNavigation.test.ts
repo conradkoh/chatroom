@@ -2839,3 +2839,197 @@ describe('sanitizeCursorPosition — focus restore', () => {
     expect(corrected).toBe(false);
   });
 });
+
+// ── Delete/Backspace at newline+chip boundary ────────────────────────────────
+
+describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', () => {
+  const CHIP_A = fileToken('a.ts'); // {file://workspace/a.ts} = 23 chars
+  const CHIP_B = fileToken('b.ts');
+
+  // ── Delete key: text\n + chip → remove only the <br> ──────────────────
+
+  it('Delete at end of text before <br> + chip → removes only <br>, chip preserved', () => {
+    // DOM: "hello" <br> <chip_a>
+    const el = makeContainer(`hello\n${CHIP_A}`);
+    const textNode = el.childNodes[0]!; // "hello"
+    expect(textNode.textContent).toBe('hello');
+
+    // Position cursor at end of "hello"
+    setCursor(textNode, 5);
+
+    const event = makeKeyEvent('Delete');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(true);
+    // <br> should be removed; chip should still exist
+    const chip = el.querySelector('[data-file-ref]');
+    expect(chip).not.toBeNull();
+    // No <br> should remain
+    expect(el.querySelector('br')).toBeNull();
+    // Container should have: "hello" text + chip
+    expect(el.childNodes.length).toBe(2);
+    expect(el.childNodes[0]!.textContent).toBe('hello');
+    expect((el.childNodes[1] as HTMLElement).hasAttribute('data-file-ref')).toBe(true);
+  });
+
+  it('Delete at end of text before <br> + text (no chip) → not intercepted', () => {
+    // DOM: "hello" <br> "world"
+    const el = makeContainer(`hello\nworld`);
+    const textNode = el.childNodes[0]!; // "hello"
+    expect(textNode.textContent).toBe('hello');
+
+    // Position cursor at end of "hello"
+    setCursor(textNode, 5);
+
+    const event = makeKeyEvent('Delete');
+    const handled = handleChipNavigation(el, event);
+
+    // Should NOT be intercepted — no chip after <br>
+    expect(handled).toBe(false);
+    // DOM should be unchanged
+    expect(el.querySelector('br')).not.toBeNull();
+  });
+
+  it('Delete at end of chip before <br> + chip → removes only <br>', () => {
+    // DOM: <chip_a> <br> <chip_b>
+    const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
+    // Cursor at container level, after chip_a (index 1 = after chip)
+    const chipA = el.childNodes[0]!;
+    expect((chipA as HTMLElement).hasAttribute('data-file-ref')).toBe(true);
+
+    // Set cursor at container level after chip_a: anchorNode=container, anchorOffset=1
+    // But <br> is at index 1, so the child at offset 1 is the <br>.
+    // Actually: childNodes = [chip_a, <br>, chip_b]
+    // cursor at container offset 1 means "between child 0 and child 1" → next child is <br>
+    setCursor(el, 1);
+
+    const event = makeKeyEvent('Delete');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(true);
+    expect(el.querySelector('br')).toBeNull();
+    // Both chips should remain
+    const chips = el.querySelectorAll('[data-file-ref]');
+    expect(chips.length).toBe(2);
+  });
+
+  it('Delete in middle of text → not intercepted', () => {
+    const el = makeContainer(`hello\n${CHIP_A}`);
+    const textNode = el.childNodes[0]!; // "hello"
+
+    // Cursor in middle of "hello", not at end
+    setCursor(textNode, 3);
+
+    const event = makeKeyEvent('Delete');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(false);
+  });
+
+  // ── Backspace key: chip + <br> + cursor at start of text ──────────────
+
+  it('Backspace at start of text after <br> preceded by chip → removes only <br>', () => {
+    // DOM: <chip_a> <br> "world"
+    const el = makeContainer(`${CHIP_A}\nworld`);
+    // childNodes: [chip_a, <br>, "world"]
+    const textNode = el.childNodes[2]!; // "world"
+    expect(textNode.textContent).toBe('world');
+
+    // Position cursor at start of "world"
+    setCursor(textNode, 0);
+
+    const event = makeKeyEvent('Backspace');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(true);
+    // <br> removed, chip preserved
+    expect(el.querySelector('br')).toBeNull();
+    const chip = el.querySelector('[data-file-ref]');
+    expect(chip).not.toBeNull();
+    // Container should have: chip + "world"
+    expect(el.childNodes.length).toBe(2);
+  });
+
+  it('Backspace at start of chip after <br> preceded by text → removes only <br>', () => {
+    // DOM: "hello" <br> <chip_a>
+    const el = makeContainer(`hello\n${CHIP_A}`);
+    // childNodes: ["hello", <br>, chip_a]
+    // To backspace at start of the line with chip, cursor is at container level
+    // offset 2 means "between child 1 (<br>) and child 2 (chip)"
+    // prev child at offset-1 = child[1] = <br>
+    // afterBr = chip (has data-file-ref) → intercept
+    setCursor(el, 2);
+
+    const event = makeKeyEvent('Backspace');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(true);
+    expect(el.querySelector('br')).toBeNull();
+    const chip = el.querySelector('[data-file-ref]');
+    expect(chip).not.toBeNull();
+    expect(el.childNodes[0]!.textContent).toBe('hello');
+  });
+
+  it('Backspace at start of text after <br> preceded by text (no chip) → not intercepted', () => {
+    // DOM: "hello" <br> "world"
+    const el = makeContainer(`hello\nworld`);
+    const textNode = el.childNodes[2]!; // "world"
+
+    // Position cursor at start of "world"
+    setCursor(textNode, 0);
+
+    const event = makeKeyEvent('Backspace');
+    const handled = handleChipNavigation(el, event);
+
+    // No chip on either side of <br> → not intercepted
+    expect(handled).toBe(false);
+    expect(el.querySelector('br')).not.toBeNull();
+  });
+
+  it('Backspace in middle of text → not intercepted', () => {
+    const el = makeContainer(`${CHIP_A}\nworld`);
+    const textNode = el.childNodes[2]!; // "world"
+
+    // Cursor in middle of "world", not at start
+    setCursor(textNode, 3);
+
+    const event = makeKeyEvent('Backspace');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(false);
+  });
+
+  it('Backspace at container level after <br> between two chips → removes only <br>', () => {
+    // DOM: <chip_a> <br> <chip_b>
+    const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
+    // childNodes: [chip_a, <br>, chip_b]
+    // Cursor at container level offset 2 → prevChild is <br> at index 1
+    setCursor(el, 2);
+
+    const event = makeKeyEvent('Backspace');
+    const handled = handleChipNavigation(el, event);
+
+    expect(handled).toBe(true);
+    expect(el.querySelector('br')).toBeNull();
+    const chips = el.querySelectorAll('[data-file-ref]');
+    expect(chips.length).toBe(2);
+  });
+
+  // ── Input event dispatched ────────────────────────────────────────────
+
+  it('dispatches input event after removing <br>', () => {
+    const el = makeContainer(`hello\n${CHIP_A}`);
+    const textNode = el.childNodes[0]!;
+    setCursor(textNode, 5);
+
+    let inputFired = false;
+    el.addEventListener('input', () => {
+      inputFired = true;
+    });
+
+    const event = makeKeyEvent('Delete');
+    handleChipNavigation(el, event);
+
+    expect(inputFired).toBe(true);
+  });
+});
