@@ -1155,3 +1155,474 @@ describe('handleChipNavigation — Cmd+Left/Right (line start/end)', () => {
     expect(handled).toBe(false);
   });
 });
+
+// ── Combinatoric test matrix ─────────────────────────────────────────────────
+
+describe('handleChipNavigation — combinatoric matrix', () => {
+  // ── Constants ──────────────────────────────────────────────────────────────
+  const CHIP_A = fileToken('a.ts'); // {file://workspace/a.ts} = 23 chars
+  const CHIP_B = fileToken('b.ts'); // {file://workspace/b.ts} = 23 chars
+  const CHIP_A_LEN = CHIP_A.length; // 23
+  const CHIP_B_LEN = CHIP_B.length; // 23
+
+  // ── Layout definitions ────────────────────────────────────────────────────
+  interface Layout {
+    name: string;
+    raw: string;
+    totalLen: number;
+    /** Named cursor positions for this layout */
+    positions: Record<string, number>;
+  }
+
+  const layouts: Layout[] = [
+    {
+      name: 'chipOnly',
+      raw: CHIP_A,
+      totalLen: CHIP_A_LEN,
+      positions: {
+        start: 0,
+        afterChipA: CHIP_A_LEN,
+      },
+    },
+    {
+      name: 'textChip',
+      raw: `hello ${CHIP_A}`,
+      totalLen: 6 + CHIP_A_LEN, // 29
+      positions: {
+        start: 0,
+        midText: 3, // hel|lo
+        beforeChipA: 6, // end of "hello "
+        end: 6 + CHIP_A_LEN,
+      },
+    },
+    {
+      name: 'chipText',
+      raw: `${CHIP_A} world`,
+      totalLen: CHIP_A_LEN + 6, // 29
+      positions: {
+        start: 0,
+        afterChipA: CHIP_A_LEN, // start of " world"
+        midText: CHIP_A_LEN + 3, // " wo|rld"
+        end: CHIP_A_LEN + 6,
+      },
+    },
+    {
+      name: 'textChipText',
+      raw: `hello ${CHIP_A} world`,
+      totalLen: 6 + CHIP_A_LEN + 6, // 35
+      positions: {
+        start: 0,
+        midTextBefore: 3, // hel|lo
+        beforeChipA: 6,
+        afterChipA: 6 + CHIP_A_LEN, // 29
+        midTextAfter: 6 + CHIP_A_LEN + 3, // 32, " wo|rld"
+        end: 6 + CHIP_A_LEN + 6, // 35
+      },
+    },
+    {
+      name: 'chipChip',
+      raw: `${CHIP_A}${CHIP_B}`,
+      totalLen: CHIP_A_LEN + CHIP_B_LEN, // 46
+      positions: {
+        start: 0,
+        betweenChips: CHIP_A_LEN, // 23
+        end: CHIP_A_LEN + CHIP_B_LEN, // 46
+      },
+    },
+    {
+      name: 'chipTextChip',
+      raw: `${CHIP_A} mid ${CHIP_B}`,
+      totalLen: CHIP_A_LEN + 5 + CHIP_B_LEN, // 51 (" mid " = 5)
+      positions: {
+        start: 0,
+        afterChipA: CHIP_A_LEN, // 23
+        midText: CHIP_A_LEN + 2, // 25, " m|id "
+        beforeChipB: CHIP_A_LEN + 5, // 28
+        end: CHIP_A_LEN + 5 + CHIP_B_LEN, // 51
+      },
+    },
+  ];
+
+  // ── Hotkey definitions ────────────────────────────────────────────────────
+  type Hotkey = 'Arrow' | 'Shift+Arrow' | 'Alt+Arrow' | 'Cmd+Arrow' | 'Shift+Cmd+Arrow';
+
+  interface HotkeyDef {
+    name: Hotkey;
+    makeEvent: (dir: 'ArrowLeft' | 'ArrowRight') => KeyboardEvent;
+  }
+
+  const hotkeys: HotkeyDef[] = [
+    { name: 'Arrow', makeEvent: (dir) => makeKeyEvent(dir) },
+    { name: 'Shift+Arrow', makeEvent: (dir) => makeKeyEvent(dir, { shiftKey: true }) },
+    { name: 'Alt+Arrow', makeEvent: (dir) => makeKeyEvent(dir, { altKey: true }) },
+    { name: 'Cmd+Arrow', makeEvent: (dir) => makeKeyEvent(dir, { metaKey: true }) },
+    {
+      name: 'Shift+Cmd+Arrow',
+      makeEvent: (dir) => makeKeyEvent(dir, { metaKey: true, shiftKey: true }),
+    },
+  ];
+
+  // ── Test case type ────────────────────────────────────────────────────────
+  interface MatrixCase {
+    layout: string;
+    hotkey: Hotkey;
+    direction: 'Left' | 'Right';
+    positionName: string;
+    startOffset: number;
+    expectedHandled: boolean;
+    expectedOffset?: number; // only when handled=true
+  }
+
+  // ── Helper: is cursor adjacent to chip in a given direction ────────────
+  // Determines whether a plain Arrow key would be handled at a given position
+  function isAdjacentToChip(
+    layout: Layout,
+    offset: number,
+    direction: 'Left' | 'Right'
+  ): { handled: boolean; targetOffset?: number } {
+    // Parse the raw string to find chip positions
+    const chipPositions = findChipPositions(layout.raw);
+
+    if (direction === 'Left') {
+      // Check if there's a chip that ends at this offset
+      for (const cp of chipPositions) {
+        if (cp.end === offset) {
+          return { handled: true, targetOffset: cp.start };
+        }
+      }
+    } else {
+      // Check if there's a chip that starts at this offset
+      for (const cp of chipPositions) {
+        if (cp.start === offset) {
+          return { handled: true, targetOffset: cp.end };
+        }
+      }
+    }
+    return { handled: false };
+  }
+
+  interface ChipPosition {
+    start: number;
+    end: number;
+    token: string;
+  }
+
+  function findChipPositions(raw: string): ChipPosition[] {
+    const chips: ChipPosition[] = [];
+    const regex = /\{file:\/\/workspace\/[^}]+\}/g;
+    let match;
+    while ((match = regex.exec(raw)) !== null) {
+      chips.push({ start: match.index, end: match.index + match[0].length, token: match[0] });
+    }
+    return chips;
+  }
+
+  // ── Helper: compute Alt+Arrow expected outcome ─────────────────────────
+  // This mirrors the findWordBoundary logic to determine expected positions
+  function computeAltArrowExpected(
+    layout: Layout,
+    offset: number,
+    direction: 'Left' | 'Right'
+  ): { handled: boolean; targetOffset?: number } {
+    // At boundaries, Alt+Arrow returns false (no movement)
+    if (direction === 'Left' && offset === 0) return { handled: false };
+    if (direction === 'Right' && offset === layout.totalLen) return { handled: false };
+
+    // Build a simplified segment model to compute expected word boundary
+    const segments = buildTestSegments(layout.raw);
+    let target: number;
+    if (direction === 'Left') {
+      target = computeWordBoundaryLeft(segments, offset);
+    } else {
+      target = computeWordBoundaryRight(segments, offset, layout.totalLen);
+    }
+
+    if (target === offset) return { handled: false };
+    return { handled: true, targetOffset: target };
+  }
+
+  interface TestSegment {
+    type: 'text' | 'chip';
+    content: string;
+    start: number;
+    end: number;
+  }
+
+  function buildTestSegments(raw: string): TestSegment[] {
+    const segments: TestSegment[] = [];
+    const chipRegex = /\{file:\/\/workspace\/[^}]+\}/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = chipRegex.exec(raw)) !== null) {
+      if (match.index > lastIndex) {
+        const text = raw.substring(lastIndex, match.index);
+        segments.push({ type: 'text', content: text, start: lastIndex, end: match.index });
+      }
+      segments.push({
+        type: 'chip',
+        content: match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < raw.length) {
+      segments.push({
+        type: 'text',
+        content: raw.substring(lastIndex),
+        start: lastIndex,
+        end: raw.length,
+      });
+    }
+    return segments;
+  }
+
+  function computeWordBoundaryLeft(segments: TestSegment[], fromOffset: number): number {
+    let pos = fromOffset;
+
+    // Inside a segment
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i]!;
+      if (pos > seg.end || pos <= seg.start) continue;
+
+      if (seg.type === 'chip') return seg.start;
+
+      const offsetInText = pos - seg.start;
+      const newOffset = textWordBoundaryLeft(seg.content, offsetInText);
+      if (newOffset < offsetInText) {
+        const onlyWhitespace =
+          newOffset === 0 && /^\s+$/.test(seg.content.substring(0, offsetInText));
+        if (!onlyWhitespace) return seg.start + newOffset;
+      }
+      pos = seg.start;
+    }
+
+    // At segment boundary
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i]!;
+      if (seg.end !== pos) continue;
+
+      if (seg.type === 'chip') return seg.start;
+
+      const newOffset = textWordBoundaryLeft(seg.content, seg.content.length);
+      if (newOffset < seg.content.length) {
+        const onlyWhitespace = newOffset === 0 && /^\s+$/.test(seg.content);
+        if (!onlyWhitespace) return seg.start + newOffset;
+      }
+      pos = seg.start;
+
+      for (let j = i - 1; j >= 0; j--) {
+        const prevSeg = segments[j]!;
+        if (prevSeg.end !== pos) continue;
+        if (prevSeg.type === 'chip') return prevSeg.start;
+        const prevOffset = textWordBoundaryLeft(prevSeg.content, prevSeg.content.length);
+        if (prevOffset < prevSeg.content.length) {
+          const prevOnlyWs = prevOffset === 0 && /^\s+$/.test(prevSeg.content);
+          if (!prevOnlyWs) return prevSeg.start + prevOffset;
+        }
+        pos = prevSeg.start;
+      }
+      break;
+    }
+
+    return 0;
+  }
+
+  function computeWordBoundaryRight(
+    segments: TestSegment[],
+    fromOffset: number,
+    totalLen: number
+  ): number {
+    let pos = fromOffset;
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      if (pos < seg.start || pos >= seg.end) continue;
+
+      if (seg.type === 'chip') return seg.end;
+
+      const offsetInText = pos - seg.start;
+      const newOffset = textWordBoundaryRight(seg.content, offsetInText);
+      if (newOffset > offsetInText) {
+        const onlyWhitespace =
+          newOffset === seg.content.length &&
+          /^\s+$/.test(seg.content.substring(offsetInText, newOffset));
+        if (!onlyWhitespace) return seg.start + newOffset;
+      }
+      pos = seg.end;
+    }
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      if (seg.start !== pos) continue;
+
+      if (seg.type === 'chip') return seg.end;
+
+      const newOffset = textWordBoundaryRight(seg.content, 0);
+      if (newOffset > 0) {
+        const onlyWhitespace = newOffset === seg.content.length && /^\s+$/.test(seg.content);
+        if (!onlyWhitespace) return seg.start + newOffset;
+      }
+      pos = seg.end;
+
+      for (let j = i + 1; j < segments.length; j++) {
+        const nextSeg = segments[j]!;
+        if (nextSeg.start !== pos) continue;
+        if (nextSeg.type === 'chip') return nextSeg.end;
+        const nextOffset = textWordBoundaryRight(nextSeg.content, 0);
+        if (nextOffset > 0) {
+          const nextOnlyWs = nextOffset === nextSeg.content.length && /^\s+$/.test(nextSeg.content);
+          if (!nextOnlyWs) return nextSeg.start + nextOffset;
+        }
+        pos = nextSeg.end;
+      }
+      break;
+    }
+
+    return totalLen;
+  }
+
+  function textWordBoundaryLeft(text: string, offset: number): number {
+    let p = offset;
+    while (p > 0 && /\s/.test(text[p - 1]!)) p--;
+    while (p > 0 && /\S/.test(text[p - 1]!)) p--;
+    return p;
+  }
+
+  function textWordBoundaryRight(text: string, offset: number): number {
+    let p = offset;
+    while (p < text.length && /\S/.test(text[p]!)) p++;
+    while (p < text.length && /\s/.test(text[p]!)) p++;
+    return p;
+  }
+
+  // ── Generate test cases ───────────────────────────────────────────────────
+  const cases: MatrixCase[] = [];
+
+  for (const layout of layouts) {
+    for (const posName of Object.keys(layout.positions)) {
+      const startOffset = layout.positions[posName]!;
+      for (const hotkey of hotkeys) {
+        for (const direction of ['Left', 'Right'] as const) {
+          let expectedHandled: boolean;
+          let expectedOffset: number | undefined;
+
+          if (hotkey.name === 'Shift+Arrow' || hotkey.name === 'Shift+Cmd+Arrow') {
+            // Always falls through to browser
+            expectedHandled = false;
+          } else if (hotkey.name === 'Cmd+Arrow') {
+            // Always handled: jump to start or end
+            expectedHandled = true;
+            expectedOffset = direction === 'Left' ? 0 : layout.totalLen;
+          } else if (hotkey.name === 'Arrow') {
+            const result = isAdjacentToChip(layout, startOffset, direction);
+            expectedHandled = result.handled;
+            expectedOffset = result.targetOffset;
+          } else {
+            // Alt+Arrow
+            const result = computeAltArrowExpected(layout, startOffset, direction);
+            expectedHandled = result.handled;
+            expectedOffset = result.targetOffset;
+          }
+
+          cases.push({
+            layout: layout.name,
+            hotkey: hotkey.name,
+            direction,
+            positionName: posName,
+            startOffset,
+            expectedHandled,
+            expectedOffset,
+          });
+        }
+      }
+    }
+  }
+
+  // ── Run matrix ────────────────────────────────────────────────────────────
+  // Group by layout for readability
+  for (const layout of layouts) {
+    describe(`layout: ${layout.name} — "${layout.raw.replace(/\{file:\/\/workspace\/([^}]+)\}/g, '[$1]')}"`, () => {
+      const layoutCases = cases.filter((c) => c.layout === layout.name);
+
+      it.each(layoutCases)(
+        '$hotkey $direction @ $positionName (offset $startOffset) → handled=$expectedHandled',
+        (tc) => {
+          const el = makeContainer(layout.raw);
+          setCursorToOffset(el, tc.startOffset);
+
+          const hotkeyDef = hotkeys.find((h) => h.name === tc.hotkey)!;
+          const arrowKey = tc.direction === 'Left' ? 'ArrowLeft' : 'ArrowRight';
+          const event = hotkeyDef.makeEvent(arrowKey);
+
+          const handled = handleChipNavigation(el, event);
+          expect(handled).toBe(tc.expectedHandled);
+
+          if (tc.expectedHandled && tc.expectedOffset !== undefined) {
+            expect(getRawOffset(el)).toBe(tc.expectedOffset);
+          }
+        }
+      );
+    });
+  }
+
+  // ── Helper: set cursor to a raw offset ────────────────────────────────────
+  // Walks the DOM tree to position cursor at the correct raw offset
+  function setCursorToOffset(container: HTMLElement, targetOffset: number): void {
+    if (targetOffset === 0 && container.childNodes.length > 0) {
+      // Position at start: if first child is text, use it; otherwise use container level
+      const first = container.childNodes[0]!;
+      if (first.nodeType === Node.TEXT_NODE) {
+        setCursor(first, 0);
+      } else {
+        setCursor(container, 0);
+      }
+      return;
+    }
+
+    let remaining = targetOffset;
+
+    for (let i = 0; i < container.childNodes.length; i++) {
+      const node = container.childNodes[i]!;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const len = (node.textContent ?? '').length;
+        if (remaining <= len) {
+          setCursor(node, remaining);
+          return;
+        }
+        remaining -= len;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const fileRef = el.getAttribute('data-file-ref');
+        if (fileRef) {
+          if (remaining === 0) {
+            // Before chip
+            setCursor(container, i);
+            return;
+          }
+          if (remaining <= fileRef.length) {
+            // After chip
+            setCursor(container, i + 1);
+            remaining = 0;
+            // Check if there's more content or we should stop here
+            if (remaining === 0) return;
+          }
+          remaining -= fileRef.length;
+        } else {
+          const innerLen = (el.textContent ?? '').length;
+          if (remaining <= innerLen) {
+            // Recurse into inner text
+            setCursor(node, remaining);
+            return;
+          }
+          remaining -= innerLen;
+        }
+      }
+    }
+
+    // If we've exhausted all nodes, position at end of container
+    setCursor(container, container.childNodes.length);
+  }
+});
