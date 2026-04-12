@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Code2 } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
@@ -11,24 +11,18 @@ import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
 import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
-import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import {
   useAttachments,
   useTaskAttachments,
   useBacklogAttachments,
   useMessageAttachments,
 } from '../context/AttachmentsContext';
-import type { FileEntry } from './FileSelector/useFileSelector';
-import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
-import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
 
 interface SendFormProps {
   chatroomId: string;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
-  /** Available workspace files for @ autocomplete (tagged with workspaceId) */
-  files?: FileEntry[];
 }
 
 /**
@@ -111,43 +105,13 @@ export const SendForm = memo(function SendForm({
   onBeforeResize: _onBeforeResize,
   onAfterResize: _onAfterResize,
   onRegisterFocus,
-  files = [],
 }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const inputRef = useRef<ContentEditableInputRef>(null);
-  const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
-
-  // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
-  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
-  const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
-
-  const getCaretPosition = useCallback(() => {
-    const caretPos = inputRef.current?.getCaretPixelPosition() ?? null;
-    if (!caretPos) return null;
-
-    // The caret position is relative to the contenteditable element, but the
-    // dropdown is absolutely positioned within formContainerRef. Adjust left
-    // by the horizontal offset between the two containers so the dropdown
-    // aligns with the trigger character, not shifted by ~2 chars.
-    const inputEl = inputRef.current?.getElement();
-    const formEl = formContainerRef.current;
-    if (inputEl && formEl) {
-      const inputRect = inputEl.getBoundingClientRect();
-      const formRect = formEl.getBoundingClientRect();
-      return {
-        ...caretPos,
-        left: caretPos.left + (inputRect.left - formRect.left),
-      };
-    }
-
-    return caretPos;
-  }, []);
-
-  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -245,29 +209,6 @@ export const SendForm = memo(function SendForm({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // Let the trigger autocomplete hook handle navigation keys first
-      if (autocomplete.state.visible) {
-        // Arrow keys, Escape are handled by the hook
-        if (autocomplete.handleKeyDown(e.nativeEvent)) return;
-
-        // Enter/Tab: select the current result
-        if (
-          (e.key === 'Enter' || e.key === 'Tab') &&
-          autocomplete.state.results.length > 0 &&
-          autocomplete.state.selectedIndex < autocomplete.state.results.length
-        ) {
-          e.preventDefault();
-          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
-          const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
-          setMessage(newText);
-          setTimeout(() => {
-            inputRef.current?.focus();
-            inputRef.current?.setCursorOffset(newCursorPos);
-          }, 0);
-          return;
-        }
-      }
-
       // On touch devices (mobile), Enter creates a newline
       // Submission only happens via the Send button
       if (isTouchDevice) {
@@ -282,7 +223,7 @@ export const SendForm = memo(function SendForm({
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice, autocomplete, message]
+    [handleSubmit, isTouchDevice]
   );
 
   const handleFormSubmit = useCallback(
@@ -293,36 +234,9 @@ export const SendForm = memo(function SendForm({
     [handleSubmit]
   );
 
-  const handleContentChange = useCallback(
-    (newValue: string) => {
-      setMessage(newValue);
-
-      // Get cursor position from the contenteditable
-      const cursorPos = inputRef.current?.getCursorOffset() ?? newValue.length;
-
-      // Delegate trigger detection to the autocomplete hook
-      autocomplete.handleInputChange(newValue, cursorPos);
-    },
-    [autocomplete]
-  );
-
-  // ── Autocomplete file select callback ───────────────────────────────────────
-  const handleFileSelect = useCallback(
-    (filePath: string) => {
-      // Find the file entry from results that matches this path
-      const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
-      if (!fileEntry) return;
-
-      const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
-      setMessage(newText);
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.setCursorOffset(newCursorPos);
-      }, 0);
-    },
-    [autocomplete, message]
-  );
+  const handleContentChange = useCallback((newValue: string) => {
+    setMessage(newValue);
+  }, []);
 
   // ── Editor modal callbacks ────────────────────────────────────────────────────
   const handleEditorClose = useCallback((editedText: string) => {
@@ -341,17 +255,7 @@ export const SendForm = memo(function SendForm({
   );
 
   return (
-    <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
-      {/* @ file reference autocomplete dropdown */}
-      <FileReferenceAutocomplete
-        results={autocomplete.state.results}
-        selectedIndex={autocomplete.state.selectedIndex}
-        position={autocomplete.state.position}
-        onSelect={handleFileSelect}
-        onHoverItem={autocomplete.setSelectedIndex}
-        visible={autocomplete.state.visible}
-      />
-
+    <div className="relative bg-chatroom-bg-surface backdrop-blur-xl">
       {/* Attached Tasks Row */}
       {(attachedTasks.length > 0 ||
         attachedBacklogItems.length > 0 ||
