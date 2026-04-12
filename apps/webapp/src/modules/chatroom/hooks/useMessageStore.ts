@@ -9,7 +9,7 @@ import type { Message } from '../types/message';
 
 // ─── State ──────────────────────────────────────
 
-interface MessageStoreState {
+export interface MessageStoreState {
   messages: Message[];
   oldestCursor: number | null;
   newestCursor: number | null;
@@ -22,7 +22,7 @@ interface MessageStoreState {
 
 // ─── Reducer actions ────────────────────────────
 
-type Action =
+export type Action =
   | { type: 'INITIALIZE'; messages: Message[]; cursor: number | null; hasMore: boolean }
   | { type: 'APPEND_NEW'; messages: Message[] }
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMore: boolean }
@@ -30,12 +30,12 @@ type Action =
   | { type: 'REQUEST_OLDER' }
   | { type: 'RESET' };
 
-function deduplicateMessages(existing: Message[], incoming: Message[]): Message[] {
+export function deduplicateMessages(existing: Message[], incoming: Message[]): Message[] {
   const existingIds = new Set(existing.map((m) => m._id));
   return incoming.filter((m) => !existingIds.has(m._id));
 }
 
-function messageStoreReducer(state: MessageStoreState, action: Action): MessageStoreState {
+export function messageStoreReducer(state: MessageStoreState, action: Action): MessageStoreState {
   switch (action.type) {
     case 'INITIALIZE': {
       if (state.isInitialized) return state;
@@ -119,7 +119,7 @@ function messageStoreReducer(state: MessageStoreState, action: Action): MessageS
   }
 }
 
-const initialState: MessageStoreState = {
+export const initialState: MessageStoreState = {
   messages: [],
   oldestCursor: null,
   newestCursor: null,
