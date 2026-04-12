@@ -1,10 +1,8 @@
 /**
- * Simplified file reference serializer for contenteditable input.
+ * Simplified serializer for contenteditable input.
  *
- * Converts between raw text (with {file://...} tokens as literal text) and
- * safe HTML for rendering inside a contenteditable div.
- *
- * No chip spans, no ZWS — just plain text with HTML escaping and newline handling.
+ * Converts between raw text and safe HTML for rendering inside
+ * a contenteditable div. Handles HTML escaping and newlines.
  */
 
 // ── rawTextToHtml ────────────────────────────────────────────────────────────
@@ -13,7 +11,6 @@
  * Convert raw message text to HTML for rendering inside a contenteditable div.
  *
  * HTML-escapes the text and converts newlines to <br>.
- * File reference tokens like {file://...} appear as literal text.
  */
 export function rawTextToHtml(text: string): string {
   if (!text) return '';
@@ -223,82 +220,6 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
       selection.addRange(range);
     }
   }
-}
-
-// ── extractRawTextFromSelection ──────────────────────────────────────────────
-
-/**
- * Extract raw text from the current DOM selection within a contenteditable container.
- *
- * Returns null if there is no selection or the selection is not within the container.
- */
-export function extractRawTextFromSelection(container: HTMLElement): string | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    return null;
-  }
-
-  const range = selection.getRangeAt(0);
-
-  // Verify the selection is within the container
-  if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
-    return null;
-  }
-
-  const fragment = range.cloneContents();
-  return fragmentToRawText(fragment);
-}
-
-/**
- * Convert a DocumentFragment (from range.cloneContents()) to raw text.
- */
-function fragmentToRawText(fragment: DocumentFragment): string {
-  let result = '';
-
-  for (const node of Array.from(fragment.childNodes)) {
-    result += nodeToRawText(node);
-  }
-
-  return result;
-}
-
-/**
- * Convert a single DOM node to raw text recursively.
- */
-function nodeToRawText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ?? '';
-  }
-
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const el = node as HTMLElement;
-
-    // <br> → newline
-    if (el.tagName === 'BR') {
-      return '\n';
-    }
-
-    // <div> is how contenteditable handles newlines in some browsers
-    if (el.tagName === 'DIV') {
-      let text = '';
-      if (el.previousSibling) {
-        text += '\n';
-      }
-      for (const child of Array.from(el.childNodes)) {
-        text += nodeToRawText(child);
-      }
-      return text;
-    }
-
-    // Recurse into other elements
-    let text = '';
-    for (const child of Array.from(el.childNodes)) {
-      text += nodeToRawText(child);
-    }
-    return text;
-  }
-
-  return '';
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────

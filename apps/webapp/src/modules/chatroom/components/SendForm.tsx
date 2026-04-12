@@ -315,7 +315,6 @@ export const SendForm = memo(function SendForm({
 
       const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
       setMessage(newText);
-
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.setCursorOffset(newCursorPos);

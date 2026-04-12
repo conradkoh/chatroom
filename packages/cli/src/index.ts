@@ -1012,23 +1012,6 @@ artifactCommand
 // FILE COMMANDS (auth required)
 // ============================================================================
 
-const fileCommand = program
-  .command('file')
-  .description('View workspace files from file references');
-
-fileCommand
-  .command('view')
-  .description('View a file referenced in a chatroom message')
-  .requiredOption(
-    '--file-reference <ref>',
-    'File reference token, e.g. "{file://workspaceId/path/to/file.ts}"'
-  )
-  .action(async (options: { fileReference: string }) => {
-    await maybeRequireAuth();
-    const { viewFile } = await import('./commands/file/index.js');
-    await viewFile({ fileReference: options.fileReference });
-  });
-
 program
   .command('get-system-prompt')
   .description('Fetch the system prompt for your role in a chatroom')

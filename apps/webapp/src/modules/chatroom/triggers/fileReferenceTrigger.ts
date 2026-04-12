@@ -1,7 +1,6 @@
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import type { TriggerDefinition } from '../hooks/useTriggerAutocomplete';
 import { fuzzyMatch } from '@/lib/fuzzyMatch';
-import { encodeFileReference } from '@/lib/fileReference';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
 
@@ -23,11 +22,7 @@ export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinitio
         .map((item) => item.file)
         .slice(0, MAX_DISPLAY);
     },
-    serialize: (item) => {
-      // Use the per-file workspaceId if available, otherwise skip encoding
-      if (!item.workspaceId) return item.path;
-      return encodeFileReference(item.workspaceId, item.path);
-    },
+    serialize: (item) => item.path,
     maxDisplayItems: MAX_DISPLAY,
   };
 }

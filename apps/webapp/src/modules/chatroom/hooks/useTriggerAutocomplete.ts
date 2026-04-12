@@ -29,7 +29,7 @@ export interface TriggerDefinition<T = unknown> {
 
   /**
    * Serialize a selected item into text to insert into the message.
-   * E.g., for files: encodeFileReference(workspace, filePath)
+   * E.g., for files: return the file path
    */
   serialize: (item: T) => string;
 
