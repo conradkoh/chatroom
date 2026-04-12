@@ -5,7 +5,7 @@ import { encodeFileReference } from '@/lib/fileReference';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
 
-export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinition<FileEntry> {
+export function createFileReferenceTrigger(files: FileEntry[], prefix: string): TriggerDefinition<FileEntry> {
   return {
     triggerChar: '@',
     isValidPosition: (_textBeforeCursor, triggerIndex) => {
@@ -26,7 +26,7 @@ export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinitio
     serialize: (item) => {
       // Use the per-file workspaceId if available, otherwise skip encoding
       if (!item.workspaceId) return item.path;
-      return encodeFileReference(item.workspaceId, item.path);
+      return encodeFileReference(item.workspaceId, item.path, prefix);
     },
     maxDisplayItems: MAX_DISPLAY,
   };

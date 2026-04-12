@@ -21,6 +21,7 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
+import { generateTokenPrefix } from '@/lib/fileReference';
 
 interface SendFormProps {
   chatroomId: string;
@@ -121,8 +122,11 @@ export const SendForm = memo(function SendForm({
 
   const [editorOpen, setEditorOpen] = useState(false);
 
+  // Generate a stable prefix per component instance (regenerated on mount/chatroom switch)
+  const [tokenPrefix] = useState(() => generateTokenPrefix());
+
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
-  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
+  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files, tokenPrefix), [files, tokenPrefix]);
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {
