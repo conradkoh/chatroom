@@ -112,7 +112,7 @@ describe('rawTextToHtml with prefix', () => {
     expect(html).toContain('data-token');
     expect(html).toContain('contenteditable="false"');
     expect(html).toContain('class="file-ref-inline"');
-    expect(html).toContain('>src/index.ts</span>');
+    expect(html).toContain('>[src/index.ts]</span>');
   });
 
   it('renders surrounding text with a token', () => {
@@ -121,14 +121,14 @@ describe('rawTextToHtml with prefix', () => {
     const html = rawTextToHtml(raw, PREFIX);
     expect(html).toContain('hello ');
     expect(html).toContain(' world');
-    expect(html).toContain('>a.ts</span>');
+    expect(html).toContain('>[a.ts]</span>');
   });
 
   it('renders multiple tokens as spans', () => {
     const raw = `${newToken('ws', 'a.ts')} and ${newToken('ws', 'b.ts')}`;
     const html = rawTextToHtml(raw, PREFIX);
-    expect(html).toContain('>a.ts</span>');
-    expect(html).toContain('>b.ts</span>');
+    expect(html).toContain('>[a.ts]</span>');
+    expect(html).toContain('>[b.ts]</span>');
     expect(html).toContain(' and ');
   });
 
@@ -136,7 +136,7 @@ describe('rawTextToHtml with prefix', () => {
     const raw = `line1\n${newToken('ws', 'file.ts')}\nline3`;
     const html = rawTextToHtml(raw, PREFIX);
     expect(html).toContain('<br>');
-    expect(html).toContain('>file.ts</span>');
+    expect(html).toContain('>[file.ts]</span>');
   });
 
   it('behaves like plain mode when prefix is undefined', () => {

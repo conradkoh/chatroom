@@ -45,7 +45,7 @@ export function internalToDisplay(text: string, prefix: string): string {
 
   for (const ref of refs) {
     result += text.slice(cursor, ref.start);
-    result += ref.filePath;
+    result += `[${ref.filePath}]`;
     cursor = ref.end;
   }
 
@@ -69,7 +69,7 @@ export function buildTokenMap(text: string, prefix: string): TokenMapping[] {
   for (const ref of refs) {
     const fullToken = text.slice(ref.start, ref.end);
     const tokenLength = ref.end - ref.start;
-    const displayLength = ref.filePath.length;
+    const displayLength = ref.filePath.length + 2; // +2 for brackets [...]
 
     mappings.push({
       internalStart: ref.start,
@@ -110,7 +110,8 @@ export function internalOffsetToDisplay(offset: number, tokenMap: TokenMapping[]
     }
 
     // Cursor is at or after this token's end
-    shift += mapping.filePath.length - mapping.fullToken.length;
+    const displayLength = mapping.displayEnd - mapping.displayStart;
+    shift += displayLength - mapping.fullToken.length;
   }
 
   return offset + shift;
@@ -135,7 +136,8 @@ export function displayOffsetToInternal(offset: number, tokenMap: TokenMapping[]
 
     if (offset >= mapping.displayEnd) {
       // At or past this token's display end — map to corresponding internal position
-      shift += mapping.fullToken.length - mapping.filePath.length;
+      const displayLength = mapping.displayEnd - mapping.displayStart;
+      shift += mapping.fullToken.length - displayLength;
     }
   }
 
@@ -233,7 +235,8 @@ function displayOffsetToInternalBoundary(
     }
 
     if (displayOffset >= mapping.displayEnd) {
-      shift += mapping.fullToken.length - mapping.filePath.length;
+      const displayLength = mapping.displayEnd - mapping.displayStart;
+      shift += mapping.fullToken.length - displayLength;
     }
   }
 

@@ -42,7 +42,7 @@ export function rawTextToHtml(text: string, prefix?: string): string {
 
     // Add atomic span for the token
     const fullToken = text.slice(ref.start, ref.end);
-    result += `<span data-token="${escapeHtmlAttr(fullToken)}" contenteditable="false" class="file-ref-inline">${escapeHtml(ref.filePath)}</span>`;
+    result += `<span data-token="${escapeHtmlAttr(fullToken)}" contenteditable="false" class="file-ref-inline">[${escapeHtml(ref.filePath)}]</span>`;
 
     cursor = ref.end;
   }

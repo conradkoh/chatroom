@@ -28,34 +28,34 @@ describe('internalToDisplay', () => {
     expect(internalToDisplay('', PREFIX)).toBe('');
   });
 
-  it('replaces a single token with its file path', () => {
+  it('replaces a single token with its file path in brackets', () => {
     const internal = `check ${ref('ws1', 'src/index.ts')} please`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('check src/index.ts please');
+    expect(internalToDisplay(internal, PREFIX)).toBe('check [src/index.ts] please');
   });
 
   it('replaces multiple tokens', () => {
     const internal = `see ${ref('ws1', 'a.ts')} and ${ref('ws2', 'b.ts')}`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('see a.ts and b.ts');
+    expect(internalToDisplay(internal, PREFIX)).toBe('see [a.ts] and [b.ts]');
   });
 
   it('handles token at the start of text', () => {
     const internal = `${ref('ws', 'file.ts')} is great`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('file.ts is great');
+    expect(internalToDisplay(internal, PREFIX)).toBe('[file.ts] is great');
   });
 
   it('handles token at the end of text', () => {
     const internal = `see ${ref('ws', 'file.ts')}`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('see file.ts');
+    expect(internalToDisplay(internal, PREFIX)).toBe('see [file.ts]');
   });
 
   it('handles adjacent tokens', () => {
     const internal = `${ref('ws', 'a.ts')}${ref('ws', 'b.ts')}`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('a.tsb.ts');
+    expect(internalToDisplay(internal, PREFIX)).toBe('[a.ts][b.ts]');
   });
 
   it('handles escaped colons in workspace', () => {
     const internal = `file: ${ref('ws:name', 'path.ts')}`;
-    expect(internalToDisplay(internal, PREFIX)).toBe('file: path.ts');
+    expect(internalToDisplay(internal, PREFIX)).toBe('file: [path.ts]');
   });
 });
 
@@ -80,7 +80,7 @@ describe('buildTokenMap', () => {
       internalStart: 6, // after "check "
       internalEnd: 6 + token.length,
       displayStart: 6, // after "check "
-      displayEnd: 6 + 'src/index.ts'.length,
+      displayEnd: 6 + '[src/index.ts]'.length,
       filePath: 'src/index.ts',
       fullToken: token,
     });
@@ -98,13 +98,13 @@ describe('buildTokenMap', () => {
     expect(map[0].internalStart).toBe(4);
     expect(map[0].internalEnd).toBe(4 + token1.length);
     expect(map[0].displayStart).toBe(4);
-    expect(map[0].displayEnd).toBe(4 + 'a.ts'.length);
+    expect(map[0].displayEnd).toBe(4 + '[a.ts]'.length);
     expect(map[0].filePath).toBe('a.ts');
 
-    // Second token: after "see a.ts and " in display
+    // Second token: after "see [a.ts] and " in display
     expect(map[1].internalStart).toBe(4 + token1.length + ' and '.length);
-    expect(map[1].displayStart).toBe(4 + 'a.ts'.length + ' and '.length);
-    expect(map[1].displayEnd).toBe(4 + 'a.ts'.length + ' and '.length + 'b.ts'.length);
+    expect(map[1].displayStart).toBe(4 + '[a.ts]'.length + ' and '.length);
+    expect(map[1].displayEnd).toBe(4 + '[a.ts]'.length + ' and '.length + '[b.ts]'.length);
     expect(map[1].filePath).toBe('b.ts');
   });
 
@@ -115,7 +115,7 @@ describe('buildTokenMap', () => {
 
     expect(map[0].internalStart).toBe(0);
     expect(map[0].displayStart).toBe(0);
-    expect(map[0].displayEnd).toBe('file.ts'.length);
+    expect(map[0].displayEnd).toBe('[file.ts]'.length);
   });
 });
 
@@ -150,7 +150,7 @@ describe('internalOffsetToDisplay', () => {
     expect(internalOffsetToDisplay(4, map)).toBe(3);
 
     // Cursor near end of token → display end
-    expect(internalOffsetToDisplay(3 + token.length - 1, map)).toBe(3 + 'file.ts'.length);
+    expect(internalOffsetToDisplay(3 + token.length - 1, map)).toBe(3 + '[file.ts]'.length);
   });
 
   it('adjusts offset after token correctly', () => {
@@ -160,7 +160,7 @@ describe('internalOffsetToDisplay', () => {
 
     // Just after token in internal
     const afterTokenInternal = 3 + token.length;
-    const afterTokenDisplay = 3 + 'file.ts'.length;
+    const afterTokenDisplay = 3 + '[file.ts]'.length;
     expect(internalOffsetToDisplay(afterTokenInternal, map)).toBe(afterTokenDisplay);
   });
 
@@ -168,7 +168,7 @@ describe('internalOffsetToDisplay', () => {
     const token = ref('ws', 'f.ts');
     const internal = `${token}`;
     const map = buildTokenMap(internal, PREFIX);
-    expect(internalOffsetToDisplay(internal.length, map)).toBe('f.ts'.length);
+    expect(internalOffsetToDisplay(internal.length, map)).toBe('[f.ts]'.length);
   });
 
   it('handles cursor between two tokens', () => {
@@ -179,7 +179,7 @@ describe('internalOffsetToDisplay', () => {
 
     // The space between tokens
     const spaceInternal = token1.length;
-    const spaceDisplay = 'a.ts'.length;
+    const spaceDisplay = '[a.ts]'.length;
     expect(internalOffsetToDisplay(spaceInternal, map)).toBe(spaceDisplay);
   });
 });
@@ -208,7 +208,7 @@ describe('displayOffsetToInternal', () => {
     expect(displayOffsetToInternal(3, map)).toBe(3);
 
     // Cursor at display end of token → internal end
-    expect(displayOffsetToInternal(3 + 'file.ts'.length, map)).toBe(3 + token.length);
+    expect(displayOffsetToInternal(3 + '[file.ts]'.length, map)).toBe(3 + token.length);
   });
 
   it('maps cursor inside display file path to internal token start', () => {
@@ -216,7 +216,7 @@ describe('displayOffsetToInternal', () => {
     const internal = `hi ${token} end`;
     const map = buildTokenMap(internal, PREFIX);
 
-    // Cursor in middle of "file.ts" display text
+    // Cursor in middle of "[file.ts]" display text (e.g. offset 5 = inside the bracket content)
     expect(displayOffsetToInternal(5, map)).toBe(3); // maps to token start
   });
 
@@ -225,7 +225,7 @@ describe('displayOffsetToInternal', () => {
     const internal = `hi ${token} end`;
     const map = buildTokenMap(internal, PREFIX);
 
-    const afterDisplay = 3 + 'file.ts'.length + 1; // space after token
+    const afterDisplay = 3 + '[file.ts]'.length + 1; // space after token
     const afterInternal = 3 + token.length + 1;
     expect(displayOffsetToInternal(afterDisplay, map)).toBe(afterInternal);
   });
@@ -246,7 +246,7 @@ describe('applyDisplayEdit', () => {
     const internal = `see ${token} here`;
     const display = internalToDisplay(internal, PREFIX);
 
-    // User types "XX" before "here": "see file.ts XXhere"
+    // User types "XX" before "here": "see [file.ts] XXhere"
     const newDisplay = display.replace(' here', ' XXhere');
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe(`see ${token} XXhere`);
@@ -268,7 +268,7 @@ describe('applyDisplayEdit', () => {
     const internal = `see ${token}`;
     const display = internalToDisplay(internal, PREFIX);
 
-    // "see file.ts" → "see Xfile.ts"
+    // "see [file.ts]" → "see X[file.ts]"
     const newDisplay = 'see X' + display.slice(4);
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe(`see X${token}`);
@@ -278,7 +278,7 @@ describe('applyDisplayEdit', () => {
     const token = ref('ws', 'file.ts');
     const internal = `see ${token} here`;
 
-    // User deletes the file path entirely: "see  here"
+    // User deletes the bracketed file path entirely: "see  here"
     const newDisplay = 'see  here';
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe('see  here');
@@ -288,7 +288,7 @@ describe('applyDisplayEdit', () => {
     const token = ref('ws', 'file.ts');
     const internal = `see ${token} here`;
 
-    // User edits "file.ts" to "fil": "see fil here"
+    // User edits "[file.ts]" to "fil": "see fil here"
     const newDisplay = 'see fil here';
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe('see fil here');
@@ -310,7 +310,7 @@ describe('applyDisplayEdit', () => {
     const internal = `${token1} and ${token2}`;
     const display = internalToDisplay(internal, PREFIX);
 
-    // "a.ts and b.ts" → "a.ts or b.ts"
+    // "[a.ts] and [b.ts]" → "[a.ts] or [b.ts]"
     const newDisplay = display.replace(' and ', ' or ');
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe(`${token1} or ${token2}`);
@@ -321,8 +321,8 @@ describe('applyDisplayEdit', () => {
     const token2 = ref('ws', 'b.ts');
     const internal = `${token1} and ${token2}`;
 
-    // "a.ts and b.ts" → "a.ts and " (user deletes second file ref)
-    const newDisplay = 'a.ts and ';
+    // "[a.ts] and [b.ts]" → "[a.ts] and " (user deletes second file ref)
+    const newDisplay = '[a.ts] and ';
     const result = applyDisplayEdit(internal, PREFIX, newDisplay);
     expect(result).toBe(`${token1} and `);
   });
