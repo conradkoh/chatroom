@@ -234,8 +234,6 @@ function displayOffsetToInternalBoundary(
 
     if (displayOffset >= mapping.displayEnd) {
       shift += mapping.fullToken.length - mapping.filePath.length;
-    } else if (displayOffset === mapping.displayStart) {
-      break;
     }
   }
 

@@ -69,8 +69,8 @@ export function htmlToRawText(element: HTMLElement): string {
       const el = node as HTMLElement;
 
       // Token span → emit the full internal token from data-token
-      if (el.tagName === 'SPAN' && el.hasAttribute('data-token')) {
-        result += el.getAttribute('data-token') ?? '';
+      if (isTokenSpan(el)) {
+        result += getTokenValue(el);
         continue;
       }
 
@@ -143,15 +143,15 @@ export function domOffsetToRawOffset(
       const el = node as HTMLElement;
 
       // Token span — count as the full internal token length
-      if (el.tagName === 'SPAN' && el.hasAttribute('data-token')) {
+      if (isTokenSpan(el)) {
         // If anchorNode is inside this span, clamp to span boundaries
         if (el.contains(anchorNode)) {
           // Cursor is inside the atomic span — clamp to end
-          offset += (el.getAttribute('data-token') ?? '').length;
+          offset += getTokenValue(el).length;
           found = true;
           return true;
         }
-        offset += (el.getAttribute('data-token') ?? '').length;
+        offset += getTokenValue(el).length;
         return false;
       }
 
@@ -184,8 +184,8 @@ export function domOffsetToRawOffset(
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       // Token span — count as full internal token length
-      if (el.tagName === 'SPAN' && el.hasAttribute('data-token')) {
-        offset += (el.getAttribute('data-token') ?? '').length;
+      if (isTokenSpan(el)) {
+        offset += getTokenValue(el).length;
         return;
       }
       if (el.tagName === 'BR') {
@@ -249,8 +249,8 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
       }
 
       // Token span — its raw text length is the full internal token
-      if (el.tagName === 'SPAN' && el.hasAttribute('data-token')) {
-        const tokenLen = (el.getAttribute('data-token') ?? '').length;
+      if (isTokenSpan(el)) {
+        const tokenLen = getTokenValue(el).length;
         if (remaining <= tokenLen) {
           // Position cursor before or after the span
           const parent = el.parentNode;
@@ -355,8 +355,8 @@ function nodeToRawText(node: Node): string {
     const el = node as HTMLElement;
 
     // Token span → emit full internal token from data-token
-    if (el.tagName === 'SPAN' && el.hasAttribute('data-token')) {
-      return el.getAttribute('data-token') ?? '';
+    if (isTokenSpan(el)) {
+      return getTokenValue(el);
     }
 
     // <br> → newline
@@ -399,10 +399,20 @@ function escapeHtml(text: string): string {
 
 /** Escape a string for use in an HTML attribute value (double-quoted). */
 function escapeHtmlAttr(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return escapeHtml(text).replace(/'/g, '&#39;');
+}
+
+/** Check if a DOM node is a token span (span with data-token attribute). */
+export function isTokenSpan(node: Node | null | undefined): boolean {
+  return (
+    !!node &&
+    node.nodeType === Node.ELEMENT_NODE &&
+    (node as HTMLElement).tagName === 'SPAN' &&
+    (node as HTMLElement).hasAttribute('data-token')
+  );
+}
+
+/** Get the data-token value from a token span. */
+function getTokenValue(el: HTMLElement): string {
+  return el.getAttribute('data-token') ?? '';
 }

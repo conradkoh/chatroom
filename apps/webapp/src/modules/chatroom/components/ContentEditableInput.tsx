@@ -15,6 +15,7 @@ import {
   domOffsetToRawOffset,
   setCursorToRawOffset,
   extractRawTextFromSelection,
+  isTokenSpan,
 } from '@/lib/fileReferenceSerializer';
 import { internalToDisplay } from '@/lib/fileReferenceDisplay';
 
@@ -100,16 +101,6 @@ function getAdjacentTokenSpan(
   }
 
   return null;
-}
-
-/** Check if a node is a token span (span with data-token attribute). */
-function isTokenSpan(node: Node | null | undefined): boolean {
-  return (
-    !!node &&
-    node.nodeType === Node.ELEMENT_NODE &&
-    (node as HTMLElement).tagName === 'SPAN' &&
-    (node as HTMLElement).hasAttribute('data-token')
-  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
