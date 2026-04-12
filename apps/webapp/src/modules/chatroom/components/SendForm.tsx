@@ -123,7 +123,7 @@ export const SendForm = memo(function SendForm({
   const [editorOpen, setEditorOpen] = useState(false);
 
   // Generate a stable prefix per component instance (regenerated on mount/chatroom switch)
-  const [tokenPrefix] = useState(() => generateTokenPrefix());
+  const [tokenPrefix, setTokenPrefix] = useState(() => generateTokenPrefix());
 
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
   const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files, tokenPrefix), [files, tokenPrefix]);
@@ -214,8 +214,10 @@ export const SendForm = memo(function SendForm({
           ...(attachedMessages.length > 0 && {
             attachedMessageIds: attachedMessages.map((msg) => msg.id),
           }),
+          tokenPrefix,
         });
         setMessage('');
+        setTokenPrefix(generateTokenPrefix()); // Regenerate prefix for next message
         localStorage.removeItem(draftKey);
         if (
           attachedTasks.length > 0 ||
@@ -240,6 +242,7 @@ export const SendForm = memo(function SendForm({
       attachedMessages,
       clearAll,
       draftKey,
+      tokenPrefix,
     ]
   );
 
