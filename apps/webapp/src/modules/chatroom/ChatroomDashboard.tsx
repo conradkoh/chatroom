@@ -59,6 +59,7 @@ import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
 
 import {
   DropdownMenu,
@@ -478,8 +479,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
+  // Multi-workspace file tree subscription for @ autocomplete in SendForm
+  const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
 
-  // File preview close handler
+
   const handleFilePreviewClose = useCallback(() => {
     fileSelector.selectFile('');
   }, [fileSelector]);
@@ -1174,6 +1177,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 onBeforeResize={beginResize}
                 onAfterResize={endResize}
                 onRegisterFocus={handleRegisterSendFormFocus}
+                files={autocompleteFiles}
               />
             </div>
             <WorkspaceBottomBar
