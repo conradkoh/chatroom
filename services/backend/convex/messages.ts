@@ -206,6 +206,7 @@ async function _sendMessageHandler(
     attachedTaskIds?: Id<'chatroom_tasks'>[];
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
+    tokenPrefix?: string;
   }
 ) {
   const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -327,6 +328,7 @@ async function _sendMessageHandler(
           attachedBacklogItemIds: args.attachedBacklogItemIds,
         }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+        ...(args.tokenPrefix && { tokenPrefix: args.tokenPrefix }),
       });
 
       // Update materialized queue count
@@ -351,6 +353,7 @@ async function _sendMessageHandler(
           attachedBacklogItemIds: args.attachedBacklogItemIds,
         }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+        ...(args.tokenPrefix && { tokenPrefix: args.tokenPrefix }),
       });
 
       await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -384,6 +387,7 @@ async function _sendMessageHandler(
         attachedBacklogItemIds: args.attachedBacklogItemIds,
       }),
       ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+      ...(args.tokenPrefix && { tokenPrefix: args.tokenPrefix }),
     });
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -462,6 +466,7 @@ export const send = mutation({
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    tokenPrefix: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
@@ -811,6 +816,7 @@ export const sendMessage = mutation({
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    tokenPrefix: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);

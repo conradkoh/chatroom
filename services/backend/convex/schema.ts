@@ -425,6 +425,8 @@ export default defineSchema({
     acknowledgedAt: v.optional(v.number()),
     // completedAt: When the agent completed work on this message (via handoff)
     completedAt: v.optional(v.number()),
+    // Dynamic prefix for file reference tokens (6-char alphanumeric)
+    tokenPrefix: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_taskId', ['taskId'])
@@ -480,6 +482,8 @@ export default defineSchema({
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
+    // Dynamic prefix for file reference tokens (6-char alphanumeric)
+    tokenPrefix: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
