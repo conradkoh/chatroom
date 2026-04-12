@@ -63,6 +63,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
 }: FileReferenceAutocompleteProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Resolve workspace labels only when multiple workspaces are present
   const workspaceLabels = useMemo(() => resolveWorkspaceLabels(results), [results]);
@@ -118,7 +119,12 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
                 e.preventDefault();
                 onSelect(file.path);
               }}
-              onMouseEnter={() => onHoverItem(index)}
+              onMouseMove={(e) => {
+                const last = lastMousePosRef.current;
+                if (last && last.x === e.clientX && last.y === e.clientY) return;
+                lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+                onHoverItem(index);
+              }}
               className={`flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary ${
                 index === selectedIndex ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
               }`}
