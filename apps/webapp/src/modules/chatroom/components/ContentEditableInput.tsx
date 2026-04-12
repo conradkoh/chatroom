@@ -229,13 +229,37 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       // Read raw text from DOM
       const raw = htmlToRawText(el);
 
-      // Track the current HTML so we don't re-render it back
-      lastHtmlRef.current = el.innerHTML;
-      // Suppress the next sync from the value prop change
+      // When the DOM contains non-editable token spans, re-render HTML
+      // and restore the cursor. This prevents the caret from disappearing
+      // when a browser edit (e.g., backspace) removes the text node adjacent
+      // to a contenteditable="false" span, leaving no valid cursor position.
+      const hasTokenSpans = el.querySelector('span[data-token]') !== null;
+
+      if (hasTokenSpans) {
+        // Save cursor position in raw text coordinates
+        const selection = window.getSelection();
+        let cursorOffset = raw.length;
+        if (selection && selection.rangeCount > 0 && el.contains(selection.anchorNode!)) {
+          cursorOffset = domOffsetToRawOffset(el, selection.anchorNode!, selection.anchorOffset);
+        }
+
+        // Re-render to normalize DOM (ensures text nodes around non-editable spans)
+        const html = rawTextToHtml(raw, tokenPrefix);
+        lastHtmlRef.current = html;
+        el.innerHTML = html;
+
+        // Restore cursor in the normalized DOM
+        setCursorToRawOffset(el, cursorOffset);
+      } else {
+        // No token spans — preserve browser's native cursor handling
+        lastHtmlRef.current = el.innerHTML;
+      }
+
+      // Suppress the next layout effect sync from the value prop change
       suppressSyncRef.current = true;
 
       onChange(raw);
-    }, [onChange]);
+    }, [onChange, tokenPrefix]);
 
     // ── Paste handler ──────────────────────────────────────────────────────
     // Intercept paste to insert only plain text, preventing rich HTML from
