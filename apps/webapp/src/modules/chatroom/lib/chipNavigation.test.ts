@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { rawTextToHtml, stripZws } from '@/lib/fileReferenceSerializer';
+import { rawTextToHtml } from '@/lib/fileReferenceSerializer';
 import {
   handleChipNavigation,
   handleChipClick,
@@ -72,9 +72,7 @@ function getRawOffset(container: HTMLElement): number {
     if (found) return true;
     if (node === cursor!.node) {
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent ?? '';
-        const beforeCursor = text.slice(0, cursor!.offset);
-        offset += stripZws(beforeCursor).length;
+        offset += cursor!.offset;
       } else {
         for (let i = 0; i < cursor!.offset && i < node.childNodes.length; i++) {
           accumulateLength(node.childNodes[i]!);
@@ -84,7 +82,7 @@ function getRawOffset(container: HTMLElement): number {
       return true;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return false;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -108,7 +106,7 @@ function getRawOffset(container: HTMLElement): number {
 
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -129,66 +127,29 @@ function getRawOffset(container: HTMLElement): number {
 }
 
 /**
- * Find the text node within a container whose stripped content matches,
- * or that contains the given substring. Useful for locating text nodes
- * after ZWS insertion shifts child indices.
+ * Find the text node within a container whose content matches,
+ * or that contains the given substring.
  */
 function findTextNode(container: HTMLElement, content: string): Node {
   for (const node of Array.from(container.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
-      const stripped = stripZws(node.textContent ?? '');
-      if (stripped === content || stripped.includes(content)) return node;
+      const text = node.textContent ?? '';
+      if (text === content || text.includes(content)) return node;
     }
   }
   throw new Error(`Text node containing "${content}" not found`);
 }
 
 /**
- * Map a raw text offset (ZWS-free) to a DOM offset within a text node
- * that may contain ZWS characters.
- */
-function rawToDomOffsetHelper(text: string, rawOffset: number): number {
-  let rawCount = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '\u200B') continue;
-    if (rawCount === rawOffset) return i;
-    rawCount++;
-  }
-  return text.length;
-}
-
-/**
- * Check if a node is a ZWS-only text node.
- */
-function isZwsNode(node: Node): boolean {
-  return (
-    node.nodeType === Node.TEXT_NODE &&
-    node.textContent !== null &&
-    node.textContent.length > 0 &&
-    stripZws(node.textContent).length === 0
-  );
-}
-
-/**
- * Set cursor at the container level, adjusting for ZWS text nodes.
- * logicalOffset is relative to "meaningful" children (non-ZWS).
- * A leading ZWS text node is skipped in the count.
- *
- * For logicalOffset 0 with a leading ZWS node, the cursor is placed
- * at the end of the ZWS text node (so adjacent-chip detection works).
+ * Set cursor at the container level at the given child offset.
+ * For offset 0 with a leading text node, place cursor at offset 0 of
+ * the first text node (so adjacent-chip detection finds the chip as next sibling).
  */
 function setCursorLogical(container: HTMLElement, logicalOffset: number): void {
   const firstChild = container.childNodes[0];
-  const hasLeadingZws = firstChild && isZwsNode(firstChild);
-
-  if (hasLeadingZws) {
-    if (logicalOffset === 0) {
-      // Place cursor at end of ZWS text node so next sibling = chip
-      setCursor(firstChild, firstChild.textContent!.length);
-    } else {
-      // Shift by 1 to account for ZWS text node
-      setCursor(container, logicalOffset + 1);
-    }
+  if (logicalOffset === 0 && firstChild && firstChild.nodeType === Node.TEXT_NODE) {
+    // Place cursor at start of text node so next sibling = chip (if any)
+    setCursor(firstChild, 0);
   } else {
     setCursor(container, logicalOffset);
   }
@@ -236,9 +197,7 @@ function computeRawOffsetAt(
     if (found) return true;
     if (node === targetNode) {
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent ?? '';
-        const beforeCursor = text.slice(0, targetOffset);
-        offset += stripZws(beforeCursor).length;
+        offset += targetOffset;
       } else {
         for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) {
           accumulateLength(node.childNodes[i]!);
@@ -248,7 +207,7 @@ function computeRawOffsetAt(
       return true;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return false;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -272,7 +231,7 @@ function computeRawOffsetAt(
 
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -305,7 +264,7 @@ function getSelectionRawOffsets(container: HTMLElement): { anchor: number; focus
 
 /**
  * Set cursor to a raw offset within a container by walking the DOM tree.
- * Handles text nodes, chip elements (data-file-ref), and ZWS characters.
+ * Handles text nodes and chip elements (data-file-ref).
  */
 function setCursorToOffset(container: HTMLElement, targetOffset: number): void {
   if (targetOffset === 0 && container.childNodes.length > 0) {
@@ -324,13 +283,12 @@ function setCursorToOffset(container: HTMLElement, targetOffset: number): void {
     const node = container.childNodes[i]!;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const rawLen = stripZws(text).length;
-      if (remaining <= rawLen) {
-        setCursor(node, rawToDomOffsetHelper(text, remaining));
+      const len = (node.textContent ?? '').length;
+      if (remaining <= len) {
+        setCursor(node, remaining);
         return;
       }
-      remaining -= rawLen;
+      remaining -= len;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       const fileRef = el.getAttribute('data-file-ref');
@@ -346,9 +304,9 @@ function setCursorToOffset(container: HTMLElement, targetOffset: number): void {
         }
         remaining -= fileRef.length;
       } else {
-        const innerLen = stripZws(el.textContent ?? '').length;
+        const innerLen = (el.textContent ?? '').length;
         if (remaining <= innerLen) {
-          setCursor(node, rawToDomOffsetHelper(el.textContent ?? '', remaining));
+          setCursor(node, remaining);
           return;
         }
         remaining -= innerLen;
@@ -409,14 +367,14 @@ describe('getAdjacentChip', () => {
       desc: 'finds chip at container level before chip',
       raw: fileToken('a.ts'),
       dir: 'after' as const,
-      setupCursor: (el: HTMLElement) => setCursor(el, 1),
+      setupCursor: (el: HTMLElement) => setCursor(el, 0),
       expected: 'found',
     },
     {
       desc: 'finds chip at container level after chip',
       raw: fileToken('a.ts'),
       dir: 'before' as const,
-      setupCursor: (el: HTMLElement) => setCursor(el, 2),
+      setupCursor: (el: HTMLElement) => setCursor(el, 1),
       expected: 'found',
     },
   ])('$desc', ({ raw, dir, setupCursor, expected }) => {
@@ -492,7 +450,7 @@ describe('handleChipNavigation — Arrow Left/Right', () => {
       dir: 'Left' as const,
       desc: 'moves cursor before chip when at container level after chip',
       raw: fileToken('a.ts'),
-      setupCursor: (el: HTMLElement) => setCursor(el, 2),
+      setupCursor: (el: HTMLElement) => setCursor(el, 1),
       expectedHandled: true,
       expectedOffset: 0,
     },
@@ -500,7 +458,7 @@ describe('handleChipNavigation — Arrow Left/Right', () => {
       dir: 'Right' as const,
       desc: 'moves cursor after chip when at container level before chip',
       raw: fileToken('a.ts'),
-      setupCursor: (el: HTMLElement) => setCursor(el, 1),
+      setupCursor: (el: HTMLElement) => setCursor(el, 0),
       expectedHandled: true,
       expectedOffset: fileToken('a.ts').length,
     },
@@ -557,7 +515,7 @@ describe('handleChipNavigation — Alt+Left/Right (word skip)', () => {
       dir: 'Left' as const,
       desc: 'jumps before chip2 when cursor is between chip1 and chip2',
       raw: `${fileToken('a.ts')}${fileToken('b.ts')}`,
-      setupCursor: (el: HTMLElement) => setCursor(el, 3),
+      setupCursor: (el: HTMLElement) => setCursor(el, 2),
       expectedHandled: true,
       expectedOffset: fileToken('a.ts').length,
     },
@@ -627,7 +585,7 @@ describe('handleChipNavigation — edge cases', () => {
   it('handles Shift+Arrow across chip (selection extending)', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(token);
-    setCursorLogical(el, 0); // before chip (after ZWS)
+    setCursorLogical(el, 0); // before chip
     // Shift+ArrowRight adjacent to chip is now handled (extends selection over chip)
     expect(handleChipNavigation(el, makeKeyEvent('ArrowRight', { shiftKey: true }))).toBe(true);
   });
@@ -863,7 +821,7 @@ describe('handleChipNavigation — hardening edge cases', () => {
     const token = fileToken('a.ts');
     const el = makeContainer(`${token}word`);
     // Set cursor at end of "word"
-    const textNode = findTextNode(el, 'word'); // "word" text node (after ZWS + chip)
+    const textNode = findTextNode(el, 'word'); // "word" text node (after chip)
     setCursor(textNode, 4);
 
     const handled = handleChipNavigation(el, makeKeyEvent('ArrowLeft', { altKey: true }));
@@ -2039,7 +1997,7 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
     expect(el.querySelector('br')).not.toBeNull();
   });
   it('Delete at end of chip before <br> + chip → removes only <br>', () => {
-    // DOM (with ZWS): [ZWS][chip_a][<br>][ZWS][chip_b]
+    // DOM: [chip_a][<br>][chip_b]
     const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
     // Find chip_a and set cursor after it
     const chipA = el.querySelector('[data-file-ref]')!;
@@ -2070,7 +2028,7 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
     expect(handled).toBe(false);
   });
   it('Backspace at start of text after <br> preceded by chip → removes only <br>', () => {
-    // DOM (with ZWS): [ZWS][chip_a][<br>]["world"]
+    // DOM: [chip_a][<br>]["world"]
     const el = makeContainer(`${CHIP_A}\nworld`);
     const textNode = findTextNode(el, 'world');
     expect(textNode.textContent).toBe('world');
@@ -2131,7 +2089,7 @@ describe('handleChipNavigation — Delete/Backspace at newline+chip boundary', (
     expect(handled).toBe(false);
   });
   it('Backspace at container level after <br> between two chips → removes only <br>', () => {
-    // DOM (with ZWS): [ZWS][chip_a][<br>][ZWS][chip_b]
+    // DOM: [chip_a][<br>][chip_b]
     const el = makeContainer(`${CHIP_A}\n${CHIP_B}`);
     // Find the <br> and set cursor after it
     const brNode = el.querySelector('br')!;

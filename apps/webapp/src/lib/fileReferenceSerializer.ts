@@ -1,10 +1,7 @@
 import { decodeFileReferences } from './fileReference';
 import { getFileName } from './pathUtils';
 import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenceChipUI';
-import { ZWS, stripZws, computeRawOffset } from './domOffsetUtils';
-
-// Re-export shared utilities so existing consumers don't break
-export { ZWS, stripZws };
+import { computeRawOffset } from './domOffsetUtils';
 
 /**
  * Convert raw message text (with {file://workspace/path} tokens) to HTML
@@ -16,10 +13,6 @@ export { ZWS, stripZws };
  * </span>
  *
  * Regular text is HTML-escaped. Newlines become <br>.
- *
- * A ZWS (zero-width space) is inserted before chips that appear at the start
- * of a line (beginning of content or right after <br>). This gives Safari a
- * text node where it can position the caret before the chip.
  */
 export function rawTextToHtml(text: string): string {
   if (!text) return '';
@@ -36,15 +29,6 @@ export function rawTextToHtml(text: string): string {
     // Text before this reference
     const before = text.slice(lastEnd, ref.start);
     html += escapeHtml(before).replace(/\n/g, '<br>');
-
-    // Insert ZWS before chip if it's at the very beginning of the output.
-    // This allows Safari to position the caret before the first chip.
-    // Note: we do NOT insert ZWS after <br> because it renders as a visible
-    // blank line, causing a double-newline visual artifact.
-    const chipAtContainerStart = html.length === 0;
-    if (chipAtContainerStart) {
-      html += ZWS;
-    }
 
     // The chip span (non-editable, atomic for caret navigation)
     const rawToken = text.slice(ref.start, ref.end);
@@ -82,7 +66,7 @@ export function htmlToRawText(element: HTMLElement): string {
 
   for (const node of Array.from(element.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += stripZws(node.textContent ?? '');
+      result += node.textContent ?? '';
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
 
@@ -183,7 +167,7 @@ function fragmentToRawText(fragment: DocumentFragment): string {
  */
 function nodeToRawText(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
-    return stripZws(node.textContent ?? '');
+    return node.textContent ?? '';
   }
 
   if (node.nodeType === Node.ELEMENT_NODE) {

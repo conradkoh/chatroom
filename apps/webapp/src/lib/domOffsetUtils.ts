@@ -1,53 +1,17 @@
 /**
  * Shared DOM-walking utilities for contenteditable elements with file reference chips.
  *
- * This module provides the core logic for mapping between raw text offsets (ZWS-free)
+ * This module provides the core logic for mapping between raw text offsets
  * and DOM positions within a contenteditable container. It's used by both the
  * fileReferenceSerializer (for cursor restoration after re-rendering) and
  * chipNavigation (for keyboard navigation around chips).
  *
  * Key concepts:
- * - "Raw offset" = character position in the logical text (no ZWS characters)
- * - "DOM offset" = position within the DOM tree (includes ZWS characters in text nodes)
+ * - "Raw offset" = character position in the logical text
+ * - "DOM offset" = position within the DOM tree
  * - Chip spans (data-file-ref) count as their raw token length in raw offsets
  * - <br> elements count as 1 character (newline)
  */
-
-// ── ZWS helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Zero-width space character used before chips at line start positions.
- * Gives Safari a text node to place the caret before the chip, preventing
- * caret-overlap issues in contenteditable elements.
- */
-export const ZWS = '\u200B';
-
-/**
- * Strip all ZWS characters from a string.
- * Used when converting DOM text content back to raw text.
- */
-export function stripZws(text: string): string {
-  return text.replace(/\u200B/g, '');
-}
-
-// ── Raw ↔ DOM offset mapping ─────────────────────────────────────────────────
-
-/**
- * Map a raw text offset (ZWS-free) to a DOM offset within a text node
- * that may contain ZWS characters. Skips over ZWS chars when counting.
- *
- * Example: text = "\u200Bhello", rawOffset = 2 → domOffset = 3
- * (skip the ZWS at position 0, then count 'h' at 1, 'e' at 2 → DOM position 3)
- */
-export function rawToDomOffset(text: string, rawOffset: number): number {
-  let rawCount = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === ZWS) continue;
-    if (rawCount === rawOffset) return i;
-    rawCount++;
-  }
-  return text.length;
-}
 
 // ── DOM position → raw offset ────────────────────────────────────────────────
 
@@ -55,7 +19,7 @@ export function rawToDomOffset(text: string, rawOffset: number): number {
  * Compute the raw text cursor offset from a DOM selection position within a contenteditable.
  *
  * Walks the DOM tree in document order, accumulating character counts:
- * - Text nodes contribute their textContent length (minus ZWS)
+ * - Text nodes contribute their textContent length
  * - Chip spans (data-file-ref) contribute the length of their raw token
  * - <br> contributes 1 (newline)
  * - <div> contributes 1 (newline) if not the first child
@@ -75,10 +39,7 @@ export function computeRawOffset(
 
     if (node === anchorNode) {
       if (node.nodeType === Node.TEXT_NODE) {
-        // Count only non-ZWS chars up to anchorOffset
-        const text = node.textContent ?? '';
-        const beforeCursor = text.slice(0, anchorOffset);
-        offset += stripZws(beforeCursor).length;
+        offset += anchorOffset;
       } else {
         // Element node — anchorOffset is the child index
         for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
@@ -90,7 +51,7 @@ export function computeRawOffset(
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return false;
     }
 
@@ -133,7 +94,7 @@ export function computeRawOffset(
   /** Accumulate the full raw text length of a node subtree. */
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -183,15 +144,14 @@ export function resolveRawOffsetToDom(
     if (found) return true;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const rawLen = stripZws(text).length;
-      if (remaining <= rawLen) {
+      const len = (node.textContent ?? '').length;
+      if (remaining <= len) {
         resultNode = node;
-        resultOffset = rawToDomOffset(text, remaining);
+        resultOffset = remaining;
         found = true;
         return true;
       }
-      remaining -= rawLen;
+      remaining -= len;
       return false;
     }
 

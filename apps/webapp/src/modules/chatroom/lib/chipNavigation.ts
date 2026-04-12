@@ -12,7 +12,6 @@
  */
 
 import {
-  stripZws,
   computeRawOffset,
   resolveRawOffsetToDom,
   setCursorToRawOffset,
@@ -57,14 +56,13 @@ export function getAdjacentChip(
 
   if (anchorNode.nodeType === Node.TEXT_NODE) {
     const text = anchorNode.textContent ?? '';
-    const isZwsOnly = stripZws(text).length === 0 && text.length > 0;
-    if (direction === 'after' && (anchorOffset === text.length || isZwsOnly)) {
-      // At the end of a text node (or ZWS-only node) — check if next sibling is a chip
+    if (direction === 'after' && anchorOffset === text.length) {
+      // At the end of a text node — check if next sibling is a chip
       const next = anchorNode.nextSibling;
       if (next && isChipNode(next)) return next;
     }
-    if (direction === 'before' && (anchorOffset === 0 || isZwsOnly)) {
-      // At the start of a text node (or ZWS-only node) — check if previous sibling is a chip
+    if (direction === 'before' && anchorOffset === 0) {
+      // At the start of a text node — check if previous sibling is a chip
       const prev = anchorNode.previousSibling;
       if (prev && isChipNode(prev)) return prev;
     }
@@ -103,12 +101,11 @@ function getAdjacentChipFromFocus(
 
   if (focusNode.nodeType === Node.TEXT_NODE) {
     const text = focusNode.textContent ?? '';
-    const isZwsOnly = stripZws(text).length === 0 && text.length > 0;
-    if (direction === 'after' && (focusOffset === text.length || isZwsOnly)) {
+    if (direction === 'after' && focusOffset === text.length) {
       const next = focusNode.nextSibling;
       if (next && isChipNode(next)) return next;
     }
-    if (direction === 'before' && (focusOffset === 0 || isZwsOnly)) {
+    if (direction === 'before' && focusOffset === 0) {
       const prev = focusNode.previousSibling;
       if (prev && isChipNode(prev)) return prev;
     }
@@ -332,21 +329,11 @@ function handleDeleteForward(
 
   if (!brNode) return false;
 
-  // Check what follows the <br> (skip over ZWS-only text nodes)
-  let afterBr = brNode.nextSibling;
-  while (afterBr && isZwsOnlyTextNode(afterBr)) {
-    afterBr = afterBr.nextSibling;
-  }
+  // Check what follows the <br>
+  const afterBr = brNode.nextSibling;
   if (!afterBr || !isChipNode(afterBr)) return false;
 
-  // We have <br> followed by a chip (possibly with ZWS between) — remove only the <br>
-  // Also remove any ZWS text nodes between <br> and chip
-  let node = brNode.nextSibling;
-  while (node && isZwsOnlyTextNode(node)) {
-    const next = node.nextSibling;
-    node.parentNode?.removeChild(node);
-    node = next;
-  }
+  // We have <br> followed by a chip — remove only the <br>
   brNode.parentNode?.removeChild(brNode);
   container.dispatchEvent(new Event('input', { bubbles: true }));
   return true;
@@ -382,15 +369,9 @@ function handleBackwardDelete(
 
   if (!brNode) return false;
 
-  // For Backspace, check what's around the <br> (skip ZWS-only text nodes)
-  let afterBr: Node | null = brNode.nextSibling;
-  while (afterBr && isZwsOnlyTextNode(afterBr)) {
-    afterBr = afterBr.nextSibling;
-  }
-  let beforeBr: Node | null = brNode.previousSibling;
-  while (beforeBr && isZwsOnlyTextNode(beforeBr)) {
-    beforeBr = beforeBr.previousSibling;
-  }
+  // For Backspace, check what's around the <br>
+  const afterBr: Node | null = brNode.nextSibling;
+  const beforeBr: Node | null = brNode.previousSibling;
 
   // We intercept if either side of the <br> has a chip
   const chipAfterBr = afterBr && isChipNode(afterBr);
@@ -398,13 +379,6 @@ function handleBackwardDelete(
 
   if (!chipAfterBr && !chipBeforeBr) return false;
 
-  // Remove ZWS text nodes between <br> and the chip on the after side
-  let node: Node | null = brNode.nextSibling;
-  while (node && isZwsOnlyTextNode(node)) {
-    const next = node.nextSibling;
-    node.parentNode?.removeChild(node);
-    node = next;
-  }
   // Remove only the <br>
   brNode.parentNode?.removeChild(brNode);
   container.dispatchEvent(new Event('input', { bubbles: true }));
@@ -414,13 +388,6 @@ function handleBackwardDelete(
 /** Check if a node is an element with a specific tag name. */
 function isElementWithTag(node: Node, tag: string): boolean {
   return node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === tag;
-}
-
-/** Check if a node is a ZWS-only text node (contains only zero-width spaces). */
-function isZwsOnlyTextNode(node: Node): boolean {
-  if (node.nodeType !== Node.TEXT_NODE) return false;
-  const text = node.textContent ?? '';
-  return text.length > 0 && stripZws(text).length === 0;
 }
 
 // ── Internal: single-step navigation ─────────────────────────────────────────
@@ -539,7 +506,7 @@ function getNodeRawOffset(container: HTMLElement, targetNode: Node): number {
     if (node === targetNode) return offset;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += stripZws(node.textContent ?? '').length;
+      offset += (node.textContent ?? '').length;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       const fileRef = el.getAttribute('data-file-ref');
@@ -613,7 +580,7 @@ function buildSegments(container: HTMLElement): Segment[] {
 
   for (const node of Array.from(container.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = stripZws(node.textContent ?? '');
+      const text = node.textContent ?? '';
       if (text.length > 0) {
         segments.push({ type: 'text', text, start: offset });
         offset += text.length;
