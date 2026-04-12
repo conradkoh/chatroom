@@ -49,7 +49,7 @@ export function encodeFileReference(workspace: string, filePath: string, prefix:
   const escapedWorkspace = workspace.replace(/\}/g, '\\}').replace(/:/g, '\\:');
   const escapedPath = filePath.replace(/\}/g, '\\}');
 
-  return `${prefix}{file:${escapedWorkspace}:${escapedPath}}`;
+  return `<${prefix}>{file:${escapedWorkspace}:${escapedPath}}`;
 }
 
 /**
@@ -66,7 +66,7 @@ export function encodeFileReference(workspace: string, filePath: string, prefix:
 export function decodeFileReferences(text: string, prefix: string): FileReference[] {
   if (!text || !prefix) return [];
 
-  const marker = `${prefix}{file:`;
+  const marker = `<${prefix}>{file:`;
   const refs: FileReference[] = [];
   let searchFrom = 0;
 

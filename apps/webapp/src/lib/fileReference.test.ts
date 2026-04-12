@@ -31,32 +31,32 @@ describe('generateTokenPrefix', () => {
 describe('encodeFileReference', () => {
   it('encodes a simple file reference with prefix', () => {
     const result = encodeFileReference('my-project', 'src/index.ts', PREFIX);
-    expect(result).toBe('ab12cd{file:my-project:src/index.ts}');
+    expect(result).toBe('<ab12cd>{file:my-project:src/index.ts}');
   });
 
   it('encodes a file reference with spaces in path', () => {
     const result = encodeFileReference('workspace', 'src/My Component/index.tsx', PREFIX);
-    expect(result).toBe('ab12cd{file:workspace:src/My Component/index.tsx}');
+    expect(result).toBe('<ab12cd>{file:workspace:src/My Component/index.tsx}');
   });
 
   it('escapes closing braces in file path', () => {
     const result = encodeFileReference('ws', 'path/with}brace.ts', PREFIX);
-    expect(result).toBe('ab12cd{file:ws:path/with\\}brace.ts}');
+    expect(result).toBe('<ab12cd>{file:ws:path/with\\}brace.ts}');
   });
 
   it('escapes closing braces in workspace name', () => {
     const result = encodeFileReference('ws}name', 'file.ts', PREFIX);
-    expect(result).toBe('ab12cd{file:ws\\}name:file.ts}');
+    expect(result).toBe('<ab12cd>{file:ws\\}name:file.ts}');
   });
 
   it('escapes colons in workspace name', () => {
     const result = encodeFileReference('ws:name', 'file.ts', PREFIX);
-    expect(result).toBe('ab12cd{file:ws\\:name:file.ts}');
+    expect(result).toBe('<ab12cd>{file:ws\\:name:file.ts}');
   });
 
   it('handles unicode characters in path', () => {
     const result = encodeFileReference('project', 'docs/日本語/README.md', PREFIX);
-    expect(result).toBe('ab12cd{file:project:docs/日本語/README.md}');
+    expect(result).toBe('<ab12cd>{file:project:docs/日本語/README.md}');
   });
 
   it('throws for empty workspace', () => {
@@ -74,19 +74,19 @@ describe('encodeFileReference', () => {
 
 describe('decodeFileReferences', () => {
   it('decodes a single file reference', () => {
-    const text = `Check ${PREFIX}{file:my-project:src/index.ts} for details`;
+    const text = `Check <${PREFIX}>{file:my-project:src/index.ts} for details`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]).toEqual({
       workspace: 'my-project',
       filePath: 'src/index.ts',
       start: 6,
-      end: 42,
+      end: 44,
     });
   });
 
   it('decodes multiple file references', () => {
-    const text = `See ${PREFIX}{file:ws:a.ts} and ${PREFIX}{file:ws:b.ts}`;
+    const text = `See <${PREFIX}>{file:ws:a.ts} and <${PREFIX}>{file:ws:b.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(2);
     expect(refs[0]!.filePath).toBe('a.ts');
@@ -94,30 +94,30 @@ describe('decodeFileReferences', () => {
   });
 
   it('tracks correct start/end positions', () => {
-    const text = `See ${PREFIX}{file:ws:a.ts} and ${PREFIX}{file:ws:b.ts}`;
+    const text = `See <${PREFIX}>{file:ws:a.ts} and <${PREFIX}>{file:ws:b.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs[0]!.start).toBe(4);
-    expect(refs[0]!.end).toBe(24);
-    expect(refs[1]!.start).toBe(29);
-    expect(refs[1]!.end).toBe(49);
+    expect(refs[0]!.end).toBe(26);
+    expect(refs[1]!.start).toBe(31);
+    expect(refs[1]!.end).toBe(53);
   });
 
   it('handles paths with spaces', () => {
-    const text = `${PREFIX}{file:ws:My Component/index.tsx}`;
+    const text = `<${PREFIX}>{file:ws:My Component/index.tsx}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.filePath).toBe('My Component/index.tsx');
   });
 
   it('handles escaped closing braces in path', () => {
-    const text = `${PREFIX}{file:ws:path/with\\}brace.ts}`;
+    const text = `<${PREFIX}>{file:ws:path/with\\}brace.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.filePath).toBe('path/with}brace.ts');
   });
 
   it('handles escaped closing braces in workspace', () => {
-    const text = `${PREFIX}{file:ws\\}name:file.ts}`;
+    const text = `<${PREFIX}>{file:ws\\}name:file.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.workspace).toBe('ws}name');
@@ -125,7 +125,7 @@ describe('decodeFileReferences', () => {
   });
 
   it('handles escaped colons in workspace', () => {
-    const text = `${PREFIX}{file:ws\\:name:file.ts}`;
+    const text = `<${PREFIX}>{file:ws\\:name:file.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.workspace).toBe('ws:name');
@@ -133,14 +133,14 @@ describe('decodeFileReferences', () => {
   });
 
   it('handles unicode characters in path', () => {
-    const text = `${PREFIX}{file:project:docs/日本語/README.md}`;
+    const text = `<${PREFIX}>{file:project:docs/日本語/README.md}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.filePath).toBe('docs/日本語/README.md');
   });
 
   it('does not decode with wrong prefix', () => {
-    const text = `${PREFIX}{file:ws:a.ts}`;
+    const text = `<${PREFIX}>{file:ws:a.ts}`;
     const refs = decodeFileReferences(text, 'xxxxxx');
     expect(refs).toHaveLength(0);
   });
@@ -160,28 +160,28 @@ describe('decodeFileReferences', () => {
   });
 
   it('handles file reference at start of string', () => {
-    const text = `${PREFIX}{file:ws:file.ts} is the entry point`;
+    const text = `<${PREFIX}>{file:ws:file.ts} is the entry point`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.start).toBe(0);
   });
 
   it('handles file reference at end of string', () => {
-    const text = `Check out ${PREFIX}{file:ws:file.ts}`;
+    const text = `Check out <${PREFIX}>{file:ws:file.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.end).toBe(text.length);
   });
 
   it('handles file reference with deeply nested path', () => {
-    const text = `${PREFIX}{file:ws:a/b/c/d/e/f/g.ts}`;
+    const text = `<${PREFIX}>{file:ws:a/b/c/d/e/f/g.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.filePath).toBe('a/b/c/d/e/f/g.ts');
   });
 
   it('ignores user-typed text that looks like file ref but has wrong prefix', () => {
-    const text = `User typed {file:ws:a.ts} but real ref is ${PREFIX}{file:ws:b.ts}`;
+    const text = `User typed {file:ws:a.ts} but real ref is <${PREFIX}>{file:ws:b.ts}`;
     const refs = decodeFileReferences(text, PREFIX);
     expect(refs).toHaveLength(1);
     expect(refs[0]!.filePath).toBe('b.ts');
