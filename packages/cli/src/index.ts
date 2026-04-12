@@ -152,9 +152,7 @@ program
 
 program
   .command('classify')
-  .description(
-    'Classify a task\'s origin message (entry-point role only).'
-  )
+  .description("Classify a task's origin message (entry-point role only).")
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (must be entry-point role)')
   .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
@@ -667,12 +665,7 @@ workflowCommand
   .requiredOption('--workflow-key <key>', 'Workflow key')
   .requiredOption('--step-key <stepKey>', 'Step key to mark as complete')
   .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      workflowKey: string;
-      stepKey: string;
-    }) => {
+    async (options: { chatroomId: string; role: string; workflowKey: string; stepKey: string }) => {
       await maybeRequireAuth();
       const { completeStep } = await import('./commands/workflow/index.js');
       await completeStep(options.chatroomId, {
@@ -717,12 +710,7 @@ workflowCommand
   .requiredOption('--workflow-key <key>', 'Workflow key')
   .requiredOption('--step-key <stepKey>', 'Step key to view')
   .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      workflowKey: string;
-      stepKey: string;
-    }) => {
+    async (options: { chatroomId: string; role: string; workflowKey: string; stepKey: string }) => {
       await maybeRequireAuth();
       const { viewStep } = await import('./commands/workflow/index.js');
       await viewStep(options.chatroomId, {
@@ -1019,6 +1007,10 @@ artifactCommand
       artifactIds: options.artifact || [],
     });
   });
+
+// ============================================================================
+// FILE COMMANDS (auth required)
+// ============================================================================
 
 program
   .command('get-system-prompt')

@@ -273,7 +273,7 @@ export const baseMarkdownComponents = {
  * Use with react-markdown's `components` prop.
  */
 export const fullMarkdownComponents = {
-  // Links: always open in a new window
+  // Links: always open in new window
   a: MarkdownLink,
   // Wrap pre elements with CodeBlock for copy functionality, or MermaidBlock for diagrams
   pre: ({ children }: { children?: React.ReactNode }) => {

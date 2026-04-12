@@ -26,7 +26,7 @@ interface Message {
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  taskStatus?: 'pending' | 'acknowledged' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
   featureTitle?: string;
   featureDescription?: string;
   featureTechSpecs?: string;
@@ -182,7 +182,6 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </h2>
                 </div>
               )}
-
               {/* Description Section */}
               {hasDescription && (
                 <div>
@@ -202,7 +201,6 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </div>
                 </div>
               )}
-
               {/* Tech Specs Section */}
               {hasTechSpecs && (
                 <div>
@@ -222,13 +220,29 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </div>
                 </div>
               )}
-
               {/* Original Message Section */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare size={14} className="text-chatroom-text-muted" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
                     Original Message
+                  </span>
+                </div>
+                <div className={proseClassNames}>
+                  <Markdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={fullMarkdownComponents}
+                  >
+                    {message.content}
+                  </Markdown>
+                </div>
+              </div>
+              ) : ( // Question/Follow-up: show full message content
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare size={14} className="text-chatroom-text-muted" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                    Full Message
                   </span>
                 </div>
                 <div className={proseClassNames}>

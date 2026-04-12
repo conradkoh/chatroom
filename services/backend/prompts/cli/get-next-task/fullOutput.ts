@@ -75,10 +75,7 @@ export interface FullCliOutputParams {
  * reminder before the handoff command so the planner/coordinator verifies
  * the codebase before delivering to the user.
  */
-function maybeAddVerificationReminder(
-  lines: string[],
-  availableHandoffTargets: string[]
-): void {
+function maybeAddVerificationReminder(lines: string[], availableHandoffTargets: string[]): void {
   if (availableHandoffTargets.includes('user')) {
     lines.push('');
     lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');

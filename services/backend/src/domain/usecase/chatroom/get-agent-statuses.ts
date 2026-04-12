@@ -22,6 +22,7 @@ export interface AgentRoleView {
   role: string;
   state: 'running' | 'stopped' | 'starting' | 'circuit_open';
   type: AgentType;
+  machineId?: string;
   machineName?: string;
   agentHarness?: AgentHarness;
   model?: string;
@@ -112,6 +113,7 @@ export async function getAgentStatusForChatroom(
       role,
       state,
       type: teamConfig.type,
+      machineId: teamConfig.machineId,
       machineName: machine?.hostname,
       agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
       model,

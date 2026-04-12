@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { FileEntry } from './useFileSelector';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
+import { getFileName, getParentDir } from '@/lib/pathUtils';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
 
@@ -31,18 +32,6 @@ interface FileSelectorModalProps {
   onSelectFile: (filePath: string) => void;
   isLoading?: boolean;
   hasWorkspace?: boolean;
-}
-
-/** Extract filename from a path for display. */
-function getFileName(path: string): string {
-  return path.split('/').pop() ?? path;
-}
-
-/** Get parent directory for display. */
-function getParentDir(path: string): string {
-  const parts = path.split('/');
-  if (parts.length <= 1) return '';
-  return parts.slice(0, -1).join('/');
 }
 
 export const FileSelectorModal = memo(function FileSelectorModal({
@@ -85,9 +74,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
         <DialogPrimitive.Content
           forceMount
           onEscapeKeyDown={onEscapeKeyDown}
-          className={cn(
-            ...COMMAND_DIALOG_CONTENT_CLASSES,
-          )}
+          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
           style={{ maxHeight: '60vh' }}
         >
           {/* Accessible title and description (sr-only) */}
@@ -96,7 +83,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
             Search and open workspace files
           </DialogPrimitive.Description>
 
-          <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <Command
+            filter={fuzzyFilter}
+            className="bg-chatroom-bg-primary text-chatroom-text-primary"
+          >
             {/* u03: Seamless search input with only bottom border, u04: "Go to File..." placeholder */}
             <CommandInput
               placeholder="Go to File..."
@@ -131,7 +121,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                     {/* Recent files section (only when not searching) */}
                     {recentFiles.length > 0 && !search && (
                       <>
-                        <div className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        <div
+                          className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
+                          cmdk-group-heading=""
+                        >
                           recently opened
                         </div>
                         {recentFiles.map((path) => (
@@ -142,7 +135,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                             // u05: Compact 28px height, u07: Full-width solid bg highlight
                             className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                           >
-                            <FileTypeIcon path={path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                            <FileTypeIcon
+                              path={path}
+                              className="h-4 w-4 shrink-0 text-chatroom-text-muted"
+                            />
                             {/* u06: File name bold, directory lighter, same row */}
                             <span className="text-sm font-medium truncate flex-1">
                               {getFileName(path)}
@@ -154,7 +150,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                             )}
                           </CommandItem>
                         ))}
-                        <div className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted" cmdk-group-heading="">
+                        <div
+                          className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
+                          cmdk-group-heading=""
+                        >
                           files
                         </div>
                       </>
@@ -162,10 +161,11 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                     {/* Full file list (excluding recent files to avoid duplicates) */}
                     {(() => {
                       const recentSet = new Set(recentFiles);
-                      const displayFiles = !search && recentFiles.length > 0
-                        ? files.filter((f) => !recentSet.has(f.path))
-                        : files;
-                      return displayFiles.slice(0, 200).map((file) => (
+                      const displayFiles =
+                        !search && recentFiles.length > 0
+                          ? files.filter((f) => !recentSet.has(f.path))
+                          : files;
+                      return displayFiles.map((file) => (
                         <CommandItem
                           key={file.path}
                           value={file.path}
@@ -173,7 +173,10 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                           // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
                           className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                         >
-                          <FileTypeIcon path={file.path} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
+                          <FileTypeIcon
+                            path={file.path}
+                            className="h-4 w-4 shrink-0 text-chatroom-text-muted"
+                          />
                           {/* u06: File name bold, directory lighter */}
                           <span className="text-sm font-medium truncate flex-1">
                             {getFileName(file.path)}
@@ -188,11 +191,6 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                       ));
                     })()}
                   </CommandGroup>
-                  {files.length > 200 && (
-                    <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
-                      SHOWING 200 OF {files.length} FILES
-                    </div>
-                  )}
                 </>
               )}
             </CommandList>

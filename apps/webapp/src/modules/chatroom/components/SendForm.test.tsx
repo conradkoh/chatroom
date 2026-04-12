@@ -3,6 +3,56 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
+// ── Mocks (must be before imports that use them) ─────────────────────────────
+
+// Mock ContentEditableInput as a simple textarea for testing purposes.
+// This keeps SendForm tests focused on business logic rather than contenteditable quirks.
+vi.mock('./ContentEditableInput', () => {
+  const ReactMock = require('react');
+
+  const ContentEditableInput = ReactMock.forwardRef(function MockContentEditableInput(
+    {
+      value,
+      onChange,
+      onKeyDown,
+      placeholder,
+      disabled,
+    }: {
+      value: string;
+      onChange: (value: string) => void;
+      onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+      placeholder?: string;
+      disabled?: boolean;
+    },
+    ref: React.Ref<unknown>
+  ) {
+    const inputRef = ReactMock.useRef(null) as React.RefObject<HTMLTextAreaElement>;
+
+    ReactMock.useImperativeHandle(ref, () => ({
+      focus: () => inputRef.current?.focus(),
+      getCursorOffset: () => inputRef.current?.selectionStart ?? 0,
+      getCaretPixelPosition: () => ({ top: 10, left: 10, height: 20 }),
+      setCursorOffset: (offset: number) => {
+        if (inputRef.current) {
+          inputRef.current.selectionStart = offset;
+          inputRef.current.selectionEnd = offset;
+        }
+      },
+    }));
+
+    return ReactMock.createElement('textarea', {
+      ref: inputRef,
+      value,
+      onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value),
+      onKeyDown,
+      placeholder,
+      disabled,
+    });
+  });
+
+  return { ContentEditableInput };
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 import { SendForm } from './SendForm';

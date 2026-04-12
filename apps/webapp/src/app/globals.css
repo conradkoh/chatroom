@@ -411,4 +411,5 @@ input,
   .dialog-mobile {
     @apply max-w-[95vw] sm:max-w-lg p-4 sm:p-6;
   }
+
 }
