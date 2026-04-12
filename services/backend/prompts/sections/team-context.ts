@@ -51,21 +51,13 @@ function getSquadContext(ctx: SelectorContext): string {
   return '';
 }
 
-function getSquadPlannerContext(ctx: SelectorContext): string {
-  const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'builder'
-  );
-  const hasReviewer = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'reviewer'
-  );
-
+function getSquadPlannerContext(_ctx: SelectorContext): string {
   return `**Squad Team Context:**
  - You coordinate a team of builder and reviewer
  - You are the ONLY role that communicates directly with the user
  - You are ultimately accountable for all work quality
  - You manage the backlog and prioritize tasks
- ${hasBuilder ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
- ${hasReviewer ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}`;
+ - Team members may go offline at any time — adapt by handling their responsibilities yourself if needed`;
 }
 
 function getSquadBuilderContext(): string {
@@ -77,17 +69,14 @@ function getSquadBuilderContext(): string {
  - **NEVER hand off directly to \`user\`** — always go through the planner`;
 }
 
-function getSquadReviewerContext(ctx: SelectorContext): string {
-  const hasBuilder = ctx.teamRoles.some((r) => r.toLowerCase() === 'builder');
-
+function getSquadReviewerContext(_ctx: SelectorContext): string {
   return `**Squad Team Context:**
  - You work with a planner who coordinates the team and communicates with the user
  - You do NOT communicate directly with the user — hand off to the planner instead
  - Focus on code quality and requirements
  - Provide constructive feedback to builder or planner
- ${hasBuilder ? '- Builder is available — hand back to builder for rework' : '- Builder is NOT available — you may also implement changes'}
  - If work meets requirements → hand off to \`planner\` for user delivery
- - If changes needed → hand off to \`builder\` with specific feedback${!hasBuilder ? ' (or implement yourself)' : ''}
+ - If changes needed → hand off to \`builder\` with specific feedback (or implement yourself if builder is unavailable)
  - **NEVER hand off directly to \`user\`** — always go through the planner`;
 }
 
@@ -104,16 +93,12 @@ function getDuoContext(ctx: SelectorContext): string {
   return '';
 }
 
-function getDuoPlannerContext(ctx: SelectorContext): string {
-  const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'builder'
-  );
-
+function getDuoPlannerContext(_ctx: SelectorContext): string {
   return `**Duo Team Context:**
  - You are the entry point — you communicate directly with the user
  - You coordinate with the builder for implementation tasks
  - You are ultimately accountable for all work quality
- ${hasBuilder ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you must implement yourself'}
+ - Builder may go offline at any time — if unavailable, implement changes yourself
  - After reviewing builder output, deliver results to the user
  - **Only you can hand off to \`user\`**`;
 }
