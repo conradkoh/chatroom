@@ -1,8 +1,9 @@
 /**
- * Simplified serializer for contenteditable input.
+ * Serializer for contenteditable input.
  *
  * Converts between raw text and safe HTML for rendering inside
- * a contenteditable div. Handles HTML escaping and newlines.
+ * a contenteditable div. Handles HTML escaping, newlines, and
+ * cursor offset mapping between DOM and raw text.
  */
 
 // ── rawTextToHtml ────────────────────────────────────────────────────────────

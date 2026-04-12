@@ -14,7 +14,7 @@ import {
   htmlToRawText,
   domOffsetToRawOffset,
   setCursorToRawOffset,
-} from '@/lib/fileReferenceSerializer';
+} from '@/lib/contentEditableSerializer';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
