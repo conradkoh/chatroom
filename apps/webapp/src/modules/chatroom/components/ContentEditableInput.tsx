@@ -16,6 +16,7 @@ import {
   setCursorToRawOffset,
   extractRawTextFromSelection,
 } from '@/lib/fileReferenceSerializer';
+import { internalToDisplay } from '@/lib/fileReferenceDisplay';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -47,6 +48,68 @@ interface ContentEditableInputProps {
   className?: string;
   /** Token prefix for rendering file references as atomic spans */
   tokenPrefix?: string;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Check if the cursor is adjacent to a token span in the given direction.
+ * Returns the span element if found, null otherwise.
+ *
+ * - 'before': cursor is at the position where Backspace would delete
+ *   (cursor is right after the span)
+ * - 'after': cursor is at the position where Delete would delete
+ *   (cursor is right before the span)
+ */
+function getAdjacentTokenSpan(
+  container: HTMLElement,
+  direction: 'before' | 'after'
+): HTMLElement | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return null;
+
+  const { anchorNode, anchorOffset } = selection;
+  if (!anchorNode || !container.contains(anchorNode)) return null;
+
+  if (anchorNode.nodeType === Node.ELEMENT_NODE) {
+    const parent = anchorNode as HTMLElement;
+    if (direction === 'before' && anchorOffset > 0) {
+      const prev = parent.childNodes[anchorOffset - 1];
+      if (isTokenSpan(prev)) return prev as HTMLElement;
+    }
+    if (direction === 'after' && anchorOffset < parent.childNodes.length) {
+      const next = parent.childNodes[anchorOffset];
+      if (isTokenSpan(next)) return next as HTMLElement;
+    }
+  }
+
+  if (anchorNode.nodeType === Node.TEXT_NODE) {
+    if (direction === 'before' && anchorOffset === 0) {
+      // Cursor at start of text node — check previous sibling
+      const prev = anchorNode.previousSibling;
+      if (isTokenSpan(prev)) return prev as HTMLElement;
+    }
+    if (
+      direction === 'after' &&
+      anchorOffset === (anchorNode.textContent ?? '').length
+    ) {
+      // Cursor at end of text node — check next sibling
+      const next = anchorNode.nextSibling;
+      if (isTokenSpan(next)) return next as HTMLElement;
+    }
+  }
+
+  return null;
+}
+
+/** Check if a node is a token span (span with data-token attribute). */
+function isTokenSpan(node: Node | null | undefined): boolean {
+  return (
+    !!node &&
+    node.nodeType === Node.ELEMENT_NODE &&
+    (node as HTMLElement).tagName === 'SPAN' &&
+    (node as HTMLElement).hasAttribute('data-token')
+  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -216,11 +279,12 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         // Trigger input handling
         handleInput();
       },
-      [handleInput]
+      [handleInput, tokenPrefix]
     );
 
     // ── Copy handler ─────────────────────────────────────────────────────────
-    // Intercept copy to serialize chips as raw tokens in clipboard data.
+    // Intercept copy to serialize tokens as raw text in clipboard data.
+    // text/plain gets display text (file paths), text/x-chatroom-raw gets internal tokens.
 
     const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
       const el = divRef.current;
@@ -230,12 +294,16 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       if (rawText == null) return;
 
       e.preventDefault();
-      e.clipboardData.setData('text/plain', rawText);
+
+      // text/plain: display-friendly text (file paths only)
+      const displayText = tokenPrefix ? internalToDisplay(rawText, tokenPrefix) : rawText;
+      e.clipboardData.setData('text/plain', displayText);
+      // text/x-chatroom-raw: full internal format for chatroom paste
       e.clipboardData.setData('text/x-chatroom-raw', rawText);
-    }, []);
+    }, [tokenPrefix]);
 
     // ── Cut handler ──────────────────────────────────────────────────────────
-    // Same as copy, but also deletes the selection and triggers input handling.
+    // Same clipboard data as copy, then delete selection and trigger input.
 
     const handleCut = useCallback(
       (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -246,7 +314,9 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         if (rawText == null) return;
 
         e.preventDefault();
-        e.clipboardData.setData('text/plain', rawText);
+
+        const displayText = tokenPrefix ? internalToDisplay(rawText, tokenPrefix) : rawText;
+        e.clipboardData.setData('text/plain', displayText);
         e.clipboardData.setData('text/x-chatroom-raw', rawText);
 
         // Delete the selection
@@ -258,17 +328,33 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
 
         handleInput();
       },
-      [handleInput]
+      [handleInput, tokenPrefix]
     );
 
     // ── Keydown handler ────────────────────────────────────────────────────
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const el = divRef.current;
+
+        // Atomic backspace/delete for token spans
+        if (el && (e.key === 'Backspace' || e.key === 'Delete')) {
+          const adjacentSpan = getAdjacentTokenSpan(
+            el,
+            e.key === 'Backspace' ? 'before' : 'after'
+          );
+          if (adjacentSpan) {
+            e.preventDefault();
+            adjacentSpan.remove();
+            handleInput();
+            return;
+          }
+        }
+
         // Forward to parent handler
         onKeyDown?.(e);
       },
-      [onKeyDown]
+      [onKeyDown, handleInput]
     );
 
     // ── Click handler ──────────────────────────────────────────────────────
