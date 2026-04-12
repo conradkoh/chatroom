@@ -33,7 +33,7 @@ export interface ContentEditableInputRef {
 }
 
 interface ContentEditableInputProps {
-  /** Raw text value (with {file://...} tokens) */
+  /** Raw text value (with file reference tokens) */
   value: string;
   /** Called with the new raw text value */
   onChange: (value: string) => void;
@@ -45,13 +45,15 @@ interface ContentEditableInputProps {
   disabled?: boolean;
   /** CSS class name */
   className?: string;
+  /** Token prefix for rendering file references as atomic spans */
+  tokenPrefix?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentEditableInputProps>(
   function ContentEditableInput(
-    { value, onChange, onKeyDown, placeholder, disabled = false, className },
+    { value, onChange, onKeyDown, placeholder, disabled = false, className, tokenPrefix },
     ref
   ) {
     const divRef = useRef<HTMLDivElement>(null);
@@ -132,12 +134,12 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       const el = divRef.current;
       if (!el) return;
 
-      const html = rawTextToHtml(value);
+      const html = rawTextToHtml(value, tokenPrefix);
       if (html !== lastHtmlRef.current) {
         lastHtmlRef.current = html;
         el.innerHTML = html;
       }
-    }, [value]);
+    }, [value, tokenPrefix]);
 
     // ── Input handler ──────────────────────────────────────────────────────
 
@@ -167,7 +169,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         // Check for our custom MIME type first (copy/paste within chatroom preserves chips)
         const chatroomRaw = e.clipboardData.getData('text/x-chatroom-raw');
         if (chatroomRaw) {
-          const html = rawTextToHtml(chatroomRaw);
+          const html = rawTextToHtml(chatroomRaw, tokenPrefix);
           const selection = window.getSelection();
           if (!selection || selection.rangeCount === 0) return;
 
@@ -287,7 +289,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
     useEffect(() => {
       const el = divRef.current;
       if (!el) return;
-      const html = rawTextToHtml(value);
+      const html = rawTextToHtml(value, tokenPrefix);
       lastHtmlRef.current = html;
       el.innerHTML = html;
       // eslint-disable-next-line react-hooks/exhaustive-deps

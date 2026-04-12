@@ -411,4 +411,15 @@ input,
   .dialog-mobile {
     @apply max-w-[95vw] sm:max-w-lg p-4 sm:p-6;
   }
+
+  /* File reference inline token spans in contenteditable */
+  .file-ref-inline {
+    @apply bg-accent/30 dark:bg-accent/20 text-accent-foreground;
+    padding: 0 4px;
+    border-radius: 3px;
+    cursor: default;
+    user-select: all;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.9em;
+  }
 }

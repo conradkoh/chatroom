@@ -400,6 +400,7 @@ export const SendForm = memo(function SendForm({
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           disabled={sending}
+          tokenPrefix={tokenPrefix}
         />
 
         <div className="flex items-center gap-2 flex-shrink-0">

@@ -7,6 +7,7 @@ import {
   setCursorToRawOffset,
   extractRawTextFromSelection,
 } from './fileReferenceSerializer';
+import { encodeFileReference } from './fileReference';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,9 +18,16 @@ function createElement(html: string): HTMLDivElement {
   return el;
 }
 
-/** Shorthand for a file reference token. */
+/** Shorthand for a legacy file reference token. */
 function fileToken(path: string): string {
   return `{file://workspace/${path}}`;
+}
+
+const PREFIX = 'ab12cd';
+
+/** Shorthand for a new-format file reference token. */
+function newToken(workspace: string, path: string): string {
+  return encodeFileReference(workspace, path, PREFIX);
 }
 
 // ── rawTextToHtml ────────────────────────────────────────────────────────────
@@ -89,6 +97,55 @@ describe('rawTextToHtml', () => {
   });
 });
 
+// ── rawTextToHtml with prefix (atomic spans) ───────────────────────────────
+
+describe('rawTextToHtml with prefix', () => {
+  it('returns plain escaped text when no tokens match prefix', () => {
+    const html = rawTextToHtml('hello world', PREFIX);
+    expect(html).toBe('hello world');
+    expect(html).not.toContain('data-token');
+  });
+
+  it('renders a token as an atomic span', () => {
+    const token = newToken('ws1', 'src/index.ts');
+    const html = rawTextToHtml(token, PREFIX);
+    expect(html).toContain('data-token');
+    expect(html).toContain('contenteditable="false"');
+    expect(html).toContain('class="file-ref-inline"');
+    expect(html).toContain('>src/index.ts</span>');
+  });
+
+  it('renders surrounding text with a token', () => {
+    const token = newToken('ws1', 'a.ts');
+    const raw = `hello ${token} world`;
+    const html = rawTextToHtml(raw, PREFIX);
+    expect(html).toContain('hello ');
+    expect(html).toContain(' world');
+    expect(html).toContain('>a.ts</span>');
+  });
+
+  it('renders multiple tokens as spans', () => {
+    const raw = `${newToken('ws', 'a.ts')} and ${newToken('ws', 'b.ts')}`;
+    const html = rawTextToHtml(raw, PREFIX);
+    expect(html).toContain('>a.ts</span>');
+    expect(html).toContain('>b.ts</span>');
+    expect(html).toContain(' and ');
+  });
+
+  it('handles newlines with tokens', () => {
+    const raw = `line1\n${newToken('ws', 'file.ts')}\nline3`;
+    const html = rawTextToHtml(raw, PREFIX);
+    expect(html).toContain('<br>');
+    expect(html).toContain('>file.ts</span>');
+  });
+
+  it('behaves like plain mode when prefix is undefined', () => {
+    const token = newToken('ws', 'file.ts');
+    const htmlNoPrefix = rawTextToHtml(token);
+    expect(htmlNoPrefix).not.toContain('data-token');
+  });
+});
+
 // ── htmlToRawText ────────────────────────────────────────────────────────────
 
 describe('htmlToRawText', () => {
@@ -127,6 +184,28 @@ describe('htmlToRawText', () => {
   it('does not prepend newline for first-child div', () => {
     const el = createElement('<div>only line</div>');
     expect(htmlToRawText(el)).toBe('only line');
+  });
+
+  it('emits data-token value for token spans', () => {
+    const token = newToken('ws1', 'src/index.ts');
+    const html = rawTextToHtml(token, PREFIX);
+    const el = createElement(html);
+    expect(htmlToRawText(el)).toBe(token);
+  });
+
+  it('round-trips text with token spans', () => {
+    const token = newToken('ws', 'file.ts');
+    const raw = `hello ${token} world`;
+    const html = rawTextToHtml(raw, PREFIX);
+    const el = createElement(html);
+    expect(htmlToRawText(el)).toBe(raw);
+  });
+
+  it('round-trips multiple token spans', () => {
+    const raw = `${newToken('ws', 'a.ts')} and ${newToken('ws', 'b.ts')}`;
+    const html = rawTextToHtml(raw, PREFIX);
+    const el = createElement(html);
+    expect(htmlToRawText(el)).toBe(raw);
   });
 });
 
