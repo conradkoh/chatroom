@@ -165,7 +165,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                         !search && recentFiles.length > 0
                           ? files.filter((f) => !recentSet.has(f.path))
                           : files;
-                      return displayFiles.slice(0, 200).map((file) => (
+                      return displayFiles.map((file) => (
                         <CommandItem
                           key={file.path}
                           value={file.path}
@@ -191,11 +191,6 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                       ));
                     })()}
                   </CommandGroup>
-                  {files.length > 200 && (
-                    <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-center">
-                      SHOWING 200 OF {files.length} FILES
-                    </div>
-                  )}
                 </>
               )}
             </CommandList>

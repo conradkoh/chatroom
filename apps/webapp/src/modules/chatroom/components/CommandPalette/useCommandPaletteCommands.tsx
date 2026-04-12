@@ -297,7 +297,7 @@ export function useCommandPaletteCommands({
     if (onStartAllRemoteAgents) {
       commands.push({
         id: 'agents-start-all-remote',
-        label: 'Agents: Start All Remote',
+        label: 'Chatroom: Start all remote agents',
         icon: <Play size={14} />,
         category: 'Agents',
         keywords: ['start', 'remote', 'run', 'launch', 'all'],

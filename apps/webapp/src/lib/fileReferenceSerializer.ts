@@ -1,64 +1,31 @@
-import { decodeFileReferences } from './fileReference';
-import { getFileName } from './pathUtils';
-import { buildFileRefChipHtml } from '@/modules/chatroom/components/FileReferenceChipUI';
+/**
+ * Simplified file reference serializer for contenteditable input.
+ *
+ * Converts between raw text (with {file://...} tokens as literal text) and
+ * safe HTML for rendering inside a contenteditable div.
+ *
+ * No chip spans, no ZWS — just plain text with HTML escaping and newline handling.
+ */
+
+// ── rawTextToHtml ────────────────────────────────────────────────────────────
 
 /**
- * Convert raw message text (with {file://workspace/path} tokens) to HTML
- * for rendering inside a contenteditable div.
+ * Convert raw message text to HTML for rendering inside a contenteditable div.
  *
- * File references become non-editable chip spans:
- * <span contenteditable="false" data-file-ref="{file://workspace/path}" class="...">
- *   filename.ts
- * </span>
- *
- * Regular text is HTML-escaped. Newlines become <br>.
+ * HTML-escapes the text and converts newlines to <br>.
+ * File reference tokens like {file://...} appear as literal text.
  */
 export function rawTextToHtml(text: string): string {
   if (!text) return '';
-
-  const refs = decodeFileReferences(text);
-  if (refs.length === 0) {
-    return escapeHtml(text).replace(/\n/g, '<br>');
-  }
-
-  let html = '';
-  let lastEnd = 0;
-
-  for (const ref of refs) {
-    // Text before this reference
-    const before = text.slice(lastEnd, ref.start);
-    html += escapeHtml(before).replace(/\n/g, '<br>');
-
-    // The chip span
-    const rawToken = text.slice(ref.start, ref.end);
-    const fileName = getFileName(ref.filePath);
-    html += buildChipHtml(rawToken, fileName);
-
-    lastEnd = ref.end;
-  }
-
-  // Text after the last reference
-  const after = text.slice(lastEnd);
-  html += escapeHtml(after).replace(/\n/g, '<br>');
-
-  return html;
+  return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
-/**
- * Build the HTML for a single file reference chip.
- * Delegates to the shared buildFileRefChipHtml for unified styling.
- * The chip is non-editable so the browser treats it as an atomic unit
- * (backspace deletes the whole thing).
- */
-function buildChipHtml(rawToken: string, fileName: string): string {
-  return buildFileRefChipHtml(rawToken, fileName);
-}
+// ── htmlToRawText ────────────────────────────────────────────────────────────
 
 /**
  * Convert HTML from a contenteditable div back to raw text.
  *
- * Chip spans (with data-file-ref) are converted back to their raw token.
- * <br> becomes newline. Other HTML is stripped.
+ * <br> becomes newline. Other HTML is stripped, text content is extracted.
  */
 export function htmlToRawText(element: HTMLElement): string {
   let result = '';
@@ -68,13 +35,6 @@ export function htmlToRawText(element: HTMLElement): string {
       result += node.textContent ?? '';
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-
-      // Check if it's a file reference chip
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        result += fileRef;
-        continue;
-      }
 
       // <br> → newline
       if (el.tagName === 'BR') {
@@ -100,12 +60,13 @@ export function htmlToRawText(element: HTMLElement): string {
   return result;
 }
 
+// ── domOffsetToRawOffset ─────────────────────────────────────────────────────
+
 /**
  * Compute the raw text cursor offset from a DOM selection within a contenteditable.
  *
  * Walks the DOM tree in document order, accumulating character counts:
  * - Text nodes contribute their textContent length
- * - Chip spans (data-file-ref) contribute the length of their raw token
  * - <br> contributes 1 (newline)
  * - <div> contributes 1 (newline) if not the first child
  *
@@ -136,25 +97,12 @@ export function domOffsetToRawOffset(
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += node.textContent?.length ?? 0;
+      offset += (node.textContent ?? '').length;
       return false;
     }
 
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-
-      // Chip span — count the raw token length as a whole
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        // If the anchor is inside the chip, treat it as being at the end
-        if (el.contains(anchorNode)) {
-          offset += fileRef.length;
-          found = true;
-          return true;
-        }
-        offset += fileRef.length;
-        return false;
-      }
 
       // <br> → 1 character
       if (el.tagName === 'BR') {
@@ -179,16 +127,11 @@ export function domOffsetToRawOffset(
   /** Accumulate the full raw text length of a node subtree. */
   function accumulateLength(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      offset += node.textContent?.length ?? 0;
+      offset += (node.textContent ?? '').length;
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        offset += fileRef.length;
-        return;
-      }
       if (el.tagName === 'BR') {
         offset += 1;
         return;
@@ -206,6 +149,8 @@ export function domOffsetToRawOffset(
   return offset;
 }
 
+// ── setCursorToRawOffset ─────────────────────────────────────────────────────
+
 /**
  * Set the cursor to a specific raw text offset within a contenteditable element.
  *
@@ -222,7 +167,7 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
     if (found) return true;
 
     if (node.nodeType === Node.TEXT_NODE) {
-      const len = node.textContent?.length ?? 0;
+      const len = (node.textContent ?? '').length;
       if (remaining <= len) {
         targetNode = node;
         targetDomOffset = remaining;
@@ -235,19 +180,6 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
 
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-
-      const fileRef = el.getAttribute('data-file-ref');
-      if (fileRef) {
-        if (remaining <= fileRef.length) {
-          // Place cursor after the chip
-          targetNode = el.parentNode;
-          targetDomOffset = Array.from(el.parentNode?.childNodes ?? []).indexOf(el) + 1;
-          found = true;
-          return true;
-        }
-        remaining -= fileRef.length;
-        return false;
-      }
 
       if (el.tagName === 'BR') {
         if (remaining <= 1) {
@@ -292,6 +224,84 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
     }
   }
 }
+
+// ── extractRawTextFromSelection ──────────────────────────────────────────────
+
+/**
+ * Extract raw text from the current DOM selection within a contenteditable container.
+ *
+ * Returns null if there is no selection or the selection is not within the container.
+ */
+export function extractRawTextFromSelection(container: HTMLElement): string | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  // Verify the selection is within the container
+  if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+    return null;
+  }
+
+  const fragment = range.cloneContents();
+  return fragmentToRawText(fragment);
+}
+
+/**
+ * Convert a DocumentFragment (from range.cloneContents()) to raw text.
+ */
+function fragmentToRawText(fragment: DocumentFragment): string {
+  let result = '';
+
+  for (const node of Array.from(fragment.childNodes)) {
+    result += nodeToRawText(node);
+  }
+
+  return result;
+}
+
+/**
+ * Convert a single DOM node to raw text recursively.
+ */
+function nodeToRawText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent ?? '';
+  }
+
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as HTMLElement;
+
+    // <br> → newline
+    if (el.tagName === 'BR') {
+      return '\n';
+    }
+
+    // <div> is how contenteditable handles newlines in some browsers
+    if (el.tagName === 'DIV') {
+      let text = '';
+      if (el.previousSibling) {
+        text += '\n';
+      }
+      for (const child of Array.from(el.childNodes)) {
+        text += nodeToRawText(child);
+      }
+      return text;
+    }
+
+    // Recurse into other elements
+    let text = '';
+    for (const child of Array.from(el.childNodes)) {
+      text += nodeToRawText(child);
+    }
+    return text;
+  }
+
+  return '';
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
 
 function escapeHtml(text: string): string {
   return text

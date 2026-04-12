@@ -15,7 +15,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { fileRefUrlTransform, fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 interface Message {
   _id: string;
@@ -26,7 +26,7 @@ interface Message {
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  taskStatus?: 'pending' | 'acknowledged' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
   featureTitle?: string;
   featureDescription?: string;
   featureTechSpecs?: string;
@@ -182,7 +182,6 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </h2>
                 </div>
               )}
-
               {/* Description Section */}
               {hasDescription && (
                 <div>
@@ -196,14 +195,12 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     <Markdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={fullMarkdownComponents}
-                      urlTransform={fileRefUrlTransform}
                     >
                       {message.featureDescription}
                     </Markdown>
                   </div>
                 </div>
               )}
-
               {/* Tech Specs Section */}
               {hasTechSpecs && (
                 <div>
@@ -217,14 +214,12 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     <Markdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={fullMarkdownComponents}
-                      urlTransform={fileRefUrlTransform}
                     >
                       {message.featureTechSpecs}
                     </Markdown>
                   </div>
                 </div>
               )}
-
               {/* Original Message Section */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -237,7 +232,23 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   <Markdown
                     remarkPlugins={[remarkGfm, remarkBreaks]}
                     components={fullMarkdownComponents}
-                    urlTransform={fileRefUrlTransform}
+                  >
+                    {message.content}
+                  </Markdown>
+                </div>
+              </div>
+              ) : ( // Question/Follow-up: show full message content
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare size={14} className="text-chatroom-text-muted" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                    Full Message
+                  </span>
+                </div>
+                <div className={proseClassNames}>
+                  <Markdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={fullMarkdownComponents}
                   >
                     {message.content}
                   </Markdown>
@@ -257,7 +268,6 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 <Markdown
                   remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={fullMarkdownComponents}
-                  urlTransform={fileRefUrlTransform}
                 >
                   {message.content}
                 </Markdown>
