@@ -200,10 +200,10 @@ export function useCommandPaletteCommands({
       if (onOpenPROnGitHub) {
         commands.push({
           id: 'action-open-pr-github',
-          label: 'Github: View Current PR',
+          label: 'Github: View Current Pull Request',
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'Github PR'],
+          keywords: ['PR', 'pull request', 'Github PR'],
           action: onOpenPROnGitHub,
         });
       }
