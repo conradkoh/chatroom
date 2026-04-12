@@ -30,6 +30,12 @@ export interface ContentEditableInputRef {
   getCaretPixelPosition: () => { top: number; left: number; height: number } | null;
   /** Set cursor position to a character offset in the raw text */
   setCursorOffset: (offset: number) => void;
+  /**
+   * Schedule a cursor offset to be applied on the next external value sync.
+   * Call this BEFORE updating the value prop so the layout effect can restore
+   * the cursor in the same frame as the innerHTML replacement (no flicker).
+   */
+  requestCursorOffset: (offset: number) => void;
   /** Get the underlying contenteditable DOM element */
   getElement: () => HTMLDivElement | null;
 }
@@ -114,6 +120,12 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
     /** Track the last HTML we set to avoid unnecessary re-renders */
     const lastHtmlRef = useRef<string>('');
     /**
+     * Pending cursor offset to apply after the next external innerHTML sync.
+     * Set via `requestCursorOffset()` before a value prop change so the layout
+     * effect can restore the caret in the same frame — preventing flicker.
+     */
+    const pendingCursorRef = useRef<number | null>(null);
+    /**
      * Flag: when true, skip the next useLayoutEffect that syncs HTML from value.
      *
      * Flow: handleInput() sets suppressSync=true right before calling onChange(raw).
@@ -167,6 +179,10 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           setCursorToRawOffset(el, offset);
         },
 
+        requestCursorOffset(offset: number) {
+          pendingCursorRef.current = offset;
+        },
+
         getElement() {
           return divRef.current;
         },
@@ -192,6 +208,15 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       if (html !== lastHtmlRef.current) {
         lastHtmlRef.current = html;
         el.innerHTML = html;
+      }
+
+      // Apply any pending cursor offset in the same frame as the innerHTML
+      // replacement, so the caret is restored before the browser paints.
+      if (pendingCursorRef.current !== null) {
+        const offset = pendingCursorRef.current;
+        pendingCursorRef.current = null;
+        el.focus();
+        setCursorToRawOffset(el, offset);
       }
     }, [value, tokenPrefix]);
 

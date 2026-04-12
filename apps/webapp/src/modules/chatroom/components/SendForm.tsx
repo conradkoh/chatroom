@@ -266,11 +266,8 @@ export const SendForm = memo(function SendForm({
           e.preventDefault();
           const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
+          inputRef.current?.requestCursorOffset(newCursorPos);
           setMessage(newText);
-          setTimeout(() => {
-            inputRef.current?.focus();
-            inputRef.current?.setCursorOffset(newCursorPos);
-          }, 0);
           return;
         }
       }
@@ -321,12 +318,8 @@ export const SendForm = memo(function SendForm({
       if (!fileEntry) return;
 
       const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
+      inputRef.current?.requestCursorOffset(newCursorPos);
       setMessage(newText);
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.setCursorOffset(newCursorPos);
-      }, 0);
     },
     [autocomplete, message]
   );
