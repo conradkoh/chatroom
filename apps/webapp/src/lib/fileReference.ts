@@ -29,7 +29,8 @@ export interface FileReference {
  * Used once per message to create a unique prefix.
  */
 export function generateTokenPrefix(): string {
-  return Math.random().toString(36).substring(2, 8);
+  // Pad with '0' in the extremely unlikely case of a short result
+  return Math.random().toString(36).substring(2, 8).padEnd(6, '0');
 }
 
 /**
