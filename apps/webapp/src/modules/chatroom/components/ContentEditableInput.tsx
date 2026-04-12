@@ -14,10 +14,7 @@ import {
   htmlToRawText,
   domOffsetToRawOffset,
   setCursorToRawOffset,
-  extractRawTextFromSelection,
-  isTokenSpan,
 } from '@/lib/fileReferenceSerializer';
-import { internalToDisplay } from '@/lib/fileReferenceDisplay';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -30,18 +27,12 @@ export interface ContentEditableInputRef {
   getCaretPixelPosition: () => { top: number; left: number; height: number } | null;
   /** Set cursor position to a character offset in the raw text */
   setCursorOffset: (offset: number) => void;
-  /**
-   * Schedule a cursor offset to be applied on the next external value sync.
-   * Call this BEFORE updating the value prop so the layout effect can restore
-   * the cursor in the same frame as the innerHTML replacement (no flicker).
-   */
-  requestCursorOffset: (offset: number) => void;
   /** Get the underlying contenteditable DOM element */
   getElement: () => HTMLDivElement | null;
 }
 
 interface ContentEditableInputProps {
-  /** Raw text value (with file reference tokens) */
+  /** Raw text value */
   value: string;
   /** Called with the new raw text value */
   onChange: (value: string) => void;
@@ -53,78 +44,18 @@ interface ContentEditableInputProps {
   disabled?: boolean;
   /** CSS class name */
   className?: string;
-  /** Token prefix for rendering file references as atomic spans */
-  tokenPrefix?: string;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Check if the cursor is adjacent to a token span in the given direction.
- * Returns the span element if found, null otherwise.
- *
- * - 'before': cursor is at the position where Backspace would delete
- *   (cursor is right after the span)
- * - 'after': cursor is at the position where Delete would delete
- *   (cursor is right before the span)
- */
-function getAdjacentTokenSpan(
-  container: HTMLElement,
-  direction: 'before' | 'after'
-): HTMLElement | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return null;
-
-  const { anchorNode, anchorOffset } = selection;
-  if (!anchorNode || !container.contains(anchorNode)) return null;
-
-  if (anchorNode.nodeType === Node.ELEMENT_NODE) {
-    const parent = anchorNode as HTMLElement;
-    if (direction === 'before' && anchorOffset > 0) {
-      const prev = parent.childNodes[anchorOffset - 1];
-      if (isTokenSpan(prev)) return prev as HTMLElement;
-    }
-    if (direction === 'after' && anchorOffset < parent.childNodes.length) {
-      const next = parent.childNodes[anchorOffset];
-      if (isTokenSpan(next)) return next as HTMLElement;
-    }
-  }
-
-  if (anchorNode.nodeType === Node.TEXT_NODE) {
-    if (direction === 'before' && anchorOffset === 0) {
-      // Cursor at start of text node — check previous sibling
-      const prev = anchorNode.previousSibling;
-      if (isTokenSpan(prev)) return prev as HTMLElement;
-    }
-    if (
-      direction === 'after' &&
-      anchorOffset === (anchorNode.textContent ?? '').length
-    ) {
-      // Cursor at end of text node — check next sibling
-      const next = anchorNode.nextSibling;
-      if (isTokenSpan(next)) return next as HTMLElement;
-    }
-  }
-
-  return null;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentEditableInputProps>(
   function ContentEditableInput(
-    { value, onChange, onKeyDown, placeholder, disabled = false, className, tokenPrefix },
+    { value, onChange, onKeyDown, placeholder, disabled = false, className },
     ref
   ) {
     const divRef = useRef<HTMLDivElement>(null);
     /** Track the last HTML we set to avoid unnecessary re-renders */
     const lastHtmlRef = useRef<string>('');
-    /**
-     * Pending cursor offset to apply after the next external innerHTML sync.
-     * Set via `requestCursorOffset()` before a value prop change so the layout
-     * effect can restore the caret in the same frame — preventing flicker.
-     */
-    const pendingCursorRef = useRef<number | null>(null);
     /**
      * Flag: when true, skip the next useLayoutEffect that syncs HTML from value.
      *
@@ -179,10 +110,6 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           setCursorToRawOffset(el, offset);
         },
 
-        requestCursorOffset(offset: number) {
-          pendingCursorRef.current = offset;
-        },
-
         getElement() {
           return divRef.current;
         },
@@ -204,21 +131,12 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       const el = divRef.current;
       if (!el) return;
 
-      const html = rawTextToHtml(value, tokenPrefix);
+      const html = rawTextToHtml(value);
       if (html !== lastHtmlRef.current) {
         lastHtmlRef.current = html;
         el.innerHTML = html;
       }
-
-      // Apply any pending cursor offset in the same frame as the innerHTML
-      // replacement, so the caret is restored before the browser paints.
-      if (pendingCursorRef.current !== null) {
-        const offset = pendingCursorRef.current;
-        pendingCursorRef.current = null;
-        el.focus();
-        setCursorToRawOffset(el, offset);
-      }
-    }, [value, tokenPrefix]);
+    }, [value]);
 
     // ── Input handler ──────────────────────────────────────────────────────
 
@@ -229,37 +147,13 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       // Read raw text from DOM
       const raw = htmlToRawText(el);
 
-      // When the DOM contains non-editable token spans, re-render HTML
-      // and restore the cursor. This prevents the caret from disappearing
-      // when a browser edit (e.g., backspace) removes the text node adjacent
-      // to a contenteditable="false" span, leaving no valid cursor position.
-      const hasTokenSpans = el.querySelector('span[data-token]') !== null;
-
-      if (hasTokenSpans) {
-        // Save cursor position in raw text coordinates
-        const selection = window.getSelection();
-        let cursorOffset = raw.length;
-        if (selection && selection.rangeCount > 0 && el.contains(selection.anchorNode!)) {
-          cursorOffset = domOffsetToRawOffset(el, selection.anchorNode!, selection.anchorOffset);
-        }
-
-        // Re-render to normalize DOM (ensures text nodes around non-editable spans)
-        const html = rawTextToHtml(raw, tokenPrefix);
-        lastHtmlRef.current = html;
-        el.innerHTML = html;
-
-        // Restore cursor in the normalized DOM
-        setCursorToRawOffset(el, cursorOffset);
-      } else {
-        // No token spans — preserve browser's native cursor handling
-        lastHtmlRef.current = el.innerHTML;
-      }
-
-      // Suppress the next layout effect sync from the value prop change
+      // Track the current HTML so we don't re-render it back
+      lastHtmlRef.current = el.innerHTML;
+      // Suppress the next sync from the value prop change
       suppressSyncRef.current = true;
 
       onChange(raw);
-    }, [onChange, tokenPrefix]);
+    }, [onChange]);
 
     // ── Paste handler ──────────────────────────────────────────────────────
     // Intercept paste to insert only plain text, preventing rich HTML from
@@ -269,35 +163,6 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
       (e: React.ClipboardEvent<HTMLDivElement>) => {
         e.preventDefault();
 
-        // Check for our custom MIME type first (copy/paste within chatroom preserves chips)
-        const chatroomRaw = e.clipboardData.getData('text/x-chatroom-raw');
-        if (chatroomRaw) {
-          const html = rawTextToHtml(chatroomRaw, tokenPrefix);
-          const selection = window.getSelection();
-          if (!selection || selection.rangeCount === 0) return;
-
-          const range = selection.getRangeAt(0);
-          range.deleteContents();
-
-          // Insert the HTML as a fragment to reconstruct chips
-          const fragment = range.createContextualFragment(html);
-          // Keep a reference to the last node so we can position cursor after it
-          const lastNode = fragment.lastChild;
-          range.insertNode(fragment);
-
-          // Move cursor to end of inserted content
-          if (lastNode) {
-            range.setStartAfter(lastNode);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          }
-
-          handleInput();
-          return;
-        }
-
-        // Fall back to plain text behavior (unchanged)
         const text = e.clipboardData.getData('text/plain');
         if (!text) return;
 
@@ -319,95 +184,18 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         // Trigger input handling
         handleInput();
       },
-      [handleInput, tokenPrefix]
-    );
-
-    // ── Copy handler ─────────────────────────────────────────────────────────
-    // Intercept copy to serialize tokens as raw text in clipboard data.
-    // text/plain gets display text (file paths), text/x-chatroom-raw gets internal tokens.
-
-    const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
-      const el = divRef.current;
-      if (!el) return;
-
-      const rawText = extractRawTextFromSelection(el);
-      if (rawText == null) return;
-
-      e.preventDefault();
-
-      // text/plain: display-friendly text (file paths only)
-      const displayText = tokenPrefix ? internalToDisplay(rawText, tokenPrefix) : rawText;
-      e.clipboardData.setData('text/plain', displayText);
-      // text/x-chatroom-raw: full internal format for chatroom paste
-      e.clipboardData.setData('text/x-chatroom-raw', rawText);
-    }, [tokenPrefix]);
-
-    // ── Cut handler ──────────────────────────────────────────────────────────
-    // Same clipboard data as copy, then delete selection and trigger input.
-
-    const handleCut = useCallback(
-      (e: React.ClipboardEvent<HTMLDivElement>) => {
-        const el = divRef.current;
-        if (!el) return;
-
-        const rawText = extractRawTextFromSelection(el);
-        if (rawText == null) return;
-
-        e.preventDefault();
-
-        const displayText = tokenPrefix ? internalToDisplay(rawText, tokenPrefix) : rawText;
-        e.clipboardData.setData('text/plain', displayText);
-        e.clipboardData.setData('text/x-chatroom-raw', rawText);
-
-        // Delete the selection
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          range.deleteContents();
-        }
-
-        handleInput();
-      },
-      [handleInput, tokenPrefix]
+      [handleInput]
     );
 
     // ── Keydown handler ────────────────────────────────────────────────────
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
-        const el = divRef.current;
-
-        // Atomic backspace/delete for token spans
-        if (el && (e.key === 'Backspace' || e.key === 'Delete')) {
-          const adjacentSpan = getAdjacentTokenSpan(
-            el,
-            e.key === 'Backspace' ? 'before' : 'after'
-          );
-          if (adjacentSpan) {
-            e.preventDefault();
-            adjacentSpan.remove();
-            handleInput();
-            return;
-          }
-        }
-
         // Forward to parent handler
         onKeyDown?.(e);
       },
-      [onKeyDown, handleInput]
+      [onKeyDown]
     );
-
-    // ── Click handler ──────────────────────────────────────────────────────
-
-    const handleClick = useCallback((_e: React.MouseEvent<HTMLDivElement>) => {
-      // No-op — plain text contenteditable handles clicks natively
-    }, []);
-
-    // ── Focus handler ──────────────────────────────────────────────────────
-
-    const handleFocus = useCallback(() => {
-      // No-op — plain text contenteditable handles focus natively
-    }, []);
 
     // ── Focus management ───────────────────────────────────────────────────
 
@@ -415,7 +203,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
     useEffect(() => {
       const el = divRef.current;
       if (!el) return;
-      const html = rawTextToHtml(value, tokenPrefix);
+      const html = rawTextToHtml(value);
       lastHtmlRef.current = html;
       el.innerHTML = html;
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,11 +223,7 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
           data-placeholder={placeholder}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
-          onClick={handleClick}
-          onFocus={handleFocus}
           onPaste={handlePaste}
-          onCopy={handleCopy}
-          onCut={handleCut}
           className={
             className ??
             [

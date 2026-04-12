@@ -21,7 +21,6 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-import { generateTokenPrefix } from '@/lib/fileReference';
 
 interface SendFormProps {
   chatroomId: string;
@@ -122,11 +121,8 @@ export const SendForm = memo(function SendForm({
 
   const [editorOpen, setEditorOpen] = useState(false);
 
-  // Generate a stable prefix per component instance (regenerated on mount/chatroom switch)
-  const [tokenPrefix, setTokenPrefix] = useState(() => generateTokenPrefix());
-
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
-  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files, tokenPrefix), [files, tokenPrefix]);
+  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {
@@ -214,10 +210,8 @@ export const SendForm = memo(function SendForm({
           ...(attachedMessages.length > 0 && {
             attachedMessageIds: attachedMessages.map((msg) => msg.id),
           }),
-          tokenPrefix,
         });
         setMessage('');
-        setTokenPrefix(generateTokenPrefix()); // Regenerate prefix for next message
         localStorage.removeItem(draftKey);
         if (
           attachedTasks.length > 0 ||
@@ -242,7 +236,6 @@ export const SendForm = memo(function SendForm({
       attachedMessages,
       clearAll,
       draftKey,
-      tokenPrefix,
     ]
   );
 
@@ -266,8 +259,11 @@ export const SendForm = memo(function SendForm({
           e.preventDefault();
           const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
-          inputRef.current?.requestCursorOffset(newCursorPos);
           setMessage(newText);
+          setTimeout(() => {
+            inputRef.current?.focus();
+            inputRef.current?.setCursorOffset(newCursorPos);
+          }, 0);
           return;
         }
       }
@@ -318,8 +314,11 @@ export const SendForm = memo(function SendForm({
       if (!fileEntry) return;
 
       const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
-      inputRef.current?.requestCursorOffset(newCursorPos);
       setMessage(newText);
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.setCursorOffset(newCursorPos);
+      }, 0);
     },
     [autocomplete, message]
   );
@@ -393,7 +392,6 @@ export const SendForm = memo(function SendForm({
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           disabled={sending}
-          tokenPrefix={tokenPrefix}
         />
 
         <div className="flex items-center gap-2 flex-shrink-0">

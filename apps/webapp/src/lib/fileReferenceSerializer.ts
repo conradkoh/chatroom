@@ -1,14 +1,9 @@
 /**
- * Simplified file reference serializer for contenteditable input.
+ * Simplified serializer for contenteditable input.
  *
- * Converts between raw text (with file reference tokens) and
- * safe HTML for rendering inside a contenteditable div.
- *
- * When a prefix is provided, file reference tokens are rendered as atomic
- * (non-editable) inline spans showing just the file path.
+ * Converts between raw text and safe HTML for rendering inside
+ * a contenteditable div. Handles HTML escaping and newlines.
  */
-
-import { decodeFileReferences } from './fileReference';
 
 // ── rawTextToHtml ────────────────────────────────────────────────────────────
 
@@ -16,40 +11,10 @@ import { decodeFileReferences } from './fileReference';
  * Convert raw message text to HTML for rendering inside a contenteditable div.
  *
  * HTML-escapes the text and converts newlines to <br>.
- *
- * If a prefix is provided, file reference tokens matching that prefix are
- * rendered as atomic inline spans with `data-token` containing the full
- * internal token and the visible text showing just the file path.
  */
-export function rawTextToHtml(text: string, prefix?: string): string {
+export function rawTextToHtml(text: string): string {
   if (!text) return '';
-
-  if (!prefix) {
-    return escapeHtml(text).replace(/\n/g, '<br>');
-  }
-
-  const refs = decodeFileReferences(text, prefix);
-  if (refs.length === 0) {
-    return escapeHtml(text).replace(/\n/g, '<br>');
-  }
-
-  let result = '';
-  let cursor = 0;
-
-  for (const ref of refs) {
-    // Add escaped text before this token
-    result += escapeHtml(text.slice(cursor, ref.start)).replace(/\n/g, '<br>');
-
-    // Add atomic span for the token
-    const fullToken = text.slice(ref.start, ref.end);
-    result += `<span data-token="${escapeHtmlAttr(fullToken)}" contenteditable="false" class="file-ref-inline">[${escapeHtml(ref.filePath)}]</span>`;
-
-    cursor = ref.end;
-  }
-
-  // Add remaining text after last token
-  result += escapeHtml(text.slice(cursor)).replace(/\n/g, '<br>');
-  return result;
+  return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
 // ── htmlToRawText ────────────────────────────────────────────────────────────
@@ -67,12 +32,6 @@ export function htmlToRawText(element: HTMLElement): string {
       result += node.textContent ?? '';
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-
-      // Token span → emit the full internal token from data-token
-      if (isTokenSpan(el)) {
-        result += getTokenValue(el);
-        continue;
-      }
 
       // <br> → newline
       if (el.tagName === 'BR') {
@@ -142,19 +101,6 @@ export function domOffsetToRawOffset(
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
 
-      // Token span — count as the full internal token length
-      if (isTokenSpan(el)) {
-        // If anchorNode is inside this span, clamp to span boundaries
-        if (el.contains(anchorNode)) {
-          // Cursor is inside the atomic span — clamp to end
-          offset += getTokenValue(el).length;
-          found = true;
-          return true;
-        }
-        offset += getTokenValue(el).length;
-        return false;
-      }
-
       // <br> → 1 character
       if (el.tagName === 'BR') {
         offset += 1;
@@ -183,11 +129,6 @@ export function domOffsetToRawOffset(
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-      // Token span — count as full internal token length
-      if (isTokenSpan(el)) {
-        offset += getTokenValue(el).length;
-        return;
-      }
       if (el.tagName === 'BR') {
         offset += 1;
         return;
@@ -248,31 +189,6 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
         return false;
       }
 
-      // Token span — its raw text length is the full internal token
-      if (isTokenSpan(el)) {
-        const tokenLen = getTokenValue(el).length;
-        if (remaining <= tokenLen) {
-          // Position cursor before or after the span
-          const parent = el.parentNode;
-          if (parent) {
-            const idx = Array.from(parent.childNodes).indexOf(el);
-            if (remaining <= tokenLen / 2) {
-              // Closer to start — place cursor before span
-              targetNode = parent;
-              targetDomOffset = idx;
-            } else {
-              // Closer to end — place cursor after span
-              targetNode = parent;
-              targetDomOffset = idx + 1;
-            }
-            found = true;
-            return true;
-          }
-        }
-        remaining -= tokenLen;
-        return false;
-      }
-
       if (el.tagName === 'DIV' && el.previousSibling) {
         if (remaining <= 1) {
           // Place at the beginning of this div
@@ -306,87 +222,6 @@ export function setCursorToRawOffset(container: HTMLElement, targetOffset: numbe
   }
 }
 
-// ── extractRawTextFromSelection ──────────────────────────────────────────────
-
-/**
- * Extract raw text from the current DOM selection within a contenteditable container.
- *
- * Returns null if there is no selection or the selection is not within the container.
- */
-export function extractRawTextFromSelection(container: HTMLElement): string | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    return null;
-  }
-
-  const range = selection.getRangeAt(0);
-
-  // Verify the selection is within the container
-  if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
-    return null;
-  }
-
-  const fragment = range.cloneContents();
-  return fragmentToRawText(fragment);
-}
-
-/**
- * Convert a DocumentFragment (from range.cloneContents()) to raw text.
- */
-function fragmentToRawText(fragment: DocumentFragment): string {
-  let result = '';
-
-  for (const node of Array.from(fragment.childNodes)) {
-    result += nodeToRawText(node);
-  }
-
-  return result;
-}
-
-/**
- * Convert a single DOM node to raw text recursively.
- */
-function nodeToRawText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ?? '';
-  }
-
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const el = node as HTMLElement;
-
-    // Token span → emit full internal token from data-token
-    if (isTokenSpan(el)) {
-      return getTokenValue(el);
-    }
-
-    // <br> → newline
-    if (el.tagName === 'BR') {
-      return '\n';
-    }
-
-    // <div> is how contenteditable handles newlines in some browsers
-    if (el.tagName === 'DIV') {
-      let text = '';
-      if (el.previousSibling) {
-        text += '\n';
-      }
-      for (const child of Array.from(el.childNodes)) {
-        text += nodeToRawText(child);
-      }
-      return text;
-    }
-
-    // Recurse into other elements
-    let text = '';
-    for (const child of Array.from(el.childNodes)) {
-      text += nodeToRawText(child);
-    }
-    return text;
-  }
-
-  return '';
-}
-
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 function escapeHtml(text: string): string {
@@ -395,24 +230,4 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-/** Escape a string for use in an HTML attribute value (double-quoted). */
-function escapeHtmlAttr(text: string): string {
-  return escapeHtml(text).replace(/'/g, '&#39;');
-}
-
-/** Check if a DOM node is a token span (span with data-token attribute). */
-export function isTokenSpan(node: Node | null | undefined): boolean {
-  return (
-    !!node &&
-    node.nodeType === Node.ELEMENT_NODE &&
-    (node as HTMLElement).tagName === 'SPAN' &&
-    (node as HTMLElement).hasAttribute('data-token')
-  );
-}
-
-/** Get the data-token value from a token span. */
-function getTokenValue(el: HTMLElement): string {
-  return el.getAttribute('data-token') ?? '';
 }
