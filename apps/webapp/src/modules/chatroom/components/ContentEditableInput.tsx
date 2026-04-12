@@ -17,12 +17,6 @@ import {
   extractRawTextFromSelection,
 } from '@/lib/fileReferenceSerializer';
 
-import {
-  handleChipNavigation,
-  handleChipClick,
-  sanitizeCursorPosition,
-} from '@/modules/chatroom/lib/chipNavigation';
-
 // ── Public types ─────────────────────────────────────────────────────────────
 
 export interface ContentEditableInputRef {
@@ -269,12 +263,6 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
-        // Intercept arrow keys near chips for deterministic navigation
-        const el = divRef.current;
-        if (el && handleChipNavigation(el, e.nativeEvent)) {
-          e.preventDefault();
-          return;
-        }
         // Forward to parent handler
         onKeyDown?.(e);
       },
@@ -283,21 +271,14 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
 
     // ── Click handler ──────────────────────────────────────────────────────
 
-    const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-      const el = divRef.current;
-      if (el && handleChipClick(el, e.nativeEvent)) {
-        e.preventDefault();
-      }
+    const handleClick = useCallback((_e: React.MouseEvent<HTMLDivElement>) => {
+      // No-op — plain text contenteditable handles clicks natively
     }, []);
 
     // ── Focus handler ──────────────────────────────────────────────────────
 
     const handleFocus = useCallback(() => {
-      const el = divRef.current;
-      if (el) {
-        // Ensure cursor isn't stuck inside a chip after focus restore
-        sanitizeCursorPosition(el);
-      }
+      // No-op — plain text contenteditable handles focus natively
     }, []);
 
     // ── Focus management ───────────────────────────────────────────────────

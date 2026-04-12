@@ -39,63 +39,53 @@ describe('rawTextToHtml', () => {
     expect(rawTextToHtml('line1\nline2')).toBe('line1<br>line2');
   });
 
-  it('wraps a single file reference in a chip span', () => {
+  it('renders file reference tokens as literal escaped text', () => {
     const html = rawTextToHtml(fileToken('index.ts'));
-    // Should contain the chip span with data-file-ref
-    expect(html).toContain('data-file-ref');
-    expect(html).toContain('contenteditable="false"');
-    // Chip is at line start, so ZWS is inserted before it for Safari caret positioning
-    expect(html).toContain('\u200B');
+    // Should NOT contain chip spans — just escaped literal text
+    expect(html).not.toContain('data-file-ref');
+    expect(html).not.toContain('contenteditable="false"');
+    expect(html).not.toContain('\u200B');
+    // Should contain the escaped token text
+    expect(html).toContain('file://workspace/index.ts');
   });
 
-  it('renders chip directly adjacent to surrounding text', () => {
+  it('renders file references inline with surrounding text', () => {
     const raw = `hello ${fileToken('a.ts')} world`;
     const html = rawTextToHtml(raw);
-    // No ZWS anywhere
-    expect(html).not.toContain('\u200B');
-    // Should contain the chip span
-    expect(html).toContain('data-file-ref');
+    expect(html).not.toContain('data-file-ref');
+    expect(html).toContain('hello');
+    expect(html).toContain('world');
+    expect(html).toContain('file://workspace/a.ts');
   });
 
-  it('handles multiple file references (ZWS before line-start chip only)', () => {
+  it('handles multiple file references as plain text', () => {
     const raw = `${fileToken('a.ts')} and ${fileToken('b.ts')}`;
     const html = rawTextToHtml(raw);
-    // First chip is at line start so ZWS is inserted before it
-    expect(html).toContain('\u200B');
-    // Only one ZWS (before the first chip, not the second)
-    const zwsCount = (html.match(/\u200B/g) || []).length;
-    expect(zwsCount).toBe(1);
-    // Both chips present
-    const chipCount = (html.match(/data-file-ref/g) || []).length;
-    expect(chipCount).toBe(2);
+    expect(html).not.toContain('data-file-ref');
+    expect(html).not.toContain('\u200B');
+    expect(html).toContain('file://workspace/a.ts');
+    expect(html).toContain('file://workspace/b.ts');
   });
 
   it('handles file reference at the START of text', () => {
     const raw = `${fileToken('a.ts')} some text`;
     const html = rawTextToHtml(raw);
-    // Chip at line start gets ZWS before it
-    expect(html).toContain('\u200B');
-    expect(html).toContain('data-file-ref');
+    expect(html).not.toContain('\u200B');
+    expect(html).toContain('file://workspace/a.ts');
   });
 
   it('handles file reference at the END of text', () => {
     const raw = `some text ${fileToken('a.ts')}`;
     const html = rawTextToHtml(raw);
-    expect(html).not.toContain('\u200B');
-    expect(html).toContain('data-file-ref');
+    expect(html).toContain('file://workspace/a.ts');
   });
 
   it('handles adjacent file references (back to back)', () => {
     const raw = `${fileToken('a.ts')}${fileToken('b.ts')}`;
     const html = rawTextToHtml(raw);
-    // First chip at line start gets ZWS before it
-    expect(html).toContain('\u200B');
-    // Only one ZWS (before first chip)
-    const zwsCount = (html.match(/\u200B/g) || []).length;
-    expect(zwsCount).toBe(1);
-    // Both chips present
-    const chipCount = (html.match(/data-file-ref/g) || []).length;
-    expect(chipCount).toBe(2);
+    expect(html).not.toContain('\u200B');
+    expect(html).toContain('file://workspace/a.ts');
+    expect(html).toContain('file://workspace/b.ts');
   });
 });
 
@@ -110,14 +100,14 @@ describe('htmlToRawText', () => {
     expect(htmlToRawText(createElement('hello world'))).toBe('hello world');
   });
 
-  it('extracts raw token from chip span', () => {
+  it('round-trips file reference token through HTML', () => {
     const token = fileToken('index.ts');
     const html = rawTextToHtml(token);
     const el = createElement(html);
     expect(htmlToRawText(el)).toBe(token);
   });
 
-  it('handles mixed text + chips correctly', () => {
+  it('handles mixed text + file tokens correctly', () => {
     const raw = `hello ${fileToken('a.ts')} world`;
     const html = rawTextToHtml(raw);
     const el = createElement(html);
@@ -191,12 +181,6 @@ describe('serialization round-trip', () => {
     const raw = `line1\n${fileToken('a.ts')}\nline3`;
     expect(roundTrip(raw)).toBe(raw);
   });
-
-  it('ensures no ZWS leaks into raw text', () => {
-    const raw = `hello ${fileToken('a.ts')} world`;
-    const result = roundTrip(raw);
-    expect(result).not.toContain('\u200B');
-  });
 });
 
 // ── domOffsetToRawOffset ─────────────────────────────────────────────────────
@@ -214,85 +198,23 @@ describe('domOffsetToRawOffset', () => {
     expect(domOffsetToRawOffset(el, textNode, 0)).toBe(0);
   });
 
-  it('counts chip span as raw token length', () => {
-    const token = fileToken('a.ts');
-    const html = rawTextToHtml(`hello ${token}`);
-    const el = createElement(html);
-    // After all children: "hello ".length + token.length
-    expect(domOffsetToRawOffset(el, el, el.childNodes.length)).toBe(`hello ${token}`.length);
+  it('returns full text length for cursor at end', () => {
+    const el = createElement('hello world');
+    expect(domOffsetToRawOffset(el, el, el.childNodes.length)).toBe('hello world'.length);
   });
 
-  it('counts offset before chip correctly', () => {
-    const token = fileToken('a.ts');
-    const html = rawTextToHtml(`hello ${token} world`);
-    const el = createElement(html);
-    // First text node is "hello "
-    const firstTextNode = el.childNodes[0]!;
-    // DOM offset 6 = "hello " (6 chars)
-    expect(domOffsetToRawOffset(el, firstTextNode, 6)).toBe(6);
-  });
-
-  it('handles cursor inside chip (treated as end of chip)', () => {
-    const token = fileToken('a.ts');
-    const html = rawTextToHtml(token);
-    const el = createElement(html);
-    // Line-start chip: DOM is [ZWS text node][chip span]
-    // The chip span is the second child (index 1)
-    const chipSpan = el.childNodes[1]!;
-    // Any anchor inside the chip should be treated as at the end of the raw token
-    const innerNode = chipSpan.childNodes[0] || chipSpan;
-    const result = domOffsetToRawOffset(el, innerNode, 0);
-    expect(result).toBe(token.length);
-  });
-
-  it('handles cursor between two chips', () => {
-    const tokenA = fileToken('a.ts');
-    const tokenB = fileToken('b.ts');
-    const raw = `${tokenA}${tokenB}`;
-    const html = rawTextToHtml(raw);
-    const el = createElement(html);
-    // DOM structure: [ZWS text][chip_a][chip_b]
-    // At container level offset 2 (after ZWS text + chip_a): raw = tokenA.length
-    expect(domOffsetToRawOffset(el, el, 2)).toBe(tokenA.length);
-  });
-
-  it('calculates correct offset after chip + typed text (simulated typing)', () => {
-    // After autocomplete inserts a chip, the DOM has:
-    // [chip][text node with user typed content]
-    const token = fileToken('a.ts');
-    const html = rawTextToHtml(`${token} `); // initial after autocomplete: chip + space
-    const el = createElement(html);
-    // Simulate typing by modifying the last text node (browser behavior)
-    const lastTextNode = el.lastChild!;
-    lastTextNode.textContent = ' hello @'; // browser appends to existing text node
-
-    // Cursor at end of last text node
-    const domOffset = lastTextNode.textContent!.length; // 8
-    const rawOffset = domOffsetToRawOffset(el, lastTextNode, domOffset);
-    // Expected: tokenLen + " hello @".length = tokenLen + 8
-    expect(rawOffset).toBe(token.length + 8);
-  });
-
-  it('calculates correct offset when cursor is at start of text node after chip', () => {
-    const token = fileToken('a.ts');
-    const html = rawTextToHtml(`${token} `);
-    const el = createElement(html);
-    const lastTextNode = el.lastChild!;
-    lastTextNode.textContent = ' hello @';
-
-    const rawOffset = domOffsetToRawOffset(el, lastTextNode, 0);
-    // At start of text node after chip: raw offset = token.length
-    expect(rawOffset).toBe(token.length);
+  it('counts offset correctly in text with <br>', () => {
+    const el = createElement('hello<br>world');
+    // After <br>: "hello" (5) + newline (1) = 6
+    // "world" text node is childNodes[2]
+    const worldNode = el.childNodes[2]!;
+    expect(domOffsetToRawOffset(el, worldNode, 3)).toBe(9); // 5 + 1 + 3
   });
 });
 
 // ── setCursorToRawOffset ─────────────────────────────────────────────────────
 
 describe('setCursorToRawOffset', () => {
-  // Note: jsdom has limited Selection API support, but we can test
-  // that the function doesn't throw and that it sets the selection.
-  // We verify by reading back with domOffsetToRawOffset.
-
   it('sets cursor in plain text at correct position', () => {
     const el = createElement('hello world');
     document.body.appendChild(el);
@@ -317,25 +239,6 @@ describe('setCursorToRawOffset', () => {
       if (selection && selection.anchorNode) {
         const offset = domOffsetToRawOffset(el, selection.anchorNode, selection.anchorOffset);
         expect(offset).toBe(0);
-      }
-    } finally {
-      document.body.removeChild(el);
-    }
-  });
-
-  it('sets cursor after a chip span', () => {
-    const token = fileToken('a.ts');
-    const raw = `${token} world`;
-    const html = rawTextToHtml(raw);
-    const el = createElement(html);
-    document.body.appendChild(el);
-    try {
-      // Set cursor to end of token = token.length
-      setCursorToRawOffset(el, token.length);
-      const selection = window.getSelection();
-      if (selection && selection.anchorNode) {
-        const offset = domOffsetToRawOffset(el, selection.anchorNode, selection.anchorOffset);
-        expect(offset).toBe(token.length);
       }
     } finally {
       document.body.removeChild(el);
@@ -423,14 +326,14 @@ describe('extractRawTextFromSelection', () => {
     expect(extractRawTextFromSelection(el)).toBe('hello world');
   });
 
-  it('extracts raw token from selected chip', () => {
+  it('extracts file token from selection', () => {
     const token = fileToken('index.ts');
     const el = createAndSelect(rawTextToHtml(token));
     selectAll(el);
     expect(extractRawTextFromSelection(el)).toBe(token);
   });
 
-  it('extracts mixed text + chip + text', () => {
+  it('extracts mixed text with file tokens', () => {
     const token = fileToken('a.ts');
     const raw = `hello ${token} world`;
     const el = createAndSelect(rawTextToHtml(raw));
@@ -438,26 +341,12 @@ describe('extractRawTextFromSelection', () => {
     expect(extractRawTextFromSelection(el)).toBe(raw);
   });
 
-  it('extracts partial text selection (no chip)', () => {
+  it('extracts partial text selection', () => {
     const el = createAndSelect(rawTextToHtml('hello world'));
     // Select "llo wo" (offset 2 to 8)
     const textNode = el.childNodes[0]!;
     setSelection(textNode, 2, textNode, 8);
     expect(extractRawTextFromSelection(el)).toBe('llo wo');
-  });
-
-  it('extracts selection spanning text and chip', () => {
-    const token = fileToken('a.ts');
-    const raw = `hello ${token} world`;
-    const el = createAndSelect(rawTextToHtml(raw));
-
-    // Select from middle of "hello " through the chip to " world"
-    // DOM: [text "hello "][chip span][text " world"]
-    const firstTextNode = el.childNodes[0]!;
-    const lastTextNode = el.childNodes[2]!;
-    setSelection(firstTextNode, 3, lastTextNode, 3);
-    const result = extractRawTextFromSelection(el);
-    expect(result).toBe(`lo ${token} wo`);
   });
 
   it('returns null when selection is outside the container', () => {
