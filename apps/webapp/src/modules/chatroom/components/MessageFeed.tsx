@@ -876,15 +876,16 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 </div>
               </div>
             )}
-            {/* Attached Backlog Tasks + Backlog Items */}
+            {/* Attachments: Backlog Tasks + Backlog Items + Workflows */}
             {((message.attachedTasks && message.attachedTasks.length > 0) ||
               (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
               (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
               <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-                  Attached Backlog (
+                  Attachments (
                   {(message.attachedTasks?.length ?? 0) +
-                    (message.attachedBacklogItems?.length ?? 0)}
+                    (message.attachedBacklogItems?.length ?? 0) +
+                    (message.attachedWorkflows?.length ?? 0)}
                   )
                 </div>
                 {message.attachedTasks?.map((task) => {
@@ -1352,14 +1353,17 @@ const MessageItem = memo(function MessageItem({
       ) : (
         <MessageContent content={message.content} />
       )}
-      {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
+      {/* Attachments: Backlog Tasks + Backlog Items + Workflows */}
       {((message.attachedTasks && message.attachedTasks.length > 0) ||
         (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
         (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-            Attached Backlog (
-            {(message.attachedTasks?.length ?? 0) + (message.attachedBacklogItems?.length ?? 0)})
+            Attachments (
+            {(message.attachedTasks?.length ?? 0) +
+              (message.attachedBacklogItems?.length ?? 0) +
+              (message.attachedWorkflows?.length ?? 0)}
+            )
           </div>
           {message.attachedTasks?.map((task) => {
             const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
