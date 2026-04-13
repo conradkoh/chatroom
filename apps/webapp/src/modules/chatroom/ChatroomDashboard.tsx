@@ -301,6 +301,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
 
+  // Explorer split view state: show messages panel alongside explorer
+  const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] = useState(false);
+
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
 
@@ -1029,13 +1032,119 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
                       revealPath={revealPath}
+                      splitViewEnabled={explorerSplitViewEnabled}
+                      onToggleSplitView={() => setExplorerSplitViewEnabled((prev) => !prev)}
                     />
                   </div>
                 )}
 
               {/* Main Content Area */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {activeView === 'messages' ? (
+                {/* When in explorer view with split view enabled, show both explorer and messages */}
+                {activeView === 'explorer' && explorerSplitViewEnabled ? (
+                  <div className="flex-1 flex min-h-0 overflow-hidden">
+                    {/* Left: Explorer content */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border">
+                      {/* File Tab Bar — shown when tabs are open */}
+                      {fileTabs.tabs.length > 0 && (
+                        <FileTabBar
+                          tabs={fileTabs.tabs}
+                          activeTabPath={fileTabs.activeTabPath}
+                          onActivate={fileTabs.setActiveTab}
+                          onClose={fileTabs.closeTab}
+                          onPin={fileTabs.pinTab}
+                          onToggleExpanded={fileTabs.toggleExpanded}
+                        />
+                      )}
+
+                      {/* File Content Area */}
+                      {fileTabs.activeTabPath &&
+                      activeWorkspace?.machineId &&
+                      activeWorkspace?.workingDir ? (
+                        <div className="flex-1 flex min-h-0 overflow-hidden">
+                          {/* Left Pane — source code */}
+                          <div
+                            className={cn(
+                              'flex flex-col min-h-0 overflow-hidden',
+                              fileTabs.rightTabs.length > 0
+                                ? 'w-1/2 border-r border-chatroom-border'
+                                : 'flex-1'
+                            )}
+                          >
+                            <FileContentViewer
+                              key={fileTabs.activeTabPath}
+                              machineId={activeWorkspace.machineId}
+                              workingDir={activeWorkspace.workingDir}
+                              filePath={fileTabs.activeTabPath}
+                              onOpenPreview={handleOpenPreview}
+                              onOpenTableView={handleOpenTableView}
+                            />
+                          </div>
+
+                          {/* Right Pane — preview/table */}
+                          {fileTabs.rightTabs.length > 0 && (
+                            <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+                              <RightPaneTabBar
+                                tabs={fileTabs.rightTabs}
+                                activeTabKey={fileTabs.activeRightTabKey}
+                                onActivate={fileTabs.setActiveRightTab}
+                                onClose={fileTabs.closeRight}
+                              />
+                              {(() => {
+                                const activeRight = fileTabs.rightTabs.find(
+                                  (t) => t.key === fileTabs.activeRightTabKey
+                                );
+                                if (!activeRight) return null;
+                                if (activeRight.viewType === 'preview') {
+                                  return (
+                                    <MarkdownPreviewPane
+                                      key={activeRight.key}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
+                                      filePath={activeRight.filePath}
+                                    />
+                                  );
+                                }
+                                if (activeRight.viewType === 'table') {
+                                  return (
+                                    <CsvTablePane
+                                      key={activeRight.key}
+                                      machineId={activeWorkspace.machineId!}
+                                      workingDir={activeWorkspace.workingDir!}
+                                      filePath={activeRight.filePath}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Empty state — no files open in explorer view */
+                        <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
+                          <div className="text-center">
+                            <Files size={32} className="mx-auto mb-2 opacity-40" />
+                            <p>No files open</p>
+                            <p className="text-xs mt-1">Select a file from the explorer to view it</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Message Feed (split view) */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <MessageFeed
+                        chatroomId={chatroomId}
+                        activeTask={activeTask}
+                        controller={scrollController}
+                        isPinned={isPinned}
+                        scrollToBottom={scrollToBottom}
+                        onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                      />
+                    </div>
+                  </div>
+                ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
                   <MessageFeed
                     chatroomId={chatroomId}
@@ -1046,7 +1155,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                   />
                 ) : (
-                  /* Explorer view — file tabs + content or empty state */
+                  /* Explorer view — file tabs + content or empty state (no split) */
                   <>
                     {/* File Tab Bar — shown when tabs are open */}
                     {fileTabs.tabs.length > 0 && (
