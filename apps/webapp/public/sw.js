@@ -33,7 +33,7 @@ self.addEventListener('message', (event) => {
 
   switch (type) {
     case 'SHOW_NOTIFICATION': {
-      const { title, body, tag } = payload || {};
+      const { title, body, tag, chatroomId } = payload || {};
       event.waitUntil(
         self.registration.showNotification(title || 'Chatroom', {
           body: body || '',
@@ -41,6 +41,7 @@ self.addEventListener('message', (event) => {
           icon: '/appicon-192x192.png',
           badge: '/appicon-96x96.png',
           requireInteraction: false,
+          data: chatroomId ? { chatroomId } : undefined,
         })
       );
       break;
@@ -64,19 +65,27 @@ self.addEventListener('message', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  // Get chatroomId from notification data if available
+  const chatroomId = event.notification.data?.chatroomId;
+  const targetUrl = chatroomId ? `/app/${chatroomId}` : '/app';
+
   // Try to focus an existing app tab, or open a new one
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Focus the first matching tab
+        // Focus the first matching tab with the same chatroom
         for (const client of clientList) {
+          if (chatroomId && client.url.includes(`/app/${chatroomId}`) && 'focus' in client) {
+            return client.focus();
+          }
+          // Fallback: focus any app tab
           if (client.url.includes('/app') && 'focus' in client) {
             return client.focus();
           }
         }
-        // No existing tab — open the app
-        return self.clients.openWindow('/app');
+        // No existing tab — open the app (with correct chatroom if specified)
+        return self.clients.openWindow(targetUrl);
       })
   );
 });

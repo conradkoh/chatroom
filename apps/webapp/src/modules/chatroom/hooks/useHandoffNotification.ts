@@ -50,7 +50,7 @@ function trimNotifiedIds(ids: Set<string>): void {
  *
  * Requests notification permission on mount if not already granted/denied.
  */
-export function useHandoffNotification(messages: NotifiableMessage[]) {
+export function useHandoffNotification(messages: NotifiableMessage[], chatroomId: string) {
   const notifiedIdsRef = useRef(new Set<string>());
   const isInitialLoadRef = useRef(true);
   const isDocumentHiddenRef = useRef(
@@ -93,9 +93,10 @@ export function useHandoffNotification(messages: NotifiableMessage[]) {
     showNotification(
       'Chatroom Handoff',
       `${senderRole} has handed off to you`,
-      'chatroom-handoff'
+      'chatroom-handoff',
+      chatroomId
     );
-  }, []);
+  }, [chatroomId]);
 
   // Detect new handoff messages and fire notifications
   useEffect(() => {
