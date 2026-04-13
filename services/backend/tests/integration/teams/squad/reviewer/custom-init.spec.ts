@@ -114,9 +114,8 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
        - You do NOT communicate directly with the user — hand off to the planner instead
        - Focus on code quality and requirements
        - Provide constructive feedback to builder or planner
-       - Builder is available — hand back to builder for rework
        - If work meets requirements → hand off to \`planner\` for user delivery
-       - If changes needed → hand off to \`builder\` with specific feedback
+       - If changes needed → hand off to \`builder\` with specific feedback (or implement yourself if builder is unavailable)
        - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
