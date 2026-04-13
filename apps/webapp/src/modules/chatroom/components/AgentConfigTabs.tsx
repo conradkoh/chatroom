@@ -98,15 +98,15 @@ function deriveInitialMachine(
   preference: AgentPreference | undefined
 ): string | null {
   if (connectedMachines.length === 0) return null;
-  // Priority: running agent > existing config machine > saved preference > first available
+  // Priority: running agent > saved preference > existing config machine > first available
   if (runningAgentConfig) return runningAgentConfig.machineId;
+  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
+    return preference.machineId;
+  }
   const configMachine = connectedMachines.find((m) =>
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
   if (configMachine) return configMachine.machineId;
-  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
-    return preference.machineId;
-  }
   return connectedMachines[0]?.machineId ?? null;
 }
 
@@ -120,10 +120,7 @@ function deriveInitialHarness(
   if (!machineId) return null;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
   const available = machine?.availableHarnesses ?? [];
-  // Priority: existing config harness > team config harness > saved preference > only option
-  const config = roleConfigs.find((c) => c.machineId === machineId);
-  if (config && available.includes(config.agentType)) return config.agentType;
-  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
+  // Priority: saved preference > existing config harness > team config harness > only option
   if (
     preference &&
     preference.machineId === machineId &&
@@ -131,6 +128,9 @@ function deriveInitialHarness(
   ) {
     return preference.agentHarness;
   }
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  if (config && available.includes(config.agentType)) return config.agentType;
+  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
   if (available.length === 1) return available[0];
   return null;
 }
