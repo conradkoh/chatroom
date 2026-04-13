@@ -478,7 +478,17 @@ export class AgentProcessManager {
       if (opts.reason === 'platform.crash_recovery') {
         const loopCheck = this.deps.crashLoop.record(opts.chatroomId, opts.role);
         if (!loopCheck.allowed) {
-          // Emit restartLimitReached event
+          if (loopCheck.waitMs !== undefined && loopCheck.waitMs > 0) {
+            // Temporary backoff - log and return backoff error (don't emit limit event)
+            console.log(
+              `   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`
+            );
+            slot.state = 'idle';
+            slot.pendingOperation = undefined;
+            return { success: false, error: 'backoff' };
+          }
+
+          // Permanent limit reached - emit restartLimitReached event
           this.deps.backend
             .mutation(api.machines.emitRestartLimitReached, {
               sessionId: this.deps.sessionId,

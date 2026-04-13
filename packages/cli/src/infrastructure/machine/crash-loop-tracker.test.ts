@@ -232,4 +232,37 @@ describe('Progressive Backoff', () => {
       expect(attempt.waitMs).toBe(60000 - 30000 - i * 10000);
     }
   });
+
+  test('handles clock drift gracefully (now < lastRestart)', () => {
+    const tracker = new CrashLoopTracker();
+    const now = 1000000;
+
+    tracker.record('room-1', 'builder', now);
+    // Clock moved back - still within window
+    const result = tracker.record('room-1', 'builder', now - 1000);
+
+    // Should block because gap appears < 0 (treated as very recent)
+    expect(result.allowed).toBe(false);
+    expect(result.waitMs).toBeGreaterThan(0);
+  });
+
+  test('allows restart after window expires and resets backoff', () => {
+    const tracker = new CrashLoopTracker();
+    const now = 1000000;
+
+    // Fill up some restarts
+    tracker.record('room-1', 'builder', now);
+    tracker.record('room-1', 'builder', now + 30000);
+
+    // Jump past window - old restarts are pruned (windowStart = now - windowMs)
+    // So if now = 1000000 and windowMs = 600000, old entries < 400000 are pruned
+    // But our entries are at 1000000 and 1030000, so they're kept
+    // We need to jump way past the window
+    const afterWindow = tracker.record('room-1', 'builder', now + CRASH_LOOP_WINDOW_MS * 2);
+
+    // Should be allowed (fresh start)
+    expect(afterWindow.allowed).toBe(true);
+    // Count = 1 because only the new restart is recorded (old ones pruned)
+    expect(afterWindow.restartCount).toBe(1);
+  });
 });
