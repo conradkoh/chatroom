@@ -6,7 +6,8 @@ export const agentHarnessValidator = v.union(
   v.literal('opencode'),
   v.literal('pi'),
   v.literal('cursor'),
-  v.literal('claude')
+  v.literal('claude'),
+  v.literal('copilot')
 );
 
 /**
