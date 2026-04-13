@@ -28,7 +28,9 @@ export type Action =
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMore: boolean }
   | { type: 'PURGE_OLD'; keepAboveCount: number; viewportTopIndex: number }
   | { type: 'REQUEST_OLDER' }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  /** Update taskStatus on messages that have the given taskId */
+  | { type: 'UPDATE_TASK_STATUS'; taskId: string; newStatus: string };
 
 export function deduplicateMessages(existing: Message[], incoming: Message[]): Message[] {
   const existingIds = new Set(existing.map((m) => m._id));
@@ -113,6 +115,17 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
 
     case 'RESET':
       return initialState;
+
+    case 'UPDATE_TASK_STATUS': {
+      const { taskId, newStatus } = action;
+      const updatedMessages = state.messages.map((msg) =>
+        msg.taskId === taskId ? { ...msg, taskStatus: newStatus as Message['taskStatus'] } : msg
+      );
+      return {
+        ...state,
+        messages: updatedMessages,
+      };
+    }
 
     default:
       return state;
@@ -215,6 +228,29 @@ export function useMessageStore(chatroomId: string) {
     }
   }, [olderData, state.olderQueryCursor]);
 
+  // ── Task status subscription ─────────────────
+  // Subscribe to all active tasks (pending, acknowledged, in_progress) to update
+  // message taskStatus when task transitions occur. Without this subscription,
+  // existing messages in the store would show stale status even after task transitions.
+  const activeTasks = useSessionQuery(api.tasks.listTasks, {
+    chatroomId: typedChatroomId,
+    statusFilter: 'active',
+  });
+
+  useEffect(() => {
+    if (!activeTasks || activeTasks.length === 0) return;
+
+    // Update taskStatus on all messages that have these taskIds
+    // This ensures the UI reflects the current task status after transitions
+    for (const task of activeTasks) {
+      dispatch({
+        type: 'UPDATE_TASK_STATUS',
+        taskId: task._id,
+        newStatus: task.status,
+      });
+    }
+  }, [activeTasks]);
+
   // ── Public API ────────────────────────────────
 
   const loadOlderMessages = useCallback(() => {
@@ -232,5 +268,8 @@ export function useMessageStore(chatroomId: string) {
     isLoadingOlder: state.isLoadingOlder,
     loadOlderMessages,
     purgeOldMessages,
+    updateTaskStatus: (taskId: string, newStatus: string) => {
+      dispatch({ type: 'UPDATE_TASK_STATUS', taskId, newStatus });
+    },
   };
 }
