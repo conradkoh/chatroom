@@ -159,27 +159,13 @@ describe('completeBacklog', () => {
   it('completes a backlog item', async () => {
     const deps = createMockDeps();
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
-      wasForced: false,
-      promoted: null,
+      success: true,
     });
 
     await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: TEST_TASK_ID }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Backlog item completed');
-  });
-
-  it('shows promoted task when present', async () => {
-    const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
-      wasForced: false,
-      promoted: 'next-task-id',
-    });
-
-    await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: TEST_TASK_ID }, deps);
-
-    expect(exitSpy).not.toHaveBeenCalled();
-    expect(getAllLogOutput()).toContain('Next task promoted');
   });
 });
 

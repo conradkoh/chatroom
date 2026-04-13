@@ -306,25 +306,14 @@ export async function completeBacklog(
   }
 
   try {
-    const result = await d.backend.mutation(api.tasks.completeTaskById, {
+    const result = await d.backend.mutation(api.backlog.completeBacklogItem, {
       sessionId,
-      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
-      force: options.force,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
     console.log('');
-    if (result.wasForced) {
-      console.log('⚠️  Backlog item force-completed (was in_progress or pending)');
-    } else {
-      console.log('✅ Backlog item completed');
-    }
+    console.log('✅ Backlog item completed');
     console.log(`   ID: ${options.backlogItemId}`);
-
-    if (result.promoted) {
-      console.log(`   📤 Next task promoted: ${result.promoted}`);
-      console.log('');
-      console.log('💡 The next queued task is now pending and ready for processing.');
-    }
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to complete backlog item: ${getErrorMessage(error)}`);
