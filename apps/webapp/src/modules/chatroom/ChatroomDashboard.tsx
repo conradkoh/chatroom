@@ -1149,18 +1149,38 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                         scrollToBottom={scrollToBottom}
                         onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       />
+                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                        <SendForm
+                          chatroomId={chatroomId}
+                          onBeforeResize={beginResize}
+                          onAfterResize={endResize}
+                          onRegisterFocus={handleRegisterSendFormFocus}
+                          files={autocompleteFiles}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
-                  <MessageFeed
-                    chatroomId={chatroomId}
-                    activeTask={activeTask}
-                    controller={scrollController}
-                    isPinned={isPinned}
-                    scrollToBottom={scrollToBottom}
-                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                  />
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <MessageFeed
+                      chatroomId={chatroomId}
+                      activeTask={activeTask}
+                      controller={scrollController}
+                      isPinned={isPinned}
+                      scrollToBottom={scrollToBottom}
+                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    />
+                    <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                      <SendForm
+                        chatroomId={chatroomId}
+                        onBeforeResize={beginResize}
+                        onAfterResize={endResize}
+                        onRegisterFocus={handleRegisterSendFormFocus}
+                        files={autocompleteFiles}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
@@ -1297,16 +1317,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onRegisterActions={handleRegisterWorkQueueActions}
                 />
               </div>
-            </div>
-            {/* SendForm row — border-t-2 spans both main content and sidebar */}
-            <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-              <SendForm
-                chatroomId={chatroomId}
-                onBeforeResize={beginResize}
-                onAfterResize={endResize}
-                onRegisterFocus={handleRegisterSendFormFocus}
-                files={autocompleteFiles}
-              />
             </div>
             <WorkspaceBottomBar
               workspaces={chatroomWorkspaces}
