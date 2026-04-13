@@ -3,6 +3,7 @@
 import { Files, MessagesSquare } from 'lucide-react';
 import { memo } from 'react';
 
+import { useCommandDialog } from '../context/CommandDialogContext';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -14,8 +15,6 @@ interface ActivityBarProps {
   activeView: ActivityView;
   /** Called when a view icon is clicked */
   onViewChange: (view: ActivityView) => void;
-  /** Called when chatroom switch button is clicked (mobile only) */
-  onOpenChatroomSwitcher?: () => void;
 }
 
 interface ActivityBarItemProps {
@@ -67,8 +66,9 @@ const ActivityBarItem = memo(function ActivityBarItem({
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
-  onOpenChatroomSwitcher,
 }: ActivityBarProps) {
+  const { openDialog } = useCommandDialog();
+
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
       <ActivityBarItem
@@ -87,21 +87,17 @@ export const ActivityBar = memo(function ActivityBar({
       {/* Spacer to push chatroom switch to bottom */}
       <div className="flex-1" />
 
-      {/* Chatroom switch button - visible only on mobile via CSS */}
-      {onOpenChatroomSwitcher && (
-        <button
-          className={cn(
-            'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
-            'text-chatroom-text-muted hover:text-chatroom-text-primary',
-            // Hide on desktop (md and up), show on mobile
-            'flex'
-          )}
-          onClick={onOpenChatroomSwitcher}
-          title="Switch Chatroom"
-        >
-          <ChatroomSwitchIcon />
-        </button>
-      )}
+      {/* Chatroom switch button */}
+      <button
+        className={cn(
+          'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
+          'text-chatroom-text-muted hover:text-chatroom-text-primary'
+        )}
+        onClick={() => openDialog('switcher')}
+        title="Switch Chatroom"
+      >
+        <ChatroomSwitchIcon />
+      </button>
     </div>
   );
 });

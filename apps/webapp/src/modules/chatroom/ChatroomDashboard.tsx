@@ -47,7 +47,6 @@ import { useCommandRunner } from './hooks/useCommandRunner';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
-import { ChatroomSwitcherSheet } from './components/ChatroomSwitcherSheet';
 import {
   FileExplorerPanel,
   FILE_EXPLORER_REFRESH_EVENT,
@@ -405,9 +404,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Activity bar — single active view at a time
   const [activeView, setActiveView] = useState<ActivityView>('messages');
 
-  // Chatroom switcher sheet state (mobile only)
-  const [chatroomSwitcherOpen, setChatroomSwitcherOpen] = useState(false);
-
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
 
@@ -439,11 +435,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     },
     [activeView]
   );
-
-  // Open chatroom switcher sheet (called from ActivityBar on mobile)
-  const handleOpenChatroomSwitcherSheet = useCallback(() => {
-    setChatroomSwitcherOpen(true);
-  }, []);
 
   // File tabs state
   const fileTabs = useFileTabs();
@@ -1140,7 +1131,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <ActivityBar
                 activeView={activeView}
                 onViewChange={handleActivityViewChange}
-                onOpenChatroomSwitcher={handleOpenChatroomSwitcherSheet}
               />
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
@@ -1375,13 +1365,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
             onClearRun={() => commandRunner.setActiveRunId(null)}
             initialSelectedCommand={processManagerInitialCommand}
-          />
-
-          {/* Chatroom Switcher Sheet — mobile left-side drawer for switching chatrooms */}
-          <ChatroomSwitcherSheet
-            open={chatroomSwitcherOpen}
-            onOpenChange={setChatroomSwitcherOpen}
-            currentChatroomId={chatroomId}
           />
         </>
       </PromptsProvider>
