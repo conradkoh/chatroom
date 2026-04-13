@@ -55,8 +55,8 @@ interface UseCommandPaletteCommandsProps {
   onShowExplorer?: (() => void) | null;
   /** Callback to switch to Messages view */
   onShowMessages?: () => void;
-  /** Callback to open chat in split panel (explorer view only) */
-  onOpenChatInSplitPanel?: (() => void) | null;
+  /** Callback to toggle chat in split panel (explorer view only) */
+  onToggleChatSplitPanel?: (() => void) | null;
   /** Callback to start all remote agents with their last config */
   onStartAllRemoteAgents?: (() => void) | null;
   /**
@@ -95,7 +95,7 @@ export function useCommandPaletteCommands({
   onOpenProcessManager,
   onShowExplorer,
   onShowMessages,
-  onOpenChatInSplitPanel,
+  onToggleChatSplitPanel,
   workspaceCommands,
   onStartAllRemoteAgents,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
@@ -307,14 +307,14 @@ export function useCommandPaletteCommands({
       });
     }
 
-    if (onOpenChatInSplitPanel) {
+    if (onToggleChatSplitPanel) {
       commands.push({
-        id: 'view-chat-split-panel',
-        label: 'View: Open Chat in Split Panel',
+        id: 'view-toggle-chat-split-panel',
+        label: 'View: Toggle Chat Split Panel',
         icon: <MessageSquare size={14} />,
         category: 'View',
-        keywords: ['chat', 'split', 'panel', 'messages', 'side'],
-        action: onOpenChatInSplitPanel,
+        keywords: ['chat', 'split', 'panel', 'messages', 'side', 'toggle'],
+        action: onToggleChatSplitPanel,
       });
     }
 
@@ -364,7 +364,7 @@ export function useCommandPaletteCommands({
     onOpenProcessManager,
     onShowExplorer,
     onShowMessages,
-    onOpenChatInSplitPanel,
+    onToggleChatSplitPanel,
     favoritesVersion,
     workspaceCommands,
     onStartAllRemoteAgents,

@@ -851,9 +851,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         }
       : null,
     onShowMessages: () => setActiveView('messages'),
-    onOpenChatInSplitPanel:
-      activeView === 'explorer' && !explorerSplitViewEnabled
-        ? () => setExplorerSplitViewEnabled(true)
+    onToggleChatSplitPanel:
+      activeView === 'explorer'
+        ? () => setExplorerSplitViewEnabled((prev) => !prev)
         : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
