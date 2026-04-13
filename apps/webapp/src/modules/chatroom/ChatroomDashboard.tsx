@@ -1039,17 +1039,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 )}
 
               {/* Main Content Area */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-                {/* Split view toggle button — top right of content area (hidden on mobile) */}
-                {activeView === 'explorer' && (
-                  <button
-                    className="absolute top-2 right-2 z-20 w-7 h-7 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
-                    onClick={() => setExplorerSplitViewEnabled((prev) => !prev)}
-                    title={explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'}
-                  >
-                    {explorerSplitViewEnabled ? <MessageSquareOff size={16} /> : <MessageSquare size={16} />}
-                  </button>
-                )}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Content Toolbar — always renders, actions change based on active view */}
+                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end px-2">
+                  {activeView === 'explorer' && (
+                    <button
+                      className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
+                      onClick={() => setExplorerSplitViewEnabled((prev) => !prev)}
+                      title={explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'}
+                    >
+                      {explorerSplitViewEnabled ? <MessageSquareOff size={14} /> : <MessageSquare size={14} />}
+                    </button>
+                  )}
+                </div>
 
                 {/* When in explorer view with split view enabled, show both explorer and messages */}
                 {activeView === 'explorer' && explorerSplitViewEnabled ? (
