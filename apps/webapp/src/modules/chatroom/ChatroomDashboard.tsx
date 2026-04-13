@@ -1128,7 +1128,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative min-h-0">
               {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-              <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
+              <ActivityBar
+                activeView={activeView}
+                onViewChange={handleActivityViewChange}
+              />
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
               {activeView === 'explorer' &&
