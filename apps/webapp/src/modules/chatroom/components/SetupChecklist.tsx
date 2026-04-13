@@ -127,6 +127,7 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   // ── Restart summaries (batch query) ────────────────────────────────
   // Batch query all restart summaries for team roles in a single subscription
+  // Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view)
   const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     roles: teamRoles,
@@ -134,12 +135,12 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   // Build a map of role -> restart summary for efficient lookup
   const restartSummaryMap = useMemo(() => {
-    const map = new Map<string, { count1h: number; count24h: number }>();
+    const map = new Map<string, { count3h: number; count3d: number }>();
     if (restartSummaries) {
       for (const summary of restartSummaries) {
         map.set(summary.role.toLowerCase(), {
-          count1h: summary.count1h,
-          count24h: summary.count24h,
+          count3h: summary.count3h,
+          count3d: summary.count3d,
         });
       }
     }

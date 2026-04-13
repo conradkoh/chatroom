@@ -90,19 +90,19 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     return map;
   }, [agentStatusList]);
 
-  // Batch restart summaries for all roles
+  // Batch restart summaries for all roles (uses 3h/3d time ranges for consistency with AgentRestartChart)
   const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
   const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     roles: allRoles,
   });
   const restartSummaryMap = useMemo(() => {
-    const map = new Map<string, { count1h: number; count24h: number }>();
+    const map = new Map<string, { count3h: number; count3d: number }>();
     if (restartSummaries) {
       for (const summary of restartSummaries) {
         map.set(summary.role.toLowerCase(), {
-          count1h: summary.count1h,
-          count24h: summary.count24h,
+          count3h: summary.count3h,
+          count3d: summary.count3d,
         });
       }
     }
