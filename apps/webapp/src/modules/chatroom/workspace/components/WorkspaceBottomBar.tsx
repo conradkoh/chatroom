@@ -36,6 +36,7 @@ import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitRemote, CommitStatusSummary } from '../types/git';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+import { toRepoHttpsUrl } from '@/lib/git-url';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,26 +84,12 @@ function getWorkspaceName(workingDir: string): string {
   return workingDir.split('/').filter(Boolean).pop() ?? workingDir;
 }
 
-function toHttpsUrl(remoteUrl: string): string | null {
-  const trimmed = remoteUrl.trim().replace(/\.git$/, '');
-  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
-  const sshMatch = trimmed.match(/^git@([^:]+):(.+)$/);
-  if (sshMatch) {
-    const [, host, path] = sshMatch;
-    return `https://${host}/${path}`;
-  }
-  const sshProtoMatch = trimmed.match(/^ssh:\/\/[^@]+@([^/]+)\/(.+)$/);
-  if (sshProtoMatch) {
-    const [, host, path] = sshProtoMatch;
-    return `https://${host}/${path}`;
-  }
-  return null;
-}
+
 
 type GitPlatform = 'github' | 'gitlab' | 'bitbucket' | 'generic';
 
 function detectPlatform(remoteUrl: string): GitPlatform {
-  const httpsUrl = toHttpsUrl(remoteUrl);
+  const httpsUrl = toRepoHttpsUrl(remoteUrl);
   const hostname = httpsUrl
     ? (() => {
         try {
@@ -191,7 +178,7 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
     : '';
 
   const primaryRemote = remotes.find((r) => r.name === 'origin') ?? remotes[0];
-  const repoHttpsUrl = primaryRemote ? toHttpsUrl(primaryRemote.url) : null;
+  const repoHttpsUrl = primaryRemote ? toRepoHttpsUrl(primaryRemote.url) : null;
   const isGitHubRepo = primaryRemote
     ? detectPlatform(primaryRemote.url) === 'github'
     : false;
@@ -217,7 +204,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
   // Prefer "origin" as the display remote
   const primaryRemote = remotes.find((r) => r.name === 'origin') ?? remotes[0]!;
   const PrimaryIcon = getPlatformIcon(primaryRemote.url);
-  const primaryHttpsUrl = toHttpsUrl(primaryRemote.url);
+  const primaryHttpsUrl = toRepoHttpsUrl(primaryRemote.url);
 
   // Single remote — just render a link, no popover needed
   if (remotes.length === 1) {
@@ -260,7 +247,7 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
       <PopoverContent align="end" side="top" className="w-auto min-w-[180px] p-1">
         {remotes.map((remote) => {
           const RemoteIcon = getPlatformIcon(remote.url);
-          const httpsUrl = toHttpsUrl(remote.url);
+          const httpsUrl = toRepoHttpsUrl(remote.url);
           return httpsUrl ? (
             <a
               key={remote.name}
@@ -661,7 +648,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     ) : (
                       /* Single remote — link or static display */
                       (() => {
-                        const httpsUrl = toHttpsUrl(primaryRemote!.url);
+                        const httpsUrl = toRepoHttpsUrl(primaryRemote!.url);
                         return httpsUrl ? (
                           <a
                             href={httpsUrl}
@@ -688,7 +675,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
                         {remotes.map((remote) => {
                           const RemoteIcon = getPlatformIcon(remote.url);
-                          const httpsUrl = toHttpsUrl(remote.url);
+                          const httpsUrl = toRepoHttpsUrl(remote.url);
                           return httpsUrl ? (
                             <a
                               key={remote.name}
