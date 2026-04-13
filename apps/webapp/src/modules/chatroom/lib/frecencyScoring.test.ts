@@ -22,32 +22,32 @@ describe('computeFrecencyScore', () => {
 
   test('scores highest for very recent usage (< 4 hours)', () => {
     const timestamps = [now - 1 * HOUR];
-    expect(computeFrecencyScore(timestamps, now)).toBe(100);
+    expect(computeFrecencyScore(timestamps, now)).toBe(150);
   });
 
   test('scores for usage within 24 hours', () => {
     const timestamps = [now - 12 * HOUR];
-    expect(computeFrecencyScore(timestamps, now)).toBe(80);
+    expect(computeFrecencyScore(timestamps, now)).toBe(120);
   });
 
   test('scores for usage within 3 days', () => {
     const timestamps = [now - 2 * DAY];
-    expect(computeFrecencyScore(timestamps, now)).toBe(60);
+    expect(computeFrecencyScore(timestamps, now)).toBe(90);
   });
 
   test('scores for usage within 7 days', () => {
     const timestamps = [now - 5 * DAY];
-    expect(computeFrecencyScore(timestamps, now)).toBe(40);
+    expect(computeFrecencyScore(timestamps, now)).toBe(60);
   });
 
   test('scores for usage within 14 days', () => {
     const timestamps = [now - 10 * DAY];
-    expect(computeFrecencyScore(timestamps, now)).toBe(20);
+    expect(computeFrecencyScore(timestamps, now)).toBe(30);
   });
 
   test('scores for usage within 30 days', () => {
     const timestamps = [now - 20 * DAY];
-    expect(computeFrecencyScore(timestamps, now)).toBe(10);
+    expect(computeFrecencyScore(timestamps, now)).toBe(15);
   });
 
   test('drops timestamps older than 30 days', () => {
@@ -57,11 +57,11 @@ describe('computeFrecencyScore', () => {
 
   test('sums scores for multiple usages', () => {
     const timestamps = [
-      now - 1 * HOUR,   // weight: 100
-      now - 12 * HOUR,  // weight: 80
-      now - 5 * DAY,    // weight: 40
+      now - 1 * HOUR,   // weight: 150
+      now - 12 * HOUR,  // weight: 120
+      now - 5 * DAY,    // weight: 60
     ];
-    expect(computeFrecencyScore(timestamps, now)).toBe(220);
+    expect(computeFrecencyScore(timestamps, now)).toBe(330);
   });
 
   test('frequent recent usage scores highest', () => {
@@ -69,7 +69,7 @@ describe('computeFrecencyScore', () => {
       now - 1 * HOUR,
       now - 2 * HOUR,
       now - 3 * HOUR,
-    ]; // 3 × 100 = 300
+    ]; // 3 × 150 = 450
 
     const frequentOld = [
       now - 20 * DAY,
@@ -77,7 +77,7 @@ describe('computeFrecencyScore', () => {
       now - 22 * DAY,
       now - 23 * DAY,
       now - 24 * DAY,
-    ]; // 5 × 10 = 50
+    ]; // 5 × 15 = 75
 
     expect(computeFrecencyScore(frequentRecent, now)).toBeGreaterThan(
       computeFrecencyScore(frequentOld, now)
@@ -99,8 +99,8 @@ describe('computeAllFrecencyScores', () => {
     usage.set('cmd-b', [now - 5 * DAY]);
 
     const scores = computeAllFrecencyScores(usage, now);
-    expect(scores.get('cmd-a')).toBe(100);
-    expect(scores.get('cmd-b')).toBe(40);
+    expect(scores.get('cmd-a')).toBe(150);
+    expect(scores.get('cmd-b')).toBe(60);
   });
 
   test('excludes commands with zero score', () => {

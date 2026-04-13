@@ -91,6 +91,11 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
 
   const isSearching = searchValue.trim().length > 0;
 
+  // Get recently used commands (frecency > 0) for browse mode
+  const recentCommands = useMemo(() => {
+    return commands.filter((cmd) => (frecencyScores.get(cmd.label) ?? 0) > 0);
+  }, [commands, frecencyScores]);
+
   const handleSelect = (command: CommandItem) => {
     trackUsage(command.label);
     closeDialog();
@@ -165,16 +170,33 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                   {commands.map(renderCommandItem)}
                 </CommandGroup>
               ) : (
-                /* Browse mode: grouped by category */
-                Array.from(groupedCommands.entries()).map(([category, items]) => (
-                  <CommandGroup
-                    key={category}
-                    heading={category}
-                    className={COMMAND_GROUP_HEADING_CLASSES}
-                  >
-                    {items.map(renderCommandItem)}
-                  </CommandGroup>
-                ))
+                /* Browse mode: Recent section at top, then grouped by category */
+                <>
+                  {recentCommands.length > 0 && (
+                    <CommandGroup
+                      heading="Recent"
+                      className={COMMAND_GROUP_HEADING_CLASSES}
+                    >
+                      {recentCommands.map(renderCommandItem)}
+                    </CommandGroup>
+                  )}
+                  {Array.from(groupedCommands.entries()).map(([category, items]) => {
+                    // In browse mode, skip items already shown in Recent
+                    const itemsToShow = recentCommands.length > 0
+                      ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
+                      : items;
+                    if (itemsToShow.length === 0) return null;
+                    return (
+                      <CommandGroup
+                        key={category}
+                        heading={category}
+                        className={COMMAND_GROUP_HEADING_CLASSES}
+                      >
+                        {itemsToShow.map(renderCommandItem)}
+                      </CommandGroup>
+                    );
+                  })}
+                </>
               )}
             </CommandList>
           </Command>

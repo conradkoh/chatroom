@@ -16,14 +16,17 @@ const DAY = 24 * HOUR;
  * Decay brackets: each entry defines a time threshold and its weight.
  * More recent usages get higher weights.
  * Must be ordered from most recent to least recent.
+ *
+ * Tuned so that 3 uses within 4 hours (3×150=450) significantly outranks
+ * older commands and causes them to rank first.
  */
 const DECAY_BRACKETS: Array<{ maxAge: number; weight: number }> = [
-  { maxAge: 4 * HOUR, weight: 100 },
-  { maxAge: 1 * DAY, weight: 80 },
-  { maxAge: 3 * DAY, weight: 60 },
-  { maxAge: 7 * DAY, weight: 40 },
-  { maxAge: 14 * DAY, weight: 20 },
-  { maxAge: 30 * DAY, weight: 10 },
+  { maxAge: 4 * HOUR, weight: 150 },
+  { maxAge: 1 * DAY, weight: 120 },
+  { maxAge: 3 * DAY, weight: 90 },
+  { maxAge: 7 * DAY, weight: 60 },
+  { maxAge: 14 * DAY, weight: 30 },
+  { maxAge: 30 * DAY, weight: 15 },
 ];
 
 // ─── Core Algorithm ─────────────────────────────────────────────────────────
