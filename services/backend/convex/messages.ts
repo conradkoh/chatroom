@@ -1,4 +1,3 @@
-import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -41,7 +40,7 @@ interface TaskDeliveryPromptResponse {
 
 /**
  * Resolves attachment IDs on a message into full attachment details.
- * Shared by listPaginated and listQueued to avoid duplication.
+ * Shared by listQueued to avoid duplication.
  */
 async function enrichMessageAttachments(
   ctx: QueryCtx,
@@ -125,7 +124,7 @@ async function enrichMessageAttachments(
 
 /**
  * Enriches an array of chatroom messages with task status, attachments, and
- * latest progress information. Shared by listPaginated, getLatestMessages,
+ * latest progress information. Shared by getLatestMessages,
  * getMessagesSince, and getOlderMessages to ensure consistent message shape.
  */
 async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
@@ -1436,45 +1435,6 @@ export const listQueued = query({
   },
 });
 
-/** Returns messages in descending order with task status and attached task/artifact details, paginated. */
-export const listPaginated = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Server-side cap on page size to prevent unbounded queries
-    const MAX_PAGE_SIZE = 50;
-    const clampedPaginationOpts = {
-      ...args.paginationOpts,
-      numItems: Math.min(args.paginationOpts.numItems, MAX_PAGE_SIZE),
-    };
-
-    // Paginate with descending order (newest first)
-    // Filter out progress messages (shown inline in task headers) and
-    // legacy join messages (no longer created) at the DB level so pagination
-    // counts only displayable messages.
-    const result = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
-      .order('desc')
-      .paginate(clampedPaginationOpts);
-
-    // Enrich messages with task status, attachments, and latest progress
-    const enrichedPage = await enrichMessages(ctx, result.page);
-
-    return {
-      ...result,
-      page: enrichedPage,
-    };
-  },
-});
-
 // =============================================================================
 // CURSOR-BASED MESSAGE LOADING QUERIES
 // =============================================================================
@@ -1498,7 +1458,7 @@ export const getLatestMessages = query({
 
     // Fetch limit + 1 messages in descending order to determine hasMore,
     // then reverse for chronological (ascending) output. We filter out
-    // join/progress messages the same way listPaginated does.
+    // join/progress messages to match the pagination behavior.
     const messagesDesc = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
