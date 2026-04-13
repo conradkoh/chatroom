@@ -32,7 +32,7 @@
   "author": "",
   "license": "Elastic-2.0",
   "devDependencies": {
-    "@convex-dev/eslint-plugin": "^1.1.1",
+    "@convex-dev/eslint-plugin": "^1.2.2",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20.17.24",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
