@@ -33,6 +33,8 @@ interface UseCommandPaletteCommandsProps {
   /** Navigation callbacks */
   onOpenChatroomSwitcher: () => void;
   onOpenFileSelector: () => void;
+  /** Callback to navigate to create new chatroom */
+  onCreateChatroom: () => void;
   /** Workspace action callbacks — conditionally available (legacy single-workspace) */
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
@@ -77,6 +79,7 @@ export function useCommandPaletteCommands({
   onOpenPendingReview,
   onOpenChatroomSwitcher,
   onOpenFileSelector,
+  onCreateChatroom,
   onOpenInVSCode,
   onOpenInGitHubDesktop,
   onOpenPROnGitHub,
@@ -145,6 +148,14 @@ export function useCommandPaletteCommands({
         category: 'Navigate',
         shortcut: '⌘P',
         action: onOpenFileSelector,
+      },
+      {
+        id: 'nav-create-chatroom',
+        label: 'App: Create New Chatroom',
+        icon: <MessagesSquare size={14} />,
+        category: 'Navigate',
+        keywords: ['chatroom', 'create', 'new', 'setup'],
+        action: onCreateChatroom,
       }
     );
 
@@ -325,6 +336,7 @@ export function useCommandPaletteCommands({
     onOpenPendingReview,
     onOpenChatroomSwitcher,
     onOpenFileSelector,
+    onCreateChatroom,
     onOpenInVSCode,
     onOpenInGitHubDesktop,
     onOpenPROnGitHub,

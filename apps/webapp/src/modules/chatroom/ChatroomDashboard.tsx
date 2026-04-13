@@ -17,6 +17,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -709,6 +710,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [commandRunner]
   );
 
+  // Router for navigation
+  const router = useRouter();
+
+  // Handler to navigate to create new chatroom
+  const handleCreateChatroom = useCallback(() => {
+    router.push('/app');
+  }, [router]);
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
@@ -717,6 +726,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
     onOpenFileSelector: handleOpenFileSelector,
+    onCreateChatroom: handleCreateChatroom,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
