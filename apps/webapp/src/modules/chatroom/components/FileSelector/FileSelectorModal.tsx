@@ -94,8 +94,8 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               onValueChange={setSearch}
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none border-none h-10 text-sm"
             />
-            {/* u10: Dynamic list height, max 50vh, at least 5 items visible */}
-            <CommandList className="max-h-[50vh] min-h-[196px]">
+            {/* u10: Fixed height container to prevent input box position shift */}
+            <CommandList className="max-h-[50vh] h-[196px] overflow-y-auto">
               {!hasWorkspace ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
