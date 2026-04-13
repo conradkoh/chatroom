@@ -46,6 +46,18 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
   const runCommand = useCallback(
     async (commandName: string, script: string) => {
       if (!machineId || !workingDir) return null;
+
+      // Check if there's already a running command with the same name
+      // If so, focus the existing run instead of starting a new one
+      const existingRun = (runs ?? []).find(
+        (r) => r.commandName === commandName && r.status === 'running'
+      );
+      if (existingRun) {
+        setActiveRunId(existingRun._id);
+        return existingRun._id;
+      }
+
+      // No existing running command - start a new one
       const runId = await runCommandMutation({
         machineId,
         workingDir,
@@ -55,7 +67,7 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
       setActiveRunId(runId);
       return runId;
     },
-    [machineId, workingDir, runCommandMutation]
+    [machineId, workingDir, runCommandMutation, runs]
   );
 
   const stopCommand = useCallback(
