@@ -1,18 +1,36 @@
 /**
  * CrashLoopTracker — detects rapid restart loops per (chatroomId, role).
  *
- * Uses a sliding window: records timestamps of recent restarts and checks
- * whether MAX_RESTARTS have occurred within WINDOW_MS. If so, the agent
- * is considered to be in a crash loop and the caller should stop restarting.
+ * Uses a sliding window with progressive backoff: records timestamps of recent
+ * restarts and checks whether the agent should be allowed to restart based on
+ * the backoff schedule. If not, the caller should schedule a retry.
  */
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Maximum number of restarts within WINDOW_MS before the loop is halted. */
-export const CRASH_LOOP_MAX_RESTARTS = 3;
+/**
+ * Maximum number of restarts within WINDOW_MS before the loop is halted.
+ * Expanded from 3 to 10 to accommodate progressive backoff.
+ */
+export const CRASH_LOOP_MAX_RESTARTS = 10;
 
-/** Sliding window duration in milliseconds. */
-export const CRASH_LOOP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+/**
+ * Sliding window duration in milliseconds.
+ * Expanded to accommodate 10 restarts with backoff (~9.5 minutes total).
+ */
+export const CRASH_LOOP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Backoff intervals in milliseconds.
+ * - Attempt 1: immediate (0ms)
+ * - Attempt 2: 30 seconds
+ * - Attempts 3-10: 1 minute each (sustained backoff)
+ */
+export const BACKOFF_INTERVALS: readonly number[] = [
+  0,      // Attempt 1: immediate
+  30000,  // Attempt 2: 30 seconds
+  60000,  // Attempt 3-10: 1 minute each
+];
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
@@ -20,12 +38,16 @@ export const CRASH_LOOP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
  * Result of a restart-allowance check.
  */
 export interface CrashLoopCheckResult {
-  /** Whether the restart is allowed. */
+  /** Whether the restart is allowed immediately. */
   allowed: boolean;
-  /** Number of restarts recorded in the current window (including this one if allowed). */
+  /** Total number of restart attempts (including blocked). */
   restartCount: number;
   /** The window duration used for the check. */
   windowMs: number;
+  /** When the next restart is allowed (ms since epoch). Undefined if allowed immediately. */
+  nextAllowedAt?: number;
+  /** How long to wait before retrying (0 if immediate). Undefined if allowed immediately. */
+  waitMs?: number;
 }
 
 /**
@@ -40,7 +62,7 @@ export class CrashLoopTracker {
    * Record a restart attempt and check whether the agent is in a crash loop.
    *
    * Call this BEFORE spawning. If the result is `allowed: false`, do not spawn
-   * and emit an `agent.restartLimitReached` event instead.
+   * and schedule a retry after `waitMs` instead.
    *
    * @param chatroomId - Chatroom identifier
    * @param role - Agent role (case-insensitive)
@@ -54,14 +76,58 @@ export class CrashLoopTracker {
     const raw = this.history.get(key) ?? [];
     const recent = raw.filter((ts) => ts >= windowStart);
 
-    // Add the current restart
+    // Count of restarts already recorded (successful ones)
+    const restartCount = recent.length;
+
+    // Check if we've exceeded max restarts
+    if (restartCount >= CRASH_LOOP_MAX_RESTARTS) {
+      // Note: we don't record the blocked attempt in history
+      return {
+        allowed: false,
+        restartCount: restartCount + 1, // Count the blocked attempt
+        windowMs: CRASH_LOOP_WINDOW_MS,
+      };
+    }
+
+    // Calculate the expected backoff interval based on the next attempt number
+    // Next attempt = restartCount + 1
+    const nextAttemptNumber = restartCount + 1;
+    const backoffIndex = Math.min(
+      nextAttemptNumber - 1, // 1st attempt -> index 0, 2nd -> index 1, etc.
+      BACKOFF_INTERVALS.length - 1
+    );
+    const expectedInterval = BACKOFF_INTERVALS[backoffIndex];
+
+    // Check if enough time has passed since the last successful restart
+    const lastRestart = recent[recent.length - 1]; // Most recent successful restart
+    if (lastRestart !== undefined && expectedInterval > 0) {
+      const timeSinceLastRestart = now - lastRestart;
+
+      if (timeSinceLastRestart < expectedInterval) {
+        // Not enough time has passed — calculate wait time
+        // Note: we don't record the blocked attempt in history
+        const nextAllowedAt = lastRestart + expectedInterval;
+        const waitMs = nextAllowedAt - now;
+
+        return {
+          allowed: false,
+          restartCount: restartCount + 1, // Count the blocked attempt
+          windowMs: CRASH_LOOP_WINDOW_MS,
+          nextAllowedAt,
+          waitMs,
+        };
+      }
+    }
+
+    // Restart is allowed — record the successful restart
     recent.push(now);
     this.history.set(key, recent);
 
-    const restartCount = recent.length;
-    const allowed = restartCount <= CRASH_LOOP_MAX_RESTARTS;
-
-    return { allowed, restartCount, windowMs: CRASH_LOOP_WINDOW_MS };
+    return {
+      allowed: true,
+      restartCount: restartCount + 1,
+      windowMs: CRASH_LOOP_WINDOW_MS,
+    };
   }
 
   /**
@@ -74,7 +140,7 @@ export class CrashLoopTracker {
   }
 
   /**
-   * Returns the number of restarts recorded in the current window for this agent.
+   * Returns the number of successful restarts recorded in the current window for this agent.
    * Does NOT record a new restart — use for inspection only.
    */
   getCount(chatroomId: string, role: string, now: number = Date.now()): number {
