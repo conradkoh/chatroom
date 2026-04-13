@@ -54,22 +54,6 @@ const ALWAYS_EXCLUDE = new Set([
   '.DS_Store',
 ]);
 
-/** Patterns to exclude at the file level (any path component matching these globs). */
-const EXCLUDE_PATTERNS = [
-  /node_modules/i,
-  /\.git/i,
-  /dist/i,
-  /build/i,
-  /\.next/i,
-  /coverage/i,
-  /__pycache__/i,
-  /\.turbo/i,
-  /\.cache/i,
-  /\.tmp/i,
-  /tmp/i,
-  /\.DS_Store/i,
-];
-
 // ─── Scanner ────────────────────────────────────────────────────────────────
 
 /**
@@ -92,8 +76,8 @@ export async function scanFileTree(
 
   const filePaths = await getGitFiles(rootDir);
 
-  // Filter out always-excluded directories and patterns
-  const filteredPaths = filePaths.filter((p) => !isExcluded(p) && !matchesExcludePattern(p));
+  // Filter out always-excluded directories
+  const filteredPaths = filePaths.filter((p) => !isExcluded(p));
 
   // Derive directories from file paths and build entries
   const entries = buildEntries(filteredPaths, rootDir, maxEntries);
@@ -161,11 +145,6 @@ function parseLines(output: string): string[] {
 export function isExcluded(filePath: string): boolean {
   const segments = filePath.split('/');
   return segments.some((segment) => ALWAYS_EXCLUDE.has(segment));
-}
-
-/** Check if a path matches any exclude pattern (case-insensitive). */
-export function matchesExcludePattern(filePath: string): boolean {
-  return EXCLUDE_PATTERNS.some((pattern) => pattern.test(filePath));
 }
 
 /**
