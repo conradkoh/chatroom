@@ -42,6 +42,15 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     setRefreshKey((k) => k + 1);
   }, [machineId, workingDir, requestTree]);
 
+  // Request file tree on initial mount (or when workspace changes)
+  useEffect(() => {
+    if (machineId && workingDir) {
+      requestTree({ machineId, workingDir }).catch(() => {
+        // Silently ignore — tree may already exist
+      });
+    }
+  }, [machineId, workingDir, requestTree]);
+
   // Listen for external refresh requests (e.g. from command palette "Open File Explorer")
   useEffect(() => {
     const handler = () => handleRefresh();

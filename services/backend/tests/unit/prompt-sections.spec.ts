@@ -37,11 +37,10 @@ describe('getTeamContextSection', () => {
       expect(section.type).toBe('knowledge');
       expect(section.content).toContain('Squad Team Context');
       expect(section.content).toContain('ONLY role that communicates directly with the user');
-      expect(section.content).toContain('Builder is available');
-      expect(section.content).toContain('Reviewer is available');
+      expect(section.content).toContain('Team members may go offline');
     });
 
-    test('planner with no builder shows unavailability', () => {
+    test('planner context is the same regardless of available members', () => {
       const ctx = buildSelectorContext({
         role: 'planner',
         teamRoles: ['planner', 'builder', 'reviewer'],
@@ -52,8 +51,9 @@ describe('getTeamContextSection', () => {
       });
 
       const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Builder is NOT available');
-      expect(section.content).toContain('Reviewer is NOT available');
+      // No longer shows availability-specific text — same context regardless
+      expect(section.content).toContain('Squad Team Context');
+      expect(section.content).toContain('Team members may go offline');
     });
 
     test('builder gets squad builder context with user restriction', () => {

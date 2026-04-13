@@ -72,8 +72,7 @@ ${classificationNote}
 - You are the ONLY role that communicates directly with the user
 - You are ultimately accountable for all work quality
 - For any multi-step task (2+ steps), use the workflow skill to plan and track execution
-${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
-${reviewerOnline ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}
+- Team members may go offline at any time — adapt by handling their responsibilities yourself if needed
 
 ${getTeamAvailabilitySection(members)}
 

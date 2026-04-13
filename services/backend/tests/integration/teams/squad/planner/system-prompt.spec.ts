@@ -208,8 +208,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       - You are the ONLY role that communicates directly with the user
       - You are ultimately accountable for all work quality
       - For any multi-step task (2+ steps), use the workflow skill to plan and track execution
-      - Builder is available for implementation tasks
-      - Reviewer is available for code review
+      - Team members may go offline at any time — adapt by handling their responsibilities yourself if needed
 
       **Team Availability:** builder, reviewer available.
 
