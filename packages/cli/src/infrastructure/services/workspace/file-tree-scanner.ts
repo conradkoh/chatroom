@@ -37,7 +37,7 @@ export type ScanOptions = {
 
 const DEFAULT_MAX_ENTRIES = 10_000;
 
-/** Directories to always exclude (even outside git repos). */
+/** Directories to always exclude (even outside git repos or if git misbehaves). */
 const ALWAYS_EXCLUDE = new Set([
   'node_modules',
   '.git',
@@ -47,6 +47,11 @@ const ALWAYS_EXCLUDE = new Set([
   'coverage',
   '__pycache__',
   '.turbo',
+  // Additional common patterns that cause noise in file pickers
+  '.cache',
+  '.tmp',
+  'tmp',
+  '.DS_Store',
 ]);
 
 // ─── Scanner ────────────────────────────────────────────────────────────────

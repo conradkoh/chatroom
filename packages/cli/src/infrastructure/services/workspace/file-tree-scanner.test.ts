@@ -60,6 +60,13 @@ describe('isExcluded', () => {
   it('excludes .turbo paths', () => {
     expect(isExcluded('.turbo/cache/abc.json')).toBe(true);
   });
+
+  it('excludes .cache, .tmp, tmp, .DS_Store patterns', () => {
+    expect(isExcluded('.cache/data.json')).toBe(true);
+    expect(isExcluded('.tmp/temp.txt')).toBe(true);
+    expect(isExcluded('tmp/backup.zip')).toBe(true);
+    expect(isExcluded('.DS_Store')).toBe(true);
+  });
 });
 
 describe('buildEntries', () => {
