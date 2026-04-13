@@ -119,11 +119,11 @@ export function useWorkspaceCommandItems(
       if (pr) {
         items.push({
           id: `ws-${wsKey}-view-current-pr`,
-          label: 'Github: View Current PR',
+          label: 'Github: View Current Pull Request',
           detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'Github PR', hostname, workspace.workingDir],
+          keywords: ['PR', 'pull request', 'Github PR', hostname, workspace.workingDir],
           action: () => openExternalUrl(pr.url),
         });
 
