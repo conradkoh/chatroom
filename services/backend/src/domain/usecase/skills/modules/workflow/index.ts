@@ -200,11 +200,6 @@ This level of detail ensures:
 - Coherence across multiple steps
 - Easy verification of completion
 
-### Step Specification Quality (Summary)
-- Every step must be specified before it can be completed
-- Specify clear requirements so step completion can be objectively verified
-- When a step involves creating or modifying files, include the exact folder structure, file purposes, and high-level interfaces directly in the REQUIREMENTS section
-
 ### Operations
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
