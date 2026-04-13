@@ -1045,9 +1045,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   <div className="flex-1 flex min-h-0 overflow-hidden">
                     {/* Left: Explorer content */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border relative">
-                      {/* Split view toggle button — top right */}
+                      {/* Split view toggle button — top right (hidden on mobile) */}
                       <button
-                        className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+                        className="absolute top-2 right-2 z-10 w-7 h-7 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
                         onClick={() => setExplorerSplitViewEnabled(false)}
                         title="Hide messages panel"
                       >
@@ -1186,9 +1186,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-                    {/* Split view toggle button — top right */}
+                    {/* Split view toggle button — top right (hidden on mobile) */}
                     <button
-                      className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+                      className="absolute top-2 right-2 z-10 w-7 h-7 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
                       onClick={() => setExplorerSplitViewEnabled(true)}
                       title="Show messages panel"
                     >
