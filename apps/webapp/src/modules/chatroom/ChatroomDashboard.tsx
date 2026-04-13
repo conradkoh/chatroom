@@ -74,7 +74,7 @@ import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
-import { toGitHubRepoUrl } from '@/lib/github';
+import { toRepoHttpsUrl } from '@/lib/git-url';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -594,7 +594,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     if (gitState.status !== 'available') return null;
     const origin = gitState.remotes.find((r) => r.name === 'origin');
     if (!origin) return null;
-    return toGitHubRepoUrl(origin.url);
+    return toRepoHttpsUrl(origin.url);
   }, [gitState]);
 
   // Action command callbacks — stable, conditionally nulled

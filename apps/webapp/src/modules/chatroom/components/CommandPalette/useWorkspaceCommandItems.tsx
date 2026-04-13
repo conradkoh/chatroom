@@ -9,7 +9,7 @@ import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import type { Workspace } from '../../types/workspace';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
-import { toGitHubRepoUrl } from '@/lib/github';
+import { toRepoHttpsUrl } from '@/lib/git-url';
 import type { CommandItem } from './types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ export function useWorkspaceCommandItems(
     // Git-derived commands
     if (gitState.status === 'available') {
       const origin = gitState.remotes.find((r) => r.name === 'origin');
-      const repoUrl = origin ? toGitHubRepoUrl(origin.url) : null;
+      const repoUrl = origin ? toRepoHttpsUrl(origin.url) : null;
       const pr = gitState.openPullRequests?.[0];
 
       if (repoUrl) {
@@ -106,8 +106,8 @@ export function useWorkspaceCommandItems(
         });
 
         items.push({
-          id: `ws-${wsKey}-view-github-repo`,
-          label: 'Github: View Repository',
+          id: `ws-${wsKey}-view-repo`,
+          label: 'Repository: View Repository',
           detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
