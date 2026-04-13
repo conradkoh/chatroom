@@ -74,7 +74,7 @@ import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
-import { toGitHubRepoUrl } from '@/lib/github';
+import { toRepoHttpsUrl } from '@/lib/git-url';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -554,6 +554,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openGitPanelRef.current?.();
   }, []);
 
+  const handleCmdOpenGitPanelDiff = useCallback(() => {
+    openGitPanelRef.current?.('diff');
+  }, []);
+
   const handleCmdOpenPRReview = useCallback(() => {
     openGitPanelRef.current?.('prs');
   }, []);
@@ -590,7 +594,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     if (gitState.status !== 'available') return null;
     const origin = gitState.remotes.find((r) => r.name === 'origin');
     if (!origin) return null;
-    return toGitHubRepoUrl(origin.url);
+    return toRepoHttpsUrl(origin.url);
   }, [gitState]);
 
   // Action command callbacks — stable, conditionally nulled
@@ -713,6 +717,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
     onOpenGitPanel: handleCmdOpenGitPanel,
+    onOpenGitPanelDiff: handleCmdOpenGitPanelDiff,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
@@ -1009,10 +1014,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative min-h-0">
-              {/* Activity Bar — VSCode-style icon sidebar */}
-              {activeWorkspace && (
-                <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
-              )}
+              {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
+              <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
               {activeView === 'explorer' &&

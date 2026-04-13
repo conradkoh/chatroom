@@ -1823,7 +1823,7 @@ export const MessageFeed = memo(function MessageFeed({
   displayMessagesLengthRef.current = displayMessages.length;
 
   // Fire browser notifications when an agent hands off to the user
-  useHandoffNotification(displayMessages);
+  useHandoffNotification(displayMessages, chatroomId);
 
   // Effective loadable status — cursor-based store manages its own cap/bounds
   const canLoadMore = hasMoreOlder && !isLoadingOlder;

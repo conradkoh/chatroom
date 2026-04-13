@@ -10,13 +10,14 @@ import type { Message } from '../types/message';
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
-function makeMessage(id: string, creationTime: number): Message {
+function makeMessage(id: string, creationTime: number, taskId?: string): Message {
   return {
     _id: id,
     type: 'message',
     senderRole: 'user',
     content: `Message ${id}`,
     _creationTime: creationTime,
+    ...(taskId && { taskId: taskId as any }),
   };
 }
 
@@ -292,5 +293,95 @@ describe('messageStoreReducer — RESET', () => {
     };
     const state = messageStoreReducer(populated, { type: 'RESET' });
     expect(state).toEqual(initialState);
+  });
+});
+
+// ── UPDATE_TASK_STATUS ──────────────────────────────────────────────────────
+
+describe('messageStoreReducer — UPDATE_TASK_STATUS', () => {
+  it('updates taskStatus on matching messages', () => {
+    const withTask: MessageStoreState = {
+      messages: [
+        makeMessage('a', 100, 'task1'),
+        makeMessage('b', 200, 'task2'),
+        makeMessage('c', 300), // no taskId
+      ],
+      oldestCursor: 100,
+      newestCursor: 300,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(withTask, {
+      type: 'UPDATE_TASK_STATUS',
+      taskId: 'task1',
+      newStatus: 'in_progress',
+    });
+    expect(state.messages).toHaveLength(3);
+    expect(state.messages[0]!.taskStatus).toBe('in_progress');
+    expect(state.messages[1]!.taskStatus).toBeUndefined();
+    expect(state.messages[2]!.taskStatus).toBeUndefined();
+  });
+
+  it('updates multiple messages with the same taskId', () => {
+    const withTask: MessageStoreState = {
+      messages: [
+        makeMessage('a', 100, 'task1'),
+        makeMessage('b', 200, 'task2'),
+        makeMessage('c', 300, 'task1'),
+      ],
+      oldestCursor: 100,
+      newestCursor: 300,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(withTask, {
+      type: 'UPDATE_TASK_STATUS',
+      taskId: 'task1',
+      newStatus: 'acknowledged',
+    });
+    expect(state.messages[0]!.taskStatus).toBe('acknowledged');
+    expect(state.messages[1]!.taskStatus).toBeUndefined();
+    expect(state.messages[2]!.taskStatus).toBe('acknowledged');
+  });
+
+  it('handles taskId not found in messages', () => {
+    const withTask: MessageStoreState = {
+      messages: [makeMessage('a', 100, 'task1')],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(withTask, {
+      type: 'UPDATE_TASK_STATUS',
+      taskId: 'nonexistent',
+      newStatus: 'completed',
+    });
+    // Should return same state (no change)
+    expect(state.messages[0]!.taskStatus).toBeUndefined();
+  });
+
+  it('handles empty messages array', () => {
+    const empty: MessageStoreState = {
+      messages: [],
+      oldestCursor: null,
+      newestCursor: null,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(empty, {
+      type: 'UPDATE_TASK_STATUS',
+      taskId: 'task1',
+      newStatus: 'in_progress',
+    });
+    expect(state.messages).toHaveLength(0);
   });
 });

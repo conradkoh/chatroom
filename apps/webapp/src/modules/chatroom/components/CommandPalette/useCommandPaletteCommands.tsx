@@ -28,6 +28,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
   onOpenEventStream: () => void;
   onOpenGitPanel: () => void;
+  onOpenGitPanelDiff: () => void;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
   /** Navigation callbacks */
@@ -73,6 +74,7 @@ export function useCommandPaletteCommands({
   onOpenSettings,
   onOpenEventStream,
   onOpenGitPanel,
+  onOpenGitPanelDiff,
   onOpenBacklog,
   onOpenPendingReview,
   onOpenChatroomSwitcher,
@@ -240,6 +242,14 @@ export function useCommandPaletteCommands({
         action: onOpenGitPanel,
       },
       {
+        id: 'panel-git-diff',
+        label: 'Git: Show Current Changes',
+        icon: <GitBranch size={14} />,
+        category: 'Panels',
+        keywords: ['git', 'diff', 'changes', 'modified'],
+        action: onOpenGitPanelDiff,
+      },
+      {
         id: 'panel-configuration',
         label: 'Chatroom: Settings',
         icon: <Settings size={14} />,
@@ -321,6 +331,7 @@ export function useCommandPaletteCommands({
     onOpenSettings,
     onOpenEventStream,
     onOpenGitPanel,
+    onOpenGitPanelDiff,
     onOpenBacklog,
     onOpenPendingReview,
     onOpenChatroomSwitcher,

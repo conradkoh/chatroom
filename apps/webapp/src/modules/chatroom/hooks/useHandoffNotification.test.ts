@@ -132,7 +132,7 @@ afterEach(() => {
 describe('useHandoffNotification', () => {
   it('does not notify on initial load', () => {
     const initialMessages = [makeMessage(), makeMessage()];
-    renderHook(() => useHandoffNotification(initialMessages));
+    renderHook(() => useHandoffNotification(initialMessages, 'test-chatroom-id'));
 
     expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(0);
@@ -141,7 +141,7 @@ describe('useHandoffNotification', () => {
   it('sends notification via service worker when hidden and new handoff arrives', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -156,6 +156,7 @@ describe('useHandoffNotification', () => {
         title: 'Chatroom Handoff',
         body: 'planner has handed off to you',
         tag: 'chatroom-handoff',
+        chatroomId: 'test-chatroom-id',
       },
     });
   });
@@ -165,7 +166,7 @@ describe('useHandoffNotification', () => {
 
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -182,7 +183,7 @@ describe('useHandoffNotification', () => {
   it('does not notify for non-handoff messages', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -198,7 +199,7 @@ describe('useHandoffNotification', () => {
   it('does not notify for handoffs to non-user roles', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -214,7 +215,7 @@ describe('useHandoffNotification', () => {
   it('does not duplicate notifications for the same message', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -231,7 +232,7 @@ describe('useHandoffNotification', () => {
   it('throttles rapid notifications', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -258,7 +259,7 @@ describe('useHandoffNotification', () => {
   it('does not notify when document is visible', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(
-      ({ msgs }) => useHandoffNotification(msgs),
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
       { initialProps: { msgs: initialMessages } }
     );
 
@@ -272,7 +273,7 @@ describe('useHandoffNotification', () => {
 
   it('requests notification permission on mount', () => {
     MockNotification.permission = 'default';
-    renderHook(() => useHandoffNotification([]));
+    renderHook(() => useHandoffNotification([], 'test-chatroom-id'));
     expect(MockNotification.requestPermission).toHaveBeenCalled();
   });
 });

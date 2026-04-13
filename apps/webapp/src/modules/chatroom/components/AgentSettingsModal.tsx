@@ -833,12 +833,12 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     roles: allRoles,
   });
   const restartSummaryMap = useMemo(() => {
-    const map = new Map<string, { count1h: number; count24h: number }>();
+    const map = new Map<string, { count3h: number; count3d: number }>();
     if (restartSummaries) {
       for (const summary of restartSummaries) {
         map.set(summary.role.toLowerCase(), {
-          count1h: summary.count1h,
-          count24h: summary.count24h,
+          count3h: summary.count3h,
+          count3d: summary.count3d,
         });
       }
     }

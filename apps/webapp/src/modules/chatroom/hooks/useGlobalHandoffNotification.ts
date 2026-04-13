@@ -93,7 +93,8 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
           showNotification(
             'Handoff Received',
             `An agent has handed off to you in ${name}`,
-            `chatroom-handoff-${chatroom._id}`
+            `chatroom-handoff-${chatroom._id}`,
+            chatroom._id
           );
         } else {
           showNotification(
