@@ -19,8 +19,10 @@ import {
   Terminal,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
+import { toast } from 'sonner';
 
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
+import { getCommandUsageStore } from '../../lib/commandUsageStore';
 import type { CommandItem, SettingsTab } from './types';
 
 export type { SettingsTab };
@@ -234,6 +236,19 @@ export function useCommandPaletteCommands({
           action: onOpenWorkspaceDetails,
         });
       }
+
+      // ─── Preferences ─────────────────────────────────────────────
+      commands.push({
+        id: 'action-reset-command-stats',
+        label: 'Preferences: Reset Command Stats',
+        icon: <Settings size={14} />,
+        category: 'Preferences',
+        keywords: ['reset', 'clear', 'stats', 'usage', 'frecency'],
+        action: () => {
+          getCommandUsageStore().clear();
+          toast.success('Command stats cleared');
+        },
+      });
     }
 
     // ─── Panels ──────────────────────────────────────────
