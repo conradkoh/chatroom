@@ -310,7 +310,7 @@ export function useCommandPaletteCommands({
     if (onToggleChatSplitPanel) {
       commands.push({
         id: 'view-toggle-chat-split-panel',
-        label: 'View: Toggle Chat Split Panel',
+        label: 'View: Toggle Split Chat',
         icon: <MessageSquare size={14} />,
         category: 'View',
         keywords: ['chat', 'split', 'panel', 'messages', 'side', 'toggle'],
