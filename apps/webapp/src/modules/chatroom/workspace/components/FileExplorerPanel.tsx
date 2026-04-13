@@ -2,12 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { PanelRightOpen, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
-
-import { cn } from '@/lib/utils';
 
 /** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
 export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
@@ -21,10 +19,6 @@ interface FileExplorerPanelProps {
   onFileDoubleClick?: (filePath: string) => void;
   /** When set, auto-expand tree to reveal this file path */
   revealPath?: string | null;
-  /** Whether split view is enabled */
-  splitViewEnabled?: boolean;
-  /** Called when split view toggle is clicked */
-  onToggleSplitView?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -35,8 +29,6 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   onFileSelect,
   onFileDoubleClick,
   revealPath,
-  splitViewEnabled = false,
-  onToggleSplitView,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
@@ -88,29 +80,13 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Explorer
         </span>
-        <div className="flex items-center gap-1">
-          {onToggleSplitView && (
-            <button
-              className={cn(
-                'p-1 transition-colors cursor-pointer',
-                splitViewEnabled
-                  ? 'text-chatroom-accent'
-                  : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
-              )}
-              onClick={onToggleSplitView}
-              title={splitViewEnabled ? 'Hide messages panel' : 'Show messages panel'}
-            >
-              <PanelRightOpen size={13} />
-            </button>
-          )}
-          <button
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
-            onClick={handleRefresh}
-            title="Refresh file tree"
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
+        <button
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          onClick={handleRefresh}
+          title="Refresh file tree"
+        >
+          <RefreshCw size={13} />
+        </button>
       </div>
 
       {/* Tree content */}

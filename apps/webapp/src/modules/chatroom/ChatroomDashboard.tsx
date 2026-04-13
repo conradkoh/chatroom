@@ -1032,8 +1032,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
                       revealPath={revealPath}
-                      splitViewEnabled={explorerSplitViewEnabled}
-                      onToggleSplitView={() => setExplorerSplitViewEnabled((prev) => !prev)}
                     />
                   </div>
                 )}
@@ -1044,7 +1042,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 {activeView === 'explorer' && explorerSplitViewEnabled ? (
                   <div className="flex-1 flex min-h-0 overflow-hidden">
                     {/* Left: Explorer content */}
-                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border">
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border relative">
+                      {/* Split view toggle button — top right */}
+                      <button
+                        className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+                        onClick={() => setExplorerSplitViewEnabled(false)}
+                        title="Hide messages panel"
+                      >
+                        <PanelRightClose size={16} />
+                      </button>
+
                       {/* File Tab Bar — shown when tabs are open */}
                       {fileTabs.tabs.length > 0 && (
                         <FileTabBar
@@ -1156,7 +1163,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   />
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
-                  <>
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+                    {/* Split view toggle button — top right */}
+                    <button
+                      className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+                      onClick={() => setExplorerSplitViewEnabled(true)}
+                      title="Show messages panel"
+                    >
+                      <PanelRightOpen size={16} />
+                    </button>
+
                     {/* File Tab Bar — shown when tabs are open */}
                     {fileTabs.tabs.length > 0 && (
                       <FileTabBar
@@ -1242,7 +1258,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
 
