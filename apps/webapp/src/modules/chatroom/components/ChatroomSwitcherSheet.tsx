@@ -2,7 +2,7 @@
 
 import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   Sheet,
@@ -66,8 +66,6 @@ export function ChatroomSwitcherSheet({
   const { chatrooms, isLoading } = useChatroomListing();
 
   const [searchValue, setSearchValue] = useState('');
-  const searchValueRef = useRef(searchValue);
-  searchValueRef.current = searchValue;
 
   // Reset search when sheet closes
   useEffect(() => {
@@ -77,10 +75,9 @@ export function ChatroomSwitcherSheet({
   }, [open]);
 
   // Filter chatrooms based on search
-  const filteredChatrooms = useCallback(() => {
+  const filteredChatrooms = useMemo(() => {
     if (!chatrooms) return [];
     if (!searchValue.trim()) return chatrooms;
-
     const lower = searchValue.toLowerCase().trim();
     return chatrooms.filter((c) => {
       const name = getChatroomDisplayName(c).toLowerCase();
@@ -105,6 +102,7 @@ export function ChatroomSwitcherSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
+        showCloseButton={false}
         className="w-[85vw] sm:max-w-sm bg-chatroom-bg-primary border-chatroom-border p-0"
       >
         <SheetHeader className="p-4 border-b border-chatroom-border">
@@ -144,13 +142,13 @@ export function ChatroomSwitcherSheet({
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
             </div>
-          ) : filteredChatrooms().length === 0 ? (
+          ) : filteredChatrooms.length === 0 ? (
             <div className="text-center py-12 text-chatroom-text-muted text-xs font-bold uppercase tracking-wider">
               No chatrooms found
             </div>
           ) : (
             <div className="py-2">
-              {filteredChatrooms().map((chatroom) => {
+              {filteredChatrooms.map((chatroom) => {
                 const isActive = chatroom._id === currentChatroomId;
                 const displayName = getChatroomDisplayName(chatroom);
 

@@ -94,7 +94,7 @@ export const ActivityBar = memo(function ActivityBar({
             'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
             'text-chatroom-text-muted hover:text-chatroom-text-primary',
             // Hide on desktop (md and up), show on mobile
-            'hidden max-[767px]:flex'
+            'flex md:hidden'
           )}
           onClick={onOpenChatroomSwitcher}
           title="Switch Chatroom"
