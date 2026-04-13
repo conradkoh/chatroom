@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isExcluded, buildEntries } from './file-tree-scanner.js';
+import { isExcluded, matchesExcludePattern, buildEntries } from './file-tree-scanner.js';
 
 // Mock child_process and util before importing scanFileTree
 vi.mock('node:child_process', () => ({
@@ -59,6 +59,43 @@ describe('isExcluded', () => {
 
   it('excludes .turbo paths', () => {
     expect(isExcluded('.turbo/cache/abc.json')).toBe(true);
+  });
+
+  it('excludes .cache, .tmp, tmp, .DS_Store patterns', () => {
+    expect(isExcluded('.cache/data.json')).toBe(true);
+    expect(isExcluded('.tmp/temp.txt')).toBe(true);
+    expect(isExcluded('tmp/backup.zip')).toBe(true);
+    expect(isExcluded('.DS_Store')).toBe(true);
+  });
+});
+
+describe('matchesExcludePattern', () => {
+  it('excludes paths matching pattern strings in any segment', () => {
+    expect(matchesExcludePattern('node_modules/pkg/index.js')).toBe(true);
+    expect(matchesExcludePattern('.git/hooks/pre-commit')).toBe(true);
+    expect(matchesExcludePattern('dist/bundle.min.js')).toBe(true);
+    expect(matchesExcludePattern('build/output.js')).toBe(true);
+    expect(matchesExcludePattern('.next/cache/data.json')).toBe(true);
+    expect(matchesExcludePattern('coverage/lcov.info')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(matchesExcludePattern('NODE_MODULES/pkg/file.js')).toBe(true);
+    expect(matchesExcludePattern('DIST/bundle.js')).toBe(true);
+    expect(matchesExcludePattern('.GIT/config')).toBe(true);
+  });
+
+  it('does not match normal paths', () => {
+    expect(matchesExcludePattern('src/index.ts')).toBe(false);
+    expect(matchesExcludePattern('packages/cli/src/main.ts')).toBe(false);
+    expect(matchesExcludePattern('README.md')).toBe(false);
+  });
+
+  it('excludes .cache, .tmp, tmp, .DS_Store patterns', () => {
+    expect(matchesExcludePattern('.cache/data.json')).toBe(true);
+    expect(matchesExcludePattern('.tmp/temp.txt')).toBe(true);
+    expect(matchesExcludePattern('tmp/backup.zip')).toBe(true);
+    expect(matchesExcludePattern('.DS_Store')).toBe(true);
   });
 });
 
