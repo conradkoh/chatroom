@@ -73,6 +73,11 @@ flowchart TD
 
 ⚠️ Workflows complete automatically when all steps are done. Only use ${cmd('workflow exit --workflow-key="<key>"')} to abandon.
 
+**Step specification quality:**
+When specifying steps with \`workflow specify\`, include:
+- **Exact file paths**: List every file to be created/modified with full paths
+- **Interface definitions**: For key files, include TypeScript interfaces inline
+This enables the builder to understand exact expectations and ensures coherence across steps.
 
 **Code review:** Include a review step for code-producing workflows. Activate with: ${cmd('skill activate code-review')}
 
