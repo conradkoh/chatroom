@@ -9,6 +9,8 @@ import {
   Check,
   ChevronDown,
   Files,
+  MessageSquare,
+  MessageSquareOff,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -1049,7 +1051,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                         onClick={() => setExplorerSplitViewEnabled(false)}
                         title="Hide messages panel"
                       >
-                        <PanelRightClose size={16} />
+                        <MessageSquareOff size={16} />
                       </button>
 
                       {/* File Tab Bar — shown when tabs are open */}
@@ -1190,7 +1192,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                       onClick={() => setExplorerSplitViewEnabled(true)}
                       title="Show messages panel"
                     >
-                      <PanelRightOpen size={16} />
+                      <MessageSquare size={16} />
                     </button>
 
                     {/* File Tab Bar — shown when tabs are open */}
