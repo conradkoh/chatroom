@@ -58,9 +58,9 @@ export interface InlineAgentCardProps {
   onSavePreference?: (pref: AgentPreference) => void;
   /** Pre-fetched restart summary from parent batch query.
    * When provided, InlineAgentCard skips its own per-card subscription.
-   * This enables batching at the parent level to reduce N subscriptions to 1.
+   * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
    */
-  restartSummary?: { count1h: number; count24h: number } | null;
+  restartSummary?: { count3h: number; count3d: number } | null;
 }
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
@@ -166,14 +166,14 @@ export const InlineAgentCard = memo(function InlineAgentCard({
               </span>
               <span className="text-[10px] text-chatroom-text-secondary">
                 <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count1h}
+                  {restartSummary.count3h}
                 </span>
-                <span className="text-chatroom-text-muted"> in 1h</span>
+                <span className="text-chatroom-text-muted"> in 3h</span>
                 <span className="mx-1.5 text-chatroom-border-strong">·</span>
                 <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count24h}
+                  {restartSummary.count3d}
                 </span>
-                <span className="text-chatroom-text-muted"> in 24h</span>
+                <span className="text-chatroom-text-muted"> in 3d</span>
               </span>
               {statsMachineId && (
                 <button

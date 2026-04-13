@@ -1577,38 +1577,38 @@ export const getAgentRestartSummary = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { count1h: 0, count24h: 0 };
+    if (!auth.ok) return { count3h: 0, count3d: 0 };
 
     const machineAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
       permission: 'read-access',
     });
-    if (!machineAccessResult.ok) return { count1h: 0, count24h: 0 };
+    if (!machineAccessResult.ok) return { count3h: 0, count3d: 0 };
 
     const now = Date.now();
-    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
-    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3h = Math.floor((now - 3 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3d = Math.floor((now - 3 * 24 * 3_600_000) / 3_600_000) * 3_600_000;
 
-    // Query rows for chatroom + role starting from 24h ago
+    // Query rows for chatroom + role starting from 3d ago
     const rows = await ctx.db
       .query('chatroom_agentRestartMetrics')
       .withIndex('by_chatroom_role_hour', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since24h)
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since3d)
       )
       .filter((q) => q.eq(q.field('machineId'), args.machineId))
       .collect();
 
-    let count1h = 0;
-    let count24h = 0;
+    let count3h = 0;
+    let count3d = 0;
     for (const row of rows) {
-      count24h += row.count;
-      if (row.hourBucket >= since1h) {
-        count1h += row.count;
+      count3d += row.count;
+      if (row.hourBucket >= since3h) {
+        count3h += row.count;
       }
     }
 
-    return { count1h, count24h };
+    return { count3h, count3d };
   },
 });
 
@@ -1621,37 +1621,37 @@ export const getAgentRestartSummaryByRole = query({
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { count1h: 0, count24h: 0 };
+    if (!auth.ok) return { count3h: 0, count3d: 0 };
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'read-access',
     });
-    if (!chatroomAccessResult.ok) return { count1h: 0, count24h: 0 };
+    if (!chatroomAccessResult.ok) return { count3h: 0, count3d: 0 };
 
     const now = Date.now();
-    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
-    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3h = Math.floor((now - 3 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3d = Math.floor((now - 3 * 24 * 3_600_000) / 3_600_000) * 3_600_000;
 
-    // Query rows for chatroom + role starting from 24h ago (all machines)
+    // Query rows for chatroom + role starting from 3d ago (all machines)
     const rows = await ctx.db
       .query('chatroom_agentRestartMetrics')
       .withIndex('by_chatroom_role_hour', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since24h)
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since3d)
       )
       .collect();
 
-    let count1h = 0;
-    let count24h = 0;
+    let count3h = 0;
+    let count3d = 0;
     for (const row of rows) {
-      count24h += row.count;
-      if (row.hourBucket >= since1h) {
-        count1h += row.count;
+      count3d += row.count;
+      if (row.hourBucket >= since3h) {
+        count3h += row.count;
       }
     }
 
-    return { count1h, count24h };
+    return { count3h, count3d };
   },
 });
 
@@ -1668,7 +1668,7 @@ export const getAgentRestartSummariesByRoles = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) {
-      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+      return args.roles.map((role) => ({ role, count3h: 0, count3d: 0 }));
     }
 
     const chatroomAccessResult = await checkAccess(ctx, {
@@ -1677,40 +1677,38 @@ export const getAgentRestartSummariesByRoles = query({
       permission: 'read-access',
     });
     if (!chatroomAccessResult.ok) {
-      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+      return args.roles.map((role) => ({ role, count3h: 0, count3d: 0 }));
     }
 
     const now = Date.now();
-    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
-    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3h = Math.floor((now - 3 * 3_600_000) / 3_600_000) * 3_600_000;
+    const since3d = Math.floor((now - 3 * 24 * 3_600_000) / 3_600_000) * 3_600_000;
 
-    // Query each role individually and aggregate (parallel queries are automatic in Convex)
-    // This is more efficient than N separate useSessionQuery calls in the frontend.
-    const roleCounts = new Map<string, { count1h: number; count24h: number }>();
+    const roleCounts = new Map<string, { count3h: number; count3d: number }>();
 
     for (const role of args.roles) {
       const rows = await ctx.db
         .query('chatroom_agentRestartMetrics')
         .withIndex('by_chatroom_role_hour', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('role', role).gte('hourBucket', since24h)
+          q.eq('chatroomId', args.chatroomId).eq('role', role).gte('hourBucket', since3d)
         )
         .collect();
 
-      let count1h = 0;
-      let count24h = 0;
+      let count3h = 0;
+      let count3d = 0;
       for (const row of rows) {
-        count24h += row.count;
-        if (row.hourBucket >= since1h) {
-          count1h += row.count;
+        count3d += row.count;
+        if (row.hourBucket >= since3h) {
+          count3h += row.count;
         }
       }
-      roleCounts.set(role, { count1h, count24h });
+      roleCounts.set(role, { count3h, count3d });
     }
 
     // Return summaries for all requested roles (missing roles get 0 counts)
     return args.roles.map((role) => ({
       role,
-      ...(roleCounts.get(role) ?? { count1h: 0, count24h: 0 }),
+      ...(roleCounts.get(role) ?? { count3h: 0, count3d: 0 }),
     }));
   },
 });
