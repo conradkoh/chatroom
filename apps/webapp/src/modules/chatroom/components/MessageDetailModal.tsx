@@ -17,20 +17,7 @@ import remarkGfm from 'remark-gfm';
 
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
-interface Message {
-  _id: string;
-  type: string;
-  senderRole: string;
-  targetRole?: string;
-  content: string;
-  _creationTime: number;
-  classification?: 'question' | 'new_feature' | 'follow_up';
-  taskId?: string;
-  taskStatus?: 'pending' | 'acknowledged' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
-  featureTitle?: string;
-  featureDescription?: string;
-  featureTechSpecs?: string;
-}
+import type { Message } from '../types/message';
 
 interface MessageDetailModalProps {
   isOpen: boolean;

@@ -30,7 +30,9 @@ export type Action =
   | { type: 'REQUEST_OLDER' }
   | { type: 'RESET' }
   /** Update taskStatus on messages that have the given taskId */
-  | { type: 'UPDATE_TASK_STATUS'; taskId: string; newStatus: string };
+  | { type: 'UPDATE_TASK_STATUS'; taskId: string; newStatus: string }
+  /** Merge metadata updates (classification, featureTitle, etc.) for existing messages */
+  | { type: 'MERGE_MESSAGE_METADATA'; messages: Message[] };
 
 export function deduplicateMessages(existing: Message[], incoming: Message[]): Message[] {
   const existingIds = new Set(existing.map((m) => m._id));
@@ -127,6 +129,38 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
       };
     }
 
+    case 'MERGE_MESSAGE_METADATA': {
+      // Merge incoming message data with existing messages by ID
+      // This handles classification, featureTitle, featureDescription, etc.
+      const incomingById = new Map(action.messages.map((m) => [m._id, m]));
+      let hasChanges = false;
+      const updatedMessages = state.messages.map((existing) => {
+        const incoming = incomingById.get(existing._id);
+        if (!incoming) return existing;
+        // Check if any metadata actually changed
+        if (
+          existing.classification !== incoming.classification ||
+          existing.featureTitle !== incoming.featureTitle ||
+          existing.featureDescription !== incoming.featureDescription ||
+          existing.featureTechSpecs !== incoming.featureTechSpecs ||
+          existing.taskStatus !== incoming.taskStatus
+        ) {
+          hasChanges = true;
+          return {
+            ...existing,
+            classification: incoming.classification,
+            featureTitle: incoming.featureTitle,
+            featureDescription: incoming.featureDescription,
+            featureTechSpecs: incoming.featureTechSpecs,
+            taskStatus: incoming.taskStatus,
+          };
+        }
+        return existing;
+      });
+      // Only return new state if something actually changed
+      return hasChanges ? { ...state, messages: updatedMessages } : state;
+    }
+
     default:
       return state;
   }
@@ -141,6 +175,43 @@ export const initialState: MessageStoreState = {
   isLoadingOlder: false,
   olderQueryCursor: null,
 };
+
+// ─── Helpers ────────────────────────────────────
+
+/**
+ * Maps a backend enriched message to the frontend Message interface.
+ * Explicit field mapping ensures type safety — if backend schema changes,
+ * we get compile errors instead of silent runtime breakage.
+ *
+ * Uses `any` at this boundary layer since Convex return types vary across
+ * queries (getLatestMessages, getMessagesSince, etc.) but all share the
+ * same enriched message shape.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMessage(m: any): Message {
+  return {
+    _id: m._id,
+    type: m.type,
+    senderRole: m.senderRole,
+    targetRole: m.targetRole,
+    content: m.content,
+    _creationTime: m._creationTime,
+    classification: m.classification,
+    taskId: m.taskId,
+    taskStatus: m.taskStatus,
+    sourcePlatform: m.sourcePlatform,
+    featureTitle: m.featureTitle,
+    featureDescription: m.featureDescription,
+    featureTechSpecs: m.featureTechSpecs,
+    attachedTasks: m.attachedTasks,
+    attachedBacklogItems: m.attachedBacklogItems,
+    attachedArtifacts: m.attachedArtifacts,
+    attachedMessages: m.attachedMessages,
+    attachedWorkflows: m.attachedWorkflows,
+    latestProgress: m.latestProgress,
+    isQueued: m.isQueued,
+  };
+}
 
 // ─── Hook ───────────────────────────────────────
 
@@ -184,7 +255,7 @@ export function useMessageStore(chatroomId: string) {
       tailCursorRef.current = initialData.cursor;
       dispatch({
         type: 'INITIALIZE',
-        messages: initialData.messages as Message[],
+        messages: initialData.messages.map(toMessage),
         cursor: initialData.cursor,
         hasMore: initialData.hasMore,
       });
@@ -201,9 +272,9 @@ export function useMessageStore(chatroomId: string) {
 
   useEffect(() => {
     if (tailData && tailData.messages.length > 0) {
-      dispatch({ type: 'APPEND_NEW', messages: tailData.messages as Message[] });
+      dispatch({ type: 'APPEND_NEW', messages: tailData.messages.map(toMessage) });
     }
-  }, [tailData]);
+  }, [tailData, dispatch]);
 
   // ── Older messages (on-demand) ────────────────
   const olderData = useSessionQuery(
@@ -222,11 +293,11 @@ export function useMessageStore(chatroomId: string) {
       processedOlderCursorRef.current = state.olderQueryCursor;
       dispatch({
         type: 'PREPEND_OLDER',
-        messages: olderData.messages as Message[],
+        messages: olderData.messages.map(toMessage),
         hasMore: olderData.hasMore,
       });
     }
-  }, [olderData, state.olderQueryCursor]);
+  }, [olderData, state.olderQueryCursor, dispatch]);
 
   // ── Task status subscription ─────────────────
   // Subscribe to all active tasks (pending, acknowledged, in_progress) to update
@@ -237,11 +308,15 @@ export function useMessageStore(chatroomId: string) {
     statusFilter: 'active',
   });
 
-  useEffect(() => {
-    if (!activeTasks || activeTasks.length === 0) return;
+  // Track previously known active task IDs to detect completion/cancellation
+  const prevActiveTaskIdsRef = useRef<Set<string>>(new Set());
 
-    // Update taskStatus on all messages that have these taskIds
-    // This ensures the UI reflects the current task status after transitions
+  useEffect(() => {
+    if (!activeTasks) return;
+
+    const currentIds = new Set(activeTasks.map((t) => t._id as string));
+
+    // Update taskStatus on all currently active tasks
     for (const task of activeTasks) {
       dispatch({
         type: 'UPDATE_TASK_STATUS',
@@ -249,7 +324,38 @@ export function useMessageStore(chatroomId: string) {
         newStatus: task.status,
       });
     }
-  }, [activeTasks]);
+
+    // Detect tasks that left the active set (completed or cancelled)
+    for (const prevId of prevActiveTaskIdsRef.current) {
+      if (!currentIds.has(prevId)) {
+        dispatch({
+          type: 'UPDATE_TASK_STATUS',
+          taskId: prevId,
+          newStatus: 'completed',
+        });
+      }
+    }
+
+    prevActiveTaskIdsRef.current = currentIds;
+  }, [activeTasks, dispatch]);
+
+  // ── Active task message subscription ──────────
+  // Subscribe to messages for active tasks to get classification/metadata updates.
+  // When a message is classified after being added to the store, this subscription
+  // will provide the updated classification data.
+  const activeTaskMessages = useSessionQuery(api.messages.getActiveTaskMessages, {
+    chatroomId: typedChatroomId,
+  });
+
+  useEffect(() => {
+    if (!activeTaskMessages || activeTaskMessages.messages.length === 0) return;
+
+    // Merge updated metadata into existing messages
+    dispatch({
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: activeTaskMessages.messages.map(toMessage),
+    });
+  }, [activeTaskMessages, dispatch]);
 
   // ── Public API ────────────────────────────────
 

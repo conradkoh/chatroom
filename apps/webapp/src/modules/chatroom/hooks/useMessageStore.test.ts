@@ -6,7 +6,7 @@ import {
   deduplicateMessages,
   type MessageStoreState,
 } from './useMessageStore';
-import type { Message } from '../types/message';
+import type { Message, MessageClassification } from '../types/message';
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
@@ -383,5 +383,173 @@ describe('messageStoreReducer — UPDATE_TASK_STATUS', () => {
       newStatus: 'in_progress',
     });
     expect(state.messages).toHaveLength(0);
+  });
+});
+
+// ── MERGE_MESSAGE_METADATA ────────────────────────────────────────────────────
+
+function makeMessageWithMetadata(
+  id: string,
+  creationTime: number,
+  metadata?: {
+    classification?: MessageClassification;
+    featureTitle?: string;
+    featureDescription?: string;
+    featureTechSpecs?: string;
+    taskStatus?: Message['taskStatus'];
+  }
+): Message {
+  return {
+    _id: id,
+    type: 'message',
+    senderRole: 'user',
+    content: `Message ${id}`,
+    _creationTime: creationTime,
+    ...metadata,
+  };
+}
+
+describe('messageStoreReducer — MERGE_MESSAGE_METADATA', () => {
+  it('merges classification into existing message', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100)],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [makeMessageWithMetadata('a', 100, { classification: 'question' })],
+    });
+    expect(state.messages[0]!.classification).toBe('question');
+  });
+
+  it('merges feature metadata into existing message', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100)],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [
+        makeMessageWithMetadata('a', 100, {
+          classification: 'new_feature',
+          featureTitle: 'Test Feature',
+          featureDescription: 'A test description',
+          featureTechSpecs: 'Some specs',
+        }),
+      ],
+    });
+    expect(state.messages[0]!.classification).toBe('new_feature');
+    expect(state.messages[0]!.featureTitle).toBe('Test Feature');
+    expect(state.messages[0]!.featureDescription).toBe('A test description');
+    expect(state.messages[0]!.featureTechSpecs).toBe('Some specs');
+  });
+
+  it('merges taskStatus into existing message', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100)],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [makeMessageWithMetadata('a', 100, { taskStatus: 'completed' })],
+    });
+    expect(state.messages[0]!.taskStatus).toBe('completed');
+  });
+
+  it('ignores messages not in the store', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100)],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [makeMessageWithMetadata('b', 200, { classification: 'question' })],
+    });
+    // No changes since message 'b' is not in the store
+    expect(state.messages[0]!._id).toBe('a');
+    expect(state.messages[0]!.classification).toBeUndefined();
+  });
+
+  it('returns same state reference when no changes', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100, { classification: 'question' })],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [makeMessageWithMetadata('a', 100, { classification: 'question' })],
+    });
+    // Same classification, no change - should return same state
+    expect(state).toBe(initial);
+  });
+
+  it('handles multiple messages', () => {
+    const initial: MessageStoreState = {
+      messages: [
+        makeMessageWithMetadata('a', 100),
+        makeMessageWithMetadata('b', 200),
+        makeMessageWithMetadata('c', 300),
+      ],
+      oldestCursor: 100,
+      newestCursor: 300,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [
+        makeMessageWithMetadata('a', 100, { classification: 'question' }),
+        makeMessageWithMetadata('c', 300, { classification: 'new_feature', featureTitle: 'Test' }),
+      ],
+    });
+    expect(state.messages[0]!.classification).toBe('question');
+    expect(state.messages[1]!.classification).toBeUndefined(); // 'b' not in merge list
+    expect(state.messages[2]!.classification).toBe('new_feature');
+    expect(state.messages[2]!.featureTitle).toBe('Test');
+  });
+
+  it('handles empty incoming messages', () => {
+    const initial: MessageStoreState = {
+      messages: [makeMessageWithMetadata('a', 100)],
+      oldestCursor: 100,
+      newestCursor: 100,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(initial, {
+      type: 'MERGE_MESSAGE_METADATA',
+      messages: [],
+    });
+    // No changes
+    expect(state).toBe(initial);
   });
 });
