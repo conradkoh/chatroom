@@ -67,7 +67,15 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
       </div>
 
       {/* Body */}
-      <div className="p-6 flex flex-col gap-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (selectedTeam && !creating) {
+            handleCreate();
+          }
+        }}
+        className="flex flex-col gap-4 p-6"
+      >
         {/* Form Field */}
         <div className="flex flex-col gap-2">
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -116,19 +124,21 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
             <span>{error}</span>
           </div>
         )}
-      </div>
+      </form>
 
       {/* Actions */}
       <div className="p-6 border-t-2 border-chatroom-border flex justify-end gap-3">
         <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
+          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
           onClick={onCancel}
           disabled={creating}
         >
           Cancel
         </button>
         <button
-          className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          type="submit"
+          className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
           onClick={handleCreate}
           disabled={creating || !selectedTeam}
         >
