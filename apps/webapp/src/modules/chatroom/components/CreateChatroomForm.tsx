@@ -54,11 +54,18 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
 
   const selectedTeamData = config.teams[selectedTeam];
 
-  // Close form on Escape key
+  // Close form on Escape key (only when no input is focused)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCancel();
+        const activeElement = document.activeElement;
+        const isInputFocused =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement instanceof HTMLSelectElement;
+        if (!isInputFocused) {
+          onCancel();
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -150,7 +157,6 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
         <button
           type="submit"
           className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
-          onClick={handleCreate}
           disabled={creating || !selectedTeam}
         >
           {creating ? 'Creating...' : 'Create Chatroom'}
