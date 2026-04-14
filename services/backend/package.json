@@ -4,9 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev --local",
+    "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev --local --local-backend-version precompiled-2026-04-07-9ad94d1",
     "deploy": "convex deploy",
-    "build": "tsc --build",
     "migrate": "convex run migrations:runAll",
     "typecheck": "tsc --build",
     "test": "vitest run",
@@ -14,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "Elastic-2.0",
+  "license": "ISC",
   "dependencies": {
     "@convex-dev/aggregate": "^0.2.1",
     "@convex-dev/migrations": "^0.3.3",
