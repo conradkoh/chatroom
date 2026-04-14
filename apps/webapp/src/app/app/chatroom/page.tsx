@@ -74,7 +74,7 @@ export default function ChatroomPage() {
 
       {/* Main chatroom area */}
       <div className="flex-1 min-w-0">
-        <ChatroomDashboard chatroomId={chatroomId} onBack={handleBack} />
+        <ChatroomDashboard key={chatroomId} chatroomId={chatroomId} onBack={handleBack} />
       </div>
     </div>
   );

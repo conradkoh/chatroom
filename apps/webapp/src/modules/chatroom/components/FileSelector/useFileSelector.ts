@@ -9,6 +9,7 @@ import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
 import { useFileEntries } from '@/modules/chatroom/hooks/useFileEntries';
 
 interface UseFileSelectorOptions {
+  chatroomId?: string;
   machineId: string | null;
   workingDir: string | null;
 }
@@ -22,7 +23,21 @@ export interface FileEntry {
   workspaceId?: string;
 }
 
-export function useFileSelector({ machineId, workingDir }: UseFileSelectorOptions) {
+function getRecentFilesStorageKey(chatroomId?: string) {
+  return `fileSelector:recent:${chatroomId ?? 'global'}`;
+}
+
+function readRecentFiles(storageKey: string) {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    return JSON.parse(localStorage.getItem(storageKey) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSelectorOptions) {
   const { activeDialog, openDialog, closeDialog } = useCommandDialog();
   const open = activeDialog === 'file-selector';
   const setOpen = useCallback(
@@ -71,29 +86,33 @@ export function useFileSelector({ machineId, workingDir }: UseFileSelectorOption
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, openDialog, closeDialog]);
 
+  const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
+
   // Recently opened files (persisted in localStorage)
-  const [recentFiles, setRecentFiles] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(localStorage.getItem('fileSelector:recent') ?? '[]');
-    } catch {
-      return [];
-    }
-  });
+  const [recentFiles, setRecentFiles] = useState<string[]>(() =>
+    readRecentFiles(recentFilesStorageKey)
+  );
+
+  useEffect(() => {
+    setRecentFiles(readRecentFiles(recentFilesStorageKey));
+  }, [recentFilesStorageKey]);
 
   // When a file is selected from the modal
-  const selectFile = useCallback((filePath: string) => {
-    setSelectedFile(filePath || null);
-    if (filePath) {
-      setRecentFiles((prev) => {
-        const updated = [filePath, ...prev.filter((p) => p !== filePath)].slice(0, 5);
-        try {
-          localStorage.setItem('fileSelector:recent', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
-    }
-  }, []);
+  const selectFile = useCallback(
+    (filePath: string) => {
+      setSelectedFile(filePath || null);
+      if (filePath) {
+        setRecentFiles((prev) => {
+          const updated = [filePath, ...prev.filter((p) => p !== filePath)].slice(0, 5);
+          try {
+            localStorage.setItem(recentFilesStorageKey, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+      }
+    },
+    [recentFilesStorageKey]
+  );
 
   return {
     open,
