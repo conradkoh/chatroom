@@ -7,6 +7,9 @@ import type { ArtifactMeta } from '../components/ArtifactRenderer';
 // single source of truth for message shapes flowing through the cursor-based
 // loading pipeline.
 
+/** Classification of user messages — must match backend schema union */
+export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
+
 export interface AttachedTask {
   _id: string;
   content: string;
@@ -34,9 +37,13 @@ export interface Message {
   targetRole?: string;
   content: string;
   _creationTime: number;
-  classification?: 'question' | 'new_feature' | 'follow_up';
+  classification?: MessageClassification;
   taskId?: string;
-  taskStatus?: 'pending' | 'acknowledged' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
+  /**
+   * Task status for UI display. Includes backend TaskStatus values plus 'cancelled'
+   * which is inferred client-side when tasks leave the active set unexpectedly.
+   */
+  taskStatus?: TaskStatus | 'cancelled';
   /** Source platform for messages from external integrations (e.g. 'telegram') */
   sourcePlatform?: string;
   /** Feature metadata (only for new_feature classification) */
