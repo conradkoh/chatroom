@@ -58,8 +58,7 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     definition:
       'Meta-level architectural choices that persist in the codebase and influence consistency: ' +
       'folder structure, file naming, interface definitions, and key abstraction names/locations ' +
-      '(e.g., Repository/Service layers). Defined by statefulness (persist as part of the system), ' +
-      'abstraction (relate to how key concepts are defined), and influence on language/consistency.',
+      '(e.g., Repository/Service layers).',
     // No linkedSkillId - this is a concept, not a standalone skill
   },
 ];

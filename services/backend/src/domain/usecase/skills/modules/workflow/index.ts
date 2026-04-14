@@ -176,8 +176,6 @@ Cancels the entire workflow.
   - Key abstraction names and locations (e.g., PaymentService in domain/services/)
   - Naming conventions that influence consistency
 
-See the "Specification Example" above for a complete reference showing structural decisions in practice.
-
 ### Operations
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state

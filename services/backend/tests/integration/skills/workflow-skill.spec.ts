@@ -23,8 +23,9 @@ describe('workflow skill prompt disclosure', () => {
     expect(prompt).toContain('Key abstraction');
   });
 
-  it('references the specification example', () => {
-    expect(prompt).toContain('See the "Specification Example"');
+  it('contains specification quality section', () => {
+    expect(prompt).toContain('Specification Quality');
+    expect(prompt).toContain('structural decisions');
   });
 });
 
