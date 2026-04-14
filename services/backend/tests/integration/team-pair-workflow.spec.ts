@@ -156,6 +156,9 @@ Test technical specifications`,
         - \`workflow\` (1 skill available)
             - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
+        - \`structural-decisions\`
+            - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers). Defined by statefulness (persist as part of the system), abstraction (relate to how key concepts are defined), and influence on language/consistency.
+
         # Skills
 
         Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -362,6 +365,9 @@ Test technical specifications`,
 
         - \`workflow\` (1 skill available)
             - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
+        - \`structural-decisions\`
+            - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers). Defined by statefulness (persist as part of the system), abstraction (relate to how key concepts are defined), and influence on language/consistency.
 
         # Skills
 
@@ -687,6 +693,9 @@ Test technical specifications`,
 
         - \`workflow\` (1 skill available)
             - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
+        - \`structural-decisions\`
+            - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers). Defined by statefulness (persist as part of the system), abstraction (relate to how key concepts are defined), and influence on language/consistency.
 
         # Skills
 
