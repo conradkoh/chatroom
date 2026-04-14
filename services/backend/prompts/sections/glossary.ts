@@ -53,6 +53,15 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Agents use the `chatroom workflow` CLI command group to create, specify, execute, and track workflows.',
     linkedSkillId: 'workflow',
   },
+  {
+    term: 'structural-decisions',
+    definition:
+      'Meta-level architectural choices that persist in the codebase and influence consistency: ' +
+      'folder structure, file naming, interface definitions, and key abstraction names/locations ' +
+      '(e.g., Repository/Service layers). Defined by statefulness (persist as part of the system), ' +
+      'abstraction (relate to how key concepts are defined), and influence on language/consistency.',
+    // No linkedSkillId - this is a concept, not a standalone skill
+  },
 ];
 
 /**

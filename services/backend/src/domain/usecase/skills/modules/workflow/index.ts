@@ -170,7 +170,13 @@ Cancels the entire workflow.
 ### Specification Quality
 - Every step must be specified before it can be completed
 - Specify clear requirements so step completion can be objectively verified
-- When a step involves creating or modifying files, include the exact folder structure, file purposes, and high-level interfaces directly in the REQUIREMENTS section
+- When a step involves creating or modifying files, include **structural decisions**:
+  - Folder structure and file names
+  - Interface definitions (function signatures, TypeScript types)
+  - Key abstraction names and locations (e.g., PaymentService in domain/services/)
+  - Naming conventions that influence consistency
+
+See the "Specification Example" above for a complete reference showing structural decisions in practice.
 
 ### Operations
 - Use the status command to monitor progress
