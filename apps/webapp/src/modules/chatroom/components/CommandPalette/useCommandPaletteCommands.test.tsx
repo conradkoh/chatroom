@@ -48,4 +48,108 @@ describe('useCommandPaletteCommands', () => {
 
     expect(result.current.some((command) => command.id === 'nav-new-chatroom')).toBe(false);
   });
+
+  describe('Stop All Remote Agents command', () => {
+    it('adds Stop All Remote Agents command when handler is provided', () => {
+      const onStopAllRemoteAgents = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStopAllRemoteAgents,
+        })
+      );
+
+      const agentsCommands = result.current.filter((command) => command.category === 'Agents');
+      const stopCommand = agentsCommands.find((command) => command.id === 'agents-stop-all-remote');
+
+      expect(stopCommand).toBeDefined();
+      expect(stopCommand).toMatchObject({
+        label: 'Chatroom: Stop all remote agents',
+        keywords: ['stop', 'remote', 'kill', 'terminate', 'all'],
+      });
+    });
+
+    it('triggers the handler when Stop All Remote Agents action is called', () => {
+      const onStopAllRemoteAgents = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStopAllRemoteAgents,
+        })
+      );
+
+      const stopCommand = result.current.find((command) => command.id === 'agents-stop-all-remote');
+      stopCommand?.action();
+
+      expect(onStopAllRemoteAgents).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits Stop All Remote Agents command when handler is null (during operation)', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStopAllRemoteAgents: null,
+        })
+      );
+
+      expect(result.current.some((command) => command.id === 'agents-stop-all-remote')).toBe(false);
+    });
+
+    it('omits Stop All Remote Agents command when handler is undefined', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      expect(result.current.some((command) => command.id === 'agents-stop-all-remote')).toBe(false);
+    });
+  });
+
+  describe('Start All Remote Agents command', () => {
+    it('adds Start All Remote Agents command when handler is provided', () => {
+      const onStartAllRemoteAgents = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStartAllRemoteAgents,
+        })
+      );
+
+      const agentsCommands = result.current.filter((command) => command.category === 'Agents');
+      const startCommand = agentsCommands.find((command) => command.id === 'agents-start-all-remote');
+
+      expect(startCommand).toBeDefined();
+      expect(startCommand).toMatchObject({
+        label: 'Chatroom: Start all remote agents',
+        keywords: ['start', 'remote', 'run', 'launch', 'all'],
+      });
+    });
+
+    it('triggers the handler when Start All Remote Agents action is called', () => {
+      const onStartAllRemoteAgents = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStartAllRemoteAgents,
+        })
+      );
+
+      const startCommand = result.current.find((command) => command.id === 'agents-start-all-remote');
+      startCommand?.action();
+
+      expect(onStartAllRemoteAgents).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits Start All Remote Agents command when handler is null (during operation)', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onStartAllRemoteAgents: null,
+        })
+      );
+
+      expect(result.current.some((command) => command.id === 'agents-start-all-remote')).toBe(false);
+    });
+  });
 });

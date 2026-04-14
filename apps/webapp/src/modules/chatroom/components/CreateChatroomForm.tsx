@@ -53,24 +53,30 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   }, [selectedTeam, config.teams, createChatroom, onCreated]);
 
   const selectedTeamData = config.teams[selectedTeam];
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
 
-  // Close form on Escape key (only when no input is focused)
+  // Close form on Escape key (Radix Select handles Escape internally when open)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        const activeElement = document.activeElement;
-        const isInputFocused =
-          activeElement instanceof HTMLInputElement ||
-          activeElement instanceof HTMLTextAreaElement ||
-          activeElement instanceof HTMLSelectElement;
-        if (!isInputFocused) {
-          onCancel();
-        }
+        onCancel();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onCancel]);
+
+  // Submit form on Enter key when select dropdown is not open
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !isSelectOpen && selectedTeam && !creating) {
+        e.preventDefault();
+        handleCreate();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSelectOpen, selectedTeam, creating, handleCreate]);
 
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-2 border-chatroom-border-strong w-full max-w-md mx-auto">
@@ -99,7 +105,12 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Team
           </label>
-          <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+          <Select
+            value={selectedTeam}
+            onValueChange={setSelectedTeam}
+            open={isSelectOpen}
+            onOpenChange={setIsSelectOpen}
+          >
             <SelectTrigger className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none">
               <SelectValue />
             </SelectTrigger>

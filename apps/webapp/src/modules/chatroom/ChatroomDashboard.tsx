@@ -72,7 +72,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+
+// Constant to indicate "all machines" when stopping agents across all connected machines
+const ALL_MACHINES = '';
 import { cn } from '@/lib/utils';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
@@ -787,6 +800,50 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
 
+  // Stop all remote agents confirmation dialog state
+  const [stopAllConfirmOpen, setStopAllConfirmOpen] = useState(false);
+
+  // Stop all remote agents handler - shows confirmation dialog first
+  const handleStopAllRemoteAgents = useCallback(() => {
+    setStopAllConfirmOpen(true);
+  }, []);
+
+  // Actual stop action after confirmation
+  const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
+  const executeStopAllRemoteAgents = useCallback(async () => {
+    setStopAllConfirmOpen(false);
+    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    // Stop all agents in parallel across all machines
+    setIsStoppingAllAgents(true);
+    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const results = await Promise.allSettled(
+      agentRoles.map((role) =>
+        agentPanelData.sendCommand({
+          machineId: ALL_MACHINES, // Empty machineId stops agents across all machines
+          type: 'stop-agent' as const,
+          payload: {
+            chatroomId: chatroomIdTyped,
+            role,
+          },
+        })
+      )
+    );
+    setIsStoppingAllAgents(false);
+
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? { role: agentRoles[i], reason: r.reason } : null))
+      .filter(Boolean) as { role: string; reason: unknown }[];
+    if (failed.length > 0) {
+      const failedRoles = failed.map((f) => f.role).join(', ');
+      const errorDetails = failed.map((f) => `${f.role}: ${f.reason instanceof Error ? f.reason.message : String(f.reason)}`).join('; ');
+      toast.error(`Failed to stop: ${failedRoles}`, {
+        description: errorDetails,
+      });
+    } else {
+      toast.success(`Stopped ${agentRoles.length} agent(s)`);
+    }
+  }, [teamRoles, agentPanelData, chatroomId]);
+
   // Build command palette commands
   const { openDialog } = useCommandDialog();
 
@@ -867,6 +924,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
+    onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
   });
 
   // Memoize the team entry point
@@ -1377,6 +1435,32 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onClearRun={() => commandRunner.setActiveRunId(null)}
             initialSelectedCommand={processManagerInitialCommand}
           />
+
+          {/* Stop All Agents Confirmation Dialog */}
+          <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
+            <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-chatroom-text-primary">Stop all remote agents?</AlertDialogTitle>
+                <AlertDialogDescription className="text-chatroom-text-secondary">
+                  This will terminate all running agents in this chatroom.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+                <AlertDialogCancel
+                  onClick={() => setStopAllConfirmOpen(false)}
+                  className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={executeStopAllRemoteAgents}
+                  className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
+                >
+                  Stop All Agents
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       </PromptsProvider>
     </AttachmentsProvider>

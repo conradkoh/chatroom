@@ -116,7 +116,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   }, [router]);
 
   const handleCancelCreateForm = useCallback(() => {
-    router.push('/app');
+    router.back();
   }, [router]);
 
   const handleCreated = useCallback(
