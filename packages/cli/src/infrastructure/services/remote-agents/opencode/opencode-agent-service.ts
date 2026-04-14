@@ -5,7 +5,7 @@
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
  * Spawns agents using:
- *   opencode run --format json [--model <model>]
+ *   opencode run --format json --print-logs [--model <model>]
  *
  * The prompt is sent over stdin. OpenCode streams JSON events on stdout,
  * parsed by OpenCodeJsonReader. Text events are buffered per-line and
@@ -18,6 +18,7 @@
  */
 
 import { type ChildProcess } from 'node:child_process';
+import { createInterface } from 'node:readline';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
@@ -70,7 +71,7 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const args: string[] = ['run', '--format', 'json'];
+    const args: string[] = ['run', '--format', 'json', '--print-logs'];
     if (options.model) {
       args.push('--model', options.model);
     }
@@ -196,8 +197,13 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
       });
 
       if (childProcess.stderr) {
-        childProcess.stderr.pipe(process.stderr, { end: false });
-        childProcess.stderr.on('data', () => {
+        // Parse stderr line-by-line so we can prefix each line with the agent tag
+        // for consistent daemon log formatting (--print-logs sends debug output here).
+        const stderrRl = createInterface({ input: childProcess.stderr, crlfDelay: Infinity });
+        stderrRl.on('line', (line) => {
+          if (line.trim()) {
+            process.stdout.write(`${logPrefix} log] ${line}\n`);
+          }
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
@@ -221,8 +227,11 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
     }
 
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      const stderrRl = createInterface({ input: childProcess.stderr, crlfDelay: Infinity });
+      stderrRl.on('line', (line) => {
+        if (line.trim()) {
+          process.stdout.write(`${logPrefix} log] ${line}\n`);
+        }
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
