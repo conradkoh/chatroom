@@ -441,7 +441,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // File tabs state
-  const fileTabs = useFileTabs();
+  const fileTabs = useFileTabs({ chatroomId });
 
   // File select handler: single click = preview, double click = pin
   const handleFileSelect = useCallback(
