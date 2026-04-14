@@ -20,6 +20,7 @@ interface TreeNode {
 }
 
 interface WorkspaceFileExplorerProps {
+  chatroomId?: string;
   machineId: string;
   workingDir: string;
   onFileSelect?: (filePath: string) => void;
@@ -179,16 +180,47 @@ const TreeNodeItem = memo(function TreeNodeItem({
   );
 });
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getExpandedPathsStorageKey(chatroomId?: string, workingDir?: string) {
+  return `fileExplorer:expandedPaths:${chatroomId ?? 'global'}:${workingDir ?? ''}`;
+}
+
+function readExpandedPaths(storageKey: string): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? '[]') as string[];
+    return new Set(parsed);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeExpandedPaths(storageKey: string, paths: Set<string>) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify([...paths]));
+  } catch {}
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
+  chatroomId,
   machineId,
   workingDir,
   onFileSelect,
   onFileDoubleClick,
   revealPath,
 }: WorkspaceFileExplorerProps) {
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
+    readExpandedPaths(expandedPathsStorageKey)
+  );
+
+  // Restore saved state when chatroom or workingDir changes
+  useEffect(() => {
+    setExpandedPaths(readExpandedPaths(expandedPathsStorageKey));
+  }, [expandedPathsStorageKey]);
 
   // Fetch file tree reactively (uses cached data from backend, handles decompression)
   const treeResult = useFileTree({ machineId, workingDir });
@@ -218,21 +250,26 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       for (let i = 1; i < parts.length; i++) {
         next.add(parts.slice(0, i).join('/'));
       }
+      writeExpandedPaths(expandedPathsStorageKey, next);
       return next;
     });
-  }, [revealPath]);
+  }, [revealPath, expandedPathsStorageKey]);
 
-  const handleToggle = useCallback((path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  }, []);
+  const handleToggle = useCallback(
+    (path: string) => {
+      setExpandedPaths((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) {
+          next.delete(path);
+        } else {
+          next.add(path);
+        }
+        writeExpandedPaths(expandedPathsStorageKey, next);
+        return next;
+      });
+    },
+    [expandedPathsStorageKey]
+  );
 
   // Loading state
   if (treeResult === undefined) {

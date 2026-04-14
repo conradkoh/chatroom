@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getFileName } from '@/lib/pathUtils';
 
@@ -26,6 +26,113 @@ export interface RightPaneTab {
   name: string;
   /** What kind of view */
   viewType: RightPaneViewType;
+}
+
+export interface UseFileTabsOptions {
+  chatroomId?: string;
+}
+
+interface FileTabsPersistedState {
+  tabs: FileTab[];
+  activeTabPath: string | null;
+  expandedTabPath: string | null;
+  rightTabs: RightPaneTab[];
+  activeRightTabKey: string | null;
+}
+
+const defaultPersistedState: FileTabsPersistedState = {
+  tabs: [],
+  activeTabPath: null,
+  expandedTabPath: null,
+  rightTabs: [],
+  activeRightTabKey: null,
+};
+
+function getStorageKey(chatroomId: string | undefined): string {
+  return `fileTabs:${chatroomId ?? 'global'}`;
+}
+
+function parseFileTabs(raw: unknown): FileTab[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is FileTab => {
+    if (!item || typeof item !== 'object') return false;
+    const t = item as Record<string, unknown>;
+    return (
+      typeof t.filePath === 'string' &&
+      typeof t.name === 'string' &&
+      typeof t.isPinned === 'boolean'
+    );
+  });
+}
+
+function parseRightTabs(raw: unknown): RightPaneTab[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is RightPaneTab => {
+    if (!item || typeof item !== 'object') return false;
+    const t = item as Record<string, unknown>;
+    return (
+      typeof t.key === 'string' &&
+      typeof t.filePath === 'string' &&
+      typeof t.name === 'string' &&
+      (t.viewType === 'preview' || t.viewType === 'table')
+    );
+  });
+}
+
+function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
+  const tabPaths = new Set(state.tabs.map((t) => t.filePath));
+  let { activeTabPath, expandedTabPath, activeRightTabKey } = state;
+
+  if (activeTabPath !== null && !tabPaths.has(activeTabPath)) {
+    activeTabPath = state.tabs.length > 0 ? state.tabs[0].filePath : null;
+  }
+  if (expandedTabPath !== null && !tabPaths.has(expandedTabPath)) {
+    expandedTabPath = null;
+  }
+
+  const rightKeys = new Set(state.rightTabs.map((t) => t.key));
+  if (activeRightTabKey !== null && !rightKeys.has(activeRightTabKey)) {
+    activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
+  }
+
+  return { ...state, activeTabPath, expandedTabPath, activeRightTabKey };
+}
+
+function readSavedState(storageKey: string): FileTabsPersistedState {
+  if (typeof window === 'undefined') return { ...defaultPersistedState };
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return { ...defaultPersistedState };
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    if (!data || typeof data !== 'object') return { ...defaultPersistedState };
+
+    const activeTabPath =
+      typeof data.activeTabPath === 'string' ? data.activeTabPath : null;
+    const expandedTabPath =
+      typeof data.expandedTabPath === 'string' ? data.expandedTabPath : null;
+    const activeRightTabKey =
+      typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
+
+    return sanitizePersistedState({
+      tabs: parseFileTabs(data.tabs),
+      activeTabPath,
+      expandedTabPath,
+      rightTabs: parseRightTabs(data.rightTabs),
+      activeRightTabKey,
+    });
+  } catch {
+    return { ...defaultPersistedState };
+  }
+}
+
+function writeSavedState(storageKey: string, state: FileTabsPersistedState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  } catch {
+    // Quota, private mode, or SSR guard
+  }
 }
 
 export interface UseFileTabsReturn {
@@ -59,15 +166,58 @@ function rightTabName(filePath: string, viewType: RightPaneViewType): string {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useFileTabs(): UseFileTabsReturn {
+export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
+  const chatroomId = options?.chatroomId;
+  const storageKey = getStorageKey(chatroomId);
+
+  /** One localStorage read per mount (lazy initializers cannot share a temp variable). */
+  const initialBundleRef = useRef<FileTabsPersistedState | null>(null);
+  if (initialBundleRef.current === null) {
+    initialBundleRef.current = readSavedState(storageKey);
+  }
+  const initialBundle = initialBundleRef.current;
+
   // Left pane state
-  const [tabs, setTabs] = useState<FileTab[]>([]);
-  const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
-  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<FileTab[]>(() => initialBundle.tabs);
+  const [activeTabPath, setActiveTabPath] = useState<string | null>(
+    () => initialBundle.activeTabPath
+  );
+  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(
+    () => initialBundle.expandedTabPath
+  );
 
   // Right pane state
-  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>([]);
-  const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(null);
+  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(() => initialBundle.rightTabs);
+  const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(
+    () => initialBundle.activeRightTabKey
+  );
+
+  /** Avoid writing stale tab state to a new storage key before restore applies. */
+  const skipPersistAfterStorageKeyChange = useRef(false);
+
+  useEffect(() => {
+    const saved = readSavedState(storageKey);
+    setTabs(saved.tabs);
+    setActiveTabPath(saved.activeTabPath);
+    setExpandedTabPath(saved.expandedTabPath);
+    setRightTabs(saved.rightTabs);
+    setActiveRightTabKey(saved.activeRightTabKey);
+    skipPersistAfterStorageKeyChange.current = true;
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (skipPersistAfterStorageKeyChange.current) {
+      skipPersistAfterStorageKeyChange.current = false;
+      return;
+    }
+    writeSavedState(storageKey, {
+      tabs,
+      activeTabPath,
+      expandedTabPath,
+      rightTabs,
+      activeRightTabKey,
+    });
+  }, [storageKey, tabs, activeTabPath, expandedTabPath, rightTabs, activeRightTabKey]);
 
   // ─── Left pane ──────────────────────────────────────────────
 
