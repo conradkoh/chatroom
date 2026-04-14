@@ -92,6 +92,20 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
             handleCreate();
           }
         }}
+        onKeyDown={(e) => {
+          // Submit form on Enter key when not in a textarea
+          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            const target = e.target as HTMLElement;
+            // Don't submit if user is in a textarea (allow newlines)
+            if (target.tagName === 'TEXTAREA') {
+              return;
+            }
+            e.preventDefault();
+            if (selectedTeam && !creating) {
+              handleCreate();
+            }
+          }
+        }}
         className="flex flex-col gap-4 p-6"
       >
         {/* Form Field */}
