@@ -3,7 +3,17 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List, Search, Star, X } from 'lucide-react';
+import {
+  MessageSquare,
+  MoreVertical,
+  CheckCircle,
+  LayoutGrid,
+  List,
+  Search,
+  Star,
+  X,
+} from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
@@ -90,7 +100,9 @@ function filterChatrooms(chatrooms: ChatroomWithStatus[], query: string): Chatro
 }
 
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showCreateForm = searchParams.get('create') === 'true';
   const [activeTab, setActiveTab] = useState<TabType>('current');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,9 +111,16 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   // Use context for chatroom data - single source of truth
   const { chatrooms, isLoading } = useChatroomListing();
 
+  const handleOpenCreateForm = useCallback(() => {
+    router.push('/app?create=true');
+  }, [router]);
+
+  const handleCancelCreateForm = useCallback(() => {
+    router.push('/app');
+  }, [router]);
+
   const handleCreated = useCallback(
     (chatroomId: string) => {
-      setShowCreateForm(false);
       onSelect(chatroomId);
     },
     [onSelect]
@@ -149,7 +168,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   if (showCreateForm) {
     return (
       <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6 flex items-start justify-center pt-20">
-        <CreateChatroomForm onCreated={handleCreated} onCancel={() => setShowCreateForm(false)} />
+        <CreateChatroomForm onCreated={handleCreated} onCancel={handleCancelCreateForm} />
       </div>
     );
   }
@@ -171,7 +190,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           </span>
           <button
             className="bg-chatroom-accent text-chatroom-bg-primary px-6 py-3 font-bold text-sm uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-            onClick={() => setShowCreateForm(true)}
+            onClick={handleOpenCreateForm}
           >
             Create New Chatroom
           </button>
@@ -190,7 +209,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         </div>
         <button
           className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-          onClick={() => setShowCreateForm(true)}
+          onClick={handleOpenCreateForm}
         >
           + New
         </button>
