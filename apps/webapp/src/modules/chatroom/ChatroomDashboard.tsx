@@ -787,6 +787,37 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
 
+  // Stop all remote agents handler
+  const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
+  const handleStopAllRemoteAgents = useCallback(async () => {
+    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    // Stop all agents in parallel
+    setIsStoppingAllAgents(true);
+    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const results = await Promise.allSettled(
+      agentRoles.map((role) =>
+        agentPanelData.sendCommand({
+          machineId: '', // Empty machineId stops agents across all machines
+          type: 'stop-agent' as const,
+          payload: {
+            chatroomId: chatroomIdTyped,
+            role,
+          },
+        })
+      )
+    );
+    setIsStoppingAllAgents(false);
+
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
+      .filter(Boolean) as string[];
+    if (failed.length > 0) {
+      toast.error(`Failed to stop: ${failed.join(', ')}`);
+    } else {
+      toast.success(`Stopped ${agentRoles.length} agent(s)`);
+    }
+  }, [teamRoles, agentPanelData, chatroomId]);
+
   // Build command palette commands
   const { openDialog } = useCommandDialog();
 
@@ -867,6 +898,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
+    onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
   });
 
   // Memoize the team entry point
