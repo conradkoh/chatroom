@@ -152,8 +152,25 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
       reader.onToolUse((part) => {
         flushText();
-        const toolName = typeof part['name'] === 'string' ? part['name'] : 'unknown';
-        process.stdout.write(`${logPrefix} tool: ${toolName}]\n`);
+        const toolName = typeof part['tool'] === 'string' ? part['tool'] : 'unknown';
+        const state = part['state'] as Record<string, unknown> | undefined;
+        const input = state?.['input'];
+        const output = state?.['output'];
+        // Log tool name and input summary
+        if (input && typeof input === 'object') {
+          const inputStr = JSON.stringify(input);
+          const truncated = inputStr.length > 200 ? inputStr.slice(0, 200) + '...' : inputStr;
+          process.stdout.write(`${logPrefix} tool: ${toolName} input: ${truncated}]\n`);
+        } else {
+          process.stdout.write(`${logPrefix} tool: ${toolName}]\n`);
+        }
+        // Log tool output if available (truncated for readability)
+        if (output && typeof output === 'string') {
+          const truncated = output.length > 500 ? output.slice(0, 500) + '...' : output;
+          for (const line of truncated.split('\n')) {
+            if (line) process.stdout.write(`${logPrefix} tool_output] ${line}\n`);
+          }
+        }
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
