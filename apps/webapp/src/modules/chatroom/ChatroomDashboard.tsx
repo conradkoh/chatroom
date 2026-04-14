@@ -588,6 +588,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
+    chatroomId,
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
   });
