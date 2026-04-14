@@ -87,6 +87,29 @@ describe('OpenCodeJsonReader', () => {
     });
   });
 
+  describe('onStepStart', () => {
+    it('fires for step_start events', async () => {
+      let called = 0;
+      const reader = makeReader([
+        JSON.stringify({ type: 'step_start', part: { type: 'step-start' } }),
+      ]);
+      reader.onStepStart(() => called++);
+      await flush();
+      expect(called).toBe(1);
+    });
+
+    it('does not fire for other event types', async () => {
+      let called = 0;
+      const reader = makeReader([
+        JSON.stringify({ type: 'text', part: { type: 'text', text: 'hi' } }),
+        JSON.stringify({ type: 'step_finish', part: { type: 'step-finish', reason: 'stop' } }),
+      ]);
+      reader.onStepStart(() => called++);
+      await flush();
+      expect(called).toBe(0);
+    });
+  });
+
   describe('onStepFinish', () => {
     it('fires with reason "stop" on step_finish', async () => {
       const reasons: string[] = [];

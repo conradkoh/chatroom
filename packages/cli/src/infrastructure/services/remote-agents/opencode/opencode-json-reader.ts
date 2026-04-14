@@ -21,6 +21,7 @@ import type { Readable } from 'node:stream';
 
 type TextCallback = (text: string) => void;
 type ToolUseCallback = (part: Record<string, unknown>) => void;
+type StepStartCallback = () => void;
 type StepFinishCallback = (reason: string) => void;
 type AgentEndCallback = () => void;
 type AnyEventCallback = () => void;
@@ -30,6 +31,7 @@ type AnyEventCallback = () => void;
 export class OpenCodeJsonReader {
   private readonly textCallbacks: TextCallback[] = [];
   private readonly toolUseCallbacks: ToolUseCallback[] = [];
+  private readonly stepStartCallbacks: StepStartCallback[] = [];
   private readonly stepFinishCallbacks: StepFinishCallback[] = [];
   private readonly agentEndCallbacks: AgentEndCallback[] = [];
   private readonly anyEventCallbacks: AnyEventCallback[] = [];
@@ -47,6 +49,11 @@ export class OpenCodeJsonReader {
   /** Fires when a tool_use event is received. */
   onToolUse(cb: ToolUseCallback): void {
     this.toolUseCallbacks.push(cb);
+  }
+
+  /** Fires when a step_start event is received. */
+  onStepStart(cb: StepStartCallback): void {
+    this.stepStartCallbacks.push(cb);
   }
 
   /** Fires when a step_finish event is received, with the reason. */
@@ -94,6 +101,11 @@ export class OpenCodeJsonReader {
     if (type === 'tool_use') {
       const part = (event['part'] as Record<string, unknown>) ?? {};
       for (const cb of this.toolUseCallbacks) cb(part);
+      return;
+    }
+
+    if (type === 'step_start') {
+      for (const cb of this.stepStartCallbacks) cb();
       return;
     }
 

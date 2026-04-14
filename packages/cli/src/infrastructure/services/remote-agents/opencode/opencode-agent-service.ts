@@ -144,15 +144,16 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
       reader.onText((text) => {
         textBuffer += text;
-        // Flush on natural line breaks so logs stay responsive
-        if (textBuffer.includes('\n')) flushText();
+        // Always flush — OpenCode delivers full text per event (not streaming deltas)
+        flushText();
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
 
-      reader.onToolUse(() => {
+      reader.onToolUse((part) => {
         flushText();
-        process.stdout.write(`${logPrefix} tool]\n`);
+        const toolName = typeof part['name'] === 'string' ? part['name'] : 'unknown';
+        process.stdout.write(`${logPrefix} tool: ${toolName}]\n`);
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -161,6 +162,14 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
         // All events count as activity for output timestamp purposes.
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
+      });
+
+      reader.onStepStart(() => {
+        process.stdout.write(`${logPrefix} step_start]\n`);
+      });
+
+      reader.onStepFinish((reason) => {
+        process.stdout.write(`${logPrefix} step_finish: ${reason}]\n`);
       });
 
       reader.onAgentEnd(() => {
