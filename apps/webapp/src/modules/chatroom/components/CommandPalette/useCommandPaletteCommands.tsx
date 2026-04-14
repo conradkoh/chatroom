@@ -15,6 +15,7 @@ import {
   MessageSquare,
   PanelBottomOpen,
   Play,
+  Plus,
   Settings,
   Terminal,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ interface UseCommandPaletteCommandsProps {
   onOpenPendingReview: () => void;
   /** Navigation callbacks */
   onOpenChatroomSwitcher: () => void;
+  onCreateNewChatroom?: (() => void) | null;
   onOpenFileSelector: () => void;
   /** Workspace action callbacks — conditionally available (legacy single-workspace) */
   onOpenInVSCode?: (() => void) | null;
@@ -83,6 +85,7 @@ export function useCommandPaletteCommands({
   onOpenBacklog,
   onOpenPendingReview,
   onOpenChatroomSwitcher,
+  onCreateNewChatroom,
   onOpenFileSelector,
   onOpenInVSCode,
   onOpenInGitHubDesktop,
@@ -137,24 +140,34 @@ export function useCommandPaletteCommands({
     }
 
     // ─── Navigate (shown first) ──────────────────────────
-    commands.push(
-      {
-        id: 'nav-switch-chatroom',
-        label: 'Chatroom: Switch Chatroom',
-        icon: <ArrowRightLeft size={14} />,
+    commands.push({
+      id: 'nav-switch-chatroom',
+      label: 'Chatroom: Switch Chatroom',
+      icon: <ArrowRightLeft size={14} />,
+      category: 'Navigate',
+      shortcut: '⌘K',
+      action: onOpenChatroomSwitcher,
+    });
+
+    if (onCreateNewChatroom) {
+      commands.push({
+        id: 'nav-new-chatroom',
+        label: 'Chatroom: New Chatroom',
+        icon: <Plus size={14} />,
         category: 'Navigate',
-        shortcut: '⌘K',
-        action: onOpenChatroomSwitcher,
-      },
-      {
-        id: 'nav-go-to-file',
-        label: 'Chatroom: Go to File',
-        icon: <FileSearch size={14} />,
-        category: 'Navigate',
-        shortcut: '⌘P',
-        action: onOpenFileSelector,
-      }
-    );
+        keywords: ['new', 'create', 'chatroom'],
+        action: onCreateNewChatroom,
+      });
+    }
+
+    commands.push({
+      id: 'nav-go-to-file',
+      label: 'Chatroom: Go to File',
+      icon: <FileSearch size={14} />,
+      category: 'Navigate',
+      shortcut: '⌘P',
+      action: onOpenFileSelector,
+    });
 
     // ─── Workspace Actions ────────────────────────────────
     // When workspaceCommands is provided (multi-workspace mode), use those.
@@ -365,6 +378,7 @@ export function useCommandPaletteCommands({
     onOpenBacklog,
     onOpenPendingReview,
     onOpenChatroomSwitcher,
+    onCreateNewChatroom,
     onOpenFileSelector,
     onOpenInVSCode,
     onOpenInGitHubDesktop,

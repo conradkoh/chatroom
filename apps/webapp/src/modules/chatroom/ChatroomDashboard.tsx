@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
@@ -367,6 +369,8 @@ function useIsSmallScreen(): boolean | undefined {
 }
 
 export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
+  const router = useRouter();
+
   // ─── Scroll controller (shared between MessageFeed and SendForm) ───
   const {
     controller: scrollController,
@@ -789,6 +793,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openDialog('switcher');
   }, [openDialog]);
 
+  const handleCreateNewChatroom = useCallback(() => {
+    router.push('/app?create=true');
+  }, [router]);
+
   const handleOpenFileSelector = useCallback(() => {
     openDialog('file-selector');
   }, [openDialog]);
@@ -830,6 +838,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
+    onCreateNewChatroom: handleCreateNewChatroom,
     onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
