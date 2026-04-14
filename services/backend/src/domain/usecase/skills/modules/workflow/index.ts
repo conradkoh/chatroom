@@ -167,38 +167,10 @@ Cancels the entire workflow.
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 
-### Specification Quality (CRITICAL)
-
-Every step specification MUST include:
-
-1. **Exact folder structure and file paths**
-   - List all files that will be created or modified
-   - Use relative paths from project root
-   - Include file purposes
-
-2. **Key interface definitions for important files**
-   - TypeScript interfaces for data models
-   - Function signatures for public APIs
-   - Type aliases for complex types
-
-Example of a well-specified REQUIREMENTS section:
-
-\`\`\`
-File structure:
-  src/services/payment/payment-service.ts — Core payment logic
-  src/services/payment/payment-types.ts — Type definitions
-  src/services/payment/__tests__/payment-service.test.ts — Unit tests
-
-Key interfaces:
-interface ChargeParams { amount: number; currency: string; }
-interface PaymentResult { transactionId: string; status: PaymentStatus; }
-type PaymentStatus = 'succeeded' | 'failed' | 'pending';
-\`\`\`
-
-This level of detail ensures:
-- Builder understands the expected output structure
-- Coherence across multiple steps
-- Easy verification of completion
+### Specification Quality
+- Every step must be specified before it can be completed
+- Specify clear requirements so step completion can be objectively verified
+- When a step involves creating or modifying files, include the exact folder structure, file purposes, and high-level interfaces directly in the REQUIREMENTS section
 
 ### Operations
 - Use the status command to monitor progress
