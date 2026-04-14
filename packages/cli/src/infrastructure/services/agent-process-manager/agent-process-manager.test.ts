@@ -5,7 +5,10 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
-import { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
+import {
+  CRASH_LOOP_MAX_RESTARTS,
+  CrashLoopTracker,
+} from '../../machine/crash-loop-tracker.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -184,10 +187,19 @@ describe('AgentProcessManager', () => {
     });
 
     test('crash loop: returns failure, emits restartLimitReached', async () => {
-      // Fill up crash loop tracker
-      deps.crashLoop.record(CHATROOM_ID, ROLE);
-      deps.crashLoop.record(CHATROOM_ID, ROLE);
-      deps.crashLoop.record(CHATROOM_ID, ROLE);
+      // Fill the window to max successful restarts: spacing must satisfy backoff (30s then 60s)
+      // and keep all timestamps within CRASH_LOOP_WINDOW_MS so the limit check applies.
+      const base = 1_700_000_000_000;
+      const now = vi.mocked(deps.clock.now);
+      now.mockReturnValue(base);
+      deps.crashLoop.record(CHATROOM_ID, ROLE, base);
+      let t = base + 30_000;
+      for (let i = 1; i < CRASH_LOOP_MAX_RESTARTS; i++) {
+        now.mockReturnValue(t);
+        deps.crashLoop.record(CHATROOM_ID, ROLE, t);
+        t += 60_000;
+      }
+      now.mockReturnValue(t);
 
       const result = await manager.ensureRunning(
         createOpts({ reason: 'platform.crash_recovery' })
