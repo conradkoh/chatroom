@@ -79,6 +79,25 @@ function parseRightTabs(raw: unknown): RightPaneTab[] {
   });
 }
 
+function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
+  const tabPaths = new Set(state.tabs.map((t) => t.filePath));
+  let { activeTabPath, expandedTabPath, activeRightTabKey } = state;
+
+  if (activeTabPath !== null && !tabPaths.has(activeTabPath)) {
+    activeTabPath = state.tabs.length > 0 ? state.tabs[0].filePath : null;
+  }
+  if (expandedTabPath !== null && !tabPaths.has(expandedTabPath)) {
+    expandedTabPath = null;
+  }
+
+  const rightKeys = new Set(state.rightTabs.map((t) => t.key));
+  if (activeRightTabKey !== null && !rightKeys.has(activeRightTabKey)) {
+    activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
+  }
+
+  return { ...state, activeTabPath, expandedTabPath, activeRightTabKey };
+}
+
 function readSavedState(storageKey: string): FileTabsPersistedState {
   if (typeof window === 'undefined') return { ...defaultPersistedState };
 
@@ -95,13 +114,13 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
     const activeRightTabKey =
       typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
 
-    return {
+    return sanitizePersistedState({
       tabs: parseFileTabs(data.tabs),
       activeTabPath,
       expandedTabPath,
       rightTabs: parseRightTabs(data.rightTabs),
       activeRightTabKey,
-    };
+    });
   } catch {
     return { ...defaultPersistedState };
   }
@@ -151,23 +170,26 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   const chatroomId = options?.chatroomId;
   const storageKey = getStorageKey(chatroomId);
 
+  /** One localStorage read per mount (lazy initializers cannot share a temp variable). */
+  const initialBundleRef = useRef<FileTabsPersistedState | null>(null);
+  if (initialBundleRef.current === null) {
+    initialBundleRef.current = readSavedState(storageKey);
+  }
+  const initialBundle = initialBundleRef.current;
+
   // Left pane state
-  const [tabs, setTabs] = useState<FileTab[]>(
-    () => readSavedState(getStorageKey(chatroomId)).tabs
-  );
+  const [tabs, setTabs] = useState<FileTab[]>(() => initialBundle.tabs);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(
-    () => readSavedState(getStorageKey(chatroomId)).activeTabPath
+    () => initialBundle.activeTabPath
   );
   const [expandedTabPath, setExpandedTabPath] = useState<string | null>(
-    () => readSavedState(getStorageKey(chatroomId)).expandedTabPath
+    () => initialBundle.expandedTabPath
   );
 
   // Right pane state
-  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(
-    () => readSavedState(getStorageKey(chatroomId)).rightTabs
-  );
+  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(() => initialBundle.rightTabs);
   const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(
-    () => readSavedState(getStorageKey(chatroomId)).activeRightTabKey
+    () => initialBundle.activeRightTabKey
   );
 
   /** Avoid writing stale tab state to a new storage key before restore applies. */
