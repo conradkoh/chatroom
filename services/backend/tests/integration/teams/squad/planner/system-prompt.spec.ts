@@ -293,6 +293,11 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       ⚠️ Workflows complete automatically when all steps are done. Only use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` to abandon.
 
+      **Step specification quality:**
+      When specifying steps with \`workflow specify\`, include:
+      - **Exact file paths**: List every file to be created/modified with full paths
+      - **Interface definitions**: For key files, include TypeScript interfaces inline
+      This enables the builder to understand exact expectations and ensures coherence across steps.
 
       **Code review:** Include a review step for code-producing workflows. Activate with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`
 

@@ -79,6 +79,7 @@ const CURSOR_MODELS: string[] = [
   'kimi-k2.5',
   // Cursor built-in
   'auto',
+  'composer-2',
   'composer-1.5',
   'composer-1',
 ];

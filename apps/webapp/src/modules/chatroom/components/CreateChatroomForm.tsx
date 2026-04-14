@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 import {
   Select,
@@ -54,6 +54,24 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
 
   const selectedTeamData = config.teams[selectedTeam];
 
+  // Close form on Escape key (only when no input is focused)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const activeElement = document.activeElement;
+        const isInputFocused =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement instanceof HTMLSelectElement;
+        if (!isInputFocused) {
+          onCancel();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-2 border-chatroom-border-strong w-full max-w-md mx-auto">
       {/* Header */}
@@ -67,7 +85,15 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
       </div>
 
       {/* Body */}
-      <div className="p-6 flex flex-col gap-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (selectedTeam && !creating) {
+            handleCreate();
+          }
+        }}
+        className="flex flex-col gap-4 p-6"
+      >
         {/* Form Field */}
         <div className="flex flex-col gap-2">
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -116,25 +142,26 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
             <span>{error}</span>
           </div>
         )}
-      </div>
 
-      {/* Actions */}
-      <div className="p-6 border-t-2 border-chatroom-border flex justify-end gap-3">
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={onCancel}
-          disabled={creating}
-        >
-          Cancel
-        </button>
-        <button
-          className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleCreate}
-          disabled={creating || !selectedTeam}
-        >
-          {creating ? 'Creating...' : 'Create Chatroom'}
-        </button>
-      </div>
+        {/* Actions */}
+        <div className="pt-2 flex justify-end gap-3">
+          <button
+            type="button"
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+            onClick={onCancel}
+            disabled={creating}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+            disabled={creating || !selectedTeam}
+          >
+            {creating ? 'Creating...' : 'Create Chatroom'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

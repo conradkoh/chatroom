@@ -13,6 +13,7 @@ export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FileExplorerPanelProps {
+  chatroomId?: string;
   machineId: string | null;
   workingDir: string | null;
   onFileSelect?: (filePath: string) => void;
@@ -24,6 +25,7 @@ interface FileExplorerPanelProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const FileExplorerPanel = memo(function FileExplorerPanel({
+  chatroomId,
   machineId,
   workingDir,
   onFileSelect,
@@ -93,6 +95,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <WorkspaceFileExplorer
           key={refreshKey}
+          chatroomId={chatroomId}
           machineId={machineId}
           workingDir={workingDir}
           onFileSelect={onFileSelect}

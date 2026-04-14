@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
@@ -367,6 +369,8 @@ function useIsSmallScreen(): boolean | undefined {
 }
 
 export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
+  const router = useRouter();
+
   // ─── Scroll controller (shared between MessageFeed and SendForm) ───
   const {
     controller: scrollController,
@@ -437,7 +441,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // File tabs state
-  const fileTabs = useFileTabs();
+  const fileTabs = useFileTabs({ chatroomId });
 
   // File select handler: single click = preview, double click = pin
   const handleFileSelect = useCallback(
@@ -584,6 +588,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
+    chatroomId,
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
   });
@@ -789,6 +794,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openDialog('switcher');
   }, [openDialog]);
 
+  const handleCreateNewChatroom = useCallback(() => {
+    router.push('/app?create=true');
+  }, [router]);
+
   const handleOpenFileSelector = useCallback(() => {
     openDialog('file-selector');
   }, [openDialog]);
@@ -830,6 +839,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
+    onCreateNewChatroom: handleCreateNewChatroom,
     onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
@@ -1140,6 +1150,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 explorerSidebarVisible && (
                   <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
                     <FileExplorerPanel
+                      chatroomId={chatroomId}
                       machineId={activeWorkspace.machineId}
                       workingDir={activeWorkspace.workingDir}
                       onFileSelect={handleFileSelect}
