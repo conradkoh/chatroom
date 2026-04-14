@@ -166,22 +166,11 @@ export const ContentEditableInput = forwardRef<ContentEditableInputRef, ContentE
         const text = e.clipboardData.getData('text/plain');
         if (!text) return;
 
-        // Insert plain text at cursor position
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
+        // Use execCommand to insert text - this integrates with browser's undo stack
+        // allowing Ctrl+Z to properly undo the paste operation as a single atomic action
+        document.execCommand('insertText', false, text);
 
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        const textNode = document.createTextNode(text);
-        range.insertNode(textNode);
-
-        // Move cursor to end of inserted text
-        range.setStartAfter(textNode);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-
-        // Trigger input handling
+        // Trigger input handling to sync React state
         handleInput();
       },
       [handleInput]
