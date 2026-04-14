@@ -141,6 +141,12 @@ const getTaskStatusBadge = (status: Message['taskStatus']) => {
         label: 'pending',
         icon: <Clock size={ICON_SIZE} className="flex-shrink-0" />,
       };
+    case 'acknowledged':
+      return {
+        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
+        label: 'acknowledged',
+        icon: <CheckCircle2 size={ICON_SIZE} className="flex-shrink-0" />,
+      };
     case 'in_progress':
       return {
         className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,

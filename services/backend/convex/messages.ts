@@ -1644,6 +1644,70 @@ export const getProgressForTask = query({
   },
 });
 
+/**
+ * Returns messages for active tasks in the chatroom.
+ * Used by the frontend to subscribe to classification/metadata updates for
+ * messages that are still being processed. When a task's source message gets
+ * classified, this query's reactive update will include the new classification data.
+ */
+export const getActiveTaskMessages = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get all active tasks using 3 separate indexed queries to fully leverage
+    // the composite (chatroomId, status) index instead of filtering in memory.
+    const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+    ]);
+    const activeTasks = [...pendingTasks, ...acknowledgedTasks, ...inProgressTasks];
+
+    // Get source message IDs from active tasks
+    const sourceMessageIds = activeTasks
+      .filter((t) => t.sourceMessageId != null)
+      .map((t) => t.sourceMessageId!);
+
+    if (sourceMessageIds.length === 0) {
+      return { messages: [] };
+    }
+
+    // Fetch all source messages in parallel
+    const messages = await Promise.all(
+      sourceMessageIds.map(async (id) => {
+        const msg = await ctx.db.get(id);
+        return msg;
+      })
+    );
+
+    // Filter out nulls (deleted messages) and enrich with task status
+    const validMessages = messages.filter((m): m is NonNullable<typeof m> => m != null);
+    const enrichedMessages = await enrichMessages(ctx, validMessages);
+
+    return { messages: enrichedMessages };
+  },
+});
+
 /** Returns the context window: messages from the latest non-follow-up user message onward. */
 export const getContextWindow = query({
   args: {
