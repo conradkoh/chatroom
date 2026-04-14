@@ -4,6 +4,14 @@
  * Encapsulates all interactions with OpenCode: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
+ * Spawns agents using:
+ *   opencode run --format json [--model <model>]
+ *
+ * The prompt is sent over stdin. OpenCode streams JSON events on stdout,
+ * parsed by OpenCodeJsonReader. Text events are buffered per-line and
+ * emitted with [oc:role text] prefixes so PM2 / daemon logs capture them.
+ * step_finish with reason "stop" triggers onAgentEnd.
+ *
  * Extends BaseCLIAgentService which handles all shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
  * the underlying isInstalled/getVersion helpers.
@@ -13,6 +21,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { OpenCodeJsonReader } from './opencode-json-reader.js';
 
 export type OpenCodeAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -61,7 +70,7 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const args: string[] = ['run'];
+    const args: string[] = ['run', '--format', 'json'];
     if (options.model) {
       args.push('--model', options.model);
     }
@@ -106,15 +115,85 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
     // Register in process registry
     const entry = this.registerProcess(pid, context);
 
+    // Build a log prefix from spawn context for easier debugging.
+    // Format: [oc:role] or [oc:role@short-id] when chatroomId is available.
+    const roleTag = context.role ?? 'unknown';
+    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
+    const logPrefix = `[oc:${roleTag}${chatroomSuffix}`;
+
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
+
     if (childProcess.stdout) {
-      childProcess.stdout.pipe(process.stdout, { end: false });
-      childProcess.stdout.on('data', () => {
+      // Parse the JSON event stream — fire output callbacks on every event
+      // so the daemon knows the agent is still producing output.
+      const reader = new OpenCodeJsonReader(childProcess.stdout);
+
+      // Buffer accumulated text so we can emit complete lines with
+      // an [oc:role text] prefix — PM2 captures output per-line, so
+      // raw streaming tokens without newlines don't appear as distinct log entries.
+      let textBuffer = '';
+
+      const flushText = () => {
+        if (!textBuffer) return;
+        for (const line of textBuffer.split('\n')) {
+          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+        }
+        textBuffer = '';
+      };
+
+      reader.onText((text) => {
+        textBuffer += text;
+        // Flush on natural line breaks so logs stay responsive
+        if (textBuffer.includes('\n')) flushText();
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
+
+      reader.onToolUse(() => {
+        flushText();
+        process.stdout.write(`${logPrefix} tool]\n`);
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+
+      reader.onAnyEvent(() => {
+        // All events count as activity for output timestamp purposes.
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+
+      reader.onAgentEnd(() => {
+        // Flush any buffered text before the turn boundary marker
+        flushText();
+        process.stdout.write(`${logPrefix} agent_end]\n`);
+      });
+
+      if (childProcess.stderr) {
+        childProcess.stderr.pipe(process.stderr, { end: false });
+        childProcess.stderr.on('data', () => {
+          entry.lastOutputAt = Date.now();
+          for (const cb of outputCallbacks) cb();
+        });
+      }
+
+      return {
+        pid,
+        onExit: (cb) => {
+          childProcess.on('exit', (code, signal) => {
+            this.deleteProcess(pid);
+            cb({ code, signal, context });
+          });
+        },
+        onOutput: (cb) => {
+          outputCallbacks.push(cb);
+        },
+        onAgentEnd: (cb) => {
+          reader.onAgentEnd(cb);
+        },
+      };
     }
+
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
       childProcess.stderr.on('data', () => {
