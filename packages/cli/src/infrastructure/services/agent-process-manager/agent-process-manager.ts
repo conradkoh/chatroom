@@ -476,7 +476,11 @@ export class AgentProcessManager {
 
       // Gate 2: Crash loop check (only for crash recovery)
       if (opts.reason === 'platform.crash_recovery') {
-        const loopCheck = this.deps.crashLoop.record(opts.chatroomId, opts.role);
+        const loopCheck = this.deps.crashLoop.record(
+          opts.chatroomId,
+          opts.role,
+          this.deps.clock.now()
+        );
         if (!loopCheck.allowed) {
           if (loopCheck.waitMs !== undefined && loopCheck.waitMs > 0) {
             // Temporary backoff - log and return backoff error (don't emit limit event)
