@@ -144,7 +144,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
         )}
 
         {/* Actions */}
-        <div className="p-6 border-t-2 border-chatroom-border flex justify-end gap-3">
+        <div className="pt-2 flex justify-end gap-3">
           <button
             type="button"
             className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
