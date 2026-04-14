@@ -176,6 +176,24 @@ Cancels the entire workflow.
   - Key abstraction names and locations (e.g., PaymentService in domain/services/)
   - Naming conventions that influence consistency
 
+Example structural decisions in a REQUIREMENTS section:
+\`\`\`
+Structural decisions:
+  Files:
+    src/domain/services/payment-service.ts — Core payment logic
+    src/domain/services/payment-types.ts — Type definitions
+    src/domain/services/__tests__/payment-service.test.ts — Unit tests
+
+  Interfaces:
+    interface ChargeParams { amount: number; currency: string; idempotencyKey: string; }
+    interface PaymentResult { transactionId: string; status: PaymentStatus; }
+    type PaymentStatus = 'succeeded' | 'failed' | 'pending';
+
+  Naming:
+    - Service class: PaymentService (not PaymentHandler, PaymentManager)
+    - All monetary values in integer cents (number type, not float)
+\`\`\`
+
 ### Operations
 - Use the status command to monitor progress
 - If creation fails, check the error message, fix the JSON, and retry with \`workflow status\` to confirm state
