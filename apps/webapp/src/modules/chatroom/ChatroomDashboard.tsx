@@ -1150,6 +1150,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 explorerSidebarVisible && (
                   <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
                     <FileExplorerPanel
+                      chatroomId={chatroomId}
                       machineId={activeWorkspace.machineId}
                       workingDir={activeWorkspace.workingDir}
                       onFileSelect={handleFileSelect}
