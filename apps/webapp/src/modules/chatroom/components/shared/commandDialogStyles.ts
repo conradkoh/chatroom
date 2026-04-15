@@ -29,6 +29,27 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
 ] as const;
 
 /**
+ * Classes for DialogPrimitive.Content in command-style dialogs with split view
+ * (command list on left, output panel on right).
+ */
+export const COMMAND_DIALOG_SPLIT_CONTENT_CLASSES = [
+  // Position: top-anchored — fixed distance from top, no vertical centering transform
+  'fixed left-[50%] z-50 w-[900px] max-w-[95vw] translate-x-[-50%]',
+  'top-[10%] sm:top-[15%]',
+  // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
+  'rounded-none border-2 border-chatroom-border shadow-lg',
+  // Background
+  'bg-chatroom-bg-primary overflow-hidden',
+  // Animation: open instantly (duration-0), close with smooth fade+zoom-out
+  'data-[state=open]:animate-in data-[state=closed]:animate-out',
+  'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
+  'data-[state=closed]:zoom-out-95',
+  'data-[state=open]:duration-0 data-[state=closed]:duration-200',
+  // Flex layout for split view
+  'flex flex-row',
+] as const;
+
+/**
  * Classes for cmdk group headings in command-style dialogs.
  */
 export const COMMAND_GROUP_HEADING_CLASSES =

@@ -15,14 +15,26 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 
-import { COMMAND_DIALOG_CONTENT_CLASSES, COMMAND_GROUP_HEADING_CLASSES } from '../shared/commandDialogStyles';
+import {
+  COMMAND_DIALOG_CONTENT_CLASSES,
+  COMMAND_DIALOG_SPLIT_CONTENT_CLASSES,
+  COMMAND_GROUP_HEADING_CLASSES,
+} from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
-import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
-import type { CommandItem } from './types';
+import type { CommandItem, RunnableCommandHandle } from './types';
+import { CommandOutputPanel } from './CommandOutputPanel';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
+}
+
+/** State for a running command with inline output */
+interface RunningCommandState {
+  command: CommandItem;
+  handle: RunnableCommandHandle;
+  output: string[];
+  isRunning: boolean;
 }
 
 /**
@@ -42,7 +54,51 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
-  const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
+
+  // State for inline command output
+  const [runningCommand, setRunningCommand] = useState<RunningCommandState | null>(null);
+  const outputUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Custom escape handler: first press closes output panel, second press closes dialog
+  const handleEscapeKeyDown = useCallback(
+    (event: React.KeyboardEvent | KeyboardEvent) => {
+      if (runningCommand) {
+        // First escape: close output panel only
+        event.preventDefault();
+        // Clean up subscription
+        if (outputUnsubscribeRef.current) {
+          outputUnsubscribeRef.current();
+          outputUnsubscribeRef.current = null;
+        }
+        // Stop the running command
+        runningCommand.handle.stop();
+        setRunningCommand(null);
+      } else if (searchValueRef.current) {
+        // Second escape (or when no output panel): clear search
+        event.preventDefault();
+        setSearchValue('');
+      } else {
+        // Third escape: close dialog
+        closeDialog();
+      }
+    },
+    [runningCommand, closeDialog]
+  );
+
+  // Clean up on dialog close
+  useEffect(() => {
+    if (!open) {
+      if (outputUnsubscribeRef.current) {
+        outputUnsubscribeRef.current();
+        outputUnsubscribeRef.current = null;
+      }
+      if (runningCommand) {
+        runningCommand.handle.stop();
+        setRunningCommand(null);
+      }
+      setSearchValue('');
+    }
+  }, [open, runningCommand]);
 
   // Frécency-boosted ranking
   const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
@@ -96,11 +152,83 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
     return commands.filter((cmd) => (frecencyScores.get(cmd.label) ?? 0) > 0);
   }, [commands, frecencyScores]);
 
-  const handleSelect = (command: CommandItem) => {
-    trackUsage(command.label);
-    closeDialog();
-    setTimeout(() => command.action(), 0);
-  };
+  const handleSelect = useCallback(
+    (command: CommandItem) => {
+      trackUsage(command.label);
+
+      // If command wants to show output inline, handle it specially
+      if (command.showOutputInline && command.runAction) {
+        // Clean up any existing subscription
+        if (outputUnsubscribeRef.current) {
+          outputUnsubscribeRef.current();
+          outputUnsubscribeRef.current = null;
+        }
+
+        // Stop any existing running command
+        if (runningCommand) {
+          runningCommand.handle.stop();
+        }
+
+        // Start the new command
+        const handle = command.runAction();
+        const newRunningState: RunningCommandState = {
+          command,
+          handle,
+          output: [],
+          isRunning: true,
+        };
+        setRunningCommand(newRunningState);
+
+        // Subscribe to output updates
+        const unsubscribe = handle.onOutput((lines) => {
+          setRunningCommand((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  output: lines,
+                  isRunning: handle.isRunning(),
+                }
+              : null
+          );
+        });
+        outputUnsubscribeRef.current = unsubscribe;
+
+        return;
+      }
+
+      // Normal command: close dialog and execute
+      closeDialog();
+      setTimeout(() => command.action(), 0);
+    },
+    [trackUsage, closeDialog, runningCommand]
+  );
+
+  // Handle stop command
+  const handleStopCommand = useCallback(() => {
+    if (runningCommand) {
+      runningCommand.handle.stop();
+      setRunningCommand((prev) => (prev ? { ...prev, isRunning: false } : null));
+    }
+  }, [runningCommand]);
+
+  // Handle run again
+  const handleRunAgain = useCallback(() => {
+    if (runningCommand) {
+      handleSelect(runningCommand.command);
+    }
+  }, [runningCommand, handleSelect]);
+
+  // Handle close output panel
+  const handleCloseOutputPanel = useCallback(() => {
+    if (outputUnsubscribeRef.current) {
+      outputUnsubscribeRef.current();
+      outputUnsubscribeRef.current = null;
+    }
+    if (runningCommand) {
+      runningCommand.handle.stop();
+    }
+    setRunningCommand(null);
+  }, [runningCommand]);
 
   const renderCommandItem = (command: CommandItem) => (
     <CommandItemUI
@@ -139,67 +267,92 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
     </CommandItemUI>
   );
 
+  // Determine which dialog classes to use based on whether output panel is shown
+  const dialogClasses = runningCommand
+    ? COMMAND_DIALOG_SPLIT_CONTENT_CLASSES
+    : COMMAND_DIALOG_CONTENT_CLASSES;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogPortal>
         <DialogPrimitive.Content
           forceMount
-          onEscapeKeyDown={onEscapeKeyDown}
-          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          className={cn(...dialogClasses)}
         >
           <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
             Search and execute a command
           </DialogPrimitive.Description>
 
-          <Command filter={rankedFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
-            <CommandInput
-              placeholder="Type a command..."
-              className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
-              value={searchValue}
-              onValueChange={setSearchValue}
-            />
-            <CommandList className="min-h-[244px] h-[244px]">
-              <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                No commands found.
-              </CommandEmpty>
+          {/* Command list section */}
+          <div className={cn('flex flex-col', runningCommand ? 'w-[400px]' : 'w-full')}>
+            <Command
+              filter={rankedFilter}
+              className="bg-chatroom-bg-primary text-chatroom-text-primary"
+            >
+              <CommandInput
+                placeholder="Type a command..."
+                className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+                value={searchValue}
+                onValueChange={setSearchValue}
+              />
+              <CommandList
+                className={cn(runningCommand ? 'min-h-[300px] h-[300px]' : 'min-h-[244px] h-[244px]')}
+              >
+                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                  No commands found.
+                </CommandEmpty>
 
-              {isSearching ? (
-                /* Search mode: flat list, ranked by frécency */
-                <CommandGroup>
-                  {commands.map(renderCommandItem)}
-                </CommandGroup>
-              ) : (
-                /* Browse mode: Recent section at top, then grouped by category */
-                <>
-                  {recentCommands.length > 0 && (
-                    <CommandGroup
-                      heading="Recent"
-                      className={COMMAND_GROUP_HEADING_CLASSES}
-                    >
-                      {recentCommands.map(renderCommandItem)}
-                    </CommandGroup>
-                  )}
-                  {Array.from(groupedCommands.entries()).map(([category, items]) => {
-                    // In browse mode, skip items already shown in Recent
-                    const itemsToShow = recentCommands.length > 0
-                      ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
-                      : items;
-                    if (itemsToShow.length === 0) return null;
-                    return (
-                      <CommandGroup
-                        key={category}
-                        heading={category}
-                        className={COMMAND_GROUP_HEADING_CLASSES}
-                      >
-                        {itemsToShow.map(renderCommandItem)}
+                {isSearching ? (
+                  /* Search mode: flat list, ranked by frécency */
+                  <CommandGroup>
+                    {commands.map(renderCommandItem)}
+                  </CommandGroup>
+                ) : (
+                  /* Browse mode: Recent section at top, then grouped by category */
+                  <>
+                    {recentCommands.length > 0 && (
+                      <CommandGroup heading="Recent" className={COMMAND_GROUP_HEADING_CLASSES}>
+                        {recentCommands.map(renderCommandItem)}
                       </CommandGroup>
-                    );
-                  })}
-                </>
-              )}
-            </CommandList>
-          </Command>
+                    )}
+                    {Array.from(groupedCommands.entries()).map(([category, items]) => {
+                      // In browse mode, skip items already shown in Recent
+                      const itemsToShow =
+                        recentCommands.length > 0
+                          ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
+                          : items;
+                      if (itemsToShow.length === 0) return null;
+                      return (
+                        <CommandGroup
+                          key={category}
+                          heading={category}
+                          className={COMMAND_GROUP_HEADING_CLASSES}
+                        >
+                          {itemsToShow.map(renderCommandItem)}
+                        </CommandGroup>
+                      );
+                    })}
+                  </>
+                )}
+              </CommandList>
+            </Command>
+          </div>
+
+          {/* Output panel section - shown when a runnable command is active */}
+          {runningCommand && (
+            <div className="flex-1 min-w-[400px]">
+              <CommandOutputPanel
+                commandName={runningCommand.command.label}
+                isRunning={runningCommand.isRunning}
+                output={runningCommand.output}
+                onStop={handleStopCommand}
+                onRunAgain={handleRunAgain}
+                onClose={handleCloseOutputPanel}
+              />
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
