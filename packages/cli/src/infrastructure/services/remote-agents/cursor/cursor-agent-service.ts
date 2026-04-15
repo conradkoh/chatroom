@@ -28,14 +28,20 @@ const CURSOR_COMMAND = 'agent';
 
 const CURSOR_MODELS: string[] = [
   // Anthropic Claude
-  'opus-4.6',
-  'opus-4.6-thinking',
-  'opus-4.5',
-  'opus-4.5-thinking',
-  'sonnet-4.6',
-  'sonnet-4.6-thinking',
-  'sonnet-4.5',
-  'sonnet-4.5-thinking',
+  'claude-4.6-opus-high',
+  'claude-4.6-opus-high-thinking',
+  'claude-4.6-opus-max',
+  'claude-4.6-opus-max-thinking',
+  'claude-4.5-opus-high',
+  'claude-4.5-opus-high-thinking',
+  'claude-4.6-sonnet-medium',
+  'claude-4.6-sonnet-medium-thinking',
+  'claude-4.5-sonnet',
+  'claude-4.5-sonnet-thinking',
+  'claude-4-sonnet',
+  'claude-4-sonnet-thinking',
+  'claude-4-sonnet-1m',
+  'claude-4-sonnet-1m-thinking',
   // OpenAI GPT-5.4
   'gpt-5.4-low',
   'gpt-5.4-medium',

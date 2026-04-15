@@ -120,7 +120,7 @@ export function useCommandPaletteCommands({
     const commands: CommandItem[] = [];
 
     // ─── Favorites (favourited commands from process manager) ────────
-    if (runnableCommands && (onRunCommand || onOpenProcessManagerWithCommand)) {
+    if (runnableCommands) {
       const favoritesStore = getCommandFavoritesStore();
       const favorites = favoritesStore.getAll();
 
@@ -131,6 +131,10 @@ export function useCommandPaletteCommands({
             label: cmd.name,
             icon: <Terminal size={14} />,
             category: 'Commands',
+            // showOutputInline: true causes CommandPalette to call inlineCommand.run()
+            showOutputInline: true,
+            script: cmd.script,
+            // action is a fallback for non-inline environments
             action: () => {
               if (onRunCommand) {
                 onRunCommand(cmd.name, cmd.script);

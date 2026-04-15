@@ -46,6 +46,7 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
+import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
@@ -868,6 +869,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [commandRunner]
   );
 
+  // Ref to store output subscriber callback for inline command output
+  // Inline command output — direct reactive state (no closures, no stale refs)
+  const inlineCommand = useInlineCommandOutput(commandRunner);
+
+
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
     setProcessManagerInitialCommand(null);
@@ -1392,7 +1398,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           />
 
           {/* Command Palette (Cmd+Shift+P) */}
-          <CommandPalette commands={commands} />
+          <CommandPalette commands={commands} inlineCommand={inlineCommand} />
           <WorkspaceCommandsAggregator
             workspaces={chatroomWorkspaces}
             callbacks={workspaceCommandCallbacks}

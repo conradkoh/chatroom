@@ -16,6 +16,10 @@ const MAX_CONCURRENT_AGENTS_PER_CHATROOM = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface SpawnOptions {
+  bypassConcurrentLimit?: boolean;
+}
+
 export interface HarnessSpawningServiceDeps {
   rateLimiter: SpawnRateLimiter;
 }
@@ -36,12 +40,18 @@ export class HarnessSpawningService {
    * Enforces two gates (in order):
    * 1. Concurrent agent hard limit — if the chatroom already has
    *    MAX_CONCURRENT_AGENTS_PER_CHATROOM active agents, reject immediately.
+   *    (Can be bypassed with options.bypassConcurrentLimit = true)
    * 2. Rate limiter — delegates to SpawnRateLimiter for token-bucket check.
    */
-  shouldAllowSpawn(chatroomId: string, reason: string): TryConsumeResult {
+  shouldAllowSpawn(
+    chatroomId: string,
+    reason: string,
+    options?: SpawnOptions
+  ): TryConsumeResult {
     const current = this.concurrentAgents.get(chatroomId) ?? 0;
 
-    if (current >= MAX_CONCURRENT_AGENTS_PER_CHATROOM) {
+    // Skip concurrent limit check if bypass is requested (e.g., manual user actions)
+    if (!options?.bypassConcurrentLimit && current >= MAX_CONCURRENT_AGENTS_PER_CHATROOM) {
       console.warn(
         `⚠️ [HarnessSpawningService] Concurrent agent limit reached for chatroom ${chatroomId} ` +
           `(${current}/${MAX_CONCURRENT_AGENTS_PER_CHATROOM} active agents). Spawn rejected.`

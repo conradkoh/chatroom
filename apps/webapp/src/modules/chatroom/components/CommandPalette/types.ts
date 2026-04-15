@@ -10,6 +10,16 @@ export type CommandItem = {
   shortcut?: string;
   keywords?: string[];
   action: () => void;
+  /**
+   * If true, this command should show output inline in the command palette
+   * without dismissing the dialog. Requires `script` to be set.
+   */
+  showOutputInline?: boolean;
+  /**
+   * The shell script to run for inline output commands.
+   * Used by CommandPalette to call inlineCommand.run() when showOutputInline is true.
+   */
+  script?: string;
 };
 
 export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';

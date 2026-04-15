@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Code2, GitPullRequest, PanelBottomOpen } from 'lucide-react';
+import { Code2, GitBranch, GitPullRequest, PanelBottomOpen } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
@@ -17,7 +17,7 @@ import type { CommandItem } from './types';
 export interface WorkspaceCommandCallbacks {
   sendAction: (machineId: string, action: LocalActionType, workingDir: string) => void;
   openExternalUrl: (url: string) => void;
-  onOpenGitPanel: () => void;
+  onOpenGitPanel: (tab?: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -137,6 +137,17 @@ export function useWorkspaceCommandItems(
           action: () => onOpenGitPanel(),
         });
       }
+
+      // Git diff command - opens git panel with changes tab
+      items.push({
+        id: `ws-${wsKey}-git-diff`,
+        label: 'Git: Show Current Changes',
+        detail,
+        icon: <GitBranch size={14} />,
+        category: 'Actions',
+        keywords: ['git diff', 'changes', 'diff', hostname, workspace.workingDir],
+        action: () => onOpenGitPanel('diff'),
+      });
     }
 
     // Workspace details

@@ -106,6 +106,43 @@ describe('HarnessSpawningService', () => {
       const result = service.shouldAllowSpawn(chatroomId, 'platform.restart');
       expect(result.allowed).toBe(true);
     });
+
+    it('allows spawn with bypassConcurrentLimit even at limit', () => {
+      const rateLimiter = createMockRateLimiter(true);
+      const service = new HarnessSpawningService({ rateLimiter });
+      const chatroomId = 'room-bypass';
+
+      // Simulate 10 active agents (at limit)
+      for (let i = 0; i < 10; i++) {
+        service.recordSpawn(chatroomId);
+      }
+
+      // Should allow when bypass is requested (e.g., manual user action)
+      const result = service.shouldAllowSpawn(chatroomId, 'user.start', {
+        bypassConcurrentLimit: true,
+      });
+      expect(result.allowed).toBe(true);
+      // Rate limiter should still be consulted
+      expect(rateLimiter.tryConsume).toHaveBeenCalledWith('room-bypass', 'user.start');
+    });
+
+    it('still enforces rate limiter even when bypassConcurrentLimit is true', () => {
+      const rateLimiter = createMockRateLimiter(false, 60_000);
+      const service = new HarnessSpawningService({ rateLimiter });
+      const chatroomId = 'room-bypass-rate-limited';
+
+      // Simulate 10 active agents (at limit)
+      for (let i = 0; i < 10; i++) {
+        service.recordSpawn(chatroomId);
+      }
+
+      // Should still respect rate limiter even with bypassConcurrentLimit
+      const result = service.shouldAllowSpawn(chatroomId, 'user.start', {
+        bypassConcurrentLimit: true,
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.retryAfterMs).toBe(60_000);
+    });
   });
 
   // ─── recordSpawn / recordExit ─────────────────────────────────────────────

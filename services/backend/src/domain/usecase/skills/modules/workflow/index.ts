@@ -163,9 +163,49 @@ Cancels the entire workflow.
 
 ## Best Practices
 
+### Workflow Scope
+- **A workflow should have a single, clear objective**
+- **When receiving multiple distinct tasks, create separate workflows for each**
+- Avoid bundling unrelated features into one workflow
+- Each workflow should be independently completable and verifiable
+
+### Planning Process
+
+**Before planning workflow steps, activate the software-engineering skill** to ensure proper engineering principles guide the design:
+
+\`\`\`bash
+${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<your-role>
+\`\`\`
+
+The planning process follows this flow:
+
+\`\`\`mermaid
+flowchart TD
+    A[Receive Task] --> B{Multiple distinct<br/>tasks?}
+    B -->|Yes| C[Create separate<br/>workflows for each]
+    B -->|No| D[Activate<br/>software-engineering skill]
+    C --> D
+    D --> E[Define workflow<br/>objective]
+    E --> F[Break into<br/>focused steps]
+    F --> G[Create workflow<br/>with dependencies]
+    G --> H[Specify each step<br/>with requirements]
+    H --> I{Dependencies<br/>clear?}
+    I -->|No| J[Refine step<br/>dependencies]
+    I -->|Yes| K[Execute workflow]
+    J --> G
+    K --> L[Assign steps to<br/>appropriate roles]
+    L --> M[Monitor with<br/>status command]
+    M --> N[Complete steps<br/>incrementally]
+    N --> O{All steps<br/>complete?}
+    O -->|No| M
+    O -->|Yes| P[Workflow complete]
+\`\`\`
+
 ### Step Design
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
+- Each step should represent a single logical unit of work
+- Steps should have clear dependencies - avoid circular dependencies
 
 ### Specification Quality
 - Every step must be specified before it can be completed

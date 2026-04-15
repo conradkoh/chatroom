@@ -18,6 +18,7 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
+import type { SpawnOptions } from '../../../infrastructure/services/harness-spawning/harness-spawning-service.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
@@ -76,7 +77,7 @@ export interface StateRecoveryDeps {
  * mock objects without having to satisfy private class members.
  */
 export interface SpawningOps {
-  shouldAllowSpawn(chatroomId: string, reason: string): TryConsumeResult;
+  shouldAllowSpawn(chatroomId: string, reason: string, options?: SpawnOptions): TryConsumeResult;
   recordSpawn(chatroomId: string): void;
   recordExit(chatroomId: string): void;
   getConcurrentCount(chatroomId: string): number;
