@@ -13,7 +13,7 @@ import type { TeamCompositionConfig } from './team-composition';
  * Select and return the correct workflow diagram for the given team config.
  *
  * Used by `getPlannerGuidance` in the base role module where team
- * composition is derived at runtime from `availableMembers`.
+ * composition is derived at runtime from `teamRoles`.
  */
 export function getWorkflowSection(config: TeamCompositionConfig): string {
   if (config.hasBuilder && config.hasReviewer) {

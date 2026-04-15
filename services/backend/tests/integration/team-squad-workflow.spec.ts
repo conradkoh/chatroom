@@ -1087,9 +1087,9 @@ Standard`,
   });
 
   // =========================================================================
-  // DYNAMIC TEAM AVAILABILITY
+  // TEAM AVAILABILITY (ALWAYS ASSUMES FULL TEAM)
   // =========================================================================
-  describe('dynamic team availability', () => {
+  describe('team availability always assumes full team', () => {
     test('planner with full team shows Full Team workflow', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-full');
       const chatroomId = await createSquadTeamChatroom(sessionId);
@@ -1107,10 +1107,10 @@ Standard`,
       expect(initPrompt!.prompt).toContain('builder, reviewer available');
     });
 
-    test('planner with only builder shows Planner + Builder workflow', async () => {
+    test('prompt always shows full team workflow even when only builder has joined', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-builder-only');
       const chatroomId = await createSquadTeamChatroom(sessionId);
-      // Only planner and builder join
+      // Only planner and builder join, but prompt should still show full team
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       const initPrompt = await t.query(api.messages.getInitPrompt, {
@@ -1121,13 +1121,14 @@ Standard`,
       });
 
       expect(initPrompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('Planner + Builder');
+      // Should show full team workflow since prompts always assume all members are available
+      expect(initPrompt!.prompt).toContain('Full Team');
     });
 
-    test('planner solo shows Planner Solo workflow', async () => {
+    test('prompt always shows full team workflow even when planner is solo', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-solo');
       const chatroomId = await createSquadTeamChatroom(sessionId);
-      // Only planner joins
+      // Only planner joins, but prompt should still show full team
       await joinParticipants(sessionId, chatroomId, ['planner']);
 
       const initPrompt = await t.query(api.messages.getInitPrompt, {
@@ -1138,8 +1139,9 @@ Standard`,
       });
 
       expect(initPrompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('Planner Solo');
-      expect(initPrompt!.prompt).toContain('working solo');
+      // Should show full team workflow since prompts always assume all members are available
+      expect(initPrompt!.prompt).toContain('Full Team');
+      expect(initPrompt!.prompt).toContain('builder, reviewer available');
     });
   });
 

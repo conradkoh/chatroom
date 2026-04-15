@@ -31,8 +31,6 @@ export interface SelectorContext {
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   /** Team roles as configured */
   teamRoles: string[];
-  /** Currently available (waiting) team members */
-  availableMembers?: string[];
   /** Whether this role is the team's entry point */
   isEntryPoint: boolean;
   /** Convex URL for CLI command generation */

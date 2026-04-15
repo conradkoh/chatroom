@@ -27,12 +27,10 @@ describe('buildSelectorContext', () => {
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
       chatroomId: 'test-room',
-      availableMembers: ['planner', 'builder'],
     });
 
     expect(ctx.team).toBe('squad');
     expect(ctx.isEntryPoint).toBe(true);
-    expect(ctx.availableMembers).toEqual(['planner', 'builder']);
   });
 
   test('builds correct context for pair builder', () => {
@@ -70,7 +68,6 @@ describe('getRoleGuidanceFromContext — Squad Team', () => {
       teamName: 'Squad',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     const fromContext = getRoleGuidanceFromContext(ctx);
@@ -79,7 +76,6 @@ describe('getRoleGuidanceFromContext — Squad Team', () => {
       teamRoles: squadRoles,
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     expect(fromContext).toBe(existing);
@@ -205,49 +201,35 @@ describe('getRoleGuidanceFromContext — Unknown Team (base fallback)', () => {
   });
 });
 
-describe('getRoleGuidanceFromContext — planner availability variants', () => {
+describe('getRoleGuidanceFromContext — planner always uses teamRoles', () => {
   const squadRoles = ['planner', 'builder', 'reviewer'];
 
-  test('planner with no available members gets solo workflow', () => {
+  test('planner always shows full team workflow based on teamRoles', () => {
     const ctx = buildSelectorContext({
       role: 'planner',
       teamRoles: squadRoles,
       teamName: 'Squad',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
 
     const result = getRoleGuidanceFromContext(ctx);
-    expect(result).toContain('Planner Solo');
-    expect(result).toContain('working solo');
-  });
-
-  test('planner with builder available gets planner+builder workflow', () => {
-    const ctx = buildSelectorContext({
-      role: 'planner',
-      teamRoles: squadRoles,
-      teamName: 'Squad',
-      teamEntryPoint: 'planner',
-      convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
-    });
-
-    const result = getRoleGuidanceFromContext(ctx);
-    expect(result).toContain('Planner + Builder');
-  });
-
-  test('planner with full team gets full workflow', () => {
-    const ctx = buildSelectorContext({
-      role: 'planner',
-      teamRoles: squadRoles,
-      teamName: 'Squad',
-      teamEntryPoint: 'planner',
-      convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
-    });
-
-    const result = getRoleGuidanceFromContext(ctx);
+    // Always full team since teamRoles includes builder + reviewer
     expect(result).toContain('Full Team');
+    expect(result).toContain('builder, reviewer available');
+  });
+
+  test('duo planner always shows builder workflow based on teamRoles', () => {
+    const duoRoles = ['planner', 'builder'];
+    const ctx = buildSelectorContext({
+      role: 'planner',
+      teamRoles: duoRoles,
+      teamName: 'Duo',
+      teamEntryPoint: 'planner',
+      convexUrl: CONVEX_URL,
+    });
+
+    const result = getRoleGuidanceFromContext(ctx);
+    expect(result).toContain('builder available');
   });
 });
