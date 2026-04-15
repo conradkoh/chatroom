@@ -22,22 +22,14 @@ import {
 } from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
-import type { CommandItem, RunnableCommandHandle } from './types';
+import type { InlineCommandState } from '@/modules/chatroom/hooks/useInlineCommandOutput';
+import type { CommandItem } from './types';
 import { CommandOutputPanel } from './CommandOutputPanel';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
-}
-
-/** Maximum number of output lines to keep in buffer to prevent memory issues */
-const MAX_OUTPUT_LINES = 1000;
-
-/** State for a running command with inline output */
-interface RunningCommandState {
-  command: CommandItem;
-  handle: RunnableCommandHandle;
-  output: string[];
-  isRunning: boolean;
+  /** Inline command output state (lifted from parent via useInlineCommandOutput) */
+  inlineCommand: InlineCommandState;
 }
 
 /**
@@ -46,7 +38,7 @@ interface RunningCommandState {
  * - **Browse mode** (no search text): commands grouped by category
  * - **Search mode** (typing): flat list ranked by frécency
  */
-export function CommandPalette({ commands }: CommandPaletteProps) {
+export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps) {
   const { activeDialog, openDialog, closeDialog } = useCommandDialog();
   const open = activeDialog === 'command-palette';
   const setOpen = useCallback(
@@ -58,51 +50,41 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
 
-  // State for inline command output
-  const [runningCommand, setRunningCommand] = useState<RunningCommandState | null>(null);
-  const outputUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Keep a stable ref to inlineCommand.close so the dialog-close effect always
+  // calls the latest version without re-running on every render
+  const inlineCommandRef = useRef(inlineCommand);
+  inlineCommandRef.current = inlineCommand;
 
-  // Custom escape handler: first press closes output panel, second press closes dialog
+  // Whether the output panel is currently visible
+  const outputPanelVisible = inlineCommand.commandName !== null;
+
+  // Custom escape handler:
+  //   1st press — close output panel (preserve search query)
+  //   2nd press — clear search
+  //   3rd press — close dialog
   const handleEscapeKeyDown = useCallback(
     (event: React.KeyboardEvent | KeyboardEvent) => {
-      if (runningCommand) {
-        // First escape: close output panel only, preserve search query
+      if (outputPanelVisible) {
         event.preventDefault();
-        // Clean up subscription
-        if (outputUnsubscribeRef.current) {
-          outputUnsubscribeRef.current();
-          outputUnsubscribeRef.current = null;
-        }
-        // Stop the running command
-        runningCommand.handle.stop();
-        setRunningCommand(null);
+        inlineCommandRef.current.close();
         // NOTE: intentionally do NOT clear searchValue here
       } else if (searchValueRef.current) {
-        // Second escape (or when no output panel): clear search
         event.preventDefault();
         setSearchValue('');
       } else {
-        // Third escape: close dialog
         closeDialog();
       }
     },
-    [runningCommand, closeDialog]
+    [outputPanelVisible, closeDialog]
   );
 
-  // Clean up on dialog close
+  // Clean up inline command state and search when dialog closes
   useEffect(() => {
     if (!open) {
-      if (outputUnsubscribeRef.current) {
-        outputUnsubscribeRef.current();
-        outputUnsubscribeRef.current = null;
-      }
-      if (runningCommand) {
-        runningCommand.handle.stop();
-        setRunningCommand(null);
-      }
+      inlineCommandRef.current.close();
       setSearchValue('');
     }
-  }, [open, runningCommand]);
+  }, [open]);
 
   // Frécency-boosted ranking
   const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
@@ -160,57 +142,10 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
     (command: CommandItem) => {
       trackUsage(command.label);
 
-      // If command wants to show output inline, handle it specially
-      if (command.showOutputInline && command.runAction) {
-        // If the same command is already running, keep showing its output (don't restart)
-        if (
-          runningCommand &&
-          runningCommand.command.id === command.id &&
-          runningCommand.isRunning
-        ) {
-          return;
-        }
-
-        // Clean up any existing subscription
-        if (outputUnsubscribeRef.current) {
-          outputUnsubscribeRef.current();
-          outputUnsubscribeRef.current = null;
-        }
-
-        // Stop any existing running command (different command selected)
-        if (runningCommand && runningCommand.isRunning) {
-          runningCommand.handle.stop();
-        }
-
-        // Start the new command
-        const handle = command.runAction();
-        const newRunningState: RunningCommandState = {
-          command,
-          handle,
-          output: [],
-          isRunning: true,
-        };
-        setRunningCommand(newRunningState);
-
-        // Subscribe to output updates with error handling
-        try {
-          const unsubscribe = handle.onOutput((lines, isRunning) => {
-            setRunningCommand((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    output: lines.slice(-MAX_OUTPUT_LINES),
-                    isRunning,
-                  }
-                : null
-            );
-          });
-          outputUnsubscribeRef.current = unsubscribe;
-        } catch (err) {
-          console.error('Failed to subscribe to command output:', err);
-          setRunningCommand((prev) => (prev ? { ...prev, isRunning: false } : null));
-        }
-
+      // If command wants to show output inline, delegate to the lifted state hook
+      if (command.showOutputInline && command.script) {
+        // runCommand (inside inlineCommand.run) already handles "already running" case
+        inlineCommandRef.current.run(command.label, command.script);
         return;
       }
 
@@ -218,35 +153,26 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
       closeDialog();
       setTimeout(() => command.action(), 0);
     },
-    [trackUsage, closeDialog, runningCommand]
+    [trackUsage, closeDialog]
   );
 
-  // Handle stop command
+  // Stop the currently running command
   const handleStopCommand = useCallback(() => {
-    if (runningCommand) {
-      runningCommand.handle.stop();
-      setRunningCommand((prev) => (prev ? { ...prev, isRunning: false } : null));
-    }
-  }, [runningCommand]);
+    inlineCommandRef.current.stop();
+  }, []);
 
-  // Handle run again
+  // Run the current command again
   const handleRunAgain = useCallback(() => {
-    if (runningCommand) {
-      handleSelect(runningCommand.command);
+    const { commandName, script } = inlineCommandRef.current;
+    if (commandName && script) {
+      inlineCommandRef.current.run(commandName, script);
     }
-  }, [runningCommand, handleSelect]);
+  }, []);
 
-  // Handle close output panel
+  // Close the output panel (stop + clear)
   const handleCloseOutputPanel = useCallback(() => {
-    if (outputUnsubscribeRef.current) {
-      outputUnsubscribeRef.current();
-      outputUnsubscribeRef.current = null;
-    }
-    if (runningCommand) {
-      runningCommand.handle.stop();
-    }
-    setRunningCommand(null);
-  }, [runningCommand]);
+    inlineCommandRef.current.close();
+  }, []);
 
   const renderCommandItem = (command: CommandItem) => (
     <CommandItemUI
@@ -286,7 +212,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   );
 
   // Determine which dialog classes to use based on whether output panel is shown
-  const dialogClasses = runningCommand
+  const dialogClasses = outputPanelVisible
     ? COMMAND_DIALOG_SPLIT_CONTENT_CLASSES
     : COMMAND_DIALOG_CONTENT_CLASSES;
 
@@ -358,13 +284,13 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
             </Command>
           </div>
 
-          {/* Output panel section - shown below command list when a runnable command is active */}
-          {runningCommand && (
+          {/* Output panel section — shown below command list when a runnable command is active */}
+          {outputPanelVisible && (
             <div className="border-t-2 border-chatroom-border">
               <CommandOutputPanel
-                commandName={runningCommand.command.label}
-                isRunning={runningCommand.isRunning}
-                output={runningCommand.output}
+                commandName={inlineCommand.commandName!}
+                isRunning={inlineCommand.isRunning}
+                output={inlineCommand.output}
                 onStop={handleStopCommand}
                 onRunAgain={handleRunAgain}
                 onClose={handleCloseOutputPanel}

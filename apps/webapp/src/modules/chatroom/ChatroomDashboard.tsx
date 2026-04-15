@@ -39,7 +39,6 @@ import {
   WorkspaceCommandsAggregator,
   type SettingsTab,
   type CommandItem,
-  type RunnableCommandHandle,
 } from './components/CommandPalette';
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
@@ -47,6 +46,7 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
+import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
@@ -870,62 +870,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // Ref to store output subscriber callback for inline command output
-  const inlineOutputCallbackRef = useRef<((lines: string[], isRunning: boolean) => void) | null>(null);
+  // Inline command output — direct reactive state (no closures, no stale refs)
+  const inlineCommand = useInlineCommandOutput(commandRunner);
 
-  // Track the run ID that the inline output subscriber expects
-  const inlineExpectedRunIdRef = useRef<string | null>(null);
-
-  // Notify inline output subscriber whenever activeRunOutput changes
-  useEffect(() => {
-    if (inlineOutputCallbackRef.current) {
-      const currentRunId = commandRunner.activeRunOutput.run?._id ?? null;
-      // Only emit output once the active run matches the expected run
-      // (avoids flashing stale output from a previous run)
-      if (inlineExpectedRunIdRef.current && currentRunId !== inlineExpectedRunIdRef.current) {
-        return;
-      }
-      const lines = commandRunner.activeRunOutput.chunks.map((c: any) => c.content as string);
-      const isRunning = commandRunner.activeRunOutput.run?.status === 'running';
-      inlineOutputCallbackRef.current(lines, isRunning);
-    }
-  }, [commandRunner.activeRunOutput]);
-
-  // Handler to start a command with inline output (used by Cmd+Shift+P favorites)
-  const handleStartInlineCommand = useCallback(
-    (commandName: string, script: string): RunnableCommandHandle => {
-      // Start the command (async, but we return the handle synchronously)
-      // runCommand resolves to the run ID (may reuse existing running run)
-      const runPromise = commandRunner.runCommand(commandName, script);
-
-      // Mark that we're waiting for a new run (don't emit stale output from previous run)
-      inlineExpectedRunIdRef.current = 'pending';
-      runPromise.then((runId) => {
-        if (runId) {
-          inlineExpectedRunIdRef.current = runId;
-        }
-      });
-
-      const handle: RunnableCommandHandle = {
-        stop: () => {
-          if (commandRunner.activeRunId) {
-            commandRunner.stopCommand(commandRunner.activeRunId);
-          }
-        },
-        onOutput: (callback) => {
-          inlineOutputCallbackRef.current = callback;
-          // Don't immediately emit output — wait for the new run's output
-          // to arrive via the useEffect on activeRunOutput
-          return () => {
-            inlineOutputCallbackRef.current = null;
-          };
-        },
-        isRunning: () => commandRunner.activeRunOutput.run?.status === 'running',
-      };
-
-      return handle;
-    },
-    [commandRunner]
-  );
 
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
@@ -967,7 +914,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
-    onStartInlineCommand: handleStartInlineCommand,
     onOpenProcessManager: handleOpenProcessManager,
     onShowExplorer: activeWorkspace
       ? () => {
@@ -1452,7 +1398,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           />
 
           {/* Command Palette (Cmd+Shift+P) */}
-          <CommandPalette commands={commands} />
+          <CommandPalette commands={commands} inlineCommand={inlineCommand} />
           <WorkspaceCommandsAggregator
             workspaces={chatroomWorkspaces}
             callbacks={workspaceCommandCallbacks}

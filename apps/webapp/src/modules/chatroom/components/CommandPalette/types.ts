@@ -12,25 +12,14 @@ export type CommandItem = {
   action: () => void;
   /**
    * If true, this command should show output inline in the command palette
-   * without dismissing the dialog. The command must be a "runnable" command
-   * that produces output.
+   * without dismissing the dialog. Requires `script` to be set.
    */
   showOutputInline?: boolean;
   /**
-   * For runnable commands, provides a function to start the command and
-   * returns a handle to control/stop the command.
+   * The shell script to run for inline output commands.
+   * Used by CommandPalette to call inlineCommand.run() when showOutputInline is true.
    */
-  runAction?: () => RunnableCommandHandle;
+  script?: string;
 };
-
-/** Handle returned by a runnable command to control its execution and stream output */
-export interface RunnableCommandHandle {
-  /** Stop the running command */
-  stop: () => void;
-  /** Subscribe to output updates. Callback receives lines and current running status. */
-  onOutput: (callback: (lines: string[], isRunning: boolean) => void) => () => void;
-  /** Check if command is still running (may be stale in closures — prefer onOutput's isRunning param) */
-  isRunning: () => boolean;
-}
 
 export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
