@@ -29,7 +29,6 @@ export function toDuoPlannerParams(ctx: SelectorContext): PlannerGuidanceParams 
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
-    availableMembers: ctx.availableMembers,
   };
 }
 

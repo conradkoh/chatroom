@@ -48,7 +48,6 @@ export function toSquadPlannerParams(ctx: SelectorContext): PlannerGuidanceParam
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
-    availableMembers: ctx.availableMembers,
   };
 }
 

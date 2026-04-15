@@ -2159,14 +2159,6 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Look up actual participants to provide real availability data
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const availableMembers = participants.filter(isActiveParticipant).map((p) => p.role);
-
     // Look up existing team agent config to include the agent type in the prompt
     const teamRoleKey = chatroom.teamId
       ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
@@ -2186,7 +2178,6 @@ export const getInitPrompt = query({
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      availableMembers,
       agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
     };
 

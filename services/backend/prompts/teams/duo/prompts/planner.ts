@@ -8,8 +8,7 @@
  * Team composition is fixed: planner + builder (no reviewer).
  * Static sections (handoff rules, delegation guidelines, responsibilities,
  * when-work-comes-back) use this hardcoded config — no runtime conditionals.
- * Dynamic sections (team availability, workflow diagram) adapt to which
- * members are currently online.
+ * Team availability and workflow sections use teamRoles configuration.
  */
 
 import { classifyCommand } from '../../../cli/classify/command';
@@ -29,12 +28,12 @@ import { getCliEnvPrefix } from '../../../utils/env';
 const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  // Dynamic: which members are currently online (builder may be offline)
-  const members = availableMembers ?? teamRoles;
+  // Always use teamRoles — prompts assume all team members are available
+  const members = teamRoles;
   const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
 
   const classificationNote = isEntryPoint

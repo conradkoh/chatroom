@@ -29,7 +29,6 @@ describe('getTeamContextSection', () => {
         teamName: 'Squad',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
-        availableMembers: ['planner', 'builder', 'reviewer'],
       });
 
       const section = getTeamContextSection(ctx);
@@ -40,18 +39,16 @@ describe('getTeamContextSection', () => {
       expect(section.content).toContain('Team members may go offline');
     });
 
-    test('planner context is the same regardless of available members', () => {
+    test('planner context is the same regardless of team composition', () => {
       const ctx = buildSelectorContext({
         role: 'planner',
         teamRoles: ['planner', 'builder', 'reviewer'],
         teamName: 'Squad',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
-        availableMembers: ['planner'],
       });
 
       const section = getTeamContextSection(ctx);
-      // No longer shows availability-specific text — same context regardless
       expect(section.content).toContain('Squad Team Context');
       expect(section.content).toContain('Team members may go offline');
     });
