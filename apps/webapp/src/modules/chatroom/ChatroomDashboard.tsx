@@ -870,7 +870,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // Ref to store output subscriber callback for inline command output
-  const inlineOutputCallbackRef = useRef<((lines: string[]) => void) | null>(null);
+  const inlineOutputCallbackRef = useRef<((lines: string[], isRunning: boolean) => void) | null>(null);
 
   // Track the run ID that the inline output subscriber expects
   const inlineExpectedRunIdRef = useRef<string | null>(null);
@@ -885,7 +885,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         return;
       }
       const lines = commandRunner.activeRunOutput.chunks.map((c: any) => c.content as string);
-      inlineOutputCallbackRef.current(lines);
+      const isRunning = commandRunner.activeRunOutput.run?.status === 'running';
+      inlineOutputCallbackRef.current(lines, isRunning);
     }
   }, [commandRunner.activeRunOutput]);
 

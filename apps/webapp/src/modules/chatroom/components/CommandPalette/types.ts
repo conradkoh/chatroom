@@ -27,9 +27,9 @@ export type CommandItem = {
 export interface RunnableCommandHandle {
   /** Stop the running command */
   stop: () => void;
-  /** Subscribe to output updates */
-  onOutput: (callback: (lines: string[]) => void) => () => void;
-  /** Check if command is still running */
+  /** Subscribe to output updates. Callback receives lines and current running status. */
+  onOutput: (callback: (lines: string[], isRunning: boolean) => void) => () => void;
+  /** Check if command is still running (may be stale in closures — prefer onOutput's isRunning param) */
   isRunning: () => boolean;
 }
 

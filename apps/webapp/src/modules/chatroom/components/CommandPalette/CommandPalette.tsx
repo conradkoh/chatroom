@@ -194,13 +194,13 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
 
         // Subscribe to output updates with error handling
         try {
-          const unsubscribe = handle.onOutput((lines) => {
+          const unsubscribe = handle.onOutput((lines, isRunning) => {
             setRunningCommand((prev) =>
               prev
                 ? {
                     ...prev,
                     output: lines.slice(-MAX_OUTPUT_LINES),
-                    isRunning: handle.isRunning(),
+                    isRunning,
                   }
                 : null
             );
