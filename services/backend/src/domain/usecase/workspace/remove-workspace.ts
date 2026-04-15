@@ -4,9 +4,13 @@
  * Soft-deletes a workspace by setting its `removedAt` timestamp.
  * The workspace record remains in the database for audit purposes.
  *
- * Also purges `chatroom_teamAgentConfigs` entries for the workspace's machine+chatroom
- * combination to prevent "ghost machines" — stale config references that point to
- * a machine that is no longer associated with the chatroom.
+ * Also purges workspace-scoped data to prevent "ghost machines" — stale
+ * references that point to a machine that is no longer associated with
+ * the chatroom. This includes:
+ * - chatroom_teamAgentConfigs (agent configs for this machine+chatroom)
+ * - chatroom_workspaceGitState (git state for this workspace)
+ * - chatroom_workspaceFileTree (file tree snapshots)
+ * - chatroom_workspaceFileContent (cached file content)
  *
  * Throws if the workspace document does not exist.
  */
@@ -20,7 +24,7 @@ export interface RemoveWorkspaceInput {
   workspaceId: Id<'chatroom_workspaces'>;
 }
 
-// ─── Use Case ────────────────────────────────────────────────────────────────
+// ─── Use Case ───────────────────────────────────────────────────────────────
 
 export async function removeWorkspace(
   ctx: MutationCtx,
@@ -36,8 +40,14 @@ export async function removeWorkspace(
     removedAt: Date.now(),
   });
 
-  // Purge teamAgentConfigs for this machine+chatroom to prevent ghost machines
-  await purgeTeamAgentConfigsForMachine(ctx, workspace.chatroomId, workspace.machineId, input.workspaceId);
+  // Purge workspace-scoped data to prevent ghost machines
+  await purgeTeamAgentConfigsForMachine(
+    ctx,
+    workspace.chatroomId,
+    workspace.machineId,
+    input.workspaceId
+  );
+  await purgeWorkspaceScopedData(ctx, workspace.machineId, workspace.workingDir);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -87,5 +97,60 @@ async function purgeTeamAgentConfigsForMachine(
 
   for (const config of configs) {
     await ctx.db.delete(config._id);
+  }
+}
+
+/**
+ * Purges workspace-scoped data for a machine+workingDir combination.
+ *
+ * This cleanup prevents ghost machine issues where stale workspace data
+ * (git state, file trees, file content) could interfere with subsequent
+ * workspace registrations or agent restarts.
+ *
+ * Tables cleaned up:
+ * - chatroom_workspaceGitState (git state for this workspace)
+ * - chatroom_workspaceFileTree (file tree snapshots)
+ * - chatroom_workspaceFileContent (cached file content)
+ *
+ * @param ctx - Mutation context
+ * @param machineId - The machine ID
+ * @param workingDir - The working directory being removed
+ */
+async function purgeWorkspaceScopedData(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<void> {
+  // Purge chatroom_workspaceGitState
+  const gitStates = await ctx.db
+    .query('chatroom_workspaceGitState')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const state of gitStates) {
+    await ctx.db.delete(state._id);
+  }
+
+  // Purge chatroom_workspaceFileTree
+  const fileTrees = await ctx.db
+    .query('chatroom_workspaceFileTree')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const tree of fileTrees) {
+    await ctx.db.delete(tree._id);
+  }
+
+  // Purge chatroom_workspaceFileContent
+  const fileContents = await ctx.db
+    .query('chatroom_workspaceFileContent')
+    .withIndex('by_machine_workingDir_path', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const content of fileContents) {
+    await ctx.db.delete(content._id);
   }
 }
