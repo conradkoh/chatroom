@@ -29,6 +29,9 @@ interface CommandPaletteProps {
   commands: CommandItem[];
 }
 
+/** Maximum number of output lines to keep in buffer to prevent memory issues */
+const MAX_OUTPUT_LINES = 1000;
+
 /** State for a running command with inline output */
 interface RunningCommandState {
   command: CommandItem;
@@ -179,19 +182,24 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
         };
         setRunningCommand(newRunningState);
 
-        // Subscribe to output updates
-        const unsubscribe = handle.onOutput((lines) => {
-          setRunningCommand((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  output: lines,
-                  isRunning: handle.isRunning(),
-                }
-              : null
-          );
-        });
-        outputUnsubscribeRef.current = unsubscribe;
+        // Subscribe to output updates with error handling
+        try {
+          const unsubscribe = handle.onOutput((lines) => {
+            setRunningCommand((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    output: lines.slice(-MAX_OUTPUT_LINES),
+                    isRunning: handle.isRunning(),
+                  }
+                : null
+            );
+          });
+          outputUnsubscribeRef.current = unsubscribe;
+        } catch (err) {
+          console.error('Failed to subscribe to command output:', err);
+          setRunningCommand((prev) => (prev ? { ...prev, isRunning: false } : null));
+        }
 
         return;
       }
