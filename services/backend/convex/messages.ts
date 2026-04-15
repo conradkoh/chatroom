@@ -53,12 +53,12 @@ async function enrichMessageAttachments(
   }
 ) {
   // Resolve attached tasks
-  let attachedTasks: { _id: string; content: string; status: string }[] | undefined;
+  let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
   if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
     const tasks = await Promise.all(msg.attachedTaskIds.map((taskId) => ctx.db.get(taskId)));
     attachedTasks = tasks
       .filter((t): t is NonNullable<typeof t> => t !== null)
-      .map((t) => ({ _id: t._id, content: t.content, status: t.status }));
+      .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
   }
 
   // Resolve attached backlog items
