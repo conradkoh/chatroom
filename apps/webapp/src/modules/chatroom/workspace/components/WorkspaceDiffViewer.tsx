@@ -1,12 +1,31 @@
 'use client';
 
-import { AlertTriangle } from 'lucide-react';
-import { memo, useState, useEffect } from 'react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
+import { memo, useState, useEffect, useCallback } from 'react';
 
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
 
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -14,7 +33,18 @@ import { cn } from '@/lib/utils';
 interface WorkspaceDiffViewerProps {
   state: FullDiffState;
   onRequest?: () => void;
+  /** Machine ID for git discard operations. */
+  machineId?: string;
+  /** Working directory for git discard operations. */
+  workingDir?: string;
+  /** Callback when changes are discarded (to refresh diff). */
+  onDiscard?: () => void;
 }
+
+// Make git operations available when machineId is provided
+const canDiscard = (machineId?: string, workingDir?: string): boolean => {
+  return !!machineId && !!workingDir;
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -104,7 +134,9 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
         {line.newLineNum}
       </div>
       {/* Content */}
-      <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">{line.content}</div>
+      <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
+        {line.content}
+      </div>
     </div>
   );
 });
@@ -144,13 +176,13 @@ interface FileListSidebarProps {
   onSelect: (idx: number) => void;
 }
 
-const FileListSidebar = memo(function FileListSidebar({
+const FileListContent = memo(function FileListContent({
   sections,
   selectedIdx,
   onSelect,
 }: FileListSidebarProps) {
   return (
-    <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
+    <>
       {/* Header */}
       <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
         <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -194,6 +226,18 @@ const FileListSidebar = memo(function FileListSidebar({
           </button>
         );
       })}
+    </>
+  );
+});
+
+const FileListSidebar = memo(function FileListSidebar({
+  sections,
+  selectedIdx,
+  onSelect,
+}: FileListSidebarProps) {
+  return (
+    <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
+      <FileListContent sections={sections} selectedIdx={selectedIdx} onSelect={onSelect} />
     </div>
   );
 });
@@ -223,13 +267,42 @@ function LoadingSkeleton() {
 export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   state,
   onRequest,
+  machineId,
+  workingDir,
+  onDiscard,
 }: WorkspaceDiffViewerProps) {
   const [selectedFileIdx, setSelectedFileIdx] = useState<number>(0);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [discardFileConfirmOpen, setDiscardFileConfirmOpen] = useState(false);
+  const [selectedFileForDiscard, setSelectedFileForDiscard] = useState<string | null>(null);
+  const sendLocalAction = useSendLocalAction();
 
   // Reset selection when diff content changes
   useEffect(() => {
     setSelectedFileIdx(0);
   }, [state.status === 'available' ? state.content : null]);
+
+  const handleDiscardFile = useCallback(
+    async (filePath: string) => {
+      if (!machineId || !workingDir) return;
+      // Format: "directory::filePath" to pass both to the handler
+      const combinedPath = `${workingDir}::${filePath}`;
+      // Use type assertion since Convex types haven't been regenerated yet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await sendLocalAction(machineId, 'git-discard-file' as any, combinedPath);
+      onDiscard?.();
+    },
+    [machineId, workingDir, sendLocalAction, onDiscard]
+  );
+
+  const handleDiscardAll = useCallback(async () => {
+    if (!machineId || !workingDir) return;
+    // Use type assertion since Convex types haven't been regenerated yet
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await sendLocalAction(machineId, 'git-discard-all' as any, workingDir);
+    setDiscardConfirmOpen(false);
+    onDiscard?.();
+  }, [machineId, workingDir, sendLocalAction, onDiscard]);
 
   if (state.status === 'idle' || state.status === 'loading') {
     return <LoadingSkeleton />;
@@ -268,30 +341,116 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   }
 
   const selectedSection = sections[selectedFileIdx] ?? sections[0]!;
+  const showDiscard = canDiscard(machineId, workingDir);
 
   return (
-    <div className="flex flex-row h-full">
-      {/* File list sidebar */}
-      <FileListSidebar
-        sections={sections}
-        selectedIdx={selectedFileIdx}
-        onSelect={setSelectedFileIdx}
-      />
-
-      {/* Diff content area */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Truncation warning */}
-        {state.truncated && (
-          <div className="flex items-center gap-1.5 text-chatroom-status-warning text-[11px] px-4 py-2 border-b border-chatroom-border">
-            <AlertTriangle size={12} className="shrink-0" />
-            Diff truncated (exceeds 500KB)
-          </div>
+    <>
+      <div className="flex flex-row h-full">
+        {/* File list sidebar with context menu */}
+        {showDiscard ? (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
+                <FileListContent
+                  sections={sections}
+                  selectedIdx={selectedFileIdx}
+                  onSelect={setSelectedFileIdx}
+                />
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem
+                onSelect={() => {
+                  const filePath = sections[selectedFileIdx]?.filePath;
+                  if (filePath) {
+                    setSelectedFileForDiscard(filePath);
+                    setDiscardFileConfirmOpen(true);
+                  }
+                }}
+              >
+                <Trash2 size={12} className="mr-2" />
+                Discard changes to this file
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => setDiscardConfirmOpen(true)}>
+                <Trash2 size={12} className="mr-2" />
+                Discard all changes
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : (
+          <FileListSidebar
+            sections={sections}
+            selectedIdx={selectedFileIdx}
+            onSelect={setSelectedFileIdx}
+          />
         )}
 
-        <div className="p-4">
-          <FileDiffBlock section={selectedSection} />
+        {/* Diff content area */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Truncation warning */}
+          {state.truncated && (
+            <div className="flex items-center gap-1.5 text-chatroom-status-warning text-[11px] px-4 py-2 border-b border-chatroom-border">
+              <AlertTriangle size={12} className="shrink-0" />
+              Diff truncated (exceeds 500KB)
+            </div>
+          )}
+
+          <div className="p-4">
+            <FileDiffBlock section={selectedSection} />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Discard file confirmation dialog */}
+      <AlertDialog open={discardFileConfirmOpen} onOpenChange={setDiscardFileConfirmOpen}>
+        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-chatroom-text-primary">
+              Discard changes to this file?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-chatroom-text-secondary">
+              This will revert <span className="font-mono">{selectedFileForDiscard}</span> to its
+              last committed state. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedFileForDiscard) {
+                  handleDiscardFile(selectedFileForDiscard);
+                  setDiscardFileConfirmOpen(false);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard all confirmation dialog */}
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-chatroom-text-primary">
+              Discard all changes?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-chatroom-text-secondary">
+              This will revert all tracked files to their last committed state and remove all
+              untracked files. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardAll} className="bg-red-600 hover:bg-red-700">
+              Discard All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 });

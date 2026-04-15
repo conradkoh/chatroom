@@ -455,8 +455,7 @@ export default defineSchema({
     queueSize: v.number(),
     backlogCount: v.number(),
     pendingReviewCount: v.number(),
-  })
-    .index('by_chatroom', ['chatroomId']),
+  }).index('by_chatroom', ['chatroomId']),
 
   chatroom_messageQueue: defineTable({
     // Which chatroom this queued message belongs to
@@ -861,8 +860,7 @@ export default defineSchema({
     machineId: v.string(),
     lastSeenAt: v.number(),
     daemonConnected: v.boolean(),
-  })
-    .index('by_machineId', ['machineId']),
+  }).index('by_machineId', ['machineId']),
 
   /**
    * Materialized machine online/offline status.
@@ -1142,15 +1140,17 @@ export default defineSchema({
         stepCount: v.number(),
         // Optional for backward compatibility — existing events in the DB may not have this field.
         // New events always include steps.
-        steps: v.optional(v.array(
-          v.object({
-            stepKey: v.string(),
-            description: v.string(),
-            assigneeRole: v.optional(v.string()),
-            dependsOn: v.array(v.string()),
-            order: v.number(),
-          })
-        )),
+        steps: v.optional(
+          v.array(
+            v.object({
+              stepKey: v.string(),
+              description: v.string(),
+              assigneeRole: v.optional(v.string()),
+              dependsOn: v.array(v.string()),
+              order: v.number(),
+            })
+          )
+        ),
         timestamp: v.number(),
       }),
       // Workflow step completed
@@ -1193,15 +1193,17 @@ export default defineSchema({
         workflowId: v.id('chatroom_workflows'),
         createdBy: v.string(),
         stepCount: v.number(),
-        steps: v.optional(v.array(
-          v.object({
-            stepKey: v.string(),
-            description: v.string(),
-            assigneeRole: v.optional(v.string()),
-            dependsOn: v.array(v.string()),
-            order: v.number(),
-          })
-        )),
+        steps: v.optional(
+          v.array(
+            v.object({
+              stepKey: v.string(),
+              description: v.string(),
+              assigneeRole: v.optional(v.string()),
+              dependsOn: v.array(v.string()),
+              order: v.number(),
+            })
+          )
+        ),
         timestamp: v.number(),
       }),
       // Workflow step specified
@@ -1234,7 +1236,10 @@ export default defineSchema({
         action: v.union(
           v.literal('open-vscode'),
           v.literal('open-finder'),
-          v.literal('open-github-desktop')
+          v.literal('open-github-desktop'),
+          v.literal('git-discard-file'),
+          v.literal('git-discard-all'),
+          v.literal('git-pull')
         ),
         workingDir: v.string(),
         timestamp: v.number(),
@@ -1389,32 +1394,40 @@ export default defineSchema({
     defaultBranch: v.optional(v.union(v.string(), v.null())),
 
     // CI/CD status checks for the current branch head commit
-    headCommitStatus: v.optional(v.union(
-      v.object({
-        state: v.string(),
-        checkRuns: v.array(v.object({
-          name: v.string(),
-          status: v.string(),
-          conclusion: v.union(v.string(), v.null()),
-        })),
-        totalCount: v.number(),
-      }),
-      v.null()
-    )),
+    headCommitStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
 
     // CI/CD status checks for the latest default branch commit
-    defaultBranchStatus: v.optional(v.union(
-      v.object({
-        state: v.string(),
-        checkRuns: v.array(v.object({
-          name: v.string(),
-          status: v.string(),
-          conclusion: v.union(v.string(), v.null()),
-        })),
-        totalCount: v.number(),
-      }),
-      v.null()
-    )),
+    defaultBranchStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
 
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
@@ -1469,7 +1482,9 @@ export default defineSchema({
     // For pr_diff requests
     baseBranch: v.optional(v.string()),
     // For pr_action requests
-    prAction: v.optional(v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close'))),
+    prAction: v.optional(
+      v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close'))
+    ),
     prNumber: v.optional(v.number()),
     // Request status
     status: v.union(
@@ -1755,17 +1770,18 @@ export default defineSchema({
     /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
     workspace: v.optional(v.string()),
     /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
-    subWorkspace: v.optional(v.object({
-      /** Ecosystem type (e.g., "npm", "cargo", "go") */
-      type: v.string(),
-      /** Relative path from workspace root to the sub-package directory */
-      path: v.string(),
-      /** Package name from package manager (e.g., "@workspace/webapp") */
-      name: v.string(),
-    })),
+    subWorkspace: v.optional(
+      v.object({
+        /** Ecosystem type (e.g., "npm", "cargo", "go") */
+        type: v.string(),
+        /** Relative path from workspace root to the sub-package directory */
+        path: v.string(),
+        /** Package name from package manager (e.g., "@workspace/webapp") */
+        name: v.string(),
+      })
+    ),
     syncedAt: v.number(),
-  })
-    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Command execution runs. Tracks lifecycle of a spawned command process.
@@ -1801,8 +1817,7 @@ export default defineSchema({
     content: v.string(),
     chunkIndex: v.number(),
     timestamp: v.number(),
-  })
-    .index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
+  }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // V2 Workspace Tables — Compressed-Only
@@ -1877,14 +1892,16 @@ export default defineSchema({
       v.literal('not_found')
     ),
     /** Compressed data object. Present only when status === 'available'. */
-    data: v.optional(v.union(
-      v.string(), // Legacy: plain base64 string (to be migrated)
-      v.object({
-        compression: v.literal('gzip'),
-        /** Base64-encoded compressed content. */
-        content: v.string(),
-      })
-    )),
+    data: v.optional(
+      v.union(
+        v.string(), // Legacy: plain base64 string (to be migrated)
+        v.object({
+          compression: v.literal('gzip'),
+          /** Base64-encoded compressed content. */
+          content: v.string(),
+        })
+      )
+    ),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
       v.object({

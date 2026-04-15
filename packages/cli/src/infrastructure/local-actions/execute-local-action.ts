@@ -1,7 +1,7 @@
 /**
  * Local Action Executor
  *
- * Shared module for executing local actions (open-vscode, open-finder, open-github-desktop).
+ * Shared module for executing local actions (open-vscode, open-finder, open-github-desktop, git operations).
  * Used by both:
  * - The local HTTP API routes (for direct localhost calls from Chrome)
  * - The daemon command loop (for Convex-relayed actions from Safari/all browsers)
@@ -15,6 +15,12 @@ import {
   execFireAndForget,
 } from '../local-api/routes/shared-utils.js';
 
+import {
+  discardFile as gitDiscardFile,
+  discardAllChanges as gitDiscardAll,
+  gitPull,
+} from '../git/index.js';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 import type { LocalActionType } from '@workspace/backend/config/localActions.js';
@@ -25,6 +31,7 @@ export type { LocalActionType };
 /** Result of executing a local action. */
 export type LocalActionResult =
   | { success: true }
+  | { success: true; message: string }
   | { success: false; error: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,7 +79,8 @@ export async function executeLocalAction(
       if (!available) {
         return {
           success: false,
-          error: "VS Code CLI (code) not found. Install via: VS Code → Cmd+Shift+P → 'Shell Command: Install code in PATH'",
+          error:
+            "VS Code CLI (code) not found. Install via: VS Code → Cmd+Shift+P → 'Shell Command: Install code in PATH'",
         };
       }
       execFireAndForget(`code ${escapeShellArg(workingDir)}`, 'open-vscode');
@@ -92,6 +100,41 @@ export async function executeLocalAction(
       }
       execFireAndForget(`github ${escapeShellArg(workingDir)}`, 'open-github-desktop');
       return { success: true };
+    }
+
+    case 'git-discard-file': {
+      // Extract file path from workingDir parameter (format: "directory::filePath")
+      // We use workingDir parameter to carry both directory and file path
+      const separatorIndex = workingDir.indexOf('::');
+      if (separatorIndex === -1) {
+        return {
+          success: false,
+          error: 'Invalid file path. Expected format: "/path/to/dir::/path/to/file"',
+        };
+      }
+      const dir = workingDir.slice(0, separatorIndex);
+      const filePath = workingDir.slice(separatorIndex + 2);
+      const result = await gitDiscardFile(dir, filePath);
+      if (result.status === 'error') {
+        return { success: false, error: result.message };
+      }
+      return { success: true };
+    }
+
+    case 'git-discard-all': {
+      const result = await gitDiscardAll(workingDir);
+      if (result.status === 'error') {
+        return { success: false, error: result.message };
+      }
+      return { success: true };
+    }
+
+    case 'git-pull': {
+      const result = await gitPull(workingDir);
+      if (result.status === 'error') {
+        return { success: false, error: result.message };
+      }
+      return { success: true, message: result.message ?? 'Pull successful' };
     }
 
     default: {

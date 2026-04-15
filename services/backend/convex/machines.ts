@@ -63,7 +63,6 @@ function validateWorkingDir(workingDir: string): void {
   }
 }
 
-
 /**
  * Look up a machine by its machineId. Throws if not found.
  */
@@ -524,9 +523,15 @@ export const getCommandEvents = query({
       .collect();
 
     // 7. Merge and sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents, ...localActionEvents, ...commandRunEvents, ...commandStopEvents].sort((a, b) =>
-      a._creationTime < b._creationTime ? -1 : 1
-    );
+    const all = [
+      ...startEvents,
+      ...stopEvents,
+      ...pingEvents,
+      ...gitRefreshEvents,
+      ...localActionEvents,
+      ...commandRunEvents,
+      ...commandStopEvents,
+    ].sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
 
     return { events: all };
   },
@@ -798,7 +803,7 @@ export const daemonHeartbeat = mutation({
 });
 
 /**
- * Dispatches a local action (open-vscode, open-finder, open-github-desktop) to a machine
+ * Dispatches a local action (open-vscode, open-finder, open-github-desktop, git operations) to a machine
  * via the Convex event stream, avoiding direct localhost HTTP calls from the browser.
  * This fixes Safari's mixed-content blocking of http://localhost from HTTPS pages.
  */
@@ -809,7 +814,10 @@ export const sendLocalAction = mutation({
     action: v.union(
       v.literal('open-vscode'),
       v.literal('open-finder'),
-      v.literal('open-github-desktop')
+      v.literal('open-github-desktop'),
+      v.literal('git-discard-file'),
+      v.literal('git-discard-all'),
+      v.literal('git-pull')
     ),
     workingDir: v.string(),
   },
@@ -1820,7 +1828,12 @@ export const getAgentOverviewForChatroom = query({
 
     return {
       chatroomId: args.chatroomId as string,
-      agentStatus: configs.length === 0 ? 'none' as const : runningConfigs.length > 0 ? 'running' as const : 'stopped' as const,
+      agentStatus:
+        configs.length === 0
+          ? ('none' as const)
+          : runningConfigs.length > 0
+            ? ('running' as const)
+            : ('stopped' as const),
       runningRoles: runningConfigs.map((c) => c.role),
       runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
     };

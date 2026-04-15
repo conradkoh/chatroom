@@ -5,7 +5,11 @@
  * exhaustive handling — no optional fields for conditional state.
  */
 
-import type { DiffStat, GitCommit, GitPullRequest } from '@workspace/backend/src/domain/types/workspace-git';
+import type {
+  DiffStat,
+  GitCommit,
+  GitPullRequest,
+} from '@workspace/backend/src/domain/types/workspace-git';
 
 // Re-export backend domain types so existing consumers don't break.
 export type { DiffStat, GitCommit, GitPullRequest };
@@ -66,6 +70,24 @@ export type GitCommitDetailResult =
   | { status: 'available'; content: string; truncated: false }
   | { status: 'truncated'; content: string; truncated: true }
   | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
+/**
+ * Result of discard operations (`discardFile`, `discardAllChanges`, `discardStaged`).
+ *
+ * - `available`: operation succeeded
+ * - `error`: operation failed with message
+ */
+export type GitDiscardResult = { status: 'available' } | { status: 'error'; message: string };
+
+/**
+ * Result of `gitPull`.
+ *
+ * - `available`: pull succeeded (may include non-fatal message)
+ * - `error`: pull failed with message
+ */
+export type GitPullResult =
+  | { status: 'available'; message?: string }
   | { status: 'error'; message: string };
 
 /** Maximum byte size for full diff content before truncation. */
