@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+echo "Running pre-push checks..."
+pnpm turbo run build
+
+if [ $? -ne 0 ]; then
+    echo "Build failed. Please fix the errors before pushing."
+    exit 1
+fi
+
+echo "Build passed. Proceeding with push."
