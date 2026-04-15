@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Clock,
   Loader2,
-  Timer,
   CheckCircle2,
   XCircle,
   Archive,
@@ -23,7 +22,6 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
-  ArrowUp,
   Activity,
   Trash2,
   Pencil,
@@ -46,7 +44,6 @@ import remarkGfm from 'remark-gfm';
 
 import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts } from './ArtifactRenderer';
-import { AttachedMessageFeedChip } from './AttachedMessageFeedChip';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -537,38 +534,9 @@ const TaskProgressHistory = memo(function TaskProgressHistory({
   );
 });
 
-// ─── Queued Message Utilities ──────────────────────────────────────────────────
-// Helpers shared by QueuedMessageCard.
-
-/** Returns a human-readable elapsed time string that updates every second. */
-function useElapsedTime(creationTime: number): string {
-  const [elapsed, setElapsed] = useState(() => formatElapsed(creationTime));
-
-  useEffect(() => {
-    const update = () => setElapsed(formatElapsed(creationTime));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [creationTime]);
-
-  return elapsed;
-}
-
-function formatElapsed(creationTime: number): string {
-  const diffMs = Date.now() - creationTime;
-  const totalSecs = Math.floor(diffMs / 1000);
-  if (totalSecs < 60) return `${totalSecs}s`;
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  if (mins < 60) return `${mins}m ${secs}s`;
-  const hrs = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return `${hrs}h ${remainMins}m`;
-}
-
 // ─── DeleteConfirmPopoverContent ──────────────────────────────────────────────
 // Shared popover body for delete confirmation dialogs.
-// Used by both the card icon-only button and the modal footer text button.
+// Used by PendingMessageCard for pending messages.
 
 interface DeleteConfirmPopoverContentProps {
   onCancel: () => void;
@@ -588,7 +556,7 @@ function DeleteConfirmPopoverContent({
       </div>
       <div className="px-3 py-2">
         <p className="text-xs text-muted-foreground mb-3">
-          This message will be permanently removed from the queue.
+          This message will be permanently removed.
         </p>
         <div className="flex items-center gap-2 justify-end">
           <button
@@ -608,466 +576,6 @@ function DeleteConfirmPopoverContent({
     </>
   );
 }
-
-// ─── QueuedMessageCard ────────────────────────────────────────────────────────
-// Compact fixed-height card for each queued message.
-// Row 1: truncated content (2 lines, clickable) | QUEUED badge | [↑] [🗑]
-// Row 2: right-aligned timestamp + elapsed time
-// Clicking the content area opens a modal with the full message.
-
-interface QueuedMessageCardProps {
-  message: Message;
-  chatroomId: string;
-  onPromote: (queuedMessageId: string) => Promise<void>;
-  onDelete: (queuedMessageId: string) => Promise<void>;
-  onEdit: (queuedMessageId: string, newContent: string) => Promise<void>;
-}
-
-const QueuedMessageCard = memo(function QueuedMessageCard({
-  message,
-  chatroomId,
-  onPromote,
-  onDelete,
-  onEdit,
-}: QueuedMessageCardProps) {
-  const elapsed = useElapsedTime(message._creationTime);
-  const [isPromoting, setIsPromoting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // Popover open states for delete confirmation (card and modal are independent)
-  const [isCardDeletePopoverOpen, setIsCardDeletePopoverOpen] = useState(false);
-  const [isModalDeletePopoverOpen, setIsModalDeletePopoverOpen] = useState(false);
-  // Edit state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const handlePromote = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
-
-  // Card delete — called from card popover "Delete" button
-  const handleCardDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
-    setIsCardDeletePopoverOpen(false);
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
-
-  const handleOpenModal = useCallback(() => {
-    setIsModalOpen(true);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setIsModalOpen(false);
-    setIsModalDeletePopoverOpen(false);
-  }, []);
-
-  // Promote and close modal on success
-  const handlePromoteAndClose = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-      setIsModalOpen(false);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
-
-  // Modal delete — called from modal popover "Delete" button
-  const handleModalDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
-    setIsModalDeletePopoverOpen(false);
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-      setIsModalOpen(false);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
-
-  // Edit handlers
-  const handleStartEdit = useCallback(() => {
-    setEditContent(message.content);
-    setEditError(null);
-    setIsEditing(true);
-  }, [message.content]);
-
-  const handleSaveEdit = useCallback(async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    setEditError(null);
-    try {
-      await onEdit(message._id, editContent);
-      setIsEditing(false);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [message._id, editContent, onEdit, isSaving]);
-
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditError(null);
-  }, []);
-
-  const handleEditKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Escape') {
-        handleCancelEdit();
-      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        handleSaveEdit();
-      }
-    },
-    [handleCancelEdit, handleSaveEdit]
-  );
-
-  return (
-    <>
-      <div className="px-3 py-2 bg-card border-b border-border">
-        {/* Row 1: truncated content | QUEUED badge | action buttons */}
-        <div className="flex items-start gap-2">
-          {/* Message content — truncated 2 lines, compact markdown, clickable */}
-          <button
-            onClick={handleOpenModal}
-            className="flex-1 text-left text-sm line-clamp-2 cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </button>
-
-          {/* QUEUED badge removed — section header above container communicates queue status */}
-
-          {/* Promote button — icon only */}
-          <button
-            onClick={handlePromote}
-            disabled={isPromoting || isDeleting}
-            className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Promote to active (bypass queue)"
-          >
-            {isPromoting ? <Loader2 size={12} className="animate-spin" /> : <ArrowUp size={12} />}
-          </button>
-
-          {/* Delete button — icon only, with popover confirmation */}
-          <Popover open={isCardDeletePopoverOpen} onOpenChange={setIsCardDeletePopoverOpen}>
-            <PopoverTrigger asChild>
-              <button
-                disabled={isDeleting || isPromoting}
-                className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Delete queued message"
-              >
-                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-              <DeleteConfirmPopoverContent
-                onCancel={() => setIsCardDeletePopoverOpen(false)}
-                onConfirmDelete={handleCardDelete}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Attachment chips */}
-        {((message.attachedTasks?.length ?? 0) > 0 ||
-          (message.attachedBacklogItems?.length ?? 0) > 0 ||
-          (message.attachedMessages?.length ?? 0) > 0 ||
-          (message.attachedWorkflows?.length ?? 0) > 0) && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {message.attachedTasks?.map((task) => {
-              const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
-              return (
-                <span
-                  key={task._id}
-                  className={`${BADGE_BASE} ${statusBadge.classes}`}
-                  title={task.content}
-                >
-                  <Paperclip size={ICON_SIZE} />
-                  {statusBadge.label}
-                </span>
-              );
-            })}
-            {message.attachedBacklogItems?.map((item) => {
-              const statusBadge = getAttachedTaskStatusBadge(item.status);
-              return (
-                <span
-                  key={item.id}
-                  className={`${BADGE_BASE} ${statusBadge.classes}`}
-                  title={item.content}
-                >
-                  <Paperclip size={ICON_SIZE} />
-                  {statusBadge.label}
-                </span>
-              );
-            })}
-            {message.attachedMessages?.map((msg) => (
-              <AttachedMessageFeedChip
-                key={msg._id}
-                content={msg.content}
-                senderRole={msg.senderRole}
-                badgeBase={BADGE_BASE}
-                iconSize={ICON_SIZE}
-              />
-            ))}
-            {message.attachedWorkflows?.map((wf) => (
-              <AttachedWorkflowChip
-                key={wf._id}
-                chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                workflowId={wf._id as Id<'chatroom_workflows'>}
-                workflowKey={wf.workflowKey}
-                status={wf.status}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Row 2: right-aligned timestamp + elapsed time */}
-        <div className="flex justify-end gap-2 mt-0.5 text-[10px] text-muted-foreground tabular-nums">
-          <span>
-            {formattedTime} ({elapsed})
-          </span>
-        </div>
-      </div>
-
-      {/* Full message modal */}
-      <FixedModal isOpen={isModalOpen} onClose={handleCloseModal} maxWidth="max-w-2xl">
-        <FixedModalContent>
-          <FixedModalHeader onClose={handleCloseModal}>
-            <FixedModalTitle>
-              <span className="flex items-center gap-2">
-                <Timer size={14} className="text-muted-foreground" />
-                Queued Message
-              </span>
-            </FixedModalTitle>
-          </FixedModalHeader>
-          <FixedModalBody>
-            {isEditing ? (
-              <div className="p-6 flex flex-col gap-3">
-                <textarea
-                  className="w-full min-h-[120px] p-3 text-sm bg-background border border-border resize-y focus:outline-none focus:ring-1 focus:ring-ring"
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  onKeyDown={handleEditKeyDown}
-                  autoFocus
-                />
-                {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
-              </div>
-            ) : (
-              <div className="p-6">
-                <div className={messageFeedProseClassNames}>
-                  <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-                    {message.content}
-                  </Markdown>
-                </div>
-              </div>
-            )}
-            {/* Attachments: Backlog Tasks + Backlog Items + Workflows */}
-            {((message.attachedTasks && message.attachedTasks.length > 0) ||
-              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
-              (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
-              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
-                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-                  Attachments (
-                  {(message.attachedTasks?.length ?? 0) +
-                    (message.attachedBacklogItems?.length ?? 0) +
-                    (message.attachedWorkflows?.length ?? 0)}
-                  )
-                </div>
-                {message.attachedTasks?.map((task) => {
-                  const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
-                  return (
-                    <div
-                      key={task._id}
-                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                          <Markdown
-                            remarkPlugins={REMARK_PLUGINS}
-                            components={compactMarkdownComponents}
-                          >
-                            {task.content}
-                          </Markdown>
-                        </div>
-                        <span
-                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
-                        >
-                          {statusBadge.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {message.attachedBacklogItems?.map((item) => {
-                  const statusBadge = getAttachedTaskStatusBadge(item.status);
-                  return (
-                    <div
-                      key={item.id}
-                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                          <Markdown
-                            remarkPlugins={REMARK_PLUGINS}
-                            components={compactMarkdownComponents}
-                          >
-                            {item.content}
-                          </Markdown>
-                        </div>
-                        <span
-                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
-                        >
-                          {statusBadge.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {message.attachedWorkflows?.map((wf) => (
-                  <div key={wf._id} className="mb-2 last:mb-0">
-                    <AttachedWorkflowChip
-                      chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                      workflowId={wf._id as Id<'chatroom_workflows'>}
-                      workflowKey={wf.workflowKey}
-                      status={wf.status}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Attached Messages */}
-            {message.attachedMessages && message.attachedMessages.length > 0 && (
-              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
-                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-                  Attached Messages ({message.attachedMessages.length})
-                </div>
-                {message.attachedMessages.map((attachedMsg) => (
-                  <div
-                    key={attachedMsg._id}
-                    className="border-l-2 border-chatroom-border bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
-                  >
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-1">
-                      {attachedMsg.senderRole}
-                    </div>
-                    <div className="text-xs text-chatroom-text-primary line-clamp-3">
-                      <Markdown
-                        remarkPlugins={REMARK_PLUGINS}
-                        components={compactMarkdownComponents}
-                      >
-                        {attachedMsg.content}
-                      </Markdown>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </FixedModalBody>
-          {/* Mobile-friendly footer with action buttons */}
-          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-            {/* Left: QUEUED status + elapsed time */}
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
-                <Timer size={12} className="flex-shrink-0" />
-                Queued
-              </span>
-              <span className="text-xs text-muted-foreground tabular-nums">{elapsed}</span>
-            </div>
-            {/* Right: action buttons (larger, thumb-friendly for mobile) */}
-            {isEditing ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={isSaving || !editContent.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  Save
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePromoteAndClose}
-                  disabled={isPromoting || isDeleting}
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                  title="Promote to active"
-                >
-                  {isPromoting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <ArrowUp size={14} />
-                  )}
-                  Promote
-                </button>
-                {/* Modal delete button with popover confirmation */}
-                <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      disabled={isDeleting || isPromoting}
-                      className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                      title="Delete queued message"
-                    >
-                      {isDeleting ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
-                      Delete
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-                    <DeleteConfirmPopoverContent
-                      onCancel={() => setIsModalDeletePopoverOpen(false)}
-                      onConfirmDelete={handleModalDelete}
-                    />
-                  </PopoverContent>
-                </Popover>
-                {/* Edit button */}
-                <button
-                  onClick={handleStartEdit}
-                  disabled={isPromoting || isDeleting}
-                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                  title="Edit queued message"
-                >
-                  <Pencil size={14} />
-                  Edit
-                </button>
-              </div>
-            )}
-          </div>
-        </FixedModalContent>
-      </FixedModal>
-    </>
-  );
-});
 
 /** Small copy-to-clipboard button with brief check-mark feedback. */
 const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { content: string }) {
@@ -1594,19 +1102,7 @@ export const MessageFeed = memo(function MessageFeed({
     purgeOldMessages,
   } = useMessageStore(chatroomId);
 
-  // Fetch queued messages (from chatroom_messageQueue)
-  const queuedMessages = useSessionQuery(api.messages.listQueued, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
-  const displayQueuedMessages = useMemo(() => {
-    return queuedMessages ?? [];
-  }, [queuedMessages]);
-
-  // Mutations for queued message controls
-  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
-  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+  // Mutations for pending message controls (used in MessageFeed, not moved to WorkQueue)
   const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
   const updatePendingMessage = useSessionMutation(api.messages.updatePendingMessage);
 
@@ -1658,9 +1154,6 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Message detail modal state (for TaskHeader tap and message content tap)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-
-  // Queue list modal state (shows all queued messages when "+ N more" row is clicked)
-  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
@@ -1771,49 +1264,6 @@ export const MessageFeed = memo(function MessageFeed({
     [addAttachment]
   );
 
-  // Handle queued message Promote — calls promoteSpecificTask mutation
-  const handleQueuedPromote = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await promoteSpecificTask({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to promote queued message:', error);
-      }
-    },
-    [promoteSpecificTask]
-  );
-
-  // Handle queued message Delete — removes the queue record directly
-  const handleQueuedDelete = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await deleteQueuedMessage({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        // Silently ignore if the record no longer exists (already promoted or deleted)
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('not found') || msg.includes('Already deleted')) {
-          return;
-        }
-        console.error('Failed to delete queued message:', error);
-      }
-    },
-    [deleteQueuedMessage]
-  );
-
-  const handleQueuedEdit = useCallback(
-    async (queuedMessageId: string, newContent: string) => {
-      await updateQueuedMessage({
-        queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        content: newContent,
-      });
-    },
-    [updateQueuedMessage]
-  );
-
   // Load more messages handler - stable reference for button onClick
   const handleLoadMore = useCallback(() => {
     loadOlderMessages();
@@ -1882,13 +1332,6 @@ export const MessageFeed = memo(function MessageFeed({
       }
     }
   }, [canLoadMore, loadOlderMessages, displayMessages.length]);
-
-  // Auto-scroll to bottom when queue section appears or disappears (only if pinned)
-  // This ensures the last message stays visible when the queue section grows/shrinks
-  useEffect(() => {
-    scrollController.current.onQueueChange();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayQueuedMessages.length]);
 
   // Handle scroll: load more when near top, purge when scrolled back down
   const handleScroll = useCallback(() => {
@@ -2005,70 +1448,6 @@ export const MessageFeed = memo(function MessageFeed({
           <span className="text-xs font-medium">New messages</span>
         </button>
       )}
-      {/* Queued Messages - pinned just above status bar */}
-      {/* Always rendered — animated to height 0 when empty, slides in when a message is queued */}
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          displayQueuedMessages.length > 0 ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="border-t border-border">
-          {/* Section header */}
-          <div className="px-3 pt-2 pb-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-              Queued
-            </p>
-          </div>
-          {/* Inset card — sharp corners, no rounded-md */}
-          <div className="mx-3 mb-2 overflow-hidden border border-border shadow-sm">
-            {/* First queued message card — conditionally rendered to avoid undefined message */}
-            {displayQueuedMessages.length > 0 && (
-              <QueuedMessageCard
-                key={displayQueuedMessages[0]._id}
-                message={displayQueuedMessages[0]}
-                chatroomId={chatroomId}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-                onEdit={handleQueuedEdit}
-              />
-            )}
-            {/* "+ N more" row — only shown when there are additional queued messages */}
-            {displayQueuedMessages.length > 1 && (
-              <button
-                onClick={() => setIsQueueModalOpen(true)}
-                className="w-full flex items-center justify-between px-3 py-1.5 bg-card border-t border-border text-[10px] text-orange-600 dark:text-orange-400 hover:bg-accent/50 transition-colors"
-              >
-                <span>+ {displayQueuedMessages.length - 1} more in queue</span>
-                <span className="font-bold uppercase tracking-wide">View all →</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-      {/* Queue list modal — shows all queued messages */}
-      <FixedModal
-        isOpen={isQueueModalOpen}
-        onClose={() => setIsQueueModalOpen(false)}
-        maxWidth="max-w-2xl"
-      >
-        <FixedModalContent>
-          <FixedModalHeader onClose={() => setIsQueueModalOpen(false)}>
-            <FixedModalTitle>Queue ({displayQueuedMessages.length})</FixedModalTitle>
-          </FixedModalHeader>
-          <FixedModalBody>
-            {displayQueuedMessages.map((message) => (
-              <QueuedMessageCard
-                key={message._id}
-                message={message}
-                chatroomId={chatroomId}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-                onEdit={handleQueuedEdit}
-              />
-            ))}
-          </FixedModalBody>
-        </FixedModalContent>
-      </FixedModal>
       {/* Event stream modal - rendered via portal at document.body level */}
       <EventStreamModal
         isOpen={isEventStreamOpen}
