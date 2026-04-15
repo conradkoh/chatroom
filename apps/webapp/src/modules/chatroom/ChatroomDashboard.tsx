@@ -742,7 +742,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [prUrl]);
 
   const handleViewGitHubPullRequests = useCallback(() => {
-    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
+    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls?q=is%3Apr+author%3A%40me`);
   }, [gitHubRepoUrl]);
 
   const handleViewGitHubRepository = useCallback(() => {
