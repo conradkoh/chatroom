@@ -19,6 +19,14 @@ import { useCallback } from 'react';
 import type { LocalActionType } from '@workspace/backend/config/localActions';
 export type { LocalActionType };
 
+// Extended type that includes additional git actions
+// The actual type in Convex will be updated when the backend is deployed
+export type ExtendedLocalActionType =
+  | LocalActionType
+  | 'git-discard-file'
+  | 'git-discard-all'
+  | 'git-pull';
+
 /**
  * Returns a callback to send a local action to a machine's daemon via Convex.
  *

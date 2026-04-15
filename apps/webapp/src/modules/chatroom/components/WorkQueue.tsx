@@ -2,13 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import {
-  Plus,
-  Play,
-  ClipboardCheck,
-  MoreHorizontal,
-  XCircle,
-} from 'lucide-react';
+import { Plus, Play, ClipboardCheck, MoreHorizontal, XCircle, Clock } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
@@ -24,6 +18,8 @@ import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/Pending
 import { ReviewPanel } from './ReviewPanel';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
+import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
+import type { Message } from '../types/message';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
@@ -137,6 +133,43 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const updateTask = useSessionMutation(api.tasks.updateTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
   // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
+
+  // Queued messages mutations
+  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
+  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
+
+  // Fetch queued messages
+  const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
+
+  // Queued message handlers
+  const handleQueuedPromote = useCallback(
+    async (queuedMessageId: string) => {
+      try {
+        await promoteSpecificTask({
+          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        });
+      } catch (error) {
+        console.error('Failed to promote queued message:', error);
+      }
+    },
+    [promoteSpecificTask]
+  );
+
+  const handleQueuedDelete = useCallback(
+    async (queuedMessageId: string) => {
+      try {
+        await deleteQueuedMessage({
+          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete queued message:', error);
+      }
+    },
+    [deleteQueuedMessage]
+  );
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -324,27 +357,47 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           </div>
         )}
 
-        {/* Note: Queued messages are shown in MessageFeed (pinned above status bar), not here */}
+        {/* Queued Messages - Messages waiting to be processed */}
+        {queuedMessages.length > 0 && (
+          <div className="border-b border-chatroom-border">
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 bg-chatroom-bg-tertiary flex items-center gap-2">
+              <Clock size={12} />
+              <span>Queued ({queuedMessages.length})</span>
+            </div>
+            {/* Show queued messages */}
+            {queuedMessages.slice(0, 3).map((message) => (
+              <QueuedMessageItem
+                key={message._id}
+                message={message}
+                onPromote={handleQueuedPromote}
+                onDelete={handleQueuedDelete}
+              />
+            ))}
+            {queuedMessages.length > 3 && (
+              <div className="px-3 py-1.5 text-center">
+                <span className="text-[10px] text-muted-foreground">
+                  + {queuedMessages.length - 3} more in queue
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Pending Review - Backlog items awaiting user confirmation */}
         {pendingReviewBacklogItems.length > 0 && (
           <div className="border-b border-chatroom-border">
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-              <span>
-                Pending Review ({pendingReviewBacklogItems.length})
-              </span>
+              <span>Pending Review ({pendingReviewBacklogItems.length})</span>
             </div>
             {/* Show backlog pending review items */}
-            {pendingReviewBacklogItems
-              .slice(0, PENDING_REVIEW_PREVIEW_LIMIT)
-              .map((item) => (
-                <PendingReviewBacklogItem
-                  key={item._id}
-                  item={item}
-                  onClick={() => setSelectedBacklogItemId(item._id)}
-                />
-              ))}
+            {pendingReviewBacklogItems.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((item) => (
+              <PendingReviewBacklogItem
+                key={item._id}
+                item={item}
+                onClick={() => setSelectedBacklogItemId(item._id)}
+              />
+            ))}
             {/* Show "View More" button when there are more items in total */}
             {pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
@@ -386,9 +439,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           )}
 
           {categorizedTasks.backlog.length === 0 && (
-            <div className="p-3 text-center text-chatroom-text-muted text-xs">
-              No backlog items
-            </div>
+            <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
           )}
         </div>
         {/* End of Backlog Tasks */}
@@ -465,5 +516,3 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     </div>
   );
 }
-
-

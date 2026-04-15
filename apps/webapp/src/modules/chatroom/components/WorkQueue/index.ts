@@ -28,3 +28,4 @@ export type {
   PendingReviewBacklogItemProps,
   PendingReviewBacklogModalItemProps,
 } from './PendingReviewModal';
+export { QueuedMessageItem } from './QueuedMessageItem';
