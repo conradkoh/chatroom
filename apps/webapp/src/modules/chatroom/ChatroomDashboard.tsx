@@ -39,6 +39,7 @@ import {
   WorkspaceCommandsAggregator,
   type SettingsTab,
   type CommandItem,
+  type RunnableCommandHandle,
 } from './components/CommandPalette';
 import { ProcessManager } from './components/ProcessManager';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
@@ -868,6 +869,50 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [commandRunner]
   );
 
+  // Ref to store output subscriber callback for inline command output
+  const inlineOutputCallbackRef = useRef<((lines: string[]) => void) | null>(null);
+
+  // Notify inline output subscriber whenever activeRunOutput changes
+  useEffect(() => {
+    if (inlineOutputCallbackRef.current) {
+      const lines = commandRunner.activeRunOutput.chunks.map((c: any) => c.content as string);
+      inlineOutputCallbackRef.current(lines);
+    }
+  }, [commandRunner.activeRunOutput]);
+
+  // Handler to start a command with inline output (used by Cmd+Shift+P favorites)
+  const handleStartInlineCommand = useCallback(
+    (commandName: string, script: string): RunnableCommandHandle => {
+      // Start the command (async, but we return the handle synchronously)
+      commandRunner.runCommand(commandName, script);
+
+      const handle: RunnableCommandHandle = {
+        stop: () => {
+          if (commandRunner.activeRunId) {
+            commandRunner.stopCommand(commandRunner.activeRunId);
+          }
+        },
+        onOutput: (callback) => {
+          inlineOutputCallbackRef.current = callback;
+          // Immediately call with any existing output
+          const existingLines = commandRunner.activeRunOutput.chunks.map(
+            (c: any) => c.content as string
+          );
+          if (existingLines.length > 0) {
+            callback(existingLines);
+          }
+          return () => {
+            inlineOutputCallbackRef.current = null;
+          };
+        },
+        isRunning: () => commandRunner.activeRunOutput.run?.status === 'running',
+      };
+
+      return handle;
+    },
+    [commandRunner]
+  );
+
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
     setProcessManagerInitialCommand(null);
@@ -908,6 +953,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
+    onStartInlineCommand: handleStartInlineCommand,
     onOpenProcessManager: handleOpenProcessManager,
     onShowExplorer: activeWorkspace
       ? () => {

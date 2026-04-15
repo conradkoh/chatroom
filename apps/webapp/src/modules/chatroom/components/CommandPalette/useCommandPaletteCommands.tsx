@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { getCommandUsageStore } from '../../lib/commandUsageStore';
-import type { CommandItem, SettingsTab } from './types';
+import type { CommandItem, RunnableCommandHandle, SettingsTab } from './types';
 
 export type { SettingsTab };
 
@@ -54,6 +54,8 @@ interface UseCommandPaletteCommandsProps {
   onOpenProcessManagerWithCommand?: (commandName: string) => void;
   /** Callback to directly execute a command (run + open terminal) */
   onRunCommand?: (commandName: string, script: string) => void;
+  /** Callback to start a command with inline output in the command palette */
+  onStartInlineCommand?: (commandName: string, script: string) => RunnableCommandHandle;
   /** Callback to open the Process Manager */
   onOpenProcessManager?: () => void;
   /** Callback to switch to Explorer view */
@@ -100,6 +102,7 @@ export function useCommandPaletteCommands({
   runnableCommands,
   onOpenProcessManagerWithCommand,
   onRunCommand,
+  onStartInlineCommand,
   onOpenProcessManager,
   onShowExplorer,
   onShowMessages,
@@ -120,25 +123,39 @@ export function useCommandPaletteCommands({
     const commands: CommandItem[] = [];
 
     // ─── Favorites (favourited commands from process manager) ────────
-    if (runnableCommands && (onRunCommand || onOpenProcessManagerWithCommand)) {
+    if (runnableCommands && (onRunCommand || onStartInlineCommand || onOpenProcessManagerWithCommand)) {
       const favoritesStore = getCommandFavoritesStore();
       const favorites = favoritesStore.getAll();
 
       for (const cmd of runnableCommands) {
         if (favorites.has(cmd.name)) {
-          commands.push({
-            id: `fav-${cmd.name}`,
-            label: cmd.name,
-            icon: <Terminal size={14} />,
-            category: 'Commands',
-            action: () => {
-              if (onRunCommand) {
-                onRunCommand(cmd.name, cmd.script);
-              } else if (onOpenProcessManagerWithCommand) {
-                onOpenProcessManagerWithCommand(cmd.name);
-              }
-            },
-          });
+          if (onStartInlineCommand) {
+            // Use inline output panel inside the command palette
+            const capturedCmd = cmd;
+            commands.push({
+              id: `fav-${cmd.name}`,
+              label: cmd.name,
+              icon: <Terminal size={14} />,
+              category: 'Commands',
+              showOutputInline: true,
+              runAction: () => onStartInlineCommand(capturedCmd.name, capturedCmd.script),
+              action: () => {},
+            });
+          } else {
+            commands.push({
+              id: `fav-${cmd.name}`,
+              label: cmd.name,
+              icon: <Terminal size={14} />,
+              category: 'Commands',
+              action: () => {
+                if (onRunCommand) {
+                  onRunCommand(cmd.name, cmd.script);
+                } else if (onOpenProcessManagerWithCommand) {
+                  onOpenProcessManagerWithCommand(cmd.name);
+                }
+              },
+            });
+          }
         }
       }
     }
@@ -405,6 +422,7 @@ export function useCommandPaletteCommands({
     runnableCommands,
     onOpenProcessManagerWithCommand,
     onRunCommand,
+    onStartInlineCommand,
     onOpenProcessManager,
     onShowExplorer,
     onShowMessages,
