@@ -162,14 +162,23 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
 
       // If command wants to show output inline, handle it specially
       if (command.showOutputInline && command.runAction) {
+        // If the same command is already running, keep showing its output (don't restart)
+        if (
+          runningCommand &&
+          runningCommand.command.id === command.id &&
+          runningCommand.isRunning
+        ) {
+          return;
+        }
+
         // Clean up any existing subscription
         if (outputUnsubscribeRef.current) {
           outputUnsubscribeRef.current();
           outputUnsubscribeRef.current = null;
         }
 
-        // Stop any existing running command
-        if (runningCommand) {
+        // Stop any existing running command (different command selected)
+        if (runningCommand && runningCommand.isRunning) {
           runningCommand.handle.stop();
         }
 

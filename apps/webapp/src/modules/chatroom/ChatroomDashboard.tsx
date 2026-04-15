@@ -872,9 +872,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Ref to store output subscriber callback for inline command output
   const inlineOutputCallbackRef = useRef<((lines: string[]) => void) | null>(null);
 
+  // Track the run ID that the inline output subscriber expects
+  const inlineExpectedRunIdRef = useRef<string | null>(null);
+
   // Notify inline output subscriber whenever activeRunOutput changes
   useEffect(() => {
     if (inlineOutputCallbackRef.current) {
+      const currentRunId = commandRunner.activeRunOutput.run?._id ?? null;
+      // Only emit output once the active run matches the expected run
+      // (avoids flashing stale output from a previous run)
+      if (inlineExpectedRunIdRef.current && currentRunId !== inlineExpectedRunIdRef.current) {
+        return;
+      }
       const lines = commandRunner.activeRunOutput.chunks.map((c: any) => c.content as string);
       inlineOutputCallbackRef.current(lines);
     }
@@ -884,7 +893,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleStartInlineCommand = useCallback(
     (commandName: string, script: string): RunnableCommandHandle => {
       // Start the command (async, but we return the handle synchronously)
-      commandRunner.runCommand(commandName, script);
+      // runCommand resolves to the run ID (may reuse existing running run)
+      const runPromise = commandRunner.runCommand(commandName, script);
+
+      // Mark that we're waiting for a new run (don't emit stale output from previous run)
+      inlineExpectedRunIdRef.current = 'pending';
+      runPromise.then((runId) => {
+        if (runId) {
+          inlineExpectedRunIdRef.current = runId;
+        }
+      });
 
       const handle: RunnableCommandHandle = {
         stop: () => {
@@ -894,13 +912,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         },
         onOutput: (callback) => {
           inlineOutputCallbackRef.current = callback;
-          // Immediately call with any existing output
-          const existingLines = commandRunner.activeRunOutput.chunks.map(
-            (c: any) => c.content as string
-          );
-          if (existingLines.length > 0) {
-            callback(existingLines);
-          }
+          // Don't immediately emit output — wait for the new run's output
+          // to arrive via the useEffect on activeRunOutput
           return () => {
             inlineOutputCallbackRef.current = null;
           };
