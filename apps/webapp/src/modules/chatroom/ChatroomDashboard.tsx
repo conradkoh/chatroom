@@ -610,7 +610,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
   const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
 
-
   const handleFilePreviewClose = useCallback(() => {
     fileSelector.selectFile('');
   }, [fileSelector]);
@@ -836,7 +835,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       .filter(Boolean) as { role: string; reason: unknown }[];
     if (failed.length > 0) {
       const failedRoles = failed.map((f) => f.role).join(', ');
-      const errorDetails = failed.map((f) => `${f.role}: ${f.reason instanceof Error ? f.reason.message : String(f.reason)}`).join('; ');
+      const errorDetails = failed
+        .map((f) => `${f.role}: ${f.reason instanceof Error ? f.reason.message : String(f.reason)}`)
+        .join('; ');
       toast.error(`Failed to stop: ${failedRoles}`, {
         description: errorDetails,
       });
@@ -844,6 +845,106 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       toast.success(`Stopped ${agentRoles.length} agent(s)`);
     }
   }, [teamRoles, agentPanelData, chatroomId]);
+
+  // Restart all remote agents handler — starts if stopped, restarts if running
+  const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
+  const handleRestartAllRemoteAgents = useCallback(async () => {
+    const agentRoles = teamRoles.filter((r) => r !== 'user');
+
+    // Check if all roles have a saved preference
+    const missingRoles = agentRoles.filter((role) => !agentPanelData.agentPreferenceMap.has(role));
+    if (missingRoles.length > 0) {
+      // Open settings modal at agents tab to configure
+      handleCmdOpenSettings('agents');
+      return;
+    }
+
+    // Get current agent states
+    const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
+
+    // Stop all running agents first
+    if (runningAgents.length > 0) {
+      setIsRestartingAllAgents(true);
+      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+
+      // Stop all running agents
+      await Promise.allSettled(
+        runningAgents.map((agent) =>
+          agentPanelData.sendCommand({
+            machineId: agent.machineId ?? ALL_MACHINES,
+            type: 'stop-agent' as const,
+            payload: {
+              chatroomId: chatroomIdTyped,
+              role: agent.role,
+            },
+          })
+        )
+      );
+
+      // Wait a bit for agents to stop before starting
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Start all agents (including ones that were stopped)
+      const results = await Promise.allSettled(
+        agentRoles.map((role) => {
+          const pref = agentPanelData.agentPreferenceMap.get(role)!;
+          return agentPanelData.sendCommand({
+            machineId: pref.machineId,
+            type: 'start-agent' as const,
+            payload: {
+              chatroomId: chatroomIdTyped,
+              role,
+              model: pref.model,
+              agentHarness: pref.agentHarness,
+              workingDir: pref.workingDir,
+            },
+          });
+        })
+      );
+
+      setIsRestartingAllAgents(false);
+
+      const failed = results
+        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
+        .filter(Boolean) as string[];
+      if (failed.length > 0) {
+        toast.error(`Failed to start: ${failed.join(', ')}`);
+      } else {
+        toast.success(`Restarted ${agentRoles.length} agent(s)`);
+      }
+    } else {
+      // No agents running, just start them all
+      setIsRestartingAllAgents(true);
+      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+      const results = await Promise.allSettled(
+        agentRoles.map((role) => {
+          const pref = agentPanelData.agentPreferenceMap.get(role)!;
+          return agentPanelData.sendCommand({
+            machineId: pref.machineId,
+            type: 'start-agent' as const,
+            payload: {
+              chatroomId: chatroomIdTyped,
+              role,
+              model: pref.model,
+              agentHarness: pref.agentHarness,
+              workingDir: pref.workingDir,
+            },
+          });
+        })
+      );
+
+      setIsRestartingAllAgents(false);
+
+      const failed = results
+        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
+        .filter(Boolean) as string[];
+      if (failed.length > 0) {
+        toast.error(`Failed to start: ${failed.join(', ')}`);
+      } else {
+        toast.success(`Started ${agentRoles.length} agent(s)`);
+      }
+    }
+  }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();
@@ -872,7 +973,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Ref to store output subscriber callback for inline command output
   // Inline command output — direct reactive state (no closures, no stale refs)
   const inlineCommand = useInlineCommandOutput(commandRunner);
-
 
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
@@ -925,12 +1025,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       : null,
     onShowMessages: () => setActiveView('messages'),
     onToggleChatSplitPanel:
-      activeView === 'explorer'
-        ? () => setExplorerSplitViewEnabled((prev) => !prev)
-        : null,
+      activeView === 'explorer' ? () => setExplorerSplitViewEnabled((prev) => !prev) : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
+    onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
   });
 
   // Memoize the team entry point
@@ -1202,10 +1301,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
             <div className="flex flex-1 overflow-hidden relative min-h-0">
               {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-              <ActivityBar
-                activeView={activeView}
-                onViewChange={handleActivityViewChange}
-              />
+              <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
               {/* File Explorer Left Sidebar — shown in explorer view */}
               {activeView === 'explorer' &&
@@ -1232,9 +1328,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     <button
                       className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
                       onClick={() => setExplorerSplitViewEnabled((prev) => !prev)}
-                      title={explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'}
+                      title={
+                        explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
+                      }
                     >
-                      {explorerSplitViewEnabled ? <MessageSquareOff size={14} /> : <MessageSquare size={14} />}
+                      {explorerSplitViewEnabled ? (
+                        <MessageSquareOff size={14} />
+                      ) : (
+                        <MessageSquare size={14} />
+                      )}
                     </button>
                   )}
                 </div>
@@ -1446,7 +1548,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
             <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-chatroom-text-primary">Stop all remote agents?</AlertDialogTitle>
+                <AlertDialogTitle className="text-chatroom-text-primary">
+                  Stop all remote agents?
+                </AlertDialogTitle>
                 <AlertDialogDescription className="text-chatroom-text-secondary">
                   This will terminate all running agents in this chatroom.
                 </AlertDialogDescription>
