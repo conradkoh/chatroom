@@ -99,7 +99,8 @@ export interface AgentProcessManagerDeps {
   spawning: {
     shouldAllowSpawn: (
       chatroomId: string,
-      reason: string
+      reason: string,
+      options?: { bypassConcurrentLimit?: boolean }
     ) => { allowed: boolean; retryAfterMs?: number };
     recordSpawn: (chatroomId: string) => void;
     recordExit: (chatroomId: string) => void;
@@ -467,7 +468,10 @@ export class AgentProcessManager {
 
     try {
       // Gate 1: Rate limit check
-      const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason);
+      // Bypass concurrent limit for manual user-triggered spawns
+      const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason, {
+        bypassConcurrentLimit: opts.reason.startsWith('user.'),
+      });
       if (!spawnCheck.allowed) {
         slot.state = 'idle';
         slot.pendingOperation = undefined;
