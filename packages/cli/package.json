@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "bun run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
