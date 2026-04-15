@@ -29,12 +29,12 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
 ] as const;
 
 /**
- * Classes for DialogPrimitive.Content in command-style dialogs with split view
- * (command list on left, output panel on right).
+ * Classes for DialogPrimitive.Content in command-style dialogs with stacked view
+ * (command list on top, output panel below).
  */
 export const COMMAND_DIALOG_SPLIT_CONTENT_CLASSES = [
   // Position: top-anchored — fixed distance from top, no vertical centering transform
-  'fixed left-[50%] z-50 w-[900px] max-w-[95vw] translate-x-[-50%]',
+  'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
   'top-[10%] sm:top-[15%]',
   // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
   'rounded-none border-2 border-chatroom-border shadow-lg',
@@ -45,8 +45,8 @@ export const COMMAND_DIALOG_SPLIT_CONTENT_CLASSES = [
   'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
   'data-[state=closed]:zoom-out-95',
   'data-[state=open]:duration-0 data-[state=closed]:duration-200',
-  // Flex layout for split view
-  'flex flex-row',
+  // Flex layout for stacked view (command list on top, output below)
+  'flex flex-col',
 ] as const;
 
 /**

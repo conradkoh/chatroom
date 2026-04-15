@@ -66,7 +66,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
   const handleEscapeKeyDown = useCallback(
     (event: React.KeyboardEvent | KeyboardEvent) => {
       if (runningCommand) {
-        // First escape: close output panel only
+        // First escape: close output panel only, preserve search query
         event.preventDefault();
         // Clean up subscription
         if (outputUnsubscribeRef.current) {
@@ -76,6 +76,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
         // Stop the running command
         runningCommand.handle.stop();
         setRunningCommand(null);
+        // NOTE: intentionally do NOT clear searchValue here
       } else if (searchValueRef.current) {
         // Second escape (or when no output panel): clear search
         event.preventDefault();
@@ -294,7 +295,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
           </DialogPrimitive.Description>
 
           {/* Command list section */}
-          <div className={cn('flex flex-col', runningCommand ? 'w-[400px]' : 'w-full')}>
+          <div className="flex flex-col w-full">
             <Command
               filter={rankedFilter}
               className="bg-chatroom-bg-primary text-chatroom-text-primary"
@@ -306,7 +307,7 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
                 onValueChange={setSearchValue}
               />
               <CommandList
-                className={cn(runningCommand ? 'min-h-[300px] h-[300px]' : 'min-h-[244px] h-[244px]')}
+                className="min-h-[244px] h-[244px]"
               >
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                   No commands found.
@@ -348,9 +349,9 @@ export function CommandPalette({ commands }: CommandPaletteProps) {
             </Command>
           </div>
 
-          {/* Output panel section - shown when a runnable command is active */}
+          {/* Output panel section - shown below command list when a runnable command is active */}
           {runningCommand && (
-            <div className="flex-1 min-w-[400px]">
+            <div className="border-t-2 border-chatroom-border">
               <CommandOutputPanel
                 commandName={runningCommand.command.label}
                 isRunning={runningCommand.isRunning}
