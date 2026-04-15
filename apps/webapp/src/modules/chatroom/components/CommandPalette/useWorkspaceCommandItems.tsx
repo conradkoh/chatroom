@@ -148,6 +148,20 @@ export function useWorkspaceCommandItems(
         keywords: ['git diff', 'changes', 'diff', hostname, workspace.workingDir],
         action: () => onOpenGitPanel('diff'),
       });
+
+      // Git pull command - runs git pull on the working directory
+      items.push({
+        id: `ws-${wsKey}-git-pull`,
+        label: 'Git: Pull from Remote',
+        detail: `${hostname}:${workspace.workingDir.split('/').pop()}`,
+        icon: <GitPullRequest size={14} />,
+        category: 'Actions',
+        keywords: ['git pull', 'pull', 'fetch', hostname, workspace.workingDir],
+        action: async () => {
+          // Use type assertion since Convex types haven't been regenerated yet
+          await sendAction(machineId, 'git-pull' as LocalActionType, workspace.workingDir);
+        },
+      });
     }
 
     // Workspace details
@@ -162,5 +176,15 @@ export function useWorkspaceCommandItems(
     });
 
     return items;
-  }, [workspace, isMulti, isConnected, gitState, machineId, workingDir, sendAction, openExternalUrl, onOpenGitPanel]);
+  }, [
+    workspace,
+    isMulti,
+    isConnected,
+    gitState,
+    machineId,
+    workingDir,
+    sendAction,
+    openExternalUrl,
+    onOpenGitPanel,
+  ]);
 }

@@ -1,7 +1,7 @@
 /**
  * Git infrastructure — public API.
  *
- * Re-exports all types and reader functions from the git sub-module.
+ * Re-exports all types and functions from the git sub-module.
  */
 
 export type {
@@ -11,6 +11,8 @@ export type {
   GitDiffStatResult,
   GitFullDiffResult,
   GitCommitDetailResult,
+  GitDiscardResult,
+  GitPullResult,
 } from './types.js';
 
 export { FULL_DIFF_MAX_BYTES, makeGitStateKey } from './types.js';
@@ -25,3 +27,5 @@ export {
   getCommitDetail,
   parseDiffStatLine,
 } from './git-reader.js';
+
+export { discardFile, discardAllChanges, discardStaged, gitPull } from './git-writer.js';
