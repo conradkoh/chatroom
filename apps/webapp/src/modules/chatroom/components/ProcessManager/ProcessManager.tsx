@@ -667,7 +667,6 @@ function getCommandSections(ws: WorkspaceGroup, favorites: Set<string>, searchQu
   const common: RunnableCommand[] = [];
   const others: RunnableCommand[] = [];
 
-
   for (const cmd of allCommands) {
     // Common commands: from package.json source in root workspace
     const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
