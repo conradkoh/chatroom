@@ -32,9 +32,8 @@ echo -e "${BLUE}🛑 Stopping running processes...${NC}"
 bash "$SCRIPT_DIR/local-stop.sh"
 echo ""
 
-# Step 2: Pull latest code from master
-echo -e "${BLUE}🔄 Switching to master and pulling latest changes...${NC}"
-git checkout master
+# Step 2: Pull latest changes on current branch
+echo -e "${BLUE}🔄 Pulling latest changes...${NC}"
 git pull
 echo -e "${GREEN}✅ Code updated.${NC}"
 echo ""
