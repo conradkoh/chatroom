@@ -13,7 +13,8 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PID_FILE="$ROOT_DIR/.local-pids"
+CHATROOM_DIR="$ROOT_DIR/.chatroom"
+PID_FILE="$CHATROOM_DIR/local-pids"
 
 echo -e "${BLUE}🛑 Stopping local development processes...${NC}"
 

@@ -18,6 +18,5 @@ coverage/
 tmp/
 patches/
 
-# Local dev scripts
-.local-pids
-.local-logs/
+# Local dev
+.chatroom/
