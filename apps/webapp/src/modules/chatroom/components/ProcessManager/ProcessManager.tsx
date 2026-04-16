@@ -229,7 +229,7 @@ export function ProcessManager({
           {/* Split pane */}
           <div className="flex flex-1 overflow-hidden">
             {/* Left sidebar */}
-            <div className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden">
+            <div className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden" onKeyDown={handleKeyDown}>
               {/* Search */}
               <div className="p-2 border-b border-chatroom-border">
                 <input
@@ -242,8 +242,8 @@ export function ProcessManager({
                 />
               </div>
 
-              {/* Scrollable content with keyboard navigation */}
-              <div className="flex-1 overflow-y-auto" onKeyDown={handleKeyDown}>
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto">
                 {/* Running Processes */}
                 {runningProcesses.length > 0 && (
                   <ProcessList
@@ -263,40 +263,41 @@ export function ProcessManager({
                     <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
                       Search Results ({workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
                     </div>
-                    {workspaceGroups.flatMap((ws) =>
-                      ws.allCommands.map((cmd) => {
-                        const globalIdx = selectableItems.findIndex(
-                          (item) => item.type === 'command' && item.cmd.name === cmd.name
-                        );
-                        const isFav = favorites.has(cmd.name);
-                        const isFocused = globalIdx === focusedIndex;
-                        return (
-                          <button
-                            key={cmd.name}
-                            onClick={() => {
-                              onClearRun();
-                              setSelectedWorkspace(ws);
-                              setSelectedCommand(cmd);
-                            }}
-                            className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
-                              isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
-                            }`}
-                          >
-                            <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-xs font-bold uppercase tracking-wider truncate ${
-                                isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
-                              }`}>
-                                {getCompactDisplayName(cmd.name, cmd.script)}
+                    {(() => {
+                      let idx = 0;
+                      return workspaceGroups.flatMap((ws) =>
+                        ws.allCommands.map((cmd) => {
+                          const currentIdx = idx++;
+                          const isFav = favorites.has(cmd.name);
+                          const isFocused = currentIdx === focusedIndex;
+                          return (
+                            <button
+                              key={cmd.name}
+                              onClick={() => {
+                                onClearRun();
+                                setSelectedWorkspace(ws);
+                                setSelectedCommand(cmd);
+                              }}
+                              className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
+                                isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
+                              }`}
+                            >
+                              <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-xs font-bold uppercase tracking-wider truncate ${
+                                  isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
+                                }`}>
+                                  {getCompactDisplayName(cmd.name, cmd.script)}
+                                </div>
+                                <div className="text-[10px] text-chatroom-text-muted/70 truncate">
+                                  {ws.path === '.' ? 'Root' : ws.path}
+                                </div>
                               </div>
-                              <div className="text-[10px] text-chatroom-text-muted/70 truncate">
-                                {ws.path === '.' ? 'Root' : ws.path}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
+                            </button>
+                          );
+                        })
+                      );
+                    })()}
                   </div>
                 ) : (
                   /* Workspace list: only names, no inline buttons */
