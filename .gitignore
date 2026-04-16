@@ -17,3 +17,7 @@ coverage/
 .env*.local
 tmp/
 patches/
+
+# Local dev scripts
+.local-pids
+.local-logs/
