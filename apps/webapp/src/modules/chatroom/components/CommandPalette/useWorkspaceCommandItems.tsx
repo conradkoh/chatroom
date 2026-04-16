@@ -97,12 +97,12 @@ export function useWorkspaceCommandItems(
       if (repoUrl) {
         items.push({
           id: `ws-${wsKey}-view-github-prs`,
-          label: 'Github: View Pull Requests',
+          label: 'Github: View My Pull Requests',
           detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
           keywords: ['PR', 'PRs', hostname, workspace.workingDir],
-          action: () => openExternalUrl(`${repoUrl}/pulls`),
+          action: () => openExternalUrl(`${repoUrl}/pulls?q=is%3Apr+author%3A%40me`),
         });
 
         items.push({
