@@ -206,7 +206,7 @@ export function ProcessManager({
                 )}
 
                 {/* Command Browser */}
-                {/* Workspace sections with quick commands */}
+                {/* Workspace sections with commands organized in sections */}
                 {workspaceGroups.map((ws) => (
                   <div key={ws.path} className="border-b border-chatroom-border/50">
                     <button
@@ -220,31 +220,22 @@ export function ProcessManager({
                       <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
                       <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
                     </button>
-                    {/* Quick commands + favorites as inline buttons */}
-                    <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-                      {getVisibleCommands(ws, favorites).map((cmd) => {
-                        const isFav = favorites.has(cmd.name);
-                        return (
-                          <button
-                            key={cmd.name}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onClearRun();
-                              setSelectedCommand(cmd);
-                              setSelectedWorkspace(null);
-                            }}
-                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                              isFav
-                                ? 'text-yellow-500 bg-yellow-500/10 hover:bg-blue-600 hover:text-white'
-                                : 'text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white'
-                            }`}
-                            title={cmd.script}
-                          >
-                            {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name, cmd.script)}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/* Command sections */}
+                    {(() => {
+                      const sections = getCommandSections(ws, favorites, searchQuery);
+                      const handleSelect = (cmd: RunnableCommand) => {
+                        onClearRun();
+                        setSelectedCommand(cmd);
+                        setSelectedWorkspace(null);
+                      };
+                      return (
+                        <>
+                          {renderCommandSection('★ Favourites', sections.favourites, favorites, handleSelect)}
+                          {renderCommandSection('Common Commands', sections.commonCommands, favorites, handleSelect)}
+                          {renderCommandSection('Commands', sections.commands, favorites, handleSelect)}
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
 
@@ -327,9 +318,6 @@ export function ProcessManager({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** The 4 default quick commands shown in the sidebar. */
-const QUICK_COMMAND_NAMES = new Set(['dev', 'start', 'test', 'build']);
-
 /** Check if a command name contains a quick command (e.g., 'pnpm: dev' → 'dev'). */
 function extractScriptName(commandName: string): string {
   // Handle patterns like "pnpm: dev", "turbo: build", "@workspace/webapp: dev"
@@ -364,8 +352,6 @@ function getCompactDisplayName(commandName: string, script: string): string {
 interface WorkspaceGroup {
   /** Relative path (e.g., '.', 'apps/webapp') */
   path: string;
-  /** Quick commands (dev/start/test/build) for sidebar display */
-  quickCommands: RunnableCommand[];
   /** All commands for this workspace */
   allCommands: RunnableCommand[];
 }
@@ -392,11 +378,10 @@ function groupCommandsByWorkspace(
     groups.set(ws, existing);
   }
 
-  // Build workspace groups with quick commands
+  // Build workspace groups
   const result: WorkspaceGroup[] = [];
   for (const [path, cmds] of groups) {
-    const quickCommands = cmds.filter((c) => QUICK_COMMAND_NAMES.has(extractScriptName(c.name)));
-    result.push({ path, quickCommands, allCommands: cmds });
+    result.push({ path, allCommands: cmds });
   }
 
   // Sort: '.' (root) first, then alphabetical
@@ -659,17 +644,84 @@ function WorkspaceDetailPanel({
 
 // ─── Visible Commands Helper ────────────────────────────────────────────────
 
-/** Get commands visible in the sidebar: quick commands + favorites for this workspace. */
-function getVisibleCommands(ws: WorkspaceGroup, favorites: Set<string>): RunnableCommand[] {
-  const quickSet = new Set(ws.quickCommands.map((c) => c.name));
-  const visible: RunnableCommand[] = [...ws.quickCommands];
+interface CommandSections {
+  favourites: RunnableCommand[];
+  commonCommands: RunnableCommand[];
+  commands: RunnableCommand[];
+}
 
-  // Add favorites that aren't already in quick commands
-  for (const cmd of ws.allCommands) {
-    if (favorites.has(cmd.name) && !quickSet.has(cmd.name)) {
-      visible.push(cmd);
+/**
+ * Get command sections for sidebar display.
+ * When searching, return all matching commands as "commands".
+ */
+function getCommandSections(ws: WorkspaceGroup, favorites: Set<string>, searchQuery: string): CommandSections {
+  const { allCommands } = ws;
+
+  // When searching, return all filtered commands as "commands"
+  if (searchQuery) {
+    return { favourites: [], commonCommands: [], commands: allCommands };
+  }
+
+  const favSet = new Set(favorites);
+  const favourited: RunnableCommand[] = [];
+  const common: RunnableCommand[] = [];
+  const others: RunnableCommand[] = [];
+
+
+  for (const cmd of allCommands) {
+    // Common commands: from package.json source in root workspace
+    const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
+
+    if (favSet.has(cmd.name)) {
+      favourited.push(cmd);
+    } else if (isCommon) {
+      common.push(cmd);
+    } else {
+      others.push(cmd);
     }
   }
 
-  return visible;
+  return { favourites: favourited, commonCommands: common, commands: others };
+}
+
+/** Render a section with heading if non-empty */
+function renderCommandSection(
+  heading: string | null,
+  commands: RunnableCommand[],
+  favorites: Set<string>,
+  onSelect: (cmd: RunnableCommand) => void
+) {
+  if (commands.length === 0) return null;
+
+  return (
+    <>
+      {heading && (
+        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
+          {heading}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1 px-3 pb-1.5">
+        {commands.map((cmd) => {
+          const isFav = favorites.has(cmd.name);
+          return (
+            <button
+              key={cmd.name}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(cmd);
+              }}
+              className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                isFav
+                  ? 'text-yellow-500 bg-yellow-500/10 hover:bg-blue-600 hover:text-white'
+                  : 'text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white'
+              }`}
+              title={cmd.script}
+            >
+              {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name, cmd.script)}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
 }
