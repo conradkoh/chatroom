@@ -9,7 +9,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isDefaultExpanded, setIsDefaultExpanded] = useState(false);
 
   const handleOverride = useCallback(async () => {
     setIsCreating(true);
@@ -136,7 +137,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
           <div className="flex items-center gap-2">
             {prompt === null ? (
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={handleOverride}
                 disabled={isCreating}
@@ -144,8 +145,10 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
               >
                 {isCreating ? (
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                ) : null}
-                Override
+                ) : (
+                  <Pencil className="mr-1 h-3 w-3" />
+                )}
+                Customize
               </Button>
             ) : (
               <>
@@ -176,6 +179,30 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
             )}
           </div>
         </div>
+
+        {/* Default prompt preview in empty state */}
+        {prompt === null && (
+          <div className="mt-3 border-t border-border pt-3">
+            <button
+              onClick={() => setIsDefaultExpanded((v) => !v)}
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {isDefaultExpanded ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              View default prompt
+            </button>
+            {isDefaultExpanded && (
+              <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-muted/50 p-3">
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
+                  {DEFAULT_RELEASE_WORKFLOW_CONTENT}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Editor Modal */}
