@@ -192,6 +192,27 @@ chatroom/
 
 ---
 
+## Release Workflow
+
+Follow this process to ship a new version:
+
+1. **Create a release branch and PR**
+   - Branch from `master` as `release/v<X.Y.Z>`
+   - Update the `version` field in all `package.json` files (`package.json`, `apps/webapp/package.json`, `packages/cli/package.json`, `services/backend/package.json`)
+   - Raise a PR from the release branch to `master` (e.g., "Release v1.34.0")
+
+2. **Raise feature/fix PRs against the release branch**
+   - All PRs for this release should target `release/v<X.Y.Z>`, **not** `master`
+
+3. **Squash-merge changes into the release branch**
+   - When a feature PR is approved, squash-merge it into the release branch
+
+4. **Merge the release branch to master**
+   - When all changes are in and the release is ready, merge the release PR to `master`
+   - CI/CD will handle the rest automatically (deployment, npm publish, etc.)
+
+---
+
 <chatroom>
 ## CHATROOM INTEGRATION
 
