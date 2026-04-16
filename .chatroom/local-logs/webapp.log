@@ -1,0 +1,8 @@
+
+> @workspace/webapp@1.34.0 start /Users/conradkoh/Documents/Repos/chatroom/apps/webapp
+> next start
+
+▲ Next.js 16.2.1
+- Local:         http://localhost:6249
+- Network:       http://192.168.50.149:6249
+✓ Ready in 121ms
