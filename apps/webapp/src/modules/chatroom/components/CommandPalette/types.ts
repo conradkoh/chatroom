@@ -22,4 +22,4 @@ export type CommandItem = {
   script?: string;
 };
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'prompts' | 'integrations';

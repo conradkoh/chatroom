@@ -16,6 +16,7 @@ import {
   HardDrive,
   Trash2,
   Database,
+  FileText,
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
@@ -43,6 +44,7 @@ import {
 } from '@/components/ui/select';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { IntegrationsTab } from './IntegrationsTab';
+import { PromptsTab } from './PromptsTab';
 import { TEAMS_CONFIG } from '../config/teams';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
@@ -77,6 +79,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
   { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
+  { id: 'prompts', label: 'Prompts', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
 ];
 
@@ -976,6 +979,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
+          {activeTab === 'prompts' && <PromptsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
