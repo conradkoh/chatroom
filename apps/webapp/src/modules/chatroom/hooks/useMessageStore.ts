@@ -263,10 +263,12 @@ export function useMessageStore(chatroomId: string) {
   }, [initialData, state.isInitialized]);
 
   // ── Tail subscription (pinned cursor) ─────────
+  // When the chatroom is empty, cursor is null. Use 0 as the sinceCursor
+  // so the subscription picks up the very first message sent.
   const tailData = useSessionQuery(
     api.messages.getMessagesSince,
-    tailCursorRef.current != null
-      ? { chatroomId: typedChatroomId, sinceCursor: tailCursorRef.current }
+    state.isInitialized
+      ? { chatroomId: typedChatroomId, sinceCursor: tailCursorRef.current ?? 0 }
       : 'skip'
   );
 
