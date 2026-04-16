@@ -175,6 +175,15 @@ turbo run typecheck --filter=backend
 turbo run test --filter=webapp --filter=backend
 ```
 
+### Development Workflow
+
+The standard workflow for shipping changes:
+
+1. **Create release branch**: Branch `release/v<version>` from master, update all `package.json` versions, raise PR to master
+2. **Feature PRs**: Create feature/fix branches targeting the release branch, raise PRs
+3. **Squash merge**: Squash merge approved PRs into the release branch
+4. **Ship**: Merge the release branch to master — CI/CD handles publishing and deployment
+
 ---
 
 ## Project Structure

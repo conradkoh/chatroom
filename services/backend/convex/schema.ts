@@ -1939,12 +1939,12 @@ export default defineSchema({
 
   /**
    * Chatroom custom prompts — discriminated union for future extensibility.
-   * Currently supports `release_workflow` type only.
+   * Currently supports `development_workflow` type only.
    */
   chatroom_prompts: defineTable(
     v.union(
       v.object({
-        type: v.literal('release_workflow'),
+        type: v.literal('development_workflow'),
         chatroomId: v.id('chatroom_rooms'),
         ownerId: v.id('users'),
         name: v.string(),

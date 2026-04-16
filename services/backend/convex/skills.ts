@@ -48,11 +48,11 @@ export const get = query({
     if (!skill) return null;
 
     // Override resolution: check for chatroom custom prompt
-    if (args.skillId === 'release-workflow') {
+    if (args.skillId === 'development-workflow') {
       const override = await ctx.db
         .query('chatroom_prompts')
         .withIndex('by_chatroomId_type', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('type', 'release_workflow')
+          q.eq('chatroomId', args.chatroomId).eq('type', 'development_workflow')
         )
         .first();
 

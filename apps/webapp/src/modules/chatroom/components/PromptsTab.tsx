@@ -24,11 +24,28 @@ interface PromptsTabProps {
 
 // ─── Default content ────────────────────────────────────────────────────
 
-const DEFAULT_RELEASE_WORKFLOW_CONTENT = `# Release Workflow
+const DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT = `# Development Workflow
 
-Define your custom release workflow prompt here.
+## Release Process
 
-This prompt will override the built-in release workflow skill when activated in this chatroom.
+Follow this workflow for every release cycle:
+
+### 1. Create the next release branch
+
+Branch from master and raise a PR targeting master. Update all \`package.json\` files with the new version number.
+
+### 2. Raise pull requests against the release branch
+
+Feature branches: \`feat/<feature-name>-v<version>\`
+Bug fix branches: \`fix/<fix-name>-v<version>\`
+
+### 3. Squash merge approved PRs into the release branch
+
+Keep the release branch history clean.
+
+### 4. Merge the release branch to master
+
+CI/CD will automatically publish and deploy.
 `;
 
 // ─── Main Component ─────────────────────────────────────────────────────
@@ -38,7 +55,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
 
   const prompt = useSessionQuery(api.chatroomPrompts.getForChatroom, {
     chatroomId: typedChatroomId,
-    type: 'release_workflow',
+    type: 'development_workflow',
   });
 
   const createPrompt = useSessionMutation(api.chatroomPrompts.create);
@@ -54,9 +71,9 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
     try {
       await createPrompt({
         chatroomId: typedChatroomId,
-        type: 'release_workflow',
-        name: 'Release Workflow',
-        content: DEFAULT_RELEASE_WORKFLOW_CONTENT,
+        type: 'development_workflow',
+        name: 'Development Workflow',
+        content: DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT,
       });
       setIsEditorOpen(true);
     } finally {
@@ -95,8 +112,8 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
       <div>
         <h3 className="text-sm font-medium text-foreground">Prompts</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Customize skill prompts for this chatroom. Overrides replace the built-in defaults when the
-          skill is activated.
+          Customize skill prompts for this chatroom. Overrides replace the built-in defaults when
+          the skill is activated.
         </p>
       </div>
 
@@ -108,7 +125,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
               <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="text-sm font-medium text-foreground">Release Workflow</h4>
+              <h4 className="text-sm font-medium text-foreground">Development Workflow</h4>
               {prompt === null ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">Using: Built-in default</p>
               ) : (
@@ -197,7 +214,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
             {isDefaultExpanded && (
               <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-muted/50 p-3">
                 <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-                  {DEFAULT_RELEASE_WORKFLOW_CONTENT}
+                  {DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT}
                 </pre>
               </div>
             )}

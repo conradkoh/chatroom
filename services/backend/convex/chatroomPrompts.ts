@@ -23,7 +23,7 @@ export const getForChatroom = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    type: v.literal('release_workflow'),
+    type: v.literal('development_workflow'),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -71,7 +71,7 @@ export const create = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    type: v.literal('release_workflow'),
+    type: v.literal('development_workflow'),
     name: v.string(),
     content: v.string(),
     sourceChatroomId: v.optional(v.id('chatroom_rooms')),
