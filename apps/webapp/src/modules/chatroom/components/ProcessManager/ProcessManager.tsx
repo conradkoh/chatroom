@@ -124,8 +124,59 @@ export function ProcessManager({
   const [previousWorkspace, setPreviousWorkspace] = useState<WorkspaceGroup | null>(null);
   const [previousCommand, setPreviousCommand] = useState<RunnableCommand | null>(null);
 
+  // Keyboard navigation state
+  const [focusedIndex, setFocusedIndex] = useState(0);
+
   // Group commands by workspace
   const workspaceGroups = groupCommandsByWorkspace(commands, searchQuery);
+
+  // Flat list of selectable items for keyboard navigation
+  const selectableItems = useMemo(() => {
+    if (searchQuery) {
+      // Search mode: flat list of commands
+      return workspaceGroups.flatMap((ws) =>
+        ws.allCommands.map((cmd) => ({ type: 'command' as const, ws, cmd }))
+      );
+    }
+    // Browse mode: list of workspaces
+    return workspaceGroups.map((ws) => ({ type: 'workspace' as const, ws }));
+  }, [workspaceGroups, searchQuery]);
+
+  // Reset focused index when search changes or dialog opens
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [searchQuery, open]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const items = selectableItems;
+      if (items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev + 1) % items.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev - 1 + items.length) % items.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const item = items[focusedIndex];
+        if (!item) return;
+
+        if (item.type === 'workspace') {
+          onClearRun();
+          setSelectedWorkspace(item.ws);
+          setSelectedCommand(null);
+        } else {
+          onClearRun();
+          setSelectedWorkspace(item.ws);
+          setSelectedCommand(item.cmd);
+        }
+      }
+    },
+    [selectableItems, focusedIndex, onClearRun]
+  );
 
   // Separate running and recent runs
   const runningProcesses = runs.filter(
@@ -191,8 +242,8 @@ export function ProcessManager({
                 />
               </div>
 
-              {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto">
+              {/* Scrollable content with keyboard navigation */}
+              <div className="flex-1 overflow-y-auto" onKeyDown={handleKeyDown}>
                 {/* Running Processes */}
                 {runningProcesses.length > 0 && (
                   <ProcessList
@@ -214,7 +265,11 @@ export function ProcessManager({
                     </div>
                     {workspaceGroups.flatMap((ws) =>
                       ws.allCommands.map((cmd) => {
+                        const globalIdx = selectableItems.findIndex(
+                          (item) => item.type === 'command' && item.cmd.name === cmd.name
+                        );
                         const isFav = favorites.has(cmd.name);
+                        const isFocused = globalIdx === focusedIndex;
                         return (
                           <button
                             key={cmd.name}
@@ -223,11 +278,15 @@ export function ProcessManager({
                               setSelectedWorkspace(ws);
                               setSelectedCommand(cmd);
                             }}
-                            className="w-full flex items-start gap-2 px-3 py-2 hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border/20 text-left"
+                            className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
+                              isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
+                            }`}
                           >
                             <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
                             <div className="flex-1 min-w-0">
-                              <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary truncate">
+                              <div className={`text-xs font-bold uppercase tracking-wider truncate ${
+                                isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
+                              }`}>
                                 {getCompactDisplayName(cmd.name, cmd.script)}
                               </div>
                               <div className="text-[10px] text-chatroom-text-muted/70 truncate">
@@ -242,20 +301,25 @@ export function ProcessManager({
                 ) : (
                   /* Workspace list: only names, no inline buttons */
                   <div>
-                    {workspaceGroups.map((ws) => (
-                      <button
-                        key={ws.path}
-                        onClick={() => {
-                          onClearRun();
-                          setSelectedWorkspace(ws);
-                          setSelectedCommand(null);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border/20"
-                      >
-                        <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
-                        <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
-                      </button>
-                    ))}
+                    {workspaceGroups.map((ws, idx) => {
+                      const isFocused = idx === focusedIndex;
+                      return (
+                        <button
+                          key={ws.path}
+                          onClick={() => {
+                            onClearRun();
+                            setSelectedWorkspace(ws);
+                            setSelectedCommand(null);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors border-b border-chatroom-border/20 ${
+                            isFocused ? 'bg-chatroom-bg-hover text-chatroom-text-primary' : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+                          }`}
+                        >
+                          <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
+                          <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -442,8 +506,16 @@ function CommandDetailPanel({
     (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
   ).slice(0, 5);
 
+  // Handle Enter key to run command
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onRun();
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden" onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-chatroom-border">
         <div className="flex items-start gap-2">
