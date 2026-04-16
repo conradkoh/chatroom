@@ -44,7 +44,24 @@ export const get = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-    return getSkill(args.skillId, cliEnvPrefix);
+    const skill = getSkill(args.skillId, cliEnvPrefix);
+    if (!skill) return null;
+
+    // Override resolution: check for chatroom custom prompt
+    if (args.skillId === 'release-workflow') {
+      const override = await ctx.db
+        .query('chatroom_prompts')
+        .withIndex('by_chatroomId_type', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('type', 'release_workflow')
+        )
+        .first();
+
+      if (override && override.isEnabled) {
+        return { ...skill, prompt: override.content };
+      }
+    }
+
+    return skill;
   },
 });
 

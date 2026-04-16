@@ -1936,4 +1936,28 @@ export default defineSchema({
     /** When the content was fetched. */
     fetchedAt: v.number(),
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * Chatroom custom prompts — discriminated union for future extensibility.
+   * Currently supports `release_workflow` type only.
+   */
+  chatroom_prompts: defineTable(
+    v.union(
+      v.object({
+        type: v.literal('release_workflow'),
+        chatroomId: v.id('chatroom_rooms'),
+        ownerId: v.id('users'),
+        name: v.string(),
+        content: v.string(),
+        isEnabled: v.boolean(),
+        sourceChatroomId: v.optional(v.id('chatroom_rooms')),
+        sourcePromptId: v.optional(v.id('chatroom_prompts')),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+      })
+    )
+  )
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_chatroomId_type', ['chatroomId', 'type'])
+    .index('by_sourcePromptId', ['sourcePromptId']),
 });
