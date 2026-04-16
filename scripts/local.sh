@@ -41,16 +41,15 @@ pnpm install
 echo -e "${GREEN}✅ Dependencies installed.${NC}"
 echo ""
 
-# Build CLI package
+# Build CLI package (via Turborepo pipeline)
 echo -e "${BLUE}🔨 Building CLI package...${NC}"
-pnpm --filter chatroom-cli build
+pnpm exec turbo run build --filter=chatroom-cli
 echo -e "${GREEN}✅ CLI built.${NC}"
 echo ""
 
-# Build webapp
+# Build webapp (via Turborepo pipeline)
 echo -e "${BLUE}🔨 Building webapp (production mode)...${NC}"
-cd "$ROOT_DIR/apps/webapp"
-pnpm build
+pnpm exec turbo run build --filter=@workspace/webapp
 echo -e "${GREEN}✅ Webapp built.${NC}"
 echo ""
 
