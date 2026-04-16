@@ -18,6 +18,7 @@ PID_FILE="$ROOT_DIR/.local-pids"
 LOG_DIR="$ROOT_DIR/.local-logs"
 BACKEND_LOG="$LOG_DIR/backend.log"
 WEBAPP_LOG="$LOG_DIR/webapp.log"
+DAEMON_LOG="$LOG_DIR/daemon.log"
 
 echo -e "${BOLD}${CYAN}========================================${NC}"
 echo -e "${BOLD}${CYAN}   Chatroom Local Update & Restart      ${NC}"
@@ -44,7 +45,13 @@ pnpm install
 echo -e "${GREEN}✅ Dependencies installed.${NC}"
 echo ""
 
-# Step 4: Build webapp
+# Step 4: Build CLI package
+echo -e "${BLUE}🔨 Building CLI package...${NC}"
+pnpm --filter chatroom-cli build
+echo -e "${GREEN}✅ CLI built.${NC}"
+echo ""
+
+# Step 5: Build webapp
 echo -e "${BLUE}🔨 Building webapp (production mode)...${NC}"
 cd "$ROOT_DIR/apps/webapp"
 pnpm build
@@ -53,10 +60,10 @@ echo ""
 
 cd "$ROOT_DIR"
 
-# Step 5: Create log directory
+# Step 6: Create log directory
 mkdir -p "$LOG_DIR"
 
-# Step 6: Start backend
+# Step 7: Start backend
 echo -e "${BLUE}🚀 Starting Convex backend...${NC}"
 cd "$ROOT_DIR/services/backend"
 CONVEX_NON_INTERACTIVE=true \
@@ -70,7 +77,7 @@ echo -e "${GREEN}✅ Backend started (PID: $BACKEND_PID). Logs: $BACKEND_LOG${NC
 
 cd "$ROOT_DIR"
 
-# Step 7: Start webapp
+# Step 8: Start webapp
 echo -e "${BLUE}🚀 Starting webapp (production mode)...${NC}"
 cd "$ROOT_DIR/apps/webapp"
 pnpm start > "$WEBAPP_LOG" 2>&1 &
@@ -79,9 +86,16 @@ echo -e "${GREEN}✅ Webapp started (PID: $WEBAPP_PID). Logs: $WEBAPP_LOG${NC}"
 
 cd "$ROOT_DIR"
 
+# Step 9: Start machine daemon
+echo -e "${BLUE}🚀 Starting machine daemon...${NC}"
+chatroom machine daemon start > "$DAEMON_LOG" 2>&1 &
+DAEMON_PID=$!
+echo -e "${GREEN}✅ Daemon started (PID: $DAEMON_PID). Logs: $DAEMON_LOG${NC}"
+
 # Save PIDs
 echo "$BACKEND_PID" > "$PID_FILE"
 echo "$WEBAPP_PID" >> "$PID_FILE"
+echo "$DAEMON_PID" >> "$PID_FILE"
 
 echo ""
 echo -e "${BOLD}${GREEN}========================================${NC}"
@@ -91,10 +105,12 @@ echo ""
 echo -e "${CYAN}📋 Processes:${NC}"
 echo -e "   Backend PID : ${YELLOW}$BACKEND_PID${NC}"
 echo -e "   Webapp PID  : ${YELLOW}$WEBAPP_PID${NC}"
+echo -e "   Daemon PID  : ${YELLOW}$DAEMON_PID${NC}"
 echo ""
 echo -e "${CYAN}📁 Logs:${NC}"
 echo -e "   Backend : ${YELLOW}$BACKEND_LOG${NC}"
 echo -e "   Webapp  : ${YELLOW}$WEBAPP_LOG${NC}"
+echo -e "   Daemon  : ${YELLOW}$DAEMON_LOG${NC}"
 echo ""
 echo -e "${CYAN}🔧 Commands:${NC}"
 echo -e "   Stop    : ${YELLOW}pnpm local:stop${NC}"
