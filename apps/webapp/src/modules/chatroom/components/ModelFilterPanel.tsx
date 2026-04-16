@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
 
@@ -52,6 +52,17 @@ export function ModelFilterPanel({
   const hiddenModels = filter?.hiddenModels ?? [];
   const hiddenProviders = filter?.hiddenProviders ?? [];
 
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Clear search when popover closes
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) setSearchTerm('');
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange]
+  );
+
   // Group models by provider
   const modelsByProvider = useMemo(() => {
     const groups = new Map<string, string[]>();
@@ -63,6 +74,26 @@ export function ModelFilterPanel({
     }
     return groups;
   }, [availableModels]);
+
+  // Filter models by search term
+  const filteredModelsByProvider = useMemo(() => {
+    if (!searchTerm.trim()) return modelsByProvider;
+    const term = searchTerm.toLowerCase();
+    const filtered = new Map<string, string[]>();
+    for (const [provider, models] of modelsByProvider.entries()) {
+      // Match against provider name or model display label
+      const matchingModels = models.filter(
+        (model) =>
+          provider.toLowerCase().includes(term) ||
+          model.toLowerCase().includes(term) ||
+          getModelDisplayLabel(model).toLowerCase().includes(term)
+      );
+      if (matchingModels.length > 0) {
+        filtered.set(provider, matchingModels);
+      }
+    }
+    return filtered;
+  }, [modelsByProvider, searchTerm]);
 
   const handleModelToggle = (modelId: string) => {
     if (disabled) return;
@@ -109,7 +140,7 @@ export function ModelFilterPanel({
   const hasAnyFilter = hiddenCount > 0;
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         className="bg-chatroom-bg-primary border border-chatroom-border p-0 w-[420px] rounded-none"
@@ -127,9 +158,21 @@ export function ModelFilterPanel({
           )}
         </div>
 
+        {/* Search input */}
+        <div className="px-3 py-1.5 border-b border-chatroom-border">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search models..."
+            className="w-full bg-chatroom-bg-tertiary border border-chatroom-border px-2 py-1 text-[11px] text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent"
+            autoFocus
+          />
+        </div>
+
         {/* Model list grouped by provider */}
         <div className="max-h-[576px] overflow-y-auto">
-          {Array.from(modelsByProvider.entries()).map(([provider, models]) => {
+          {Array.from(filteredModelsByProvider.entries()).map(([provider, models]) => {
             const isProviderHidden = hiddenProviders.includes(provider);
             return (
               <div key={provider}>
