@@ -26,17 +26,18 @@ import {
 /**
  * Generate planner-specific guidance.
  *
- * Derives team composition from `availableMembers` (falling back to `teamRoles`)
+ * Derives team composition from `teamRoles`
  * so that dynamic team state is reflected. Team-specific prompt files that know
  * their composition at compile time should use the section builders in
  * `../sections/` directly with their hardcoded team config.
  */
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers, chatroomId, role } = params;
+  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  const members = availableMembers ?? teamRoles;
+  // Always use teamRoles — prompts assume all team members are available
+  const members = teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
   const hasReviewer = members.some((r) => r.toLowerCase() === 'reviewer');
   const teamConfig = { hasBuilder, hasReviewer };

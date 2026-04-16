@@ -141,7 +141,6 @@ export function buildSelectorContext(params: {
   teamEntryPoint?: string;
   convexUrl: string;
   chatroomId?: string;
-  availableMembers?: string[];
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
@@ -161,7 +160,6 @@ export function buildSelectorContext(params: {
     teamConfig,
     workflow: params.workflow,
     teamRoles: params.teamRoles,
-    availableMembers: params.availableMembers,
     isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
     convexUrl: params.convexUrl,
     chatroomId: params.chatroomId,
@@ -216,8 +214,6 @@ export interface RolePromptContext {
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
   convexUrl: string; // Required Convex URL for env var prefix generation
-  /** Currently available (waiting) team members for dynamic workflow adaptation */
-  availableMembers?: string[];
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -243,7 +239,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     teamEntryPoint: ctx.teamEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
-    availableMembers: ctx.availableMembers,
     workflow: ctx.currentClassification,
   });
 
@@ -580,8 +575,6 @@ export interface InitPromptInput {
   teamRoles: string[];
   teamEntryPoint?: string;
   convexUrl: string; // Required Convex URL for env var prefix generation
-  /** Currently available (waiting) team members. Falls back to teamRoles if not provided. */
-  availableMembers?: string[];
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
   agentType?: 'remote' | 'custom' | 'unset';
 }
@@ -627,7 +620,6 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     teamEntryPoint,
     convexUrl,
     chatroomId,
-    availableMembers: input.availableMembers,
     agentType: input.agentType,
   });
 

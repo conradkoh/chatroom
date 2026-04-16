@@ -30,7 +30,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     // The workflow section correctly shows "Planner + Builder (no reviewer)"
@@ -46,7 +45,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     // Extract just the Handoff Rules section
@@ -69,7 +67,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     expect(guidance).toContain('Current Workflow: Full Team (Planner + Builder + Reviewer)');
@@ -83,7 +80,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
 
     expect(guidance).toContain('Current Workflow: Planner Solo');
@@ -108,7 +104,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'reviewer'],
     });
 
     expect(guidance).toContain('Current Workflow: Planner + Reviewer (no builder)');
@@ -138,7 +133,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
       'Feed phases to the builder incrementally — one at a time, not all at once'
@@ -152,7 +146,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
     expect(guidance).toContain('tackle one layer at a time');
     expect(guidance).not.toContain('Feed phases to the builder incrementally');
@@ -164,7 +157,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'reviewer'],
     });
     expect(guidance).toContain('tackle one layer at a time');
     expect(guidance).not.toContain('Feed phases to the builder incrementally');
@@ -180,7 +172,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
       "If the user's requirements are not met, hand work back to the builder for rework."
@@ -194,7 +185,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
     expect(guidance).toContain(
       "If the work doesn't meet requirements, revise it yourself before delivering."
@@ -308,7 +298,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);
@@ -330,7 +319,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);
@@ -349,7 +337,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Squad',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);
