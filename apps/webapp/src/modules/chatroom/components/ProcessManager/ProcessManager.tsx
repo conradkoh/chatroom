@@ -205,39 +205,59 @@ export function ProcessManager({
                   />
                 )}
 
-                {/* Command Browser */}
-                {/* Workspace sections with commands organized in sections */}
-                {workspaceGroups.map((ws) => (
-                  <div key={ws.path} className="border-b border-chatroom-border/50">
-                    <button
-                      onClick={() => {
-                        onClearRun();
-                        setSelectedWorkspace(ws);
-                        setSelectedCommand(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors"
-                    >
-                      <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
-                      <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
-                    </button>
-                    {/* Command sections */}
-                    {(() => {
-                      const sections = getCommandSections(ws, favorites, searchQuery);
-                      const handleSelect = (cmd: RunnableCommand) => {
-                        onClearRun();
-                        setSelectedCommand(cmd);
-                        setSelectedWorkspace(null);
-                      };
-                      return (
-                        <>
-                          {renderCommandSection('★ Favourites', sections.favourites, favorites, handleSelect)}
-                          {renderCommandSection('Common Commands', sections.commonCommands, favorites, handleSelect)}
-                          {renderCommandSection('Commands', sections.commands, favorites, handleSelect)}
-                        </>
-                      );
-                    })()}
+                {/* Command Browser — workspaces only (no inline buttons) */}
+                {searchQuery ? (
+                  /* Search results: flat list of matching commands */
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
+                      Search Results ({workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
+                    </div>
+                    {workspaceGroups.flatMap((ws) =>
+                      ws.allCommands.map((cmd) => {
+                        const isFav = favorites.has(cmd.name);
+                        return (
+                          <button
+                            key={cmd.name}
+                            onClick={() => {
+                              onClearRun();
+                              setSelectedWorkspace(ws);
+                              setSelectedCommand(cmd);
+                            }}
+                            className="w-full flex items-start gap-2 px-3 py-2 hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border/20 text-left"
+                          >
+                            <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary truncate">
+                                {getCompactDisplayName(cmd.name, cmd.script)}
+                              </div>
+                              <div className="text-[10px] text-chatroom-text-muted/70 truncate">
+                                {ws.path === '.' ? 'Root' : ws.path}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
-                ))}
+                ) : (
+                  /* Workspace list: only names, no inline buttons */
+                  <div>
+                    {workspaceGroups.map((ws) => (
+                      <button
+                        key={ws.path}
+                        onClick={() => {
+                          onClearRun();
+                          setSelectedWorkspace(ws);
+                          setSelectedCommand(null);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border/20"
+                      >
+                        <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
+                        <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Recent Runs */}
                 {recentRuns.length > 0 && (
@@ -579,13 +599,25 @@ function WorkspaceDetailPanel({
       </div>
       <div className="flex-1 overflow-y-auto">
         {(() => {
-          const favCmds = workspace.allCommands.filter((c) => favorites.has(c.name));
-          const otherCmds = workspace.allCommands.filter((c) => !favorites.has(c.name));
-          const hasFavorites = favCmds.length > 0;
+          const favSet = new Set(favorites);
+          const favourited: RunnableCommand[] = [];
+          const common: RunnableCommand[] = [];
+          const others: RunnableCommand[] = [];
+
+          for (const cmd of workspace.allCommands) {
+            const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
+            if (favSet.has(cmd.name)) {
+              favourited.push(cmd);
+            } else if (isCommon) {
+              common.push(cmd);
+            } else {
+              others.push(cmd);
+            }
+          }
 
           const renderCommand = (cmd: RunnableCommand) => {
             const scriptName = extractScriptName(cmd.name);
-            const isFav = favorites.has(cmd.name);
+            const isFav = favSet.has(cmd.name);
             return (
               <div
                 key={cmd.name}
@@ -622,105 +654,34 @@ function WorkspaceDetailPanel({
 
           return (
             <>
-              {hasFavorites && (
+              {favourited.length > 0 && (
                 <>
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
-                    ★ Favorites
+                    ★ Favourites
                   </div>
-                  {favCmds.map(renderCommand)}
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
-                    All Commands
-                  </div>
+                  {favourited.map(renderCommand)}
                 </>
               )}
-              {otherCmds.map(renderCommand)}
+              {common.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    Common Commands
+                  </div>
+                  {common.map(renderCommand)}
+                </>
+              )}
+              {others.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    Commands
+                  </div>
+                  {others.map(renderCommand)}
+                </>
+              )}
             </>
           );
         })()}
       </div>
     </div>
-  );
-}
-
-// ─── Visible Commands Helper ────────────────────────────────────────────────
-
-interface CommandSections {
-  favourites: RunnableCommand[];
-  commonCommands: RunnableCommand[];
-  commands: RunnableCommand[];
-}
-
-/**
- * Get command sections for sidebar display.
- * When searching, return all matching commands as "commands".
- */
-function getCommandSections(ws: WorkspaceGroup, favorites: Set<string>, searchQuery: string): CommandSections {
-  const { allCommands } = ws;
-
-  // When searching, return all filtered commands as "commands"
-  if (searchQuery) {
-    return { favourites: [], commonCommands: [], commands: allCommands };
-  }
-
-  const favSet = new Set(favorites);
-  const favourited: RunnableCommand[] = [];
-  const common: RunnableCommand[] = [];
-  const others: RunnableCommand[] = [];
-
-  for (const cmd of allCommands) {
-    // Common commands: from package.json source in root workspace
-    const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
-
-    if (favSet.has(cmd.name)) {
-      favourited.push(cmd);
-    } else if (isCommon) {
-      common.push(cmd);
-    } else {
-      others.push(cmd);
-    }
-  }
-
-  return { favourites: favourited, commonCommands: common, commands: others };
-}
-
-/** Render a section with heading if non-empty */
-function renderCommandSection(
-  heading: string | null,
-  commands: RunnableCommand[],
-  favorites: Set<string>,
-  onSelect: (cmd: RunnableCommand) => void
-) {
-  if (commands.length === 0) return null;
-
-  return (
-    <>
-      {heading && (
-        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
-          {heading}
-        </div>
-      )}
-      <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-        {commands.map((cmd) => {
-          const isFav = favorites.has(cmd.name);
-          return (
-            <button
-              key={cmd.name}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(cmd);
-              }}
-              className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                isFav
-                  ? 'text-yellow-500 bg-yellow-500/10 hover:bg-blue-600 hover:text-white'
-                  : 'text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white'
-              }`}
-              title={cmd.script}
-            >
-              {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name, cmd.script)}
-            </button>
-          );
-        })}
-      </div>
-    </>
   );
 }
