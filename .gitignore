@@ -17,3 +17,6 @@ coverage/
 .env*.local
 tmp/
 patches/
+
+# Local dev
+.chatroom/
