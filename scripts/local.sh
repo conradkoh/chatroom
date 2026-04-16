@@ -35,6 +35,21 @@ if [ ! -f "services/backend/.env.local" ]; then
   echo ""
 fi
 
+# Resolve backend URL from webapp .env.local (single source of truth)
+# This ensures CLI, daemon, and webapp all connect to the same local backend.
+WEBAPP_ENV="$ROOT_DIR/apps/webapp/.env.local"
+if [ ! -f "$WEBAPP_ENV" ]; then
+  echo -e "${RED}❌ Missing $WEBAPP_ENV — run pnpm setup first.${NC}"
+  exit 1
+fi
+BACKEND_URL=$(grep "^NEXT_PUBLIC_CONVEX_URL=" "$WEBAPP_ENV" | cut -d'=' -f2- | tr -d '[:space:]')
+if [ -z "$BACKEND_URL" ]; then
+  echo -e "${RED}❌ NEXT_PUBLIC_CONVEX_URL not found in $WEBAPP_ENV${NC}"
+  exit 1
+fi
+echo -e "${CYAN}🔗 Resolved backend URL: ${YELLOW}$BACKEND_URL${NC}"
+echo ""
+
 # Install dependencies
 echo -e "${BLUE}📦 Installing dependencies...${NC}"
 pnpm install
@@ -80,6 +95,7 @@ echo -e "${GREEN}✅ Backend started (PID: $BACKEND_PID). Logs: $BACKEND_LOG${NC
 cd "$ROOT_DIR"
 
 # Start webapp in production mode
+# Webapp reads NEXT_PUBLIC_CONVEX_URL from apps/webapp/.env.local automatically (Next.js)
 echo -e "${BLUE}🚀 Starting webapp (production mode)...${NC}"
 cd "$ROOT_DIR/apps/webapp"
 pnpm start > "$WEBAPP_LOG" 2>&1 &
@@ -88,9 +104,9 @@ echo -e "${GREEN}✅ Webapp started (PID: $WEBAPP_PID). Logs: $WEBAPP_LOG${NC}"
 
 cd "$ROOT_DIR"
 
-# Start machine daemon
-echo -e "${BLUE}🚀 Starting machine daemon...${NC}"
-chatroom machine daemon start > "$DAEMON_LOG" 2>&1 &
+# Start machine daemon with the resolved backend URL
+echo -e "${BLUE}🚀 Starting machine daemon (CHATROOM_CONVEX_URL=$BACKEND_URL)...${NC}"
+CHATROOM_CONVEX_URL="$BACKEND_URL" chatroom machine daemon start > "$DAEMON_LOG" 2>&1 &
 DAEMON_PID=$!
 echo -e "${GREEN}✅ Daemon started (PID: $DAEMON_PID). Logs: $DAEMON_LOG${NC}"
 
@@ -103,6 +119,8 @@ echo ""
 echo -e "${BOLD}${GREEN}========================================${NC}"
 echo -e "${BOLD}${GREEN}   ✅ Local environment is running!     ${NC}"
 echo -e "${BOLD}${GREEN}========================================${NC}"
+echo ""
+echo -e "${CYAN}🔗 Backend URL: ${YELLOW}$BACKEND_URL${NC}"
 echo ""
 echo -e "${CYAN}📋 Processes:${NC}"
 echo -e "   Backend PID : ${YELLOW}$BACKEND_PID${NC}"
