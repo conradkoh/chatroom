@@ -159,6 +159,9 @@ Test technical specifications`,
         - \`structural-decisions\`
             - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
+        - \`prompt-override\`
+            - A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.
+
         # Skills
 
         Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -368,6 +371,9 @@ Test technical specifications`,
 
         - \`structural-decisions\`
             - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
+
+        - \`prompt-override\`
+            - A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.
 
         # Skills
 
@@ -696,6 +702,9 @@ Test technical specifications`,
 
         - \`structural-decisions\`
             - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
+
+        - \`prompt-override\`
+            - A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.
 
         # Skills
 
