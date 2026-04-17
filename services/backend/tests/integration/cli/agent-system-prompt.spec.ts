@@ -139,9 +139,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
-      - \`skill-customization\`
-          - A chatroom-specific customization that overrides a skill's default system prompt, allowing teams to tailor agent behavior for a specific project without forking the skill module.
-
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -428,9 +425,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
-
-      - \`skill-customization\`
-          - A chatroom-specific customization that overrides a skill's default system prompt, allowing teams to tailor agent behavior for a specific project without forking the skill module.
 
       # Skills
 

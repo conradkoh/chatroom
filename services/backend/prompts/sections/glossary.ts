@@ -61,11 +61,6 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       '(e.g., Repository/Service layers).',
     // No linkedSkillId - this is a concept, not a standalone skill
   },
-  {
-    term: 'skill-customization',
-    definition:
-      "A chatroom-specific customization that overrides a skill's default system prompt, allowing teams to tailor agent behavior for a specific project without forking the skill module.",
-  },
 ];
 
 /**
