@@ -192,6 +192,18 @@ chatroom/
 
 ---
 
+## Glossary
+
+- `backlog`: The list of work items the team intends to do but has not yet started.
+- `software-engineering`: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+- `code-review`: Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+- `workflow`: DAG-based structured workflows for planning and executing multi-step tasks.
+- `structural-decisions`: Meta-level architectural choices that persist in the codebase and influence consistency.
+- `prompt-override`: A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.
+- `release-branch`: A temporary branch (e.g., `release/v1.34.0`) used to stabilize a version, integrate approved features, and prepare for merging into the main branch.
+
+---
+
 <chatroom>
 ## CHATROOM INTEGRATION
 
