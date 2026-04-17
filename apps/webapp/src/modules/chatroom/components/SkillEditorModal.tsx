@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PromptEditorModal — Textarea editor with preview toggle for editing prompt content.
+ * SkillEditorModal — Textarea editor with preview toggle for editing skill customization content.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -11,39 +11,34 @@ import { Eye, Pencil, Loader2 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-interface PromptEditorModalProps {
+interface SkillEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  promptId: string;
+  customizationId: string;
   initialContent: string;
-  promptName: string;
+  skillName: string;
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
-export const PromptEditorModal = memo(function PromptEditorModal({
+export const SkillEditorModal = memo(function SkillEditorModal({
   isOpen,
   onClose,
   chatroomId,
-  promptId,
+  customizationId,
   initialContent,
-  promptName,
-}: PromptEditorModalProps) {
+  skillName,
+}: SkillEditorModalProps) {
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [isSaving, setIsSaving] = useState(false);
 
-  const updatePrompt = useSessionMutation(api.chatroomPrompts.update);
+  const updateCustomization = useSessionMutation(api.chatroomSkillCustomizations.update);
 
   // Reset content when modal opens with new content
   React.useEffect(() => {
@@ -56,16 +51,16 @@ export const PromptEditorModal = memo(function PromptEditorModal({
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      await updatePrompt({
+      await updateCustomization({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        promptId: promptId as Id<'chatroom_prompts'>,
+        customizationId: customizationId as Id<'chatroom_skillCustomizations'>,
         content,
       });
       onClose();
     } finally {
       setIsSaving(false);
     }
-  }, [updatePrompt, chatroomId, promptId, content, onClose]);
+  }, [updateCustomization, chatroomId, customizationId, content, onClose]);
 
   const handleCancel = useCallback(() => {
     setContent(initialContent);
@@ -76,7 +71,7 @@ export const PromptEditorModal = memo(function PromptEditorModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-foreground">{promptName}</DialogTitle>
+          <DialogTitle className="text-foreground">Customize Skill: {skillName}</DialogTitle>
         </DialogHeader>
 
         {/* Mode Toggle */}
@@ -112,15 +107,13 @@ export const PromptEditorModal = memo(function PromptEditorModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="h-[50vh] w-full resize-none rounded-md border border-border bg-card p-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Enter your prompt content here..."
+              placeholder="Enter your skill customization content here..."
               spellCheck={false}
             />
           ) : (
             <div className="h-[50vh] overflow-auto rounded-md border border-border bg-card p-3">
               <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words text-sm text-foreground">
-                {content || (
-                  <span className="text-muted-foreground italic">No content</span>
-                )}
+                {content || <span className="text-muted-foreground italic">No content</span>}
               </div>
             </div>
           )}

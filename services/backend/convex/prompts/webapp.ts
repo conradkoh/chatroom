@@ -17,9 +17,9 @@ export const getAgentPrompt = query({
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check for a prompt override for this chatroom
-    const override = await ctx.db
-      .query('chatroom_prompts')
+    // Check for a skill customization for this chatroom
+    const customization = await ctx.db
+      .query('chatroom_skillCustomizations')
       .withIndex('by_chatroomId_type', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('type', 'development_workflow')
       )
@@ -35,8 +35,8 @@ export const getAgentPrompt = query({
       convexUrl: args.convexUrl,
     });
 
-    if (override && override.isEnabled) {
-      return override.content;
+    if (customization && customization.isEnabled) {
+      return customization.content;
     }
 
     return basePrompt;

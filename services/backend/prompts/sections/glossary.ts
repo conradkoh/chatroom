@@ -62,9 +62,9 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     // No linkedSkillId - this is a concept, not a standalone skill
   },
   {
-    term: 'prompt-override',
+    term: 'skill-customization',
     definition:
-      "A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.",
+      "A chatroom-specific customization that overrides a skill's default system prompt, allowing teams to tailor agent behavior for a specific project without forking the skill module.",
   },
 ];
 

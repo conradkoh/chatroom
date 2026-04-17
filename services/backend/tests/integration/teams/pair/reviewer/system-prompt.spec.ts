@@ -99,8 +99,8 @@ describe('Pair Team > Reviewer > System Prompt', () => {
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
-      - \`prompt-override\`
-          - A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.
+      - \`skill-customization\`
+          - A chatroom-specific customization that overrides a skill's default system prompt, allowing teams to tailor agent behavior for a specific project without forking the skill module.
 
       # Skills
 

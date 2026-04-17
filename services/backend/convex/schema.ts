@@ -1938,11 +1938,11 @@ export default defineSchema({
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
   /**
-   * User-authored prompt overrides applied to a chatroom's team prompts.
+   * Chatroom-specific skill customizations that override a skill's default system prompt.
    * When `isEnabled` is true, the content replaces the default prompt for
    * the given `type` in the owning chatroom.
    */
-  chatroom_prompts: defineTable(
+  chatroom_skillCustomizations: defineTable(
     v.union(
       v.object({
         type: v.literal('development_workflow'),
@@ -1952,7 +1952,7 @@ export default defineSchema({
         content: v.string(),
         isEnabled: v.boolean(),
         sourceChatroomId: v.optional(v.id('chatroom_rooms')),
-        sourcePromptId: v.optional(v.id('chatroom_prompts')),
+        sourceCustomizationId: v.optional(v.id('chatroom_skillCustomizations')),
         createdAt: v.number(),
         updatedAt: v.number(),
       })
@@ -1960,5 +1960,5 @@ export default defineSchema({
   )
     .index('by_chatroomId', ['chatroomId'])
     .index('by_chatroomId_type', ['chatroomId', 'type'])
-    .index('by_sourcePromptId', ['sourcePromptId']),
+    .index('by_sourceCustomizationId', ['sourceCustomizationId']),
 });

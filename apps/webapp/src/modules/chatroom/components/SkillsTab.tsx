@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * PromptsTab — Manage custom prompt overrides for a chatroom.
+ * SkillsTab — Manage skill customizations for a chatroom.
  *
- * Shows the development workflow prompt section with override/toggle/reset functionality.
- * When no override exists, the built-in default (from the development-workflow skill) is used.
+ * Shows the development workflow skill customization with edit/toggle/reset functionality.
+ * When no customization exists, the default skill prompt (from the development-workflow skill) is used.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -13,21 +13,21 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
-import { PromptEditorModal } from './PromptEditorModal';
+import { SkillEditorModal } from './SkillEditorModal';
 
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-interface PromptsTabProps {
+interface SkillsTabProps {
   chatroomId: string;
 }
 
 // ─── Default content ────────────────────────────────────────────────────
 
 /**
- * Default content for the `development_workflow` prompt.
+ * Default content for the `development_workflow` skill.
  *
  * This mirrors `services/backend/src/domain/usecase/skills/modules/development-workflow/index.ts`
  * (PR #405). Kept in sync manually for now — in the future this should be fetched via
@@ -44,17 +44,17 @@ const DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT = `## Development & Release Flow
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
-export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabProps) {
+export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
 
-  const prompt = useSessionQuery(api.chatroomPrompts.getForChatroom, {
+  const customization = useSessionQuery(api.chatroomSkillCustomizations.getForChatroom, {
     chatroomId: typedChatroomId,
     type: 'development_workflow',
   });
 
-  const createPrompt = useSessionMutation(api.chatroomPrompts.create);
-  const togglePrompt = useSessionMutation(api.chatroomPrompts.toggle);
-  const removePrompt = useSessionMutation(api.chatroomPrompts.remove);
+  const createCustomization = useSessionMutation(api.chatroomSkillCustomizations.create);
+  const toggleCustomization = useSessionMutation(api.chatroomSkillCustomizations.toggle);
+  const removeCustomization = useSessionMutation(api.chatroomSkillCustomizations.remove);
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -63,7 +63,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
   const handleOverride = useCallback(async () => {
     setIsCreating(true);
     try {
-      await createPrompt({
+      await createCustomization({
         chatroomId: typedChatroomId,
         type: 'development_workflow',
         name: 'Development Workflow',
@@ -73,30 +73,30 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
     } finally {
       setIsCreating(false);
     }
-  }, [createPrompt, typedChatroomId]);
+  }, [createCustomization, typedChatroomId]);
 
   const handleToggle = useCallback(async () => {
-    if (!prompt) return;
-    await togglePrompt({
+    if (!customization) return;
+    await toggleCustomization({
       chatroomId: typedChatroomId,
-      promptId: prompt._id,
+      customizationId: customization._id,
     });
-  }, [togglePrompt, typedChatroomId, prompt]);
+  }, [toggleCustomization, typedChatroomId, customization]);
 
   const handleReset = useCallback(async () => {
-    if (!prompt) return;
-    await removePrompt({
+    if (!customization) return;
+    await removeCustomization({
       chatroomId: typedChatroomId,
-      promptId: prompt._id,
+      customizationId: customization._id,
     });
-  }, [removePrompt, typedChatroomId, prompt]);
+  }, [removeCustomization, typedChatroomId, customization]);
 
   // Loading state
-  if (prompt === undefined) {
+  if (customization === undefined) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading prompts…</span>
+        <span className="ml-2 text-sm text-muted-foreground">Loading skills…</span>
       </div>
     );
   }
@@ -104,10 +104,10 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
   return (
     <div className="space-y-6 p-4">
       <div>
-        <h3 className="text-sm font-medium text-foreground">Prompts</h3>
+        <h3 className="text-sm font-medium text-foreground">Skills</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Customize skill prompts for this chatroom. Overrides replace the built-in defaults when
-          the skill is activated.
+          Customize skills for this chatroom. A customization replaces the skill's default system
+          prompt when the skill is activated.
         </p>
       </div>
 
@@ -120,24 +120,24 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
             </div>
             <div>
               <h4 className="text-sm font-medium text-foreground">Development Workflow</h4>
-              {prompt === null ? (
-                <p className="mt-0.5 text-xs text-muted-foreground">Using: Built-in default</p>
+              {customization === null ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">Using: Default skill prompt</p>
               ) : (
                 <div className="mt-0.5 space-y-0.5">
                   <p className="text-xs text-muted-foreground">
-                    Custom override{' '}
+                    Customized{' '}
                     <span
                       className={
-                        prompt.isEnabled
+                        customization.isEnabled
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-muted-foreground'
                       }
                     >
-                      ({prompt.isEnabled ? 'Active' : 'Disabled'})
+                      ({customization.isEnabled ? 'Active' : 'Disabled'})
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Last edited: {new Date(prompt.updatedAt).toLocaleDateString()}
+                    Last edited: {new Date(customization.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
               )}
@@ -146,7 +146,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {prompt === null ? (
+            {customization === null ? (
               <Button
                 variant="default"
                 size="sm"
@@ -164,9 +164,9 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
             ) : (
               <>
                 <Switch
-                  checked={prompt.isEnabled}
+                  checked={customization.isEnabled}
                   onCheckedChange={handleToggle}
-                  aria-label="Toggle prompt override"
+                  aria-label="Toggle skill customization"
                 />
                 <Button
                   variant="outline"
@@ -191,8 +191,8 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
           </div>
         </div>
 
-        {/* Default prompt preview in empty state */}
-        {prompt === null && (
+        {/* Default skill prompt preview in empty state */}
+        {customization === null && (
           <div className="mt-3 border-t border-border pt-3">
             <button
               type="button"
@@ -204,7 +204,7 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              View default prompt
+              View default skill prompt
             </button>
             {isDefaultExpanded && (
               <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-muted/50 p-3">
@@ -218,14 +218,14 @@ export const PromptsTab = memo(function PromptsTab({ chatroomId }: PromptsTabPro
       </div>
 
       {/* Editor Modal */}
-      {prompt && (
-        <PromptEditorModal
+      {customization && (
+        <SkillEditorModal
           isOpen={isEditorOpen}
           onClose={() => setIsEditorOpen(false)}
           chatroomId={chatroomId}
-          promptId={prompt._id}
-          initialContent={prompt.content}
-          promptName={prompt.name}
+          customizationId={customization._id}
+          initialContent={customization.content}
+          skillName={customization.name}
         />
       )}
     </div>

@@ -21,12 +21,23 @@ import {
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
-
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
-import { PromptsContext } from '@/contexts/PromptsContext';
+import type { SettingsTab } from './CommandPalette/types';
+import { IntegrationsTab } from './IntegrationsTab';
+import { SkillsTab } from './SkillsTab';
+import { TEAMS_CONFIG } from '../config/teams';
+import { getWorkspaceDisplayHostname } from '../types/workspace';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -42,19 +53,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PromptsContext } from '@/contexts/PromptsContext';
 import { getDaemonStartCommand } from '@/lib/environment';
-import { IntegrationsTab } from './IntegrationsTab';
-import { PromptsTab } from './PromptsTab';
-import { TEAMS_CONFIG } from '../config/teams';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-import { getWorkspaceDisplayHostname } from '../types/workspace';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -67,8 +67,6 @@ interface AgentSettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-import type { SettingsTab } from './CommandPalette/types';
-
 export type { SettingsTab };
 
 // ─── Constants ──────────────────────────────────────────────────────────
@@ -79,7 +77,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
   { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
-  { id: 'prompts', label: 'Prompts', icon: <FileText size={16} /> },
+  { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
 ];
 
@@ -979,7 +977,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
-          {activeTab === 'prompts' && <PromptsTab chatroomId={chatroomId} />}
+          {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>

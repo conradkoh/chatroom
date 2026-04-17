@@ -1,5 +1,5 @@
 /**
- * Chatroom custom prompts — CRUD operations.
+ * Chatroom skill customizations — CRUD operations.
  *
  * All functions require SessionIdArg and chatroomId for auth.
  */
@@ -16,8 +16,8 @@ import type { Id } from './_generated/dataModel';
 // ---------------------------------------------------------------------------
 
 /**
- * Get the prompt for a chatroom by type.
- * Returns the first matching prompt doc or null.
+ * Get the skill customization for a chatroom by type.
+ * Returns the first matching customization doc or null.
  */
 export const getForChatroom = query({
   args: {
@@ -28,32 +28,34 @@ export const getForChatroom = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const prompt = await ctx.db
-      .query('chatroom_prompts')
+    const customization = await ctx.db
+      .query('chatroom_skillCustomizations')
       .withIndex('by_chatroomId_type', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('type', args.type)
       )
       .first();
 
-    return prompt ?? null;
+    return customization ?? null;
   },
 });
 
 /**
- * Find all chatroom prompts that were copied from a given source prompt.
+ * Find all chatroom skill customizations that were copied from a given source customization.
  */
 export const findCopies = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    promptId: v.id('chatroom_prompts'),
+    customizationId: v.id('chatroom_skillCustomizations'),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const copies = await ctx.db
-      .query('chatroom_prompts')
-      .withIndex('by_sourcePromptId', (q) => q.eq('sourcePromptId', args.promptId))
+      .query('chatroom_skillCustomizations')
+      .withIndex('by_sourceCustomizationId', (q) =>
+        q.eq('sourceCustomizationId', args.customizationId)
+      )
       .collect();
 
     return copies;
@@ -65,7 +67,7 @@ export const findCopies = query({
 // ---------------------------------------------------------------------------
 
 /**
- * Create a new chatroom prompt.
+ * Create a new chatroom skill customization.
  */
 export const create = mutation({
   args: {
@@ -75,13 +77,13 @@ export const create = mutation({
     name: v.string(),
     content: v.string(),
     sourceChatroomId: v.optional(v.id('chatroom_rooms')),
-    sourcePromptId: v.optional(v.id('chatroom_prompts')),
+    sourceCustomizationId: v.optional(v.id('chatroom_skillCustomizations')),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const now = Date.now();
 
-    const id = await ctx.db.insert('chatroom_prompts', {
+    const id = await ctx.db.insert('chatroom_skillCustomizations', {
       type: args.type,
       chatroomId: args.chatroomId,
       ownerId: session.userId,
@@ -89,7 +91,7 @@ export const create = mutation({
       content: args.content,
       isEnabled: true,
       sourceChatroomId: args.sourceChatroomId,
-      sourcePromptId: args.sourcePromptId,
+      sourceCustomizationId: args.sourceCustomizationId,
       createdAt: now,
       updatedAt: now,
     });
@@ -99,13 +101,13 @@ export const create = mutation({
 });
 
 /**
- * Update a prompt's content and/or name.
+ * Update a skill customization's content and/or name.
  */
 export const update = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    promptId: v.id('chatroom_prompts'),
+    customizationId: v.id('chatroom_skillCustomizations'),
     content: v.string(),
     name: v.optional(v.string()),
   },
@@ -120,73 +122,73 @@ export const update = mutation({
       patch.name = args.name;
     }
 
-    await ctx.db.patch(args.promptId, patch);
+    await ctx.db.patch(args.customizationId, patch);
   },
 });
 
 /**
- * Delete a prompt.
+ * Delete a skill customization.
  */
 export const remove = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    promptId: v.id('chatroom_prompts'),
+    customizationId: v.id('chatroom_skillCustomizations'),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    await ctx.db.delete(args.promptId);
+    await ctx.db.delete(args.customizationId);
   },
 });
 
 /**
- * Toggle a prompt's isEnabled flag.
+ * Toggle a skill customization's isEnabled flag.
  */
 export const toggle = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    promptId: v.id('chatroom_prompts'),
+    customizationId: v.id('chatroom_skillCustomizations'),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const prompt = await ctx.db.get(args.promptId);
-    if (!prompt) {
-      throw new Error('Prompt not found');
+    const customization = await ctx.db.get(args.customizationId);
+    if (!customization) {
+      throw new Error('Skill customization not found');
     }
 
-    await ctx.db.patch(args.promptId, {
-      isEnabled: !prompt.isEnabled,
+    await ctx.db.patch(args.customizationId, {
+      isEnabled: !customization.isEnabled,
       updatedAt: Date.now(),
     });
   },
 });
 
 /**
- * Copy a prompt to one or more target chatrooms.
- * Sets sourceChatroomId and sourcePromptId for tracking.
+ * Copy a skill customization to one or more target chatrooms.
+ * Sets sourceChatroomId and sourceCustomizationId for tracking.
  */
 export const copyTo = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    sourcePromptId: v.id('chatroom_prompts'),
+    sourceCustomizationId: v.id('chatroom_skillCustomizations'),
     targetChatroomIds: v.array(v.id('chatroom_rooms')),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const source = await ctx.db.get(args.sourcePromptId);
+    const source = await ctx.db.get(args.sourceCustomizationId);
     if (!source) {
-      throw new Error('Source prompt not found');
+      throw new Error('Source skill customization not found');
     }
 
     const now = Date.now();
-    const createdIds: Id<'chatroom_prompts'>[] = [];
+    const createdIds: Id<'chatroom_skillCustomizations'>[] = [];
 
     for (const targetChatroomId of args.targetChatroomIds) {
-      const id = await ctx.db.insert('chatroom_prompts', {
+      const id = await ctx.db.insert('chatroom_skillCustomizations', {
         type: source.type,
         chatroomId: targetChatroomId,
         ownerId: session.userId,
@@ -194,7 +196,7 @@ export const copyTo = mutation({
         content: source.content,
         isEnabled: true,
         sourceChatroomId: args.chatroomId,
-        sourcePromptId: args.sourcePromptId,
+        sourceCustomizationId: args.sourceCustomizationId,
         createdAt: now,
         updatedAt: now,
       });
@@ -206,22 +208,22 @@ export const copyTo = mutation({
 });
 
 /**
- * Bulk-update content across selected copies of a prompt.
+ * Bulk-update content across selected copies of a skill customization.
  */
 export const bulkUpdate = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    sourcePromptId: v.id('chatroom_prompts'),
-    targetPromptIds: v.array(v.id('chatroom_prompts')),
+    sourceCustomizationId: v.id('chatroom_skillCustomizations'),
+    targetCustomizationIds: v.array(v.id('chatroom_skillCustomizations')),
     content: v.string(),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const now = Date.now();
-    for (const promptId of args.targetPromptIds) {
-      await ctx.db.patch(promptId, {
+    for (const customizationId of args.targetCustomizationIds) {
+      await ctx.db.patch(customizationId, {
         content: args.content,
         updatedAt: now,
       });

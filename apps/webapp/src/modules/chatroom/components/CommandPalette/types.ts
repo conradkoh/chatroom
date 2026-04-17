@@ -28,5 +28,5 @@ export type SettingsTab =
   | 'machine'
   | 'agents'
   | 'workspaces'
-  | 'prompts'
+  | 'skills'
   | 'integrations';
