@@ -123,7 +123,7 @@ describe('fuzzyFilter', () => {
   });
 
   it('returns > 0 when keyword matches but value does not', () => {
-    expect(fuzzyFilter('Github: View Pull Requests', 'PR', ['PR', 'PRs'])).toBeGreaterThan(0);
+    expect(fuzzyFilter('Github: View My Pull Requests', 'PR', ['PR', 'PRs'])).toBeGreaterThan(0);
   });
 
   it('returns the max score across value and keywords', () => {

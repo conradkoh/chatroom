@@ -1947,11 +1947,35 @@ export default defineSchema({
    */
   chatroom_savedCommands: defineTable({
     chatroomId: v.id('chatroom_rooms'),
-    name: v.string(),        // Command display name (shown as "Command: <name>")
-    prompt: v.string(),      // The prompt text to send as a message
-    createdBy: v.string(),   // Session ID or user who created it
-    createdAt: v.number(),   // Unix timestamp
-    updatedAt: v.number(),   // Unix timestamp
-  })
-    .index('by_chatroom', ['chatroomId']),
+    name: v.string(), // Command display name (shown as "Command: <name>")
+    prompt: v.string(), // The prompt text to send as a message
+    createdBy: v.string(), // Session ID or user who created it
+    createdAt: v.number(), // Unix timestamp
+    updatedAt: v.number(), // Unix timestamp
+  }).index('by_chatroom', ['chatroomId']),
+
+  /**
+   * Chatroom-specific skill customizations that override a skill's default system prompt.
+   * When `isEnabled` is true, the content replaces the default prompt for
+   * the given `type` in the owning chatroom.
+   */
+  chatroom_skillCustomizations: defineTable(
+    v.union(
+      v.object({
+        type: v.literal('development_workflow'),
+        chatroomId: v.id('chatroom_rooms'),
+        ownerId: v.id('users'),
+        name: v.string(),
+        content: v.string(),
+        isEnabled: v.boolean(),
+        sourceChatroomId: v.optional(v.id('chatroom_rooms')),
+        sourceCustomizationId: v.optional(v.id('chatroom_skillCustomizations')),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+      })
+    )
+  )
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_chatroomId_type', ['chatroomId', 'type'])
+    .index('by_sourceCustomizationId', ['sourceCustomizationId']),
 });

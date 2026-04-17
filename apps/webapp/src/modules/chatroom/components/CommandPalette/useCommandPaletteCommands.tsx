@@ -252,7 +252,7 @@ export function useCommandPaletteCommands({
       if (onViewGitHubPullRequests) {
         commands.push({
           id: 'action-view-github-prs',
-          label: 'Github: View Pull Requests',
+          label: 'Github: View My Pull Requests',
           icon: <SiGithub size={14} />,
           category: 'Actions',
           keywords: ['PR', 'PRs'],
