@@ -1936,4 +1936,29 @@ export default defineSchema({
     /** When the content was fetched. */
     fetchedAt: v.number(),
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * Chatroom-specific skill customizations that override a skill's default system prompt.
+   * When `isEnabled` is true, the content replaces the default prompt for
+   * the given `type` in the owning chatroom.
+   */
+  chatroom_skillCustomizations: defineTable(
+    v.union(
+      v.object({
+        type: v.literal('development_workflow'),
+        chatroomId: v.id('chatroom_rooms'),
+        ownerId: v.id('users'),
+        name: v.string(),
+        content: v.string(),
+        isEnabled: v.boolean(),
+        sourceChatroomId: v.optional(v.id('chatroom_rooms')),
+        sourceCustomizationId: v.optional(v.id('chatroom_skillCustomizations')),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+      })
+    )
+  )
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_chatroomId_type', ['chatroomId', 'type'])
+    .index('by_sourceCustomizationId', ['sourceCustomizationId']),
 });

@@ -18,6 +18,7 @@ import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
+import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
 import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
 import type * as cleanupTasks from "../cleanupTasks.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   "auth/google": typeof auth_google;
   backlog: typeof backlog;
   chatroomCleanup: typeof chatroomCleanup;
+  chatroomSkillCustomizations: typeof chatroomSkillCustomizations;
   chatrooms: typeof chatrooms;
   checklists: typeof checklists;
   cleanupTasks: typeof cleanupTasks;
