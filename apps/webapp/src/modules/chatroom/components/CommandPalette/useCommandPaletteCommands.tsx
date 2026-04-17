@@ -30,6 +30,12 @@ import type { CommandItem, SettingsTab } from './types';
 
 export type { SettingsTab };
 
+export interface SavedCommandEntry {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
   onOpenEventStream: () => void;
@@ -75,6 +81,12 @@ interface UseCommandPaletteCommandsProps {
    * (onOpenInVSCode, onOpenInGitHubDesktop, etc.).
    */
   workspaceCommands?: CommandItem[];
+  /** Callback to open the Create Command modal */
+  onCreateCommand?: (() => void) | null;
+  /** Saved commands to show in the command palette */
+  savedCommands?: SavedCommandEntry[];
+  /** Callback to execute a saved command (send its prompt as a message) */
+  onExecuteSavedCommand?: ((prompt: string) => void) | null;
 }
 
 /**
@@ -111,6 +123,9 @@ export function useCommandPaletteCommands({
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
+  onCreateCommand,
+  savedCommands,
+  onExecuteSavedCommand,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -122,6 +137,20 @@ export function useCommandPaletteCommands({
 
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
+
+    // ─── Saved Commands (custom user prompts) ──────────────────────
+    if (savedCommands && savedCommands.length > 0 && onExecuteSavedCommand) {
+      for (const cmd of savedCommands) {
+        commands.push({
+          id: `saved-cmd-${cmd.id}`,
+          label: `Command: ${cmd.name}`,
+          icon: <MessageSquare size={14} />,
+          category: 'Commands',
+          keywords: [cmd.name],
+          action: () => onExecuteSavedCommand(cmd.prompt),
+        });
+      }
+    }
 
     // ─── Favorites (favourited commands from process manager) ────────
     if (runnableCommands) {
@@ -169,6 +198,18 @@ export function useCommandPaletteCommands({
         category: 'Navigate',
         keywords: ['new', 'create', 'chatroom'],
         action: onCreateNewChatroom,
+      });
+    }
+
+    // ─── Create Command action ────────────────────────────────────
+    if (onCreateCommand) {
+      commands.push({
+        id: 'action-create-command',
+        label: 'Create Command',
+        icon: <Plus size={14} />,
+        category: 'Actions',
+        keywords: ['new', 'create', 'command', 'prompt', 'saved'],
+        action: onCreateCommand,
       });
     }
 
@@ -433,5 +474,8 @@ export function useCommandPaletteCommands({
     onStartAllRemoteAgents,
     onStopAllRemoteAgents,
     onRestartAllRemoteAgents,
+    onCreateCommand,
+    savedCommands,
+    onExecuteSavedCommand,
   ]);
 }

@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
-import { Code2 } from 'lucide-react';
+import { Code2, Plus } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -12,6 +12,11 @@ import { AttachedTaskChip } from './AttachedTaskChip';
 import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   useAttachments,
   useTaskAttachments,
@@ -29,6 +34,8 @@ interface SendFormProps {
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
+  /** Callback to open the Create Command modal */
+  onCreateCommand?: () => void;
 }
 
 /**
@@ -112,6 +119,7 @@ export const SendForm = memo(function SendForm({
   onAfterResize: _onAfterResize,
   onRegisterFocus,
   files = [],
+  onCreateCommand,
 }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -120,6 +128,7 @@ export const SendForm = memo(function SendForm({
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
   const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
@@ -395,6 +404,36 @@ export const SendForm = memo(function SendForm({
         />
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* + button for quick actions (e.g. create saved command) */}
+          {onCreateCommand && (
+            <Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  title="More actions"
+                  className="p-2.5 border-2 transition-all duration-100 bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                >
+                  <Plus size={14} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="top"
+                className="p-1 bg-chatroom-bg-tertiary border-chatroom-border w-40"
+              >
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-xs text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
+                  onClick={() => {
+                    setPlusMenuOpen(false);
+                    onCreateCommand();
+                  }}
+                >
+                  Command
+                </button>
+              </PopoverContent>
+            </Popover>
+          )}
           {!isTouchDevice && (
             <button
               type="button"

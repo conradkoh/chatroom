@@ -1937,6 +1937,23 @@ export default defineSchema({
     fetchedAt: v.number(),
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
+  // ─── Saved Commands ──────────────────────────────────────────────────────────
+  // Custom prompt templates that users can save and execute via the command palette.
+
+  /**
+   * Saved custom commands (prompt templates) for a chatroom.
+   * Users create these via the command palette (Cmd+Shift+P) and can execute them
+   * to send pre-defined prompts as messages.
+   */
+  chatroom_savedCommands: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    name: v.string(), // Command display name (shown as "Command: <name>")
+    prompt: v.string(), // The prompt text to send as a message
+    createdBy: v.string(), // Session ID or user who created it
+    createdAt: v.number(), // Unix timestamp
+    updatedAt: v.number(), // Unix timestamp
+  }).index('by_chatroom', ['chatroomId']),
+
   /**
    * Chatroom-specific skill customizations that override a skill's default system prompt.
    * When `isEnabled` is true, the content replaces the default prompt for
