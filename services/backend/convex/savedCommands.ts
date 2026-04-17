@@ -34,7 +34,7 @@ export const createSavedCommand = mutation({
     prompt: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const trimmedName = args.name.trim();
     if (!trimmedName) {
@@ -46,7 +46,7 @@ export const createSavedCommand = mutation({
       chatroomId: args.chatroomId,
       name: trimmedName,
       prompt: args.prompt,
-      createdBy: args.sessionId,
+      createdBy: session.userId,
       createdAt: now,
       updatedAt: now,
     });
