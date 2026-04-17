@@ -61,6 +61,11 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       '(e.g., Repository/Service layers).',
     // No linkedSkillId - this is a concept, not a standalone skill
   },
+  {
+    term: 'prompt-override',
+    definition:
+      "A chatroom-specific configuration that replaces a skill's default system prompt with a custom version to tailor agent behavior for a specific project.",
+  },
 ];
 
 /**

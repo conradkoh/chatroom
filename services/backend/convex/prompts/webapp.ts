@@ -8,7 +8,7 @@ import { query } from '../_generated/server';
 /** Returns the full agent initialization prompt for a role (used by the CLI get-system-prompt command). */
 export const getAgentPrompt = query({
   args: {
-    chatroomId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     teamId: v.optional(v.string()),
     teamName: v.string(),
@@ -16,8 +16,16 @@ export const getAgentPrompt = query({
     teamEntryPoint: v.optional(v.string()),
     convexUrl: v.optional(v.string()),
   },
-  handler: async (_ctx, args) => {
-    return generateAgentPrompt({
+  handler: async (ctx, args) => {
+    // Check for a prompt override for this chatroom
+    const override = await ctx.db
+      .query('chatroom_prompts')
+      .withIndex('by_chatroomId_type', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('type', 'development_workflow')
+      )
+      .first();
+
+    const basePrompt = generateAgentPrompt({
       chatroomId: args.chatroomId,
       role: args.role,
       teamId: args.teamId,
@@ -26,5 +34,11 @@ export const getAgentPrompt = query({
       teamEntryPoint: args.teamEntryPoint,
       convexUrl: args.convexUrl,
     });
+
+    if (override && override.isEnabled) {
+      return override.content;
+    }
+
+    return basePrompt;
   },
 });

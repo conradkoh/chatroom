@@ -480,6 +480,8 @@ export default defineSchema({
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
+  }),
+
   /**
    * Chatroom custom prompts — discriminated union for future extensibility.
    * Currently supports `development_workflow` type only.
@@ -504,4 +506,3 @@ export default defineSchema({
     .index('by_chatroomId_type', ['chatroomId', 'type'])
     .index('by_sourcePromptId', ['sourcePromptId']),
 });
-
