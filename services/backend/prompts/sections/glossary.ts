@@ -49,9 +49,16 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'workflow',
     definition:
-      'DAG-based structured workflows for planning and executing multi-step tasks. ' +
+      'DAG-based structured workflows for planning and executing multi-step tasks, including release management. ' +
       'Agents use the `chatroom workflow` CLI command group to create, specify, execute, and track workflows.',
     linkedSkillId: 'workflow',
+  },
+  {
+    term: 'development-workflow',
+    definition:
+      'Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. ' +
+      'Use this skill for coordinating complex release and development processes.',
+    linkedSkillId: 'development-workflow',
   },
   {
     term: 'structural-decisions',
@@ -83,6 +90,16 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
   lines.push(
     `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.`
   );
+  lines.push('');
+  lines.push('## When to Activate Skills');
+  lines.push('');
+  lines.push('**Proactively activate skills** when your task matches their purpose:');
+  lines.push('- **development-workflow**: Use when planning or managing complex release processes, coordinating development branches, or handling version updates.');
+  lines.push('- **workflow**: Use when breaking down complex multi-step tasks that require coordination across roles or clear dependency management.');
+  lines.push('- **code-review**: Use when reviewing code, evaluating PRs, or assessing code quality.');
+  lines.push('- **backlog**: Use when creating or managing work item lists and task priorities.');
+  lines.push('');
+  lines.push('Don\'t wait for the user to ask — proactively activate the skill that matches the task.');
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }
