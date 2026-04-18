@@ -10,10 +10,13 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '../src/domain/types/skills';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const DEVELOPMENT_WORKFLOW_TYPE = DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE;
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -64,6 +67,124 @@ describe('skills.activate', () => {
     expect(event?.type).toBe('skill.activated');
     expect(event?.skillId).toBe('backlog');
     expect(event?.prompt).toContain('Continuous Backlog Execution');
+  });
+
+  test('uses custom prompt from chatroom_skillCustomizations when activating development-workflow skill', async () => {
+    const { sessionId } = await createTestSession('skills-activate-custom-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create a skill customization for development_workflow
+    const customContent = 'CUSTOM DEVELOPMENT WORKFLOW PROMPT: Use custom step-by-step process.';
+    const customizationId = await t.mutation(api.chatroomSkillCustomizations.create, {
+      sessionId,
+      chatroomId,
+      type: DEVELOPMENT_WORKFLOW_TYPE,
+      name: 'My Custom Workflow',
+      content: customContent,
+    });
+
+    expect(customizationId).toBeDefined();
+
+    // Activate the development-workflow skill
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'development-workflow',
+      role: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('development-workflow');
+
+    // Verify the skill.activated event contains the custom prompt
+    const event = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
+        .first();
+    });
+
+    expect(event).toBeDefined();
+    expect(event?.type).toBe('skill.activated');
+    expect(event?.skillId).toBe('development-workflow');
+    expect(event?.prompt).toBe(customContent);
+  });
+
+  test('falls back to default prompt when no customization exists for development-workflow', async () => {
+    const { sessionId } = await createTestSession('skills-activate-default-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Activate the development-workflow skill (no customization exists)
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'development-workflow',
+      role: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+
+    // Verify the skill.activated event contains the default prompt
+    const event = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
+        .first();
+    });
+
+    expect(event).toBeDefined();
+    expect(event?.skillId).toBe('development-workflow');
+    expect(event?.prompt).toContain(
+      'You have been activated with the "development-workflow" skill'
+    );
+  });
+
+  test('ignores disabled customization and uses default prompt', async () => {
+    const { sessionId } = await createTestSession('skills-activate-disabled-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create a disabled skill customization
+    const customizationId = await t.mutation(api.chatroomSkillCustomizations.create, {
+      sessionId,
+      chatroomId,
+      type: DEVELOPMENT_WORKFLOW_TYPE,
+      name: 'Disabled Custom',
+      content: 'This should not be used.',
+    });
+
+    // Disable the customization
+    await t.mutation(api.chatroomSkillCustomizations.toggle, {
+      sessionId,
+      chatroomId,
+      customizationId,
+    });
+
+    // Activate the development-workflow skill
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'development-workflow',
+      role: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+
+    // Verify the skill.activated event contains the default prompt
+    const event = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
+        .first();
+    });
+
+    expect(event).toBeDefined();
+    expect(event?.prompt).not.toBe('This should not be used.');
+    expect(event?.prompt).toContain(
+      'You have been activated with the "development-workflow" skill'
+    );
   });
 
   test('throws ConvexError for an unknown skill', async () => {

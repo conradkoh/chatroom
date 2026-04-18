@@ -149,7 +149,7 @@ describe('activateSkill', () => {
       skill: {
         skillId: 'backlog',
         name: 'Score Backlog',
-        description: 'Score all unscored backlog items.',
+        prompt: 'Score all unscored backlog items.',
       },
     });
 
@@ -194,7 +194,7 @@ describe('activateSkill', () => {
       skill: {
         skillId: 'backlog',
         name: 'Score Backlog',
-        description: 'Score all unscored backlog items.',
+        prompt: 'Score all unscored backlog items.',
       },
     });
 
