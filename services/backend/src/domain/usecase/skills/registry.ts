@@ -13,8 +13,10 @@ import { workflowSkill } from './modules/workflow/index';
 import { developmentWorkflowSkill } from './modules/development-workflow/index';
 import { releaseWorkflowSkill } from './modules/release-workflow/index';
 
+import type { SkillId } from '../../types/skills';
+
 export interface SkillModule {
-  skillId: string;
+  skillId: SkillId;
   name: string;
   description: string;
   getPrompt(cliEnvPrefix: string): string;

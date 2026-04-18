@@ -10,10 +10,13 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { SKILL_CUSTOMIZATION_TYPES } from '../src/domain/types/skills';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const DEVELOPMENT_WORKFLOW_TYPE = SKILL_CUSTOMIZATION_TYPES[0];
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -75,7 +78,7 @@ describe('skills.activate', () => {
     const customizationId = await t.mutation(api.chatroomSkillCustomizations.create, {
       sessionId,
       chatroomId,
-      type: 'development_workflow',
+      type: DEVELOPMENT_WORKFLOW_TYPE,
       name: 'My Custom Workflow',
       content: customContent,
     });
@@ -146,7 +149,7 @@ describe('skills.activate', () => {
     const customizationId = await t.mutation(api.chatroomSkillCustomizations.create, {
       sessionId,
       chatroomId,
-      type: 'development_workflow',
+      type: DEVELOPMENT_WORKFLOW_TYPE,
       name: 'Disabled Custom',
       content: 'This should not be used.',
     });

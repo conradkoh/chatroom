@@ -9,6 +9,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { SKILL_CUSTOMIZATION_TYPES } from '@workspace/backend/src/domain/types/skills';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
@@ -46,10 +47,11 @@ const DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT = `## Development & Release Flow
 
 export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
+  const customizationType = SKILL_CUSTOMIZATION_TYPES[0];
 
   const customization = useSessionQuery(api.chatroomSkillCustomizations.getForChatroom, {
     chatroomId: typedChatroomId,
-    type: 'development_workflow',
+    type: customizationType,
   });
 
   const createCustomization = useSessionMutation(api.chatroomSkillCustomizations.create);
@@ -65,7 +67,7 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
     try {
       await createCustomization({
         chatroomId: typedChatroomId,
-        type: 'development_workflow',
+        type: customizationType,
         name: 'Development Workflow',
         content: DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT,
       });
@@ -73,7 +75,7 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
     } finally {
       setIsCreating(false);
     }
-  }, [createCustomization, typedChatroomId]);
+  }, [createCustomization, typedChatroomId, customizationType]);
 
   const handleToggle = useCallback(async () => {
     if (!customization) return;

@@ -9,19 +9,9 @@
 import { ConvexError } from 'convex/values';
 
 import { getSkill } from './get-skill';
+import { getSkillCustomizationType, SKILL_CUSTOMIZATION_TYPES } from '../../types/skills';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-
-/**
- * Map skill ID to customization type.
- * Currently only development_workflow is supported.
- */
-function getCustomizationType(skillId: string): string | null {
-  const mapping: Record<string, string> = {
-    'development-workflow': 'development_workflow',
-  };
-  return mapping[skillId] ?? null;
-}
 
 export interface ActivateSkillArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -52,12 +42,14 @@ export async function activateSkill(
 
   // Check for custom prompt in chatroom_skillCustomizations
   let prompt = skill.prompt;
-  const customizationType = getCustomizationType(args.skillId);
+  const customizationType = getSkillCustomizationType(args.skillId);
   if (customizationType) {
     const customization = await ctx.db
       .query('chatroom_skillCustomizations')
       .withIndex('by_chatroomId_type', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('type', customizationType as 'development_workflow')
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('type', customizationType as (typeof SKILL_CUSTOMIZATION_TYPES)[number])
       )
       .first();
 
