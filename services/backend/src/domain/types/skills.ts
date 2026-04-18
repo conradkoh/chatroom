@@ -1,74 +1,85 @@
 /**
  * Skill Types — Single source of truth for skill-related types.
  *
- * This module provides type-safe constants and helpers for:
- * - Skill customization types (used in chatroom_skillCustomizations)
- * - Mapping between skill IDs and customization types
+ * All skills are defined once in the SKILLS map below.
+ * Skill IDs (kebab-case, used by CLI/registry) and customization types
+ * (snake_case, stored in DB) are both derived from that single definition.
  *
  * The schema (convex/schema.ts) maintains its own v.literal() definition
- * for runtime validation. This module provides compile-time type safety.
+ * for runtime validation — do not remove those.
  */
+
+// ─── Skills Map (single source of truth) ────────────────────────────────
+
+/**
+ * Each skill is defined once here.
+ * - Key: skill ID (kebab-case), used by the CLI and skill registry.
+ * - customizationType: the DB-stored type for chatroom_skillCustomizations,
+ *   or null if the skill does not support customization.
+ */
+const SKILLS = {
+  'backlog':              { customizationType: null },
+  'software-engineering': { customizationType: null },
+  'code-review':          { customizationType: null },
+  'workflow':             { customizationType: null },
+  'development-workflow': { customizationType: 'development_workflow' as const },
+  'release-workflow':     { customizationType: null },
+} as const satisfies Record<string, { customizationType: string | null }>;
+
+// ─── Skill IDs ───────────────────────────────────────────────────────────
+
+/** Union type of all registered skill IDs. */
+export type SkillId = keyof typeof SKILLS;
+
+/** All registered skill IDs, in definition order. */
+export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
+
+/** Check if a string is a valid skill ID. */
+export function isSkillId(value: string): value is SkillId {
+  return value in SKILLS;
+}
 
 // ─── Skill Customization Types ───────────────────────────────────────────
 
-/**
- * Named constants for each skill customization type.
- * Use these instead of string literals or array indices.
- */
-export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE = 'development_workflow' as const;
+/** Union type of all skill customization types (DB-stored, snake_case). */
+export type SkillCustomizationType = NonNullable<
+  (typeof SKILLS)[SkillId]['customizationType']
+>;
+
+/** Named constant for the development workflow customization type. */
+export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE =
+  SKILLS['development-workflow'].customizationType;
 
 /**
  * All supported skill customization types.
- * These correspond to the v.literal() values in convex/schema.ts.
+ * Derived from SKILLS map — no duplication needed.
+ * @deprecated Prefer named constants (e.g. DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE).
  */
-export const SKILL_CUSTOMIZATION_TYPES = [DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE] as const;
+export const SKILL_CUSTOMIZATION_TYPES = (
+  Object.values(SKILLS)
+    .map((s) => s.customizationType)
+    .filter((t): t is SkillCustomizationType => t !== null)
+) as readonly SkillCustomizationType[];
 
 /**
- * Union type of all skill customization types.
+ * Mapping from skill ID to customization type.
+ * Derived from SKILLS map — no duplication needed.
+ * @deprecated Prefer getSkillCustomizationType().
  */
-export type SkillCustomizationType = (typeof SKILL_CUSTOMIZATION_TYPES)[number];
-
-// ─── Skill ID to Customization Type Mapping ─────────────────────────────
-
-/**
- * Mapping from skill ID (as used in skill registry) to customization type.
- * Only skills that support customization are included.
- */
-export const SKILL_ID_TO_CUSTOMIZATION_TYPE: Record<string, SkillCustomizationType> = {
-  'development-workflow': DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE,
-};
+export const SKILL_ID_TO_CUSTOMIZATION_TYPE: Record<string, SkillCustomizationType> =
+  Object.fromEntries(
+    Object.entries(SKILLS)
+      .filter((entry): entry is [string, { customizationType: SkillCustomizationType }] =>
+        entry[1].customizationType !== null
+      )
+      .map(([id, s]) => [id, s.customizationType])
+  );
 
 /**
  * Get the customization type for a given skill ID.
- * Returns null if the skill doesn't support customization.
+ * Returns null if the skill does not support customization.
  */
 export function getSkillCustomizationType(skillId: string): SkillCustomizationType | null {
-  return SKILL_ID_TO_CUSTOMIZATION_TYPE[skillId] ?? null;
-}
-
-// ─── Skill Registry Types ───────────────────────────────────────────────
-
-/**
- * All registered skill IDs from the skill registry.
- * This provides a single source of truth for skill identification.
- */
-export const SKILL_IDS = [
-  'backlog',
-  'software-engineering',
-  'code-review',
-  'workflow',
-  'development-workflow',
-  'release-workflow',
-] as const;
-
-/**
- * Union type of all registered skill IDs.
- */
-export type SkillId = (typeof SKILL_IDS)[number];
-
-/**
- * Check if a string is a valid skill ID.
- */
-export function isSkillId(value: string): value is SkillId {
-  return (SKILL_IDS as readonly string[]).includes(value);
+  const skill = (SKILLS as Record<string, { customizationType: string | null }>)[skillId];
+  return (skill?.customizationType as SkillCustomizationType | null) ?? null;
 }
