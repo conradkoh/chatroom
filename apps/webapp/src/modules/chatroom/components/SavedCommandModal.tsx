@@ -23,6 +23,8 @@ interface SavedCommandModalProps {
   commandId?: string;
   initialName?: string;
   initialPrompt?: string;
+  /** Names already in use in this chatroom (for duplicate prevention) */
+  existingNames?: string[];
 }
 
 /**
@@ -38,10 +40,12 @@ export function SavedCommandModal({
   commandId,
   initialName,
   initialPrompt,
+  existingNames = [],
 }: SavedCommandModalProps) {
   const isEditMode = Boolean(commandId);
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,16 +65,28 @@ export function SavedCommandModal({
       setName(initialName ?? '');
       setPrompt(initialPrompt ?? '');
       setIsSubmitting(false);
+      setNameError('');
     } else {
       setName('');
       setPrompt('');
       setIsSubmitting(false);
+      setNameError('');
     }
   }, [isOpen, initialName, initialPrompt]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedName = name.trim();
     if (!trimmedName || !prompt.trim() || isSubmitting) return;
+
+    // Duplicate name check (case-insensitive)
+    const lowerName = trimmedName.toLowerCase();
+    const namesToCheck = isEditMode
+      ? existingNames.filter((n) => n.toLowerCase() !== (initialName ?? '').toLowerCase())
+      : existingNames;
+    if (namesToCheck.some((n) => n.toLowerCase() === lowerName)) {
+      setNameError(`A command named "${trimmedName}" already exists.`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -101,6 +117,8 @@ export function SavedCommandModal({
     isSubmitting,
     isEditMode,
     commandId,
+    existingNames,
+    initialName,
     updateSavedCommand,
     createSavedCommand,
     chatroomId,
@@ -143,12 +161,16 @@ export function SavedCommandModal({
               id="command-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError('');
+              }}
               onKeyDown={handleKeyDown}
               placeholder="e.g. Summarize thread"
               className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors"
               disabled={isSubmitting}
             />
+            {nameError && <p className="text-xs text-red-500 dark:text-red-400">{nameError}</p>}
           </div>
 
           {/* Prompt field */}

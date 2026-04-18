@@ -1591,6 +1591,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             commandId={savedCommandEditTarget?.commandId}
             initialName={savedCommandEditTarget?.name}
             initialPrompt={savedCommandEditTarget?.prompt}
+            existingNames={savedCommands.map((c) => c.name)}
           />
 
           {/* Command Palette (Cmd+Shift+P) */}
