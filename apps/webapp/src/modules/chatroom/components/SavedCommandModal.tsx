@@ -21,6 +21,26 @@ interface SavedCommandModalProps {
 }
 
 /**
+ * Pure validation function — checks if a name would create a duplicate.
+ * Returns an error string if duplicate, null if OK.
+ */
+export function checkDuplicateName(
+  name: string,
+  existingNames: string[],
+  isEditMode: boolean,
+  initialName?: string
+): string | null {
+  const lowerName = name.toLowerCase();
+  const namesToCheck = isEditMode
+    ? existingNames.filter((n) => n.toLowerCase() !== (initialName ?? '').toLowerCase())
+    : existingNames;
+  if (namesToCheck.some((n) => n.toLowerCase() === lowerName)) {
+    return `A command named "${name}" already exists.`;
+  }
+  return null;
+}
+
+/**
  * Modal dialog for creating or editing a saved command (custom prompt).
  * When `commandId` is provided, it operates in edit mode (pre-fills name/prompt, calls updateSavedCommand).
  * Otherwise, it operates in create mode (calls createSavedCommand).
@@ -83,12 +103,9 @@ export function SavedCommandModal({
     if (!trimmedName || !prompt.trim() || isSubmitting) return;
 
     // Duplicate name check (case-insensitive)
-    const lowerName = trimmedName.toLowerCase();
-    const namesToCheck = isEditMode
-      ? existingNames.filter((n) => n.toLowerCase() !== (initialName ?? '').toLowerCase())
-      : existingNames;
-    if (namesToCheck.some((n) => n.toLowerCase() === lowerName)) {
-      setNameError(`A command named "${trimmedName}" already exists.`);
+    const nameError = checkDuplicateName(trimmedName, existingNames, isEditMode, initialName);
+    if (nameError) {
+      setNameError(nameError);
       return;
     }
 

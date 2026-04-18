@@ -217,7 +217,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                 e.stopPropagation();
                 sa.action();
               }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-primary rounded transition-colors"
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
             >
               {sa.icon ?? sa.label}
             </button>

@@ -426,8 +426,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       }
     | undefined
   >(undefined);
-  const handleOpenSavedCommandModal = useCallback(() => {
-    setSavedCommandEditTarget(undefined);
+
+  type SavedCommandEditTarget = { commandId: string; name: string; prompt: string };
+
+  const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
+    setSavedCommandEditTarget(target);
     setSavedCommandModalOpen(true);
   }, []);
   const handleCloseSavedCommandModal = useCallback(() => {
@@ -564,25 +567,43 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const sendMessageMutation = useSessionMutation(api.messages.send);
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
 
-  const handleEditSavedCommand = useCallback((commandId: string, name: string, prompt: string) => {
-    setSavedCommandEditTarget({ commandId, name, prompt });
-    setSavedCommandModalOpen(true);
+
+  const [confirmingDeleteCommandId, setConfirmingDeleteCommandId] = useState<string | undefined>(
+    undefined
+  );
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
   }, []);
 
   const handleDeleteSavedCommand = useCallback(
-    async (commandId: string, name: string) => {
-      const confirmed = window.confirm(`Delete command "${name}"?`);
-      if (!confirmed) return;
-      try {
-        await deleteSavedCommandMutation({
-          commandId: commandId as Id<'chatroom_savedCommands'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete saved command:', error);
-        toast.error('Failed to delete command. Please try again.');
+    async (commandId: string, _name: string) => {
+      if (confirmingDeleteCommandId === commandId) {
+        // Second click: execute delete
+        setConfirmingDeleteCommandId(undefined);
+        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+        try {
+          await deleteSavedCommandMutation({
+            commandId: commandId as Id<'chatroom_savedCommands'>,
+          });
+        } catch (error) {
+          console.error('Failed to delete saved command:', error);
+          toast.error('Failed to delete command. Please try again.');
+        }
+      } else {
+        // First click: request confirmation
+        setConfirmingDeleteCommandId(commandId);
+        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = setTimeout(() => {
+          setConfirmingDeleteCommandId(undefined);
+        }, 3000);
       }
     },
-    [deleteSavedCommandMutation]
+    [confirmingDeleteCommandId, deleteSavedCommandMutation]
   );
 
   const handleExecuteSavedCommand = useCallback(
@@ -1110,8 +1131,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onCreateCommand: handleOpenSavedCommandModal,
     savedCommands,
     onExecuteSavedCommand: handleExecuteSavedCommand,
-    onEditSavedCommand: handleEditSavedCommand,
+    onEditSavedCommand: (commandId, name, prompt) =>
+      handleOpenSavedCommandModal({ commandId, name, prompt }),
     onDeleteSavedCommand: handleDeleteSavedCommand,
+    confirmingDeleteCommandId,
   });
 
   // Memoize the team entry point

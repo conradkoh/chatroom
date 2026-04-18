@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
   ArrowRightLeft,
   ClipboardCheck,
   Code2,
@@ -93,6 +94,8 @@ interface UseCommandPaletteCommandsProps {
   onEditSavedCommand?: ((commandId: string, name: string, prompt: string) => void) | null;
   /** Callback to delete a saved command */
   onDeleteSavedCommand?: ((commandId: string, name: string) => void) | null;
+  /** The commandId currently awaiting delete confirmation (if any) */
+  confirmingDeleteCommandId?: string | null;
 }
 
 /**
@@ -134,6 +137,7 @@ export function useCommandPaletteCommands({
   onExecuteSavedCommand,
   onEditSavedCommand,
   onDeleteSavedCommand,
+  confirmingDeleteCommandId,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -171,8 +175,13 @@ export function useCommandPaletteCommands({
               ? [
                   {
                     id: `saved-cmd-delete-${cmd.id}`,
-                    label: 'Delete',
-                    icon: <Trash2 size={12} />,
+                    label: confirmingDeleteCommandId === cmd.id ? 'Confirm?' : 'Delete',
+                    icon:
+                      confirmingDeleteCommandId === cmd.id ? (
+                        <AlertTriangle size={12} />
+                      ) : (
+                        <Trash2 size={12} />
+                      ),
                     action: () => onDeleteSavedCommand(cmd.id, cmd.name),
                   },
                 ]
@@ -509,5 +518,6 @@ export function useCommandPaletteCommands({
     onExecuteSavedCommand,
     onEditSavedCommand,
     onDeleteSavedCommand,
+    confirmingDeleteCommandId,
   ]);
 }
