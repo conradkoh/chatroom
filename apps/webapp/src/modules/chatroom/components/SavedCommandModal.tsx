@@ -7,15 +7,22 @@ import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
+import { exhaustive } from '@/lib/exhaustive';
+import type {
+  SavedCommand,
+  SavedCommandCreateInput,
+  SavedCommandType,
+  SavedCommandUpdateInput,
+} from '../types/savedCommand';
+import { SAVED_COMMAND_TYPE_LABELS, SAVED_COMMAND_TYPES } from '../types/savedCommand';
+
 interface SavedCommandModalProps {
   isOpen: boolean;
   chatroomId: string;
   onClose: () => void;
   onCreated?: () => void;
-  /** When provided, the modal is in edit mode */
-  commandId?: string;
-  initialName?: string;
-  initialPrompt?: string;
+  /** When provided, the modal is in edit mode and pre-fills from this command. */
+  initial?: SavedCommand;
   /** Names already in use in this chatroom (for duplicate prevention) */
   existingNames?: string[];
 }
@@ -42,7 +49,7 @@ export function checkDuplicateName(
 
 /**
  * Modal dialog for creating or editing a saved command (custom prompt).
- * When `commandId` is provided, it operates in edit mode (pre-fills name/prompt, calls updateSavedCommand).
+ * When `initial` is provided, it operates in edit mode (pre-fills fields, calls updateSavedCommand).
  * Otherwise, it operates in create mode (calls createSavedCommand).
  */
 export function SavedCommandModal({
@@ -50,14 +57,15 @@ export function SavedCommandModal({
   chatroomId,
   onClose,
   onCreated,
-  commandId,
-  initialName,
-  initialPrompt,
+  initial,
   existingNames = [],
 }: SavedCommandModalProps) {
-  const isEditMode = Boolean(commandId);
-  const [name, setName] = useState('');
-  const [prompt, setPrompt] = useState('');
+  const isEditMode = Boolean(initial);
+  const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [promptText, setPromptText] = useState(
+    initial?.type === 'prompt' ? initial.prompt : ''
+  );
   const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +99,7 @@ export function SavedCommandModal({
       if (e.key !== 'Tab' || !modalRef.current) return;
       const focusable = Array.from(
         modalRef.current.querySelectorAll<HTMLElement>(
-          'button, input, textarea, [href], [tabindex]:not([tabindex="-1"])'
+          'button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])'
         )
       ).filter((el) => !el.hasAttribute('disabled'));
       if (focusable.length === 0) return;
@@ -113,39 +121,53 @@ export function SavedCommandModal({
     return () => document.removeEventListener('keydown', handleFocusTrap);
   }, [isOpen]);
 
-  // Populate fields when modal opens (edit mode) or reset when closed
+  // Populate fields when modal opens or reset when closed
   useEffect(() => {
     if (!isOpen) return;
-    setName(initialName ?? '');
-    setPrompt(initialPrompt ?? '');
+    setType(initial?.type ?? 'prompt');
+    setName(initial?.name ?? '');
+    setPromptText(initial?.type === 'prompt' ? initial.prompt : '');
     setIsSubmitting(false);
     setNameError('');
-  }, [isOpen, initialName, initialPrompt]);
+  }, [isOpen, initial]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedName = name.trim();
-    if (!trimmedName || !prompt.trim() || isSubmitting) return;
+    if (!trimmedName || isSubmitting) return;
 
     // Duplicate name check (case-insensitive)
-    const nameError = checkDuplicateName(trimmedName, existingNames, isEditMode, initialName);
-    if (nameError) {
-      setNameError(nameError);
+    const dupErr = checkDuplicateName(trimmedName, existingNames, isEditMode, initial?.name);
+    if (dupErr) {
+      setNameError(dupErr);
       return;
+    }
+
+    // Build typed payload — validate and assemble per-type
+    let createPayload: SavedCommandCreateInput;
+    let updatePayload: SavedCommandUpdateInput;
+    switch (type) {
+      case 'prompt': {
+        if (!promptText.trim()) return;
+        createPayload = { type: 'prompt', name: trimmedName, prompt: promptText.trim() };
+        updatePayload = { type: 'prompt', prompt: promptText.trim() };
+        break;
+      }
+      default:
+        exhaustive(type);
     }
 
     setIsSubmitting(true);
     try {
-      if (isEditMode && commandId) {
+      if (isEditMode && initial) {
         await updateSavedCommand({
-          commandId: commandId as Id<'chatroom_savedCommands'>,
+          commandId: initial._id,
           name: trimmedName,
-          prompt: prompt.trim(),
+          command: updatePayload,
         });
       } else {
         await createSavedCommand({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          name: trimmedName,
-          prompt: prompt.trim(),
+          command: createPayload,
         });
       }
       onCreated?.();
@@ -158,12 +180,12 @@ export function SavedCommandModal({
     }
   }, [
     name,
-    prompt,
+    type,
+    promptText,
     isSubmitting,
     isEditMode,
-    commandId,
+    initial,
     existingNames,
-    initialName,
     updateSavedCommand,
     createSavedCommand,
     chatroomId,
@@ -181,7 +203,47 @@ export function SavedCommandModal({
     [handleSubmit]
   );
 
-  const canSubmit = name.trim().length > 0 && prompt.trim().length > 0 && !isSubmitting;
+  // Determine if the per-type body is valid for submission
+  const isTypeBodyValid = (() => {
+    switch (type) {
+      case 'prompt':
+        return promptText.trim().length > 0;
+      default:
+        return exhaustive(type);
+    }
+  })();
+
+  const canSubmit = name.trim().length > 0 && isTypeBodyValid && !isSubmitting;
+
+  /** Render the type-specific fields below the Name input */
+  const renderTypeBody = () => {
+    switch (type) {
+      case 'prompt':
+        return (
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="command-prompt"
+              className="text-xs font-medium text-chatroom-text-secondary uppercase tracking-wider"
+            >
+              Prompt
+            </label>
+            <textarea
+              id="command-prompt"
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter the prompt text to send as a message..."
+              rows={5}
+              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors resize-none rounded-none"
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-chatroom-text-muted">Tip: Press ⌘Enter to save quickly.</p>
+          </div>
+        );
+      default:
+        return exhaustive(type);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -200,7 +262,10 @@ export function SavedCommandModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border">
-          <h2 id="saved-command-modal-title" className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+          <h2
+            id="saved-command-modal-title"
+            className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary"
+          >
             {isEditMode ? 'Edit Command' : 'Create Command'}
           </h2>
           <button
@@ -214,6 +279,29 @@ export function SavedCommandModal({
 
         {/* Content */}
         <div className="flex flex-col gap-4 px-4 py-4 bg-chatroom-bg-primary">
+          {/* Type selector */}
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="command-type"
+              className="text-xs font-medium text-chatroom-text-secondary uppercase tracking-wider"
+            >
+              Type
+            </label>
+            <select
+              id="command-type"
+              value={type}
+              onChange={(e) => setType(e.target.value as SavedCommandType)}
+              disabled={isEditMode || isSubmitting}
+              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-border-strong transition-colors rounded-none disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {SAVED_COMMAND_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {SAVED_COMMAND_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Name field */}
           <div className="flex flex-col gap-1.5">
             <label
@@ -239,26 +327,8 @@ export function SavedCommandModal({
             {nameError && <p className="text-xs text-red-500 dark:text-red-400">{nameError}</p>}
           </div>
 
-          {/* Prompt field */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="command-prompt"
-              className="text-xs font-medium text-chatroom-text-secondary uppercase tracking-wider"
-            >
-              Prompt
-            </label>
-            <textarea
-              id="command-prompt"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter the prompt text to send as a message..."
-              rows={5}
-              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors resize-none rounded-none"
-              disabled={isSubmitting}
-            />
-            <p className="text-xs text-chatroom-text-muted">Tip: Press ⌘Enter to save quickly.</p>
-          </div>
+          {/* Type-specific body */}
+          {renderTypeBody()}
         </div>
 
         {/* Footer */}

@@ -27,17 +27,14 @@ import {
 import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
 
+import type { SavedCommand } from '../../types/savedCommand';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { getCommandUsageStore } from '../../lib/commandUsageStore';
 import type { CommandItem, SettingsTab } from './types';
 
 export type { SettingsTab };
 
-export interface SavedCommandEntry {
-  id: string;
-  name: string;
-  prompt: string;
-}
+export type { SavedCommand };
 
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
@@ -87,11 +84,11 @@ interface UseCommandPaletteCommandsProps {
   /** Callback to open the Create Command modal */
   onCreateCommand?: (() => void) | null;
   /** Saved commands to show in the command palette */
-  savedCommands?: SavedCommandEntry[];
+  savedCommands?: SavedCommand[];
   /** Callback to execute a saved command (send its prompt as a message) */
-  onExecuteSavedCommand?: ((prompt: string) => void) | null;
+  onExecuteSavedCommand?: ((cmd: SavedCommand) => void) | null;
   /** Callback to edit a saved command */
-  onEditSavedCommand?: ((commandId: string, name: string, prompt: string) => void) | null;
+  onEditSavedCommand?: ((cmd: SavedCommand) => void) | null;
   /** Callback to delete a saved command */
   onDeleteSavedCommand?: ((commandId: string, name: string) => void) | null;
   /** The commandId currently awaiting delete confirmation (if any) */
@@ -154,35 +151,35 @@ export function useCommandPaletteCommands({
     if (savedCommands && savedCommands.length > 0 && onExecuteSavedCommand) {
       for (const cmd of savedCommands) {
         commands.push({
-          id: `saved-cmd-${cmd.id}`,
+          id: `saved-cmd-${cmd._id}`,
           label: `Command: ${cmd.name}`,
           icon: <MessageSquare size={14} />,
           category: 'Commands',
           keywords: [cmd.name],
-          action: () => onExecuteSavedCommand(cmd.prompt),
+          action: () => onExecuteSavedCommand(cmd),
           secondaryActions: [
             ...(onEditSavedCommand
               ? [
                   {
-                    id: `saved-cmd-edit-${cmd.id}`,
+                    id: `saved-cmd-edit-${cmd._id}`,
                     label: 'Edit',
                     icon: <Pencil size={12} />,
-                    action: () => onEditSavedCommand(cmd.id, cmd.name, cmd.prompt),
+                    action: () => onEditSavedCommand(cmd),
                   },
                 ]
               : []),
             ...(onDeleteSavedCommand
               ? [
                   {
-                    id: `saved-cmd-delete-${cmd.id}`,
-                    label: confirmingDeleteCommandId === cmd.id ? 'Confirm?' : 'Delete',
+                    id: `saved-cmd-delete-${cmd._id}`,
+                    label: confirmingDeleteCommandId === cmd._id ? 'Confirm?' : 'Delete',
                     icon:
-                      confirmingDeleteCommandId === cmd.id ? (
+                      confirmingDeleteCommandId === cmd._id ? (
                         <AlertTriangle size={12} />
                       ) : (
                         <Trash2 size={12} />
                       ),
-                    action: () => onDeleteSavedCommand(cmd.id, cmd.name),
+                    action: () => onDeleteSavedCommand(cmd._id, cmd.name),
                   },
                 ]
               : []),
