@@ -52,6 +52,17 @@ export function SavedCommandModal({
     }
   }, [isOpen]);
 
+  // Handle Escape key to dismiss
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   // Populate fields when modal opens (edit mode) or reset when closed
   useEffect(() => {
     if (isOpen) {
