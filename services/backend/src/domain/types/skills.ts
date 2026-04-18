@@ -51,31 +51,6 @@ export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE =
   SKILLS['development-workflow'].customizationType;
 
 /**
- * All supported skill customization types.
- * Derived from SKILLS map — no duplication needed.
- * @deprecated Prefer named constants (e.g. DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE).
- */
-export const SKILL_CUSTOMIZATION_TYPES = (
-  Object.values(SKILLS)
-    .map((s) => s.customizationType)
-    .filter((t): t is SkillCustomizationType => t !== null)
-) as readonly SkillCustomizationType[];
-
-/**
- * Mapping from skill ID to customization type.
- * Derived from SKILLS map — no duplication needed.
- * @deprecated Prefer getSkillCustomizationType().
- */
-export const SKILL_ID_TO_CUSTOMIZATION_TYPE: Record<string, SkillCustomizationType> =
-  Object.fromEntries(
-    Object.entries(SKILLS)
-      .filter((entry): entry is [string, { customizationType: SkillCustomizationType }] =>
-        entry[1].customizationType !== null
-      )
-      .map(([id, s]) => [id, s.customizationType])
-  );
-
-/**
  * Get the customization type for a given skill ID.
  * Returns null if the skill does not support customization.
  */
