@@ -18,25 +18,34 @@ interface SavedCommandModalProps {
   chatroomId: string;
   onClose: () => void;
   onCreated?: () => void;
+  /** When provided, the modal is in edit mode */
+  commandId?: string;
+  initialName?: string;
+  initialPrompt?: string;
 }
 
 /**
- * Modal dialog for creating a new saved command (custom prompt).
- * Allows the user to give a name and write a prompt that can be executed later
- * via the command palette (Cmd+Shift+P).
+ * Modal dialog for creating or editing a saved command (custom prompt).
+ * When `commandId` is provided, it operates in edit mode (pre-fills name/prompt, calls updateSavedCommand).
+ * Otherwise, it operates in create mode (calls createSavedCommand).
  */
 export function SavedCommandModal({
   isOpen,
   chatroomId,
   onClose,
   onCreated,
+  commandId,
+  initialName,
+  initialPrompt,
 }: SavedCommandModalProps) {
+  const isEditMode = Boolean(commandId);
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const createSavedCommand = useSessionMutation(api.savedCommands.createSavedCommand);
+  const updateSavedCommand = useSessionMutation(api.savedCommands.updateSavedCommand);
 
   // Focus name input when modal opens
   useEffect(() => {
@@ -45,14 +54,18 @@ export function SavedCommandModal({
     }
   }, [isOpen]);
 
-  // Reset state when modal closes
+  // Populate fields when modal opens (edit mode) or reset when closed
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setName(initialName ?? '');
+      setPrompt(initialPrompt ?? '');
+      setIsSubmitting(false);
+    } else {
       setName('');
       setPrompt('');
       setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialName, initialPrompt]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedName = name.trim();
@@ -60,19 +73,38 @@ export function SavedCommandModal({
 
     setIsSubmitting(true);
     try {
-      await createSavedCommand({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        name: trimmedName,
-        prompt: prompt.trim(),
-      });
+      if (isEditMode && commandId) {
+        await updateSavedCommand({
+          commandId: commandId as Id<'chatroom_savedCommands'>,
+          name: trimmedName,
+          prompt: prompt.trim(),
+        });
+      } else {
+        await createSavedCommand({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          name: trimmedName,
+          prompt: prompt.trim(),
+        });
+      }
       onCreated?.();
       onClose();
     } catch (error) {
-      console.error('Failed to create saved command:', error);
+      console.error('Failed to save command:', error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, prompt, isSubmitting, createSavedCommand, chatroomId, onCreated, onClose]);
+  }, [
+    name,
+    prompt,
+    isSubmitting,
+    isEditMode,
+    commandId,
+    updateSavedCommand,
+    createSavedCommand,
+    chatroomId,
+    onCreated,
+    onClose,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -91,7 +123,7 @@ export function SavedCommandModal({
       <DialogContent className="bg-chatroom-bg-surface border-chatroom-border text-chatroom-text-primary max-w-md">
         <DialogHeader>
           <DialogTitle className="text-chatroom-text-primary text-base font-semibold">
-            Create Command
+            {isEditMode ? 'Edit Command' : 'Create Command'}
           </DialogTitle>
         </DialogHeader>
 
@@ -154,7 +186,7 @@ export function SavedCommandModal({
             disabled={!canSubmit}
             className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving...' : 'Save Command'}
+            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Command'}
           </button>
         </DialogFooter>
       </DialogContent>

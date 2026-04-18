@@ -418,8 +418,22 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Saved Command modal state
   const [savedCommandModalOpen, setSavedCommandModalOpen] = useState(false);
-  const handleOpenSavedCommandModal = useCallback(() => setSavedCommandModalOpen(true), []);
-  const handleCloseSavedCommandModal = useCallback(() => setSavedCommandModalOpen(false), []);
+  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<
+    | {
+        commandId: string;
+        name: string;
+        prompt: string;
+      }
+    | undefined
+  >(undefined);
+  const handleOpenSavedCommandModal = useCallback(() => {
+    setSavedCommandEditTarget(undefined);
+    setSavedCommandModalOpen(true);
+  }, []);
+  const handleCloseSavedCommandModal = useCallback(() => {
+    setSavedCommandModalOpen(false);
+    setSavedCommandEditTarget(undefined);
+  }, []);
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -548,6 +562,27 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Send message mutation (used to execute saved commands)
   const sendMessageMutation = useSessionMutation(api.messages.send);
+  const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
+
+  const handleEditSavedCommand = useCallback((commandId: string, name: string, prompt: string) => {
+    setSavedCommandEditTarget({ commandId, name, prompt });
+    setSavedCommandModalOpen(true);
+  }, []);
+
+  const handleDeleteSavedCommand = useCallback(
+    async (commandId: string, name: string) => {
+      const confirmed = window.confirm(`Delete command "${name}"?`);
+      if (!confirmed) return;
+      try {
+        await deleteSavedCommandMutation({
+          commandId: commandId as Id<'chatroom_savedCommands'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete saved command:', error);
+      }
+    },
+    [deleteSavedCommandMutation]
+  );
 
   const handleExecuteSavedCommand = useCallback(
     async (prompt: string) => {
@@ -1073,6 +1108,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onCreateCommand: handleOpenSavedCommandModal,
     savedCommands,
     onExecuteSavedCommand: handleExecuteSavedCommand,
+    onEditSavedCommand: handleEditSavedCommand,
+    onDeleteSavedCommand: handleDeleteSavedCommand,
   });
 
   // Memoize the team entry point
@@ -1549,6 +1586,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={savedCommandModalOpen}
             chatroomId={chatroomId}
             onClose={handleCloseSavedCommandModal}
+            commandId={savedCommandEditTarget?.commandId}
+            initialName={savedCommandEditTarget?.name}
+            initialPrompt={savedCommandEditTarget?.prompt}
           />
 
           {/* Command Palette (Cmd+Shift+P) */}

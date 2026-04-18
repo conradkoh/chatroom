@@ -14,12 +14,14 @@ import {
   MessagesSquare,
   MessageSquare,
   PanelBottomOpen,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
   Settings,
   StopCircle,
   Terminal,
+  Trash2,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
@@ -87,6 +89,10 @@ interface UseCommandPaletteCommandsProps {
   savedCommands?: SavedCommandEntry[];
   /** Callback to execute a saved command (send its prompt as a message) */
   onExecuteSavedCommand?: ((prompt: string) => void) | null;
+  /** Callback to edit a saved command */
+  onEditSavedCommand?: ((commandId: string, name: string, prompt: string) => void) | null;
+  /** Callback to delete a saved command */
+  onDeleteSavedCommand?: ((commandId: string, name: string) => void) | null;
 }
 
 /**
@@ -126,6 +132,8 @@ export function useCommandPaletteCommands({
   onCreateCommand,
   savedCommands,
   onExecuteSavedCommand,
+  onEditSavedCommand,
+  onDeleteSavedCommand,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -148,6 +156,28 @@ export function useCommandPaletteCommands({
           category: 'Commands',
           keywords: [cmd.name],
           action: () => onExecuteSavedCommand(cmd.prompt),
+          secondaryActions: [
+            ...(onEditSavedCommand
+              ? [
+                  {
+                    id: `saved-cmd-edit-${cmd.id}`,
+                    label: 'Edit',
+                    icon: <Pencil size={12} />,
+                    action: () => onEditSavedCommand(cmd.id, cmd.name, cmd.prompt),
+                  },
+                ]
+              : []),
+            ...(onDeleteSavedCommand
+              ? [
+                  {
+                    id: `saved-cmd-delete-${cmd.id}`,
+                    label: 'Delete',
+                    icon: <Trash2 size={12} />,
+                    action: () => onDeleteSavedCommand(cmd.id, cmd.name),
+                  },
+                ]
+              : []),
+          ],
         });
       }
     }
@@ -477,5 +507,7 @@ export function useCommandPaletteCommands({
     onCreateCommand,
     savedCommands,
     onExecuteSavedCommand,
+    onEditSavedCommand,
+    onDeleteSavedCommand,
   ]);
 }
