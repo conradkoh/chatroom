@@ -3,16 +3,9 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 
 interface SavedCommandModalProps {
   isOpen: boolean;
@@ -138,16 +131,31 @@ export function SavedCommandModal({
 
   const canSubmit = name.trim().length > 0 && prompt.trim().length > 0 && !isSubmitting;
 
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-chatroom-bg-surface border-chatroom-border text-chatroom-text-primary max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-chatroom-text-primary text-base font-semibold">
-            {isEditMode ? 'Edit Command' : 'Create Command'}
-          </DialogTitle>
-        </DialogHeader>
+  if (!isOpen) return null;
 
-        <div className="flex flex-col gap-4 py-2">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-chatroom-bg-tertiary border-2 border-chatroom-border w-full max-w-md mx-4 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+            {isEditMode ? 'Edit Command' : 'Create Command'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+            title="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex flex-col gap-4 px-4 py-4 bg-chatroom-bg-primary">
           {/* Name field */}
           <div className="flex flex-col gap-1.5">
             <label
@@ -167,7 +175,7 @@ export function SavedCommandModal({
               }}
               onKeyDown={handleKeyDown}
               placeholder="e.g. Summarize thread"
-              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors"
+              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors rounded-none"
               disabled={isSubmitting}
             />
             {nameError && <p className="text-xs text-red-500 dark:text-red-400">{nameError}</p>}
@@ -188,32 +196,34 @@ export function SavedCommandModal({
               onKeyDown={handleKeyDown}
               placeholder="Enter the prompt text to send as a message..."
               rows={5}
-              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors resize-none"
+              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong transition-colors resize-none rounded-none"
               disabled={isSubmitting}
             />
             <p className="text-xs text-chatroom-text-muted">Tip: Press ⌘Enter to save quickly.</p>
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border border-chatroom-border text-chatroom-text-secondary hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
+        {/* Footer */}
+        <div className="flex items-center gap-2 px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Command'}
           </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
