@@ -49,6 +49,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
+import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import {
@@ -132,6 +133,9 @@ interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
 }
+
+/** Edit target for the saved command modal */
+type SavedCommandEditTarget = { commandId: string; name: string; prompt: string };
 
 /**
  * Memoized title editor component to prevent input recreation on every keystroke.
@@ -418,8 +422,22 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Saved Command modal state
   const [savedCommandModalOpen, setSavedCommandModalOpen] = useState(false);
-  const handleOpenSavedCommandModal = useCallback(() => setSavedCommandModalOpen(true), []);
-  const handleCloseSavedCommandModal = useCallback(() => setSavedCommandModalOpen(false), []);
+  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<SavedCommandEditTarget | undefined>(undefined);
+
+  const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
+    setSavedCommandEditTarget(target);
+    setSavedCommandModalOpen(true);
+  }, []);
+  const handleCloseSavedCommandModal = useCallback(() => {
+    setSavedCommandModalOpen(false);
+    setSavedCommandEditTarget(undefined);
+  }, []);
+
+  const handleEditSavedCommand = useCallback(
+    (commandId: string, name: string, prompt: string) =>
+      handleOpenSavedCommandModal({ commandId, name, prompt }),
+    [handleOpenSavedCommandModal]
+  );
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -548,6 +566,30 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Send message mutation (used to execute saved commands)
   const sendMessageMutation = useSessionMutation(api.messages.send);
+  const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
+
+
+  const handleConfirmedDelete = useCallback(
+    async (commandId: string) => {
+      try {
+        await deleteSavedCommandMutation({
+          commandId: commandId as Id<'chatroom_savedCommands'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete saved command:', error);
+        toast.error('Failed to delete command. Please try again.');
+      }
+    },
+    [deleteSavedCommandMutation]
+  );
+
+  const { armedKey: confirmingDeleteCommandId, request: deleteRequest } =
+    useTwoTapConfirm<string>(handleConfirmedDelete, 3000);
+
+  const handleDeleteSavedCommand = useCallback(
+    (commandId: string, _name: string) => deleteRequest(commandId),
+    [deleteRequest]
+  );
 
   const handleExecuteSavedCommand = useCallback(
     async (prompt: string) => {
@@ -560,6 +602,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         });
       } catch (error) {
         console.error('Failed to execute saved command:', error);
+        toast.error('Failed to send command. Please try again.');
       }
     },
     [sendMessageMutation, chatroomId]
@@ -1073,6 +1116,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onCreateCommand: handleOpenSavedCommandModal,
     savedCommands,
     onExecuteSavedCommand: handleExecuteSavedCommand,
+    onEditSavedCommand: handleEditSavedCommand,
+    onDeleteSavedCommand: handleDeleteSavedCommand,
+    confirmingDeleteCommandId,
   });
 
   // Memoize the team entry point
@@ -1549,6 +1595,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={savedCommandModalOpen}
             chatroomId={chatroomId}
             onClose={handleCloseSavedCommandModal}
+            commandId={savedCommandEditTarget?.commandId}
+            initialName={savedCommandEditTarget?.name}
+            initialPrompt={savedCommandEditTarget?.prompt}
+            existingNames={savedCommands.map((c) => c.name)}
           />
 
           {/* Command Palette (Cmd+Shift+P) */}

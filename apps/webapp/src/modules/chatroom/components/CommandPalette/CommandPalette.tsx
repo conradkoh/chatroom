@@ -183,9 +183,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
       className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
     >
       {command.icon && (
-        <span className="flex-shrink-0 text-chatroom-text-muted">
-          {command.icon}
-        </span>
+        <span className="flex-shrink-0 text-chatroom-text-muted">{command.icon}</span>
       )}
       <span className="flex-1 min-w-0">
         <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary block truncate">
@@ -207,6 +205,24 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
           className="w-1.5 h-1.5 rounded-full bg-blue-500/60 flex-shrink-0"
           title="Recently used"
         />
+      )}
+      {command.secondaryActions && command.secondaryActions.length > 0 && (
+        <span className="flex items-center gap-1 flex-shrink-0">
+          {command.secondaryActions.map((sa) => (
+            <button
+              key={sa.id}
+              type="button"
+              title={sa.label}
+              onClick={(e) => {
+                e.stopPropagation();
+                sa.action();
+              }}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
+            >
+              {sa.icon ?? sa.label}
+            </button>
+          ))}
+        </span>
       )}
     </CommandItemUI>
   );
@@ -241,18 +257,14 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                 value={searchValue}
                 onValueChange={setSearchValue}
               />
-              <CommandList
-                className="min-h-[244px] h-[244px]"
-              >
+              <CommandList className="min-h-[244px] h-[244px]">
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                   No commands found.
                 </CommandEmpty>
 
                 {isSearching ? (
                   /* Search mode: flat list, ranked by frécency */
-                  <CommandGroup>
-                    {commands.map(renderCommandItem)}
-                  </CommandGroup>
+                  <CommandGroup>{commands.map(renderCommandItem)}</CommandGroup>
                 ) : (
                   /* Browse mode: Recent section at top, then grouped by category */
                   <>
