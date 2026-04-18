@@ -61,6 +61,7 @@ export function SavedCommandModal({
   const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const createSavedCommand = useSessionMutation(api.savedCommands.createSavedCommand);
   const updateSavedCommand = useSessionMutation(api.savedCommands.updateSavedCommand);
@@ -83,19 +84,42 @@ export function SavedCommandModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  // Focus trap: keep Tab/Shift+Tab within modal when open
+  useEffect(() => {
+    if (!isOpen || !modalRef.current) return;
+    const handleFocusTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !modalRef.current) return;
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'button, input, textarea, [href], [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled'));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleFocusTrap);
+    return () => document.removeEventListener('keydown', handleFocusTrap);
+  }, [isOpen]);
+
   // Populate fields when modal opens (edit mode) or reset when closed
   useEffect(() => {
-    if (isOpen) {
-      setName(initialName ?? '');
-      setPrompt(initialPrompt ?? '');
-      setIsSubmitting(false);
-      setNameError('');
-    } else {
-      setName('');
-      setPrompt('');
-      setIsSubmitting(false);
-      setNameError('');
-    }
+    if (!isOpen) return;
+    setName(initialName ?? '');
+    setPrompt(initialPrompt ?? '');
+    setIsSubmitting(false);
+    setNameError('');
   }, [isOpen, initialName, initialPrompt]);
 
   const handleSubmit = useCallback(async () => {
@@ -167,10 +191,16 @@ export function SavedCommandModal({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-chatroom-bg-tertiary border-2 border-chatroom-border w-full max-w-md mx-4 flex flex-col">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-command-modal-title"
+        className="relative bg-chatroom-bg-tertiary border-2 border-chatroom-border w-full max-w-md mx-4 flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+          <h2 id="saved-command-modal-title" className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
             {isEditMode ? 'Edit Command' : 'Create Command'}
           </h2>
           <button

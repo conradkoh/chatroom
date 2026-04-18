@@ -49,6 +49,7 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
+import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import {
@@ -132,6 +133,9 @@ interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
 }
+
+/** Edit target for the saved command modal */
+type SavedCommandEditTarget = { commandId: string; name: string; prompt: string };
 
 /**
  * Memoized title editor component to prevent input recreation on every keystroke.
@@ -418,16 +422,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Saved Command modal state
   const [savedCommandModalOpen, setSavedCommandModalOpen] = useState(false);
-  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<
-    | {
-        commandId: string;
-        name: string;
-        prompt: string;
-      }
-    | undefined
-  >(undefined);
-
-  type SavedCommandEditTarget = { commandId: string; name: string; prompt: string };
+  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<SavedCommandEditTarget | undefined>(undefined);
 
   const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
     setSavedCommandEditTarget(target);
@@ -437,6 +432,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setSavedCommandModalOpen(false);
     setSavedCommandEditTarget(undefined);
   }, []);
+
+  const handleEditSavedCommand = useCallback(
+    (commandId: string, name: string, prompt: string) =>
+      handleOpenSavedCommandModal({ commandId, name, prompt }),
+    [handleOpenSavedCommandModal]
+  );
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -568,42 +569,26 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
 
 
-  const [confirmingDeleteCommandId, setConfirmingDeleteCommandId] = useState<string | undefined>(
-    undefined
-  );
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-    };
-  }, []);
-
-  const handleDeleteSavedCommand = useCallback(
-    async (commandId: string, _name: string) => {
-      if (confirmingDeleteCommandId === commandId) {
-        // Second click: execute delete
-        setConfirmingDeleteCommandId(undefined);
-        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-        try {
-          await deleteSavedCommandMutation({
-            commandId: commandId as Id<'chatroom_savedCommands'>,
-          });
-        } catch (error) {
-          console.error('Failed to delete saved command:', error);
-          toast.error('Failed to delete command. Please try again.');
-        }
-      } else {
-        // First click: request confirmation
-        setConfirmingDeleteCommandId(commandId);
-        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-        confirmTimerRef.current = setTimeout(() => {
-          setConfirmingDeleteCommandId(undefined);
-        }, 3000);
+  const handleConfirmedDelete = useCallback(
+    async (commandId: string) => {
+      try {
+        await deleteSavedCommandMutation({
+          commandId: commandId as Id<'chatroom_savedCommands'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete saved command:', error);
+        toast.error('Failed to delete command. Please try again.');
       }
     },
-    [confirmingDeleteCommandId, deleteSavedCommandMutation]
+    [deleteSavedCommandMutation]
+  );
+
+  const { armedKey: confirmingDeleteCommandId, request: deleteRequest } =
+    useTwoTapConfirm<string>(handleConfirmedDelete, 3000);
+
+  const handleDeleteSavedCommand = useCallback(
+    (commandId: string, _name: string) => deleteRequest(commandId),
+    [deleteRequest]
   );
 
   const handleExecuteSavedCommand = useCallback(
@@ -1131,8 +1116,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onCreateCommand: handleOpenSavedCommandModal,
     savedCommands,
     onExecuteSavedCommand: handleExecuteSavedCommand,
-    onEditSavedCommand: (commandId, name, prompt) =>
-      handleOpenSavedCommandModal({ commandId, name, prompt }),
+    onEditSavedCommand: handleEditSavedCommand,
     onDeleteSavedCommand: handleDeleteSavedCommand,
     confirmingDeleteCommandId,
   });
