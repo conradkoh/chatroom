@@ -9,7 +9,7 @@
 import { ConvexError } from 'convex/values';
 
 import { getSkill } from './get-skill';
-import { getSkillCustomizationType, SKILL_CUSTOMIZATION_TYPES } from '../../types/skills';
+import { getSkillCustomizationType } from '../../types/skills';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -50,7 +50,7 @@ export async function activateSkill(
       .withIndex('by_chatroomId_type', (q) =>
         q
           .eq('chatroomId', args.chatroomId)
-          .eq('type', customizationType as (typeof SKILL_CUSTOMIZATION_TYPES)[number])
+          .eq('type', customizationType)
       )
       .first();
 

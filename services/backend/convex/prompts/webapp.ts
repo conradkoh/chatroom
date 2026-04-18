@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 
 import { generateAgentPrompt } from '../../prompts/base/webapp/init/generator';
-import { SKILL_CUSTOMIZATION_TYPES } from '../../src/domain/types/skills';
+import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '../../src/domain/types/skills';
 import { query } from '../_generated/server';
 
 /** Returns the full agent initialization prompt for a role (used by the CLI get-system-prompt command). */
@@ -39,7 +39,7 @@ export const getAgentPrompt = query({
       ? await ctx.db
           .query('chatroom_skillCustomizations')
           .withIndex('by_chatroomId_type', (q) =>
-            q.eq('chatroomId', chatroomId!).eq('type', SKILL_CUSTOMIZATION_TYPES[0])
+            q.eq('chatroomId', chatroomId!).eq('type', DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE)
           )
           .first()
       : null;
