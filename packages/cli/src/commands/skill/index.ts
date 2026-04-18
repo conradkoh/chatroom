@@ -39,7 +39,7 @@ async function createDefaultDeps(): Promise<SkillDeps> {
   };
 }
 
-// ─── Auth Helper ───────────────────────────────────────────────────────────
+// ─── Auth Helper ─────────────────────────────────────────────────────────────
 
 function requireAuth(d: SkillDeps): string {
   const sessionId = d.session.getSessionId();
@@ -50,7 +50,7 @@ function requireAuth(d: SkillDeps): string {
   return sessionId as string;
 }
 
-// ─── Commands ──────────────────────────────────────────────────────────────
+// ─── Commands ─────────────────────────────────────────────────────────────
 
 /**
  * List all enabled skills for a chatroom.
@@ -118,7 +118,10 @@ export async function activateSkill(
 
     console.log('');
     console.log(`✅ Skill "${result.skill.skillId}" activated.`);
-    console.log(`   The agent will now: ${result.skill.description}`);
+    console.log(`   The agent will now:`);
+    // Show the full prompt that the agent sees (first 500 chars for display)
+    const promptPreview = result.skill.prompt?.slice(0, 500) ?? '(empty)';
+    console.log(`   ${promptPreview}${result.skill.prompt?.length > 500 ? '...' : ''}`);
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to activate skill: ${getErrorMessage(error)}`);
