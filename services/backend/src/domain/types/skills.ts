@@ -12,10 +12,16 @@
 // ─── Skill Customization Types ───────────────────────────────────────────
 
 /**
+ * Named constants for each skill customization type.
+ * Use these instead of string literals or array indices.
+ */
+export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE = 'development_workflow' as const;
+
+/**
  * All supported skill customization types.
  * These correspond to the v.literal() values in convex/schema.ts.
  */
-export const SKILL_CUSTOMIZATION_TYPES = ['development_workflow'] as const;
+export const SKILL_CUSTOMIZATION_TYPES = [DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE] as const;
 
 /**
  * Union type of all skill customization types.
@@ -29,7 +35,7 @@ export type SkillCustomizationType = (typeof SKILL_CUSTOMIZATION_TYPES)[number];
  * Only skills that support customization are included.
  */
 export const SKILL_ID_TO_CUSTOMIZATION_TYPE: Record<string, SkillCustomizationType> = {
-  'development-workflow': 'development_workflow',
+  'development-workflow': DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE,
 };
 
 /**

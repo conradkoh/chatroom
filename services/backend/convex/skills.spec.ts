@@ -10,13 +10,13 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { SKILL_CUSTOMIZATION_TYPES } from '../src/domain/types/skills';
+import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '../src/domain/types/skills';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DEVELOPMENT_WORKFLOW_TYPE = SKILL_CUSTOMIZATION_TYPES[0];
+const DEVELOPMENT_WORKFLOW_TYPE = DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE;
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
