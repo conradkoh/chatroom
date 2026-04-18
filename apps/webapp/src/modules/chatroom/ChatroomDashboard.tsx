@@ -579,6 +579,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         });
       } catch (error) {
         console.error('Failed to delete saved command:', error);
+        toast.error('Failed to delete command. Please try again.');
       }
     },
     [deleteSavedCommandMutation]
@@ -595,6 +596,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         });
       } catch (error) {
         console.error('Failed to execute saved command:', error);
+        toast.error('Failed to send command. Please try again.');
       }
     },
     [sendMessageMutation, chatroomId]

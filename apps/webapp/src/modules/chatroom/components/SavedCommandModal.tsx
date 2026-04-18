@@ -4,6 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 
 import {
   Dialog,
@@ -90,6 +91,7 @@ export function SavedCommandModal({
       onClose();
     } catch (error) {
       console.error('Failed to save command:', error);
+      toast.error('Failed to save command. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
