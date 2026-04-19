@@ -146,6 +146,14 @@ describe('useCommandPaletteCommands', () => {
       const gitDiffCmds = result.current.filter((cmd) => cmd.label === 'Git: Show Current Changes');
       expect(gitDiffCmds).toHaveLength(1);
     });
+
+    it('treats workspaceCommands: [] as legacy mode (panel-git-diff present)', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands: [] })
+      );
+      // Empty array = no workspace commands = fall through to legacy mode
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(true);
+    });
   });
 
   describe('Start All Remote Agents command', () => {
