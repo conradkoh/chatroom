@@ -15,7 +15,6 @@ const savedCommandUnion = v.union(
 
 /**
  * List all saved commands for a chatroom, sorted by name ascending.
- * Coerces legacy rows (no `type` field) to the typed 'prompt' shape transparently.
  */
 export const listSavedCommands = query({
   args: {
@@ -28,15 +27,7 @@ export const listSavedCommands = query({
       .query('chatroom_savedCommands')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
-    return commands
-      .map((cmd) => {
-        // Coerce legacy rows (missing `type`) to the typed shape
-        if (!('type' in cmd) || cmd.type === undefined) {
-          return { ...cmd, type: 'prompt' as const };
-        }
-        return cmd;
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return commands.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

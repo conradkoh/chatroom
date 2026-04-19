@@ -619,8 +619,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     () =>
       (savedCommandsData ?? []).map((cmd) => ({
         _id: cmd._id,
-        // Defensively coerce legacy rows missing `type` to 'prompt'
-        type: ('type' in cmd ? cmd.type : 'prompt') as 'prompt',
+        type: cmd.type,
         name: cmd.name,
         prompt: cmd.prompt,
       })),

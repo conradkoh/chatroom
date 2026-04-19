@@ -307,20 +307,7 @@ export const purgeWorkspaceFileContent = migrations.define({
 });
 
 // --- Saved Commands Migrations ---
-
-/**
- * Migration: Backfill `type: 'prompt'` on legacy chatroom_savedCommands rows.
- * Required by the discriminated-union schema introduced in v1.34.0 (#410).
- * Idempotent: rows already carrying `type` are skipped.
- */
-export const backfillSavedCommandType = migrations.define({
-  table: 'chatroom_savedCommands',
-  migrateOne: async (_ctx, command) => {
-    const raw = command as unknown as { type?: string };
-    if (raw.type !== undefined) return; // Already migrated
-    return { type: 'prompt' as const };
-  },
-});
+// (none currently — type field shipped with the feature in v1.34.0; production has no legacy rows)
 
 // ========================================
 // Batch Runners
@@ -350,6 +337,4 @@ export const runAll = migrations.runner([
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
-  // Saved Commands
-  internal.migrations.backfillSavedCommandType,
 ]);
