@@ -114,6 +114,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         <button
           onClick={handleDelete}
           disabled={isDeleting || isPromoting}
+          aria-label={isDeleteArmed ? 'Confirm delete' : 'Delete'}
           className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
             isDeleteArmed
               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'

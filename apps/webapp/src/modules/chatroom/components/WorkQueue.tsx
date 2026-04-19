@@ -173,6 +173,14 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     [deleteQueuedMessage]
   );
 
+  // Stable row-click handler — avoids new lambda per render (defeats QueuedMessageItem's memo)
+  const handleQueuedRowClick = useCallback(
+    (message: Message) => {
+      setSelectedQueuedMessage(message);
+    },
+    []
+  );
+
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
     // Sort backlog items by updatedAt descending (most recently updated first)
@@ -373,7 +381,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                 message={message}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
-                onClickRow={() => setSelectedQueuedMessage(message)}
+                onClickRow={() => handleQueuedRowClick(message)}
               />
             ))}
             {queuedMessages.length > 3 && (
