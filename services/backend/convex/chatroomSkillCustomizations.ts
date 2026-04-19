@@ -4,12 +4,33 @@
  * All functions require SessionIdArg and chatroomId for auth.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 import type { Id } from './_generated/dataModel';
+import type { MutationCtx } from './_generated/server';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify that a customization exists and belongs to the given chatroom.
+ * Throws ConvexError if the check fails.
+ */
+async function requireCustomizationInChatroom(
+  ctx: MutationCtx,
+  customizationId: Id<'chatroom_skillCustomizations'>,
+  chatroomId: Id<'chatroom_rooms'>
+) {
+  const customization = await ctx.db.get(customizationId);
+  if (!customization || customization.chatroomId !== chatroomId) {
+    throw new ConvexError('Skill customization not found in this chatroom');
+  }
+  return customization;
+}
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -102,6 +123,7 @@ export const create = mutation({
 
 /**
  * Update a skill customization's content and/or name.
+ * Verifies the customization belongs to the given chatroom.
  */
 export const update = mutation({
   args: {
@@ -113,6 +135,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireCustomizationInChatroom(ctx, args.customizationId, args.chatroomId);
 
     const patch: { content: string; updatedAt: number; name?: string } = {
       content: args.content,
@@ -128,6 +151,7 @@ export const update = mutation({
 
 /**
  * Delete a skill customization.
+ * Verifies the customization belongs to the given chatroom.
  */
 export const remove = mutation({
   args: {
@@ -137,12 +161,14 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireCustomizationInChatroom(ctx, args.customizationId, args.chatroomId);
     await ctx.db.delete(args.customizationId);
   },
 });
 
 /**
  * Toggle a skill customization's isEnabled flag.
+ * Verifies the customization belongs to the given chatroom.
  */
 export const toggle = mutation({
   args: {
@@ -152,11 +178,11 @@ export const toggle = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const customization = await ctx.db.get(args.customizationId);
-    if (!customization) {
-      throw new Error('Skill customization not found');
-    }
+    const customization = await requireCustomizationInChatroom(
+      ctx,
+      args.customizationId,
+      args.chatroomId
+    );
 
     await ctx.db.patch(args.customizationId, {
       isEnabled: !customization.isEnabled,
@@ -167,7 +193,7 @@ export const toggle = mutation({
 
 /**
  * Copy a skill customization to one or more target chatrooms.
- * Sets sourceChatroomId and sourceCustomizationId for tracking.
+ * Verifies access to ALL target chatrooms and that the source belongs to the source chatroom.
  */
 export const copyTo = mutation({
   args: {
@@ -179,10 +205,17 @@ export const copyTo = mutation({
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const source = await ctx.db.get(args.sourceCustomizationId);
-    if (!source) {
-      throw new Error('Source skill customization not found');
-    }
+    // Verify access to every target chatroom
+    await Promise.all(
+      args.targetChatroomIds.map((id) => requireChatroomAccess(ctx, args.sessionId, id))
+    );
+
+    // Verify the source customization belongs to the source chatroom
+    const source = await requireCustomizationInChatroom(
+      ctx,
+      args.sourceCustomizationId,
+      args.chatroomId
+    );
 
     const now = Date.now();
     const createdIds: Id<'chatroom_skillCustomizations'>[] = [];
@@ -209,6 +242,7 @@ export const copyTo = mutation({
 
 /**
  * Bulk-update content across selected copies of a skill customization.
+ * Verifies each target customization belongs to the given chatroom.
  */
 export const bulkUpdate = mutation({
   args: {
@@ -223,6 +257,7 @@ export const bulkUpdate = mutation({
 
     const now = Date.now();
     for (const customizationId of args.targetCustomizationIds) {
+      await requireCustomizationInChatroom(ctx, customizationId, args.chatroomId);
       await ctx.db.patch(customizationId, {
         content: args.content,
         updatedAt: now,

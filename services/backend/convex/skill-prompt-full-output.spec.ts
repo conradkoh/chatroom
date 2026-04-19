@@ -103,15 +103,13 @@ describe('skill activation: what the agent sees', () => {
 
     expect(event).toBeDefined();
     
-    // The FULL prompt the agent sees - all 5 steps
+    // The FULL prompt the agent sees - comprehensive release workflow
     const fullPrompt = event?.prompt;
     expect(fullPrompt).toContain('You have been activated with the "development-workflow" skill');
-    expect(fullPrompt).toContain('## Development & Release Flow');
-    expect(fullPrompt).toContain('1. Check if there is an existing minor / patch release');
-    expect(fullPrompt).toContain('Create a new release branch');
-    expect(fullPrompt).toContain('Update the versions in the package.json');
-    expect(fullPrompt).toContain('Create a new PR from the release branch');
-    expect(fullPrompt).toContain('Create a new feature branch from the release branch');
-    expect(fullPrompt).toContain('Work on the feature and raise a PR to the release branch');
+    expect(fullPrompt).toContain('## Release Workflow');
+    expect(fullPrompt).toContain('Create a Release Branch and PR');
+    expect(fullPrompt).toContain('release/v<X.Y.Z>');
+    expect(fullPrompt).toContain('Squash-Merge Changes Into the Release Branch');
+    expect(fullPrompt).toContain('Merge the Release Branch to Master');
   });
 });

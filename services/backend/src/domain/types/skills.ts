@@ -23,7 +23,6 @@ const SKILLS = {
   'code-review':          { customizationType: null },
   'workflow':             { customizationType: null },
   'development-workflow': { customizationType: 'development_workflow' as const },
-  'release-workflow':     { customizationType: null },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
 // ─── Skill IDs ───────────────────────────────────────────────────────────
