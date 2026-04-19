@@ -69,8 +69,13 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   const [selectedPR, setSelectedPR] = useState<import('../types/git').GitPullRequest | null>(null);
 
   const gitState = useWorkspaceGit(machineId, workingDir);
+
+  // Determine if PR review tab should be shown (computed before hooks that depend on it)
+  const hasActivePR = gitState.status === 'available' && gitState.openPullRequests.length > 0;
+  const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
+
   const { state: fullDiffState, request: requestDiff } = useFullDiff(machineId, workingDir);
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir);
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, activePR?.number);
   const {
     state: commitDetailState,
     request: requestCommitDetail,
@@ -78,10 +83,6 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   } = useCommitDetail(machineId, workingDir);
   const { loading: loadingMore, loadMore } = useLoadMoreCommits(machineId, workingDir);
   const { refresh, isRefreshing } = useGitRefresh(machineId, workingDir);
-
-  // Determine if PR review tab should be shown
-  const hasActivePR = gitState.status === 'available' && gitState.openPullRequests.length > 0;
-  const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
 
   // PR action mutation
   const requestPRActionMutation = useSessionMutation(api.workspaces.requestPRAction);
@@ -181,9 +182,9 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   // Auto-request PR diff when switching to PR review tab
   useEffect(() => {
     if (activeTab === 'pr-review' && hasActivePR && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch);
+      requestPRDiff(baseBranch, activePR?.number);
     }
-  }, [activeTab, hasActivePR, prDiffState.status, requestPRDiff, baseBranch]);
+  }, [activeTab, hasActivePR, prDiffState.status, requestPRDiff, baseBranch, activePR?.number]);
 
   // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {
@@ -378,7 +379,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                   <div className="flex-1 overflow-y-auto">
                     <WorkspaceDiffViewer
                       state={prDiffState}
-                      onRequest={() => requestPRDiff(baseBranch)}
+                      onRequest={() => requestPRDiff(baseBranch, activePR?.number)}
                       machineId={machineId}
                       workingDir={workingDir}
                     />

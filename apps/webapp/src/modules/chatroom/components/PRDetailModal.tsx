@@ -81,7 +81,7 @@ export const PRDetailModal = memo(function PRDetailModal({
   prActionLoading,
 }: PRDetailModalProps) {
   const baseBranch = pr.baseRefName ?? 'master';
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir);
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, pr.number);
   const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, pr.number);
   const { state: commitDetailState, request: requestCommitDetail, clear: clearCommitDetail } = useCommitDetail(machineId, workingDir);
 

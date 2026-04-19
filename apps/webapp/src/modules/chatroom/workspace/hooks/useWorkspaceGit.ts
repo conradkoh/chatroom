@@ -99,16 +99,20 @@ export function useFullDiff(
  */
 export function usePRDiff(
   machineId: string,
-  workingDir: string
+  workingDir: string,
+  prNumber?: number
 ): { state: PRDiffState; request: (baseBranch: string, prNumber?: number) => void } {
-  const result = useSessionQuery(api.workspaces.getPRDiff, { machineId, workingDir });
+  const queryArgs = prNumber != null
+    ? { machineId, workingDir, prNumber }
+    : { machineId, workingDir };
+  const result = useSessionQuery(api.workspaces.getPRDiff, queryArgs);
   const requestMutation = useSessionMutation(api.workspaces.requestPRDiff);
   const requestedRef = useRef(false);
 
   const request = useCallback(
-    (baseBranch: string, prNumber?: number) => {
+    (baseBranch: string, reqPrNumber?: number) => {
       requestedRef.current = true;
-      requestMutation({ machineId, workingDir, baseBranch, prNumber });
+      requestMutation({ machineId, workingDir, baseBranch, prNumber: reqPrNumber });
     },
     [requestMutation, machineId, workingDir]
   );

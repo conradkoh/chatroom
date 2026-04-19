@@ -1508,6 +1508,7 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
+    prNumber: v.optional(v.number()),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -1516,7 +1517,9 @@ export default defineSchema({
       deletions: v.number(),
     }),
     updatedAt: v.number(),
-  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
 
   /**
    * Cached list of commits for a specific PR.
