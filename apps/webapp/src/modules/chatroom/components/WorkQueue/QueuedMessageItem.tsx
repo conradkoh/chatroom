@@ -1,8 +1,9 @@
 'use client';
 
-import { ArrowUp, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useState, useEffect } from 'react';
 
+import { useTwoTapConfirm } from '../../hooks/useTwoTapConfirm';
 import type { Message } from '../../types/message';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -39,39 +40,61 @@ interface QueuedMessageItemProps {
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
+  /** Optional click handler for the row itself (opens detail view). */
+  onClickRow?: () => void;
 }
 
 export const QueuedMessageItem = memo(function QueuedMessageItem({
   message,
   onPromote,
   onDelete,
+  onClickRow,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handlePromote = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
+  const handlePromote = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isPromoting || isDeleting) return;
+      setIsPromoting(true);
+      try {
+        await onPromote(message._id);
+      } finally {
+        setIsPromoting(false);
+      }
+    },
+    [message._id, onPromote, isPromoting, isDeleting]
+  );
 
-  const handleDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-    } finally {
-      setIsDeleting(false);
+  const { armedKey: deleteArmed, request: requestDelete } = useTwoTapConfirm<string>(
+    async (id) => {
+      if (isDeleting || isPromoting) return;
+      setIsDeleting(true);
+      try {
+        await onDelete(id);
+      } finally {
+        setIsDeleting(false);
+      }
     }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
+  );
+
+  const handleDelete = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      requestDelete(message._id);
+    },
+    [message._id, requestDelete]
+  );
+
+  const isDeleteArmed = deleteArmed === message._id;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group">
+    <div
+      className={`flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group ${onClickRow ? 'cursor-pointer' : ''}`}
+      onClick={onClickRow}
+    >
       {/* Content - truncate to 2 lines */}
       <div className="flex-1 min-w-0">
         <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
@@ -91,10 +114,14 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         <button
           onClick={handleDelete}
           disabled={isDeleting || isPromoting}
-          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
-          title="Delete"
+          className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+            isDeleteArmed
+              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+              : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400'
+          }`}
+          title={isDeleteArmed ? 'Tap again to confirm delete' : 'Delete'}
         >
-          <Trash2 size={14} />
+          {isDeleteArmed ? <AlertTriangle size={14} /> : <Trash2 size={14} />}
         </button>
       </div>
     </div>

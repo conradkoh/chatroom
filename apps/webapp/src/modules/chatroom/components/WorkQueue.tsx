@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
+import { MessageDetailModal } from './MessageDetailModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 import { type BacklogItem } from './backlog';
@@ -44,6 +45,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
+  const [selectedQueuedMessage, setSelectedQueuedMessage] = useState<Message | null>(null);
 
   // Register imperative open actions for parent (e.g. command palette)
   useEffect(() => {
@@ -371,6 +373,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                 message={message}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
+                onClickRow={() => setSelectedQueuedMessage(message)}
               />
             ))}
             {queuedMessages.length > 3 && (
@@ -502,6 +505,13 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           onClose={() => setSelectedBacklogItemId(null)}
         />
       )}
+
+      {/* Queued Message Detail Modal */}
+      <MessageDetailModal
+        isOpen={selectedQueuedMessage !== null}
+        onClose={() => setSelectedQueuedMessage(null)}
+        message={selectedQueuedMessage}
+      />
 
       {/* Backlog Queue Modal - shows all backlog items */}
       {isBacklogQueueModalOpen && (
