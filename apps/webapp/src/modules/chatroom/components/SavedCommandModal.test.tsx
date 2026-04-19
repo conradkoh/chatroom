@@ -32,6 +32,17 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import { checkDuplicateName, SavedCommandModal } from './SavedCommandModal';
+import type { SavedCommand } from '../types/savedCommand';
+
+// Helper to create a typed SavedCommand for tests without importing Id
+const makeCmd = (overrides?: Partial<SavedCommand>): SavedCommand => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _id: 'cmd-abc' as any,
+  type: 'prompt',
+  name: 'Old Name',
+  prompt: 'Old prompt',
+  ...overrides,
+});
 
 // ── Unit Tests: checkDuplicateName ──────────────────────────────────────────
 
@@ -99,16 +110,15 @@ describe('SavedCommandModal component', () => {
       />
     );
 
-    await userEvent.type(screen.getByLabelText(/name/i), 'My Command');
-    await userEvent.type(screen.getByLabelText(/prompt/i), 'Do something useful');
+    await userEvent.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await userEvent.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
     await userEvent.click(screen.getByRole('button', { name: /save command/i }));
 
     await waitFor(() => {
       expect(mockCreateSavedCommand).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'My Command',
-          prompt: 'Do something useful',
+          command: { type: 'prompt', name: 'My Command', prompt: 'Do something useful' },
         })
       );
     });
@@ -116,7 +126,7 @@ describe('SavedCommandModal component', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('calls updateSavedCommand when commandId is provided (edit mode)', async () => {
+  it('calls updateSavedCommand when initial is provided (edit mode)', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
     render(
@@ -125,13 +135,11 @@ describe('SavedCommandModal component', () => {
         chatroomId="room-1"
         onClose={onClose}
         onCreated={onCreated}
-        commandId="cmd-abc"
-        initialName="Old Name"
-        initialPrompt="Old prompt"
+        initial={makeCmd()}
       />
     );
 
-    const nameInput = screen.getByLabelText(/name/i);
+    const nameInput = screen.getByLabelText(/^name$/i);
     await userEvent.clear(nameInput);
     await userEvent.type(nameInput, 'New Name');
 
@@ -142,7 +150,7 @@ describe('SavedCommandModal component', () => {
         expect.objectContaining({
           commandId: 'cmd-abc',
           name: 'New Name',
-          prompt: 'Old prompt',
+          command: { type: 'prompt', prompt: 'Old prompt' },
         })
       );
     });
@@ -171,8 +179,13 @@ describe('SavedCommandModal component', () => {
       />
     );
 
-    await userEvent.type(screen.getByLabelText(/name/i), 'foo');
-    await userEvent.type(screen.getByLabelText(/prompt/i), 'some prompt');
+    const nameInput = screen.getByLabelText(/^name$/i);
+    const promptInput = screen.getByLabelText(/^prompt$/i);
+
+    await userEvent.click(nameInput);
+    await userEvent.type(nameInput, 'foo');
+    await userEvent.click(promptInput);
+    await userEvent.type(promptInput, 'some prompt');
 
     await userEvent.click(screen.getByRole('button', { name: /save command/i }));
 
@@ -180,5 +193,31 @@ describe('SavedCommandModal component', () => {
       expect(screen.getByText(/already exists/i)).toBeInTheDocument();
     });
     expect(mockCreateSavedCommand).not.toHaveBeenCalled();
+  });
+
+  it('type selector renders "Message Prompt" as the only option', () => {
+    render(
+      <SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} />
+    );
+
+    const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
+    expect(select).toBeInTheDocument();
+    expect(select.options).toHaveLength(1);
+    expect(select.options[0].text).toBe('Message Prompt');
+    expect(select.options[0].value).toBe('prompt');
+  });
+
+  it('type selector is disabled in edit mode', () => {
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={vi.fn()}
+        initial={makeCmd()}
+      />
+    );
+
+    const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
+    expect(select).toBeDisabled();
   });
 });

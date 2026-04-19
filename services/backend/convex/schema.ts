@@ -1945,14 +1945,28 @@ export default defineSchema({
    * Users create these via the command palette (Cmd+Shift+P) and can execute them
    * to send pre-defined prompts as messages.
    */
-  chatroom_savedCommands: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    name: v.string(), // Command display name (shown as "Command: <name>")
-    prompt: v.string(), // The prompt text to send as a message
-    createdBy: v.string(), // Session ID or user who created it
-    createdAt: v.number(), // Unix timestamp
-    updatedAt: v.number(), // Unix timestamp
-  }).index('by_chatroom', ['chatroomId']),
+  chatroom_savedCommands: defineTable(
+    v.union(
+      v.object({
+        type: v.literal('prompt'),
+        chatroomId: v.id('chatroom_rooms'),
+        name: v.string(), // Command display name (shown as "Command: <name>")
+        prompt: v.string(), // The prompt text to send as a message
+        createdBy: v.string(), // Session ID or user who created it
+        createdAt: v.number(), // Unix timestamp
+        updatedAt: v.number(), // Unix timestamp
+      }),
+      // TODO(v1.35.0): remove this legacy variant after migrateSavedCommandsAddType runs in production
+      v.object({
+        chatroomId: v.id('chatroom_rooms'),
+        name: v.string(), // Command display name (shown as "Command: <name>")
+        prompt: v.string(), // The prompt text to send as a message
+        createdBy: v.string(), // Session ID or user who created it
+        createdAt: v.number(), // Unix timestamp
+        updatedAt: v.number(), // Unix timestamp
+      })
+    )
+  ).index('by_chatroom', ['chatroomId']),
 
   /**
    * Chatroom-specific skill customizations that override a skill's default system prompt.

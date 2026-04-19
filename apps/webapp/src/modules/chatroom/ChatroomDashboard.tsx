@@ -51,6 +51,8 @@ import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
+import type { SavedCommand } from './types/savedCommand';
+import { exhaustive } from '@/lib/exhaustive';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import {
   FileExplorerPanel,
@@ -135,7 +137,7 @@ interface ChatroomDashboardProps {
 }
 
 /** Edit target for the saved command modal */
-type SavedCommandEditTarget = { commandId: string; name: string; prompt: string };
+type SavedCommandEditTarget = SavedCommand;
 
 /**
  * Memoized title editor component to prevent input recreation on every keystroke.
@@ -434,8 +436,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, []);
 
   const handleEditSavedCommand = useCallback(
-    (commandId: string, name: string, prompt: string) =>
-      handleOpenSavedCommandModal({ commandId, name, prompt }),
+    (cmd: SavedCommand) => handleOpenSavedCommandModal(cmd),
     [handleOpenSavedCommandModal]
   );
 
@@ -592,29 +593,37 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   const handleExecuteSavedCommand = useCallback(
-    async (prompt: string) => {
-      try {
-        await sendMessageMutation({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          senderRole: 'user',
-          content: prompt,
-          type: 'message',
-        });
-      } catch (error) {
-        console.error('Failed to execute saved command:', error);
-        toast.error('Failed to send command. Please try again.');
+    async (cmd: SavedCommand) => {
+      switch (cmd.type) {
+        case 'prompt':
+          try {
+            await sendMessageMutation({
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              senderRole: 'user',
+              content: cmd.prompt,
+              type: 'message',
+            });
+          } catch (error) {
+            console.error('Failed to execute saved command:', error);
+            toast.error('Failed to send command. Please try again.');
+          }
+          break;
+        default:
+          exhaustive(cmd.type);
       }
     },
     [sendMessageMutation, chatroomId]
   );
 
-  const savedCommands = useMemo(
+  const savedCommands: SavedCommand[] = useMemo(
     () =>
-      savedCommandsData?.map((cmd) => ({
-        id: cmd._id,
+      (savedCommandsData ?? []).map((cmd) => ({
+        _id: cmd._id,
+        // Defensively coerce legacy rows missing `type` to 'prompt'
+        type: ('type' in cmd ? cmd.type : 'prompt') as 'prompt',
         name: cmd.name,
         prompt: cmd.prompt,
-      })) ?? [],
+      })),
     [savedCommandsData]
   );
 
@@ -1595,9 +1604,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={savedCommandModalOpen}
             chatroomId={chatroomId}
             onClose={handleCloseSavedCommandModal}
-            commandId={savedCommandEditTarget?.commandId}
-            initialName={savedCommandEditTarget?.name}
-            initialPrompt={savedCommandEditTarget?.prompt}
+            initial={savedCommandEditTarget}
             existingNames={savedCommands.map((c) => c.name)}
           />
 
