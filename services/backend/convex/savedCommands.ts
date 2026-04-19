@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { internalMutation, mutation, query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 
 /** The discriminated union type for a saved command (only 'prompt' variant for now). */
@@ -141,25 +141,3 @@ export const deleteSavedCommand = mutation({
   },
 });
 
-/**
- * One-shot backfill: assigns `type: 'prompt'` to any saved command rows that
- * predate the discriminated-union schema. Idempotent — safe to re-run.
- *
- * Run with: `npx convex run savedCommands:migrateSavedCommandsAddType`
- */
-export const migrateSavedCommandsAddType = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const all = await ctx.db.query('chatroom_savedCommands').collect();
-    let migrated = 0;
-    for (const row of all) {
-      // Cast through unknown — old rows are missing `type` per the legacy shape
-      const r = row as unknown as { type?: string; _id: typeof row._id };
-      if (!r.type) {
-        await ctx.db.patch(r._id, { type: 'prompt' as const });
-        migrated++;
-      }
-    }
-    return { total: all.length, migrated };
-  },
-});
