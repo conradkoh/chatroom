@@ -56,11 +56,16 @@ flowchart TD
    \`\`\`
    ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="feature-name" << 'EOF'
    {"steps": [
-     {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
-     {"stepKey": "review", "description": "Code review", "dependsOn": ["implement"], "order": 2}
+     {"stepKey": "design", "description": "Define types + API surface", "dependsOn": [], "order": 1},
+     {"stepKey": "backend", "description": "Backend implementation", "dependsOn": ["design"], "order": 2},
+     {"stepKey": "frontend", "description": "Frontend integration", "dependsOn": ["backend"], "order": 3},
+     {"stepKey": "tests", "description": "Tests + verification", "dependsOn": ["frontend"], "order": 4},
+     {"stepKey": "review", "description": "Code review", "dependsOn": ["tests"], "order": 5}
    ]}
    EOF
    \`\`\`
+
+⚠️ **Anti-pattern:** Avoid the trivial 2-step \`implement → review\` workflow unless the task is genuinely a single-file change. Decompose by layer (data model → backend → frontend → tests → review) or by feature slice.
 
 4. **Specify** each step: ${cmd('workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>"')}
    - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
