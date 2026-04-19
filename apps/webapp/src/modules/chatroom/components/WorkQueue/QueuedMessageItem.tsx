@@ -92,8 +92,20 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group ${onClickRow ? 'cursor-pointer' : ''}`}
+      role={onClickRow ? 'button' : undefined}
+      tabIndex={onClickRow ? 0 : undefined}
       onClick={onClickRow}
+      onKeyDown={
+        onClickRow
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClickRow();
+              }
+            }
+          : undefined
+      }
+      className={`flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group ${onClickRow ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-[-2px]' : ''}`}
     >
       {/* Content - truncate to 2 lines */}
       <div className="flex-1 min-w-0">
