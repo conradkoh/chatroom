@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * SkillEditorModal — Textarea editor with preview toggle for editing skill customization content.
+ * SkillEditorModal — Textarea editor with read-only toggle for editing skill customization content.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -9,6 +9,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Eye, Pencil, Loader2 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,7 +36,7 @@ export const SkillEditorModal = memo(function SkillEditorModal({
   skillName,
 }: SkillEditorModalProps) {
   const [content, setContent] = useState(initialContent);
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [mode, setMode] = useState<'edit' | 'readonly'>('edit');
   const [isSaving, setIsSaving] = useState(false);
 
   const updateCustomization = useSessionMutation(api.chatroomSkillCustomizations.update);
@@ -57,6 +58,9 @@ export const SkillEditorModal = memo(function SkillEditorModal({
         content,
       });
       onClose();
+    } catch (error) {
+      console.error('Failed to save skill customization:', error);
+      toast.error('Failed to save skill customization. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -88,15 +92,15 @@ export const SkillEditorModal = memo(function SkillEditorModal({
             Edit
           </button>
           <button
-            onClick={() => setMode('preview')}
+            onClick={() => setMode('readonly')}
             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'preview'
+              mode === 'readonly'
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Eye className="h-3 w-3" />
-            Preview
+            Read-only
           </button>
         </div>
 
@@ -112,7 +116,7 @@ export const SkillEditorModal = memo(function SkillEditorModal({
             />
           ) : (
             <div className="h-[50vh] overflow-auto rounded-md border border-border bg-card p-3">
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words text-sm text-foreground">
+              <div className="whitespace-pre-wrap break-words text-sm text-foreground">
                 {content || <span className="text-muted-foreground italic">No content</span>}
               </div>
             </div>

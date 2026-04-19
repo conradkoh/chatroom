@@ -11,92 +11,21 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from "@workspace/backend/src/domain/types/skills";
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 import { SkillEditorModal } from './SkillEditorModal';
+import { useTwoTapConfirm } from '../hooks/useTwoTapConfirm';
 
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 
-// ─── Types ──────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SkillsTabProps {
   chatroomId: string;
 }
-
-// ─── Default content ────────────────────────────────────────────────────
-
-/**
- * Default content for the `development_workflow` skill.
- *
- * This mirrors `services/backend/src/domain/usecase/skills/modules/development-workflow/index.ts`
- * Kept in sync manually for now — in the future this should be fetched via
- * a backend query so the skill registry remains the single source of truth.
- */
-const DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT = `## Release Workflow
-
-Follow this process to ship a new version:
-
-### 1. Create a Release Branch and PR
-
-- Branch from \`master\` as \`release/v<X.Y.Z>\`
-- Update the \`version\` field in **all** \`package.json\` files:
-  - \`package.json\` (root)
-  - \`apps/webapp/package.json\`
-  - \`packages/cli/package.json\`
-  - \`services/backend/package.json\`
-- Raise a PR from the release branch to \`master\` (e.g., "Release v1.34.0")
-
-### 2. Raise Feature/Fix PRs Against the Release Branch
-
-- All PRs for this release should target \`release/v<X.Y.Z>\`, **not** \`master\`
-- Each PR should be a focused, reviewable unit of work
-
-### 3. Squash-Merge Changes Into the Release Branch
-
-- When a feature PR is approved, **squash-merge** it into the release branch
-- This keeps the release branch history clean — one commit per feature/fix
-
-### 4. Merge the Release Branch to Master
-
-- When all changes are in and the release is ready, merge the release PR to \`master\`
-- CI/CD will handle the rest automatically (deployment, npm publish, etc.)
-
----
-
-## Commands Reference
-
-\`\`\`bash
-# Create release branch
-git checkout master && git pull
-git checkout -b release/v<X.Y.Z>
-
-# Bump versions (update all 4 package.json files)
-# Then commit and push
-
-# Create release PR
-gh pr create --base master --title "Release v<X.Y.Z>"
-
-# Retarget an existing PR to the release branch
-gh pr edit <PR_NUMBER> --base release/v<X.Y.Z>
-
-# Squash-merge a feature PR into the release
-gh pr merge <PR_NUMBER> --squash
-
-# Merge release to master when ready
-gh pr merge <RELEASE_PR_NUMBER> --merge
-\`\`\`
-
----
-
-## Rules
-
-- Never merge feature PRs directly to \`master\` — always go through a release branch
-- Use squash-merge for feature PRs into the release branch
-- Use regular merge (not squash) for the release PR into \`master\` to preserve the squashed commits
-- Version numbers must be consistent across all 4 \`package.json\` files
-`;
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
@@ -107,6 +36,11 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
   const customization = useSessionQuery(api.chatroomSkillCustomizations.getForChatroom, {
     chatroomId: typedChatroomId,
     type: customizationType,
+  });
+
+  // Default skill content from the registry (single source of truth)
+  const defaultContent = useSessionQuery(api.skills.getDefaultSkillContent, {
+    skillId: 'development-workflow',
   });
 
   const createCustomization = useSessionMutation(api.chatroomSkillCustomizations.create);
@@ -124,32 +58,50 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
         chatroomId: typedChatroomId,
         type: customizationType,
         name: 'Development Workflow',
-        content: DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT,
+        content: defaultContent ?? '',
       });
       setIsEditorOpen(true);
+    } catch (error) {
+      console.error('Failed to create skill customization:', error);
+      toast.error('Failed to create customization. Please try again.');
     } finally {
       setIsCreating(false);
     }
-  }, [createCustomization, typedChatroomId, customizationType]);
+  }, [createCustomization, typedChatroomId, customizationType, defaultContent]);
 
   const handleToggle = useCallback(async () => {
     if (!customization) return;
-    await toggleCustomization({
-      chatroomId: typedChatroomId,
-      customizationId: customization._id,
-    });
+    try {
+      await toggleCustomization({
+        chatroomId: typedChatroomId,
+        customizationId: customization._id,
+      });
+    } catch (error) {
+      console.error('Failed to toggle skill customization:', error);
+      toast.error('Failed to toggle customization. Please try again.');
+    }
   }, [toggleCustomization, typedChatroomId, customization]);
 
-  const handleReset = useCallback(async () => {
-    if (!customization) return;
-    await removeCustomization({
-      chatroomId: typedChatroomId,
-      customizationId: customization._id,
-    });
-  }, [removeCustomization, typedChatroomId, customization]);
+  // Two-tap Reset confirmation using the useTwoTapConfirm hook
+  const { armedKey: resetArmedKey, request: requestReset } = useTwoTapConfirm<string>(
+    async (_key) => {
+      if (!customization) return;
+      try {
+        await removeCustomization({
+          chatroomId: typedChatroomId,
+          customizationId: customization._id,
+        });
+      } catch (error) {
+        console.error('Failed to reset skill customization:', error);
+        toast.error('Failed to reset. Please try again.');
+      }
+    },
+    3000
+  );
+  const handleReset = useCallback(() => requestReset('reset'), [requestReset]);
 
-  // Loading state
-  if (customization === undefined) {
+  // Loading state — wait for both queries
+  if (customization === undefined || defaultContent === undefined) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -240,8 +192,17 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
                   onClick={handleReset}
                   className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
-                  <RotateCcw className="mr-1 h-3 w-3" />
-                  Reset
+                  {resetArmedKey === 'reset' ? (
+                    <>
+                      <AlertTriangle className="mr-1 h-3 w-3" />
+                      Confirm?
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="mr-1 h-3 w-3" />
+                      Reset
+                    </>
+                  )}
                 </Button>
               </>
             )}
@@ -266,7 +227,7 @@ export const SkillsTab = memo(function SkillsTab({ chatroomId }: SkillsTabProps)
             {isDefaultExpanded && (
               <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-muted/50 p-3">
                 <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-                  {DEFAULT_DEVELOPMENT_WORKFLOW_CONTENT}
+                  {defaultContent}
                 </pre>
               </div>
             )}

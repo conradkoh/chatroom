@@ -19,27 +19,22 @@ export const getAgentPrompt = query({
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Resolve chatroom ID from slug/string
-    // CLI passes chatroom ID as string - try to parse it as an Id
-    let chatroomId: Id<'chatroom_rooms'> | undefined;
-    try {
-      chatroomId = args.chatroomId as Id<'chatroom_rooms'>;
-      // Verify it exists
-      const chatroom = await ctx.db.get(chatroomId);
-      if (!chatroom) {
-        chatroomId = undefined;
-      }
-    } catch {
-      // Not a valid Id format, will skip customization lookup
-      chatroomId = undefined;
+    // Resolve chatroom for customization lookup. If the ID is malformed or
+    // doesn't exist, fall back to the default prompt and log so it's debuggable.
+    const chatroomId = args.chatroomId as Id<'chatroom_rooms'>;
+    const chatroom = await ctx.db.get(chatroomId);
+    if (!chatroom) {
+      console.warn(
+        `[getAgentPrompt] Chatroom not found for ID "${args.chatroomId}" — using default prompt.`
+      );
     }
 
     // Check for a skill customization for this chatroom
-    const customization = chatroomId
+    const customization = chatroom
       ? await ctx.db
           .query('chatroom_skillCustomizations')
           .withIndex('by_chatroomId_type', (q) =>
-            q.eq('chatroomId', chatroomId!).eq('type', DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE)
+            q.eq('chatroomId', chatroomId).eq('type', DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE)
           )
           .first()
       : null;

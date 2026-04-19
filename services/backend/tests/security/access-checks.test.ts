@@ -113,6 +113,8 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   'workspaceFiles.ts': ['syncFileTree', 'fulfillFileContent'],
   // workspaces.ts: deprecated v1 mutations — throw immediately, no data written
   'workspaces.ts': ['upsertFullDiff', 'upsertCommitDetail'],
+  // skills.ts: getDefaultSkillContent reads only static registry data — no DB access, no sensitive data
+  'skills.ts': ['getDefaultSkillContent'],
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

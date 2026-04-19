@@ -25,6 +25,7 @@ export interface ActivateSkillResult {
   skill: {
     skillId: string;
     name: string;
+    description: string;
     /** The prompt that was stored - what the agent sees */
     prompt: string;
   };
@@ -74,6 +75,7 @@ export async function activateSkill(
     skill: {
       skillId: skill.skillId,
       name: skill.name,
+      description: skill.description,
       prompt: prompt,
     },
   };
