@@ -39,8 +39,8 @@ type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
-/** Interval for periodic model discovery refresh (5 minutes). */
-const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+/** Interval for periodic model discovery refresh (90 seconds). */
+const MODEL_REFRESH_INTERVAL_MS = 90 * 1000;
 
 /**
  * Re-discover models and update the backend registration.
