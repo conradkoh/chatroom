@@ -519,6 +519,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         isOpen={selectedQueuedMessage !== null}
         onClose={() => setSelectedQueuedMessage(null)}
         message={selectedQueuedMessage}
+        editable
       />
 
       {/* Backlog Queue Modal - shows all backlog items */}

@@ -1,16 +1,21 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   X,
   Sparkles,
   FileText,
   Code,
   HelpCircle,
+  Loader2,
+  Pencil,
   RotateCcw,
   ArrowRight,
   MessageSquare,
 } from 'lucide-react';
-import React, { useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -23,6 +28,12 @@ interface MessageDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   message: Message | null;
+  /**
+   * When true, an Edit button is shown so the user can update the message content.
+   * Only pass this for mutable messages (e.g. queued messages). Already-sent
+   * messages (MessageFeed, etc.) should remain read-only.
+   */
+  editable?: boolean;
 }
 
 // Get classification icon and label
@@ -52,24 +63,46 @@ const getClassificationDisplay = (classification: Message['classification']) => 
 };
 
 /**
- * Modal for displaying message details.
+ * Modal for displaying (and optionally editing) message details.
  * - For new_feature: shows title, description, tech specs
  * - For question/follow_up: shows sender, target, timestamp, full message content
  * Slides in from the right, consistent with FeatureDetailModal.
+ *
+ * Pass `editable` to enable inline editing (queued messages only).
  */
 export const MessageDetailModal = memo(function MessageDetailModal({
   isOpen,
   onClose,
   message,
+  editable = false,
 }: MessageDetailModalProps) {
-  // Handle Escape key
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+
+  // Reset editing state whenever the modal opens or the message changes
+  useEffect(() => {
+    if (isOpen && message) {
+      setEditedContent(message.content);
+      setIsEditing(false);
+    }
+  }, [isOpen, message]);
+
+  // Handle Escape key — cancel editing first; close modal only when not editing
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isEditing) {
+          setEditedContent(message?.content ?? '');
+          setIsEditing(false);
+        } else {
+          onClose();
+        }
       }
     },
-    [onClose]
+    [onClose, isEditing, message]
   );
 
   useEffect(() => {
@@ -81,6 +114,27 @@ export const MessageDetailModal = memo(function MessageDetailModal({
     };
   }, [isOpen, handleKeyDown]);
 
+  const handleSave = useCallback(async () => {
+    if (!message || !editedContent.trim()) return;
+    setIsSaving(true);
+    try {
+      await updateQueuedMessage({
+        queuedMessageId: message._id as Id<'chatroom_messageQueue'>,
+        content: editedContent.trim(),
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update queued message:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [message, editedContent, updateQueuedMessage]);
+
+  const handleCancel = useCallback(() => {
+    setEditedContent(message?.content ?? '');
+    setIsEditing(false);
+  }, [message]);
+
   if (!isOpen || !message) {
     return null;
   }
@@ -88,6 +142,10 @@ export const MessageDetailModal = memo(function MessageDetailModal({
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
+      if (isEditing) {
+        // Don't close while editing — user may have clicked accidentally
+        return;
+      }
       onClose();
     }
   };
@@ -124,16 +182,29 @@ export const MessageDetailModal = memo(function MessageDetailModal({
           <div className="flex items-center gap-2">
             {classificationDisplay.icon}
             <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-              {classificationDisplay.label} Details
+              {isEditing ? 'Edit Message' : `${classificationDisplay.label} Details`}
             </span>
           </div>
-          <button
-            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Edit button — only shown when editable and not already editing */}
+            {editable && !isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                aria-label="Edit message"
+                title="Edit"
+              >
+                <Pencil size={16} />
+              </button>
+            )}
+            <button
+              className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+              onClick={isEditing ? handleCancel : onClose}
+              aria-label={isEditing ? 'Cancel editing' : 'Close'}
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -158,7 +229,40 @@ export const MessageDetailModal = memo(function MessageDetailModal({
             <span className="font-mono text-[10px]">{formatTime(message._creationTime)}</span>
           </div>
 
-          {isNewFeature ? (
+          {/* Edit mode: textarea replaces content area */}
+          {isEditing ? (
+            <div className="space-y-3">
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="w-full h-48 resize-none rounded border border-chatroom-border bg-chatroom-bg-secondary p-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:ring-2 focus:ring-chatroom-accent font-mono"
+                placeholder="Enter message content..."
+                autoFocus
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-xs border border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !editedContent.trim()}
+                  className="px-3 py-1.5 text-xs bg-chatroom-accent text-chatroom-bg-primary hover:opacity-80 transition-opacity disabled:opacity-50 flex items-center gap-1"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : isNewFeature ? (
             // New Feature: show title, description, tech specs
             <>
               {/* Title Section */}
@@ -224,26 +328,9 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </Markdown>
                 </div>
               </div>
-              ) : ( // Question/Follow-up: show full message content
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageSquare size={14} className="text-chatroom-text-muted" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                    Full Message
-                  </span>
-                </div>
-                <div className={proseClassNames}>
-                  <Markdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    components={fullMarkdownComponents}
-                  >
-                    {message.content}
-                  </Markdown>
-                </div>
-              </div>
             </>
           ) : (
-            // Question/Follow-up: show full message content
+            // Question/Follow-up (and default): show full message content
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <MessageSquare size={14} className="text-chatroom-text-muted" />
