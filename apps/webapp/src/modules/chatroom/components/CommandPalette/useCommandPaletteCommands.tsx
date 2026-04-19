@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
   ArrowRightLeft,
   ClipboardCheck,
   Code2,
@@ -14,21 +15,26 @@ import {
   MessagesSquare,
   MessageSquare,
   PanelBottomOpen,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
   Settings,
   StopCircle,
   Terminal,
+  Trash2,
 } from 'lucide-react';
 import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
 
+import type { SavedCommand } from '../../types/savedCommand';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { getCommandUsageStore } from '../../lib/commandUsageStore';
 import type { CommandItem, SettingsTab } from './types';
 
 export type { SettingsTab };
+
+export type { SavedCommand };
 
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
@@ -75,6 +81,18 @@ interface UseCommandPaletteCommandsProps {
    * (onOpenInVSCode, onOpenInGitHubDesktop, etc.).
    */
   workspaceCommands?: CommandItem[];
+  /** Callback to open the Create Command modal */
+  onCreateCommand?: (() => void) | null;
+  /** Saved commands to show in the command palette */
+  savedCommands?: SavedCommand[];
+  /** Callback to execute a saved command (send its prompt as a message) */
+  onExecuteSavedCommand?: ((cmd: SavedCommand) => void) | null;
+  /** Callback to edit a saved command */
+  onEditSavedCommand?: ((cmd: SavedCommand) => void) | null;
+  /** Callback to delete a saved command */
+  onDeleteSavedCommand?: ((commandId: string, name: string) => void) | null;
+  /** The commandId currently awaiting delete confirmation (if any) */
+  confirmingDeleteCommandId?: string | null;
 }
 
 /**
@@ -111,6 +129,12 @@ export function useCommandPaletteCommands({
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
+  onCreateCommand,
+  savedCommands,
+  onExecuteSavedCommand,
+  onEditSavedCommand,
+  onDeleteSavedCommand,
+  confirmingDeleteCommandId,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -122,6 +146,47 @@ export function useCommandPaletteCommands({
 
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
+
+    // ─── Saved Commands (custom user prompts) ──────────────────────
+    if (savedCommands && savedCommands.length > 0 && onExecuteSavedCommand) {
+      for (const cmd of savedCommands) {
+        commands.push({
+          id: `saved-cmd-${cmd._id}`,
+          label: `Command: ${cmd.name}`,
+          icon: <MessageSquare size={14} />,
+          category: 'Commands',
+          keywords: [cmd.name],
+          action: () => onExecuteSavedCommand(cmd),
+          secondaryActions: [
+            ...(onEditSavedCommand
+              ? [
+                  {
+                    id: `saved-cmd-edit-${cmd._id}`,
+                    label: 'Edit',
+                    icon: <Pencil size={12} />,
+                    action: () => onEditSavedCommand(cmd),
+                  },
+                ]
+              : []),
+            ...(onDeleteSavedCommand
+              ? [
+                  {
+                    id: `saved-cmd-delete-${cmd._id}`,
+                    label: confirmingDeleteCommandId === cmd._id ? 'Confirm?' : 'Delete',
+                    icon:
+                      confirmingDeleteCommandId === cmd._id ? (
+                        <AlertTriangle size={12} />
+                      ) : (
+                        <Trash2 size={12} />
+                      ),
+                    action: () => onDeleteSavedCommand(cmd._id, cmd.name),
+                  },
+                ]
+              : []),
+          ],
+        });
+      }
+    }
 
     // ─── Favorites (favourited commands from process manager) ────────
     if (runnableCommands) {
@@ -172,6 +237,18 @@ export function useCommandPaletteCommands({
       });
     }
 
+    // ─── Create Command action ────────────────────────────────────
+    if (onCreateCommand) {
+      commands.push({
+        id: 'action-create-command',
+        label: 'Create Command',
+        icon: <Plus size={14} />,
+        category: 'Actions',
+        keywords: ['new', 'create', 'command', 'prompt', 'saved'],
+        action: onCreateCommand,
+      });
+    }
+
     commands.push({
       id: 'nav-go-to-file',
       label: 'Chatroom: Go to File',
@@ -211,7 +288,7 @@ export function useCommandPaletteCommands({
       if (onViewGitHubPullRequests) {
         commands.push({
           id: 'action-view-github-prs',
-          label: 'Github: View Pull Requests',
+          label: 'Github: View My Pull Requests',
           icon: <SiGithub size={14} />,
           category: 'Actions',
           keywords: ['PR', 'PRs'],
@@ -433,5 +510,11 @@ export function useCommandPaletteCommands({
     onStartAllRemoteAgents,
     onStopAllRemoteAgents,
     onRestartAllRemoteAgents,
+    onCreateCommand,
+    savedCommands,
+    onExecuteSavedCommand,
+    onEditSavedCommand,
+    onDeleteSavedCommand,
+    confirmingDeleteCommandId,
   ]);
 }

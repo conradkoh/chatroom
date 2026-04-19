@@ -306,6 +306,9 @@ export const purgeWorkspaceFileContent = migrations.define({
   },
 });
 
+// --- Saved Commands Migrations ---
+// (none currently — type field shipped with the feature in v1.34.0; production has no legacy rows)
+
 // ========================================
 // Batch Runners
 // ========================================

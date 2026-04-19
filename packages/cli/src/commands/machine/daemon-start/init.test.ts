@@ -385,8 +385,8 @@ describe('initDaemon', () => {
 
     const initPromise = initDaemon();
 
-    // Advance past the 1s retry delay
-    await vi.advanceTimersByTimeAsync(1500);
+    // Advance past the 60s retry delay
+    await vi.advanceTimersByTimeAsync(61_000);
 
     const ctx = await initPromise;
 

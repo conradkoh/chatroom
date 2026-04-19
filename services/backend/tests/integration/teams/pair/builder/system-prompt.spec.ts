@@ -94,7 +94,10 @@ describe('Pair Team > Builder > System Prompt', () => {
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
       - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
+      - \`development-workflow\` (1 skill available)
+          - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
@@ -102,6 +105,17 @@ describe('Pair Team > Builder > System Prompt', () => {
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
+
+      ## When to Activate Skills
+
+      **Proactively activate skills** when your task matches their purpose:
+      - **backlog**: Full backlog command reference with scoring, completion, and workflow guides.
+      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
+      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
+
+      Don't wait for the user to ask — proactively activate the skill that matches the task.
 
       ## Getting Started
 

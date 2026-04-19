@@ -317,7 +317,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
-const CONNECTION_RETRY_INTERVAL_MS = 1000;
+const CONNECTION_RETRY_INTERVAL_MS = 60_000;
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
@@ -407,12 +407,14 @@ export async function initDaemon(): Promise<DaemonContext> {
       return ctx;
     } catch (error) {
       if (isNetworkError(error)) {
+        const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
         console.log(
-          `\n   Retrying in ${CONNECTION_RETRY_INTERVAL_MS / 1000}s...\n`
+          `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying in ${retrySec}s...`
         );
         await new Promise((resolve) =>
           setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS)
         );
+        console.log(`[${formatTimestamp()}] 🔄 Retrying backend connection...`);
         // Continue the loop to retry
       } else {
         // Non-network error — propagate (will crash the process)

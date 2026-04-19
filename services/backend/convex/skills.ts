@@ -8,6 +8,7 @@ import { getCliEnvPrefix } from '../prompts/utils/index';
 import { activateSkill } from '../src/domain/usecase/skills/activate-skill';
 import { getSkill } from '../src/domain/usecase/skills/get-skill';
 import { listSkills } from '../src/domain/usecase/skills/list-skills';
+import { SKILLS_REGISTRY } from '../src/domain/usecase/skills/registry';
 
 const config = getConfig();
 
@@ -27,6 +28,24 @@ export const list = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return listSkills();
+  },
+});
+
+/**
+ * Get the default content (prompt body without the activation header) for a skill.
+ * Used by SkillsTab to seed the editor and show the default-prompt preview,
+ * so the registry is the single source of truth — no hardcoded strings in the UI.
+ */
+export const getDefaultSkillContent = query({
+  args: { skillId: v.string() },
+  handler: async (_ctx, args) => {
+    const skill = SKILLS_REGISTRY.find((s) => s.skillId === args.skillId);
+    if (!skill) return null;
+    const fullPrompt = skill.getPrompt('');
+    // Strip the leading activation header so the editor shows only the customizable body.
+    const lines = fullPrompt.split('\n');
+    const firstSubstantiveLine = lines.findIndex((l) => l.startsWith('## '));
+    return firstSubstantiveLine === -1 ? fullPrompt : lines.slice(firstSubstantiveLine).join('\n');
   },
 });
 

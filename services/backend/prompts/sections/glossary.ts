@@ -6,6 +6,7 @@
  * so agents know they can run `chatroom skill activate <term>` to get more detail.
  */
 
+import { SKILLS_REGISTRY } from '../../src/domain/usecase/skills/registry';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
@@ -49,9 +50,16 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'workflow',
     definition:
-      'DAG-based structured workflows for planning and executing multi-step tasks. ' +
+      'DAG-based structured workflows for planning and executing multi-step tasks, including release management. ' +
       'Agents use the `chatroom workflow` CLI command group to create, specify, execute, and track workflows.',
     linkedSkillId: 'workflow',
+  },
+  {
+    term: 'development-workflow',
+    definition:
+      'Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. ' +
+      'Use this skill for coordinating complex release and development processes.',
+    linkedSkillId: 'development-workflow',
   },
   {
     term: 'structural-decisions',
@@ -83,6 +91,15 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
   lines.push(
     `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.`
   );
+  lines.push('');
+  lines.push('## When to Activate Skills');
+  lines.push('');
+  lines.push('**Proactively activate skills** when your task matches their purpose:');
+  for (const skill of SKILLS_REGISTRY) {
+    lines.push(`- **${skill.skillId}**: ${skill.description}`);
+  }
+  lines.push('');
+  lines.push("Don't wait for the user to ask — proactively activate the skill that matches the task.");
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }

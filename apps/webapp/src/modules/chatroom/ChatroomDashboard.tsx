@@ -29,6 +29,7 @@ import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
+import { SavedCommandModal } from './components/SavedCommandModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
@@ -48,7 +49,10 @@ import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { useScrollController } from './hooks/useScrollController';
+import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
+import type { SavedCommand } from './types/savedCommand';
+import { exhaustive } from '@/lib/exhaustive';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import {
   FileExplorerPanel,
@@ -131,6 +135,9 @@ interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
 }
+
+/** Edit target for the saved command modal */
+type SavedCommandEditTarget = SavedCommand;
 
 /**
  * Memoized title editor component to prevent input recreation on every keystroke.
@@ -415,6 +422,24 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
 
+  // Saved Command modal state
+  const [savedCommandModalOpen, setSavedCommandModalOpen] = useState(false);
+  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<SavedCommandEditTarget | undefined>(undefined);
+
+  const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
+    setSavedCommandEditTarget(target);
+    setSavedCommandModalOpen(true);
+  }, []);
+  const handleCloseSavedCommandModal = useCallback(() => {
+    setSavedCommandModalOpen(false);
+    setSavedCommandEditTarget(undefined);
+  }, []);
+
+  const handleEditSavedCommand = useCallback(
+    (cmd: SavedCommand) => handleOpenSavedCommandModal(cmd),
+    [handleOpenSavedCommandModal]
+  );
+
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
@@ -534,6 +559,72 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const chatroom = useSessionQuery(api.chatrooms.get, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
+
+  // Saved commands query
+  const savedCommandsData = useSessionQuery(api.savedCommands.listSavedCommands, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+
+  // Send message mutation (used to execute saved commands)
+  const sendMessageMutation = useSessionMutation(api.messages.send);
+  const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
+
+
+  const handleConfirmedDelete = useCallback(
+    async (commandId: string) => {
+      try {
+        await deleteSavedCommandMutation({
+          commandId: commandId as Id<'chatroom_savedCommands'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete saved command:', error);
+        toast.error('Failed to delete command. Please try again.');
+      }
+    },
+    [deleteSavedCommandMutation]
+  );
+
+  const { armedKey: confirmingDeleteCommandId, request: deleteRequest } =
+    useTwoTapConfirm<string>(handleConfirmedDelete, 3000);
+
+  const handleDeleteSavedCommand = useCallback(
+    (commandId: string, _name: string) => deleteRequest(commandId),
+    [deleteRequest]
+  );
+
+  const handleExecuteSavedCommand = useCallback(
+    async (cmd: SavedCommand) => {
+      switch (cmd.type) {
+        case 'prompt':
+          try {
+            await sendMessageMutation({
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              senderRole: 'user',
+              content: cmd.prompt,
+              type: 'message',
+            });
+          } catch (error) {
+            console.error('Failed to execute saved command:', error);
+            toast.error('Failed to send command. Please try again.');
+          }
+          break;
+        default:
+          exhaustive(cmd.type);
+      }
+    },
+    [sendMessageMutation, chatroomId]
+  );
+
+  const savedCommands: SavedCommand[] = useMemo(
+    () =>
+      (savedCommandsData ?? []).map((cmd) => ({
+        _id: cmd._id,
+        type: cmd.type,
+        name: cmd.name,
+        prompt: cmd.prompt,
+      })),
+    [savedCommandsData]
+  );
 
   // Update team mutation (for switching teams)
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
@@ -742,7 +833,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [prUrl]);
 
   const handleViewGitHubPullRequests = useCallback(() => {
-    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
+    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls?q=is%3Apr+author%3A%40me`);
   }, [gitHubRepoUrl]);
 
   const handleViewGitHubRepository = useCallback(() => {
@@ -1030,6 +1121,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
+    onCreateCommand: handleOpenSavedCommandModal,
+    savedCommands,
+    onExecuteSavedCommand: handleExecuteSavedCommand,
+    onEditSavedCommand: handleEditSavedCommand,
+    onDeleteSavedCommand: handleDeleteSavedCommand,
+    confirmingDeleteCommandId,
   });
 
   // Memoize the team entry point
@@ -1371,6 +1468,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                           onAfterResize={endResize}
                           onRegisterFocus={handleRegisterSendFormFocus}
                           files={autocompleteFiles}
+                          onCreateCommand={handleOpenSavedCommandModal}
                         />
                       </div>
                     </div>
@@ -1393,6 +1491,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                         onAfterResize={endResize}
                         onRegisterFocus={handleRegisterSendFormFocus}
                         files={autocompleteFiles}
+                        onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>
                   </div>
@@ -1497,6 +1596,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onViewPrompt={handleViewPrompt}
             chatroomName={displayName}
             onRenameChatroom={handleRenameChatroom}
+          />
+
+          {/* Saved Command Modal */}
+          <SavedCommandModal
+            isOpen={savedCommandModalOpen}
+            chatroomId={chatroomId}
+            onClose={handleCloseSavedCommandModal}
+            initial={savedCommandEditTarget}
+            existingNames={savedCommands.map((c) => c.name)}
           />
 
           {/* Command Palette (Cmd+Shift+P) */}

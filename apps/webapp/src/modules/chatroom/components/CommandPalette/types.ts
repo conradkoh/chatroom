@@ -1,5 +1,12 @@
 import type React from 'react';
 
+export type CommandItemSecondaryAction = {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  action: () => void;
+};
+
 export type CommandItem = {
   id: string;
   label: string;
@@ -10,6 +17,8 @@ export type CommandItem = {
   shortcut?: string;
   keywords?: string[];
   action: () => void;
+  /** Optional secondary action buttons rendered at the end of the item row */
+  secondaryActions?: CommandItemSecondaryAction[];
   /**
    * If true, this command should show output inline in the command palette
    * without dismissing the dialog. Requires `script` to be set.
@@ -22,4 +31,11 @@ export type CommandItem = {
   script?: string;
 };
 
-export type SettingsTab = 'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'integrations';
+export type SettingsTab =
+  | 'setup'
+  | 'team'
+  | 'machine'
+  | 'agents'
+  | 'workspaces'
+  | 'skills'
+  | 'integrations';

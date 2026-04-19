@@ -124,8 +124,59 @@ export function ProcessManager({
   const [previousWorkspace, setPreviousWorkspace] = useState<WorkspaceGroup | null>(null);
   const [previousCommand, setPreviousCommand] = useState<RunnableCommand | null>(null);
 
+  // Keyboard navigation state
+  const [focusedIndex, setFocusedIndex] = useState(0);
+
   // Group commands by workspace
   const workspaceGroups = groupCommandsByWorkspace(commands, searchQuery);
+
+  // Flat list of selectable items for keyboard navigation
+  const selectableItems = useMemo(() => {
+    if (searchQuery) {
+      // Search mode: flat list of commands
+      return workspaceGroups.flatMap((ws) =>
+        ws.allCommands.map((cmd) => ({ type: 'command' as const, ws, cmd }))
+      );
+    }
+    // Browse mode: list of workspaces
+    return workspaceGroups.map((ws) => ({ type: 'workspace' as const, ws }));
+  }, [workspaceGroups, searchQuery]);
+
+  // Reset focused index when search changes or dialog opens
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [searchQuery, open]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const items = selectableItems;
+      if (items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev + 1) % items.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev - 1 + items.length) % items.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const item = items[focusedIndex];
+        if (!item) return;
+
+        if (item.type === 'workspace') {
+          onClearRun();
+          setSelectedWorkspace(item.ws);
+          setSelectedCommand(null);
+        } else {
+          onClearRun();
+          setSelectedWorkspace(item.ws);
+          setSelectedCommand(item.cmd);
+        }
+      }
+    },
+    [selectableItems, focusedIndex, onClearRun]
+  );
 
   // Separate running and recent runs
   const runningProcesses = runs.filter(
@@ -178,7 +229,7 @@ export function ProcessManager({
           {/* Split pane */}
           <div className="flex flex-1 overflow-hidden">
             {/* Left sidebar */}
-            <div className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden">
+            <div className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden" onKeyDown={handleKeyDown}>
               {/* Search */}
               <div className="p-2 border-b border-chatroom-border">
                 <input
@@ -205,48 +256,73 @@ export function ProcessManager({
                   />
                 )}
 
-                {/* Command Browser */}
-                {/* Workspace sections with quick commands */}
-                {workspaceGroups.map((ws) => (
-                  <div key={ws.path} className="border-b border-chatroom-border/50">
-                    <button
-                      onClick={() => {
-                        onClearRun();
-                        setSelectedWorkspace(ws);
-                        setSelectedCommand(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover transition-colors"
-                    >
-                      <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
-                      <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
-                    </button>
-                    {/* Quick commands + favorites as inline buttons */}
-                    <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-                      {getVisibleCommands(ws, favorites).map((cmd) => {
-                        const isFav = favorites.has(cmd.name);
-                        return (
-                          <button
-                            key={cmd.name}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onClearRun();
-                              setSelectedCommand(cmd);
-                              setSelectedWorkspace(null);
-                            }}
-                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                              isFav
-                                ? 'text-yellow-500 bg-yellow-500/10 hover:bg-blue-600 hover:text-white'
-                                : 'text-chatroom-text-primary bg-chatroom-bg-hover/50 hover:bg-blue-600 hover:text-white'
-                            }`}
-                            title={cmd.script}
-                          >
-                            {isFav ? '★ ' : ''}{getCompactDisplayName(cmd.name, cmd.script)}
-                          </button>
-                        );
-                      })}
+                {/* Command Browser — workspaces only (no inline buttons) */}
+                {searchQuery ? (
+                  /* Search results: flat list of matching commands */
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
+                      Search Results ({workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
                     </div>
+                    {(() => {
+                      let idx = 0;
+                      return workspaceGroups.flatMap((ws) =>
+                        ws.allCommands.map((cmd) => {
+                          const currentIdx = idx++;
+                          const isFav = favorites.has(cmd.name);
+                          const isFocused = currentIdx === focusedIndex;
+                          return (
+                            <button
+                              key={cmd.name}
+                              onClick={() => {
+                                onClearRun();
+                                setSelectedWorkspace(ws);
+                                setSelectedCommand(cmd);
+                              }}
+                              className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
+                                isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
+                              }`}
+                            >
+                              <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-xs font-bold uppercase tracking-wider truncate ${
+                                  isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
+                                }`}>
+                                  {getCompactDisplayName(cmd.name, cmd.script)}
+                                </div>
+                                <div className="text-[10px] text-chatroom-text-muted/70 truncate">
+                                  {ws.path === '.' ? 'Root' : ws.path}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      );
+                    })()}
                   </div>
-                ))}
+                ) : (
+                  /* Workspace list: only names, no inline buttons */
+                  <div>
+                    {workspaceGroups.map((ws, idx) => {
+                      const isFocused = idx === focusedIndex;
+                      return (
+                        <button
+                          key={ws.path}
+                          onClick={() => {
+                            onClearRun();
+                            setSelectedWorkspace(ws);
+                            setSelectedCommand(null);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors border-b border-chatroom-border/20 ${
+                            isFocused ? 'bg-chatroom-bg-hover text-chatroom-text-primary' : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+                          }`}
+                        >
+                          <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
+                          <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Recent Runs */}
                 {recentRuns.length > 0 && (
@@ -327,9 +403,6 @@ export function ProcessManager({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** The 4 default quick commands shown in the sidebar. */
-const QUICK_COMMAND_NAMES = new Set(['dev', 'start', 'test', 'build']);
-
 /** Check if a command name contains a quick command (e.g., 'pnpm: dev' → 'dev'). */
 function extractScriptName(commandName: string): string {
   // Handle patterns like "pnpm: dev", "turbo: build", "@workspace/webapp: dev"
@@ -364,8 +437,6 @@ function getCompactDisplayName(commandName: string, script: string): string {
 interface WorkspaceGroup {
   /** Relative path (e.g., '.', 'apps/webapp') */
   path: string;
-  /** Quick commands (dev/start/test/build) for sidebar display */
-  quickCommands: RunnableCommand[];
   /** All commands for this workspace */
   allCommands: RunnableCommand[];
 }
@@ -392,11 +463,10 @@ function groupCommandsByWorkspace(
     groups.set(ws, existing);
   }
 
-  // Build workspace groups with quick commands
+  // Build workspace groups
   const result: WorkspaceGroup[] = [];
   for (const [path, cmds] of groups) {
-    const quickCommands = cmds.filter((c) => QUICK_COMMAND_NAMES.has(extractScriptName(c.name)));
-    result.push({ path, quickCommands, allCommands: cmds });
+    result.push({ path, allCommands: cmds });
   }
 
   // Sort: '.' (root) first, then alphabetical
@@ -437,8 +507,16 @@ function CommandDetailPanel({
     (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
   ).slice(0, 5);
 
+  // Handle Enter key to run command
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onRun();
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden" onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-chatroom-border">
         <div className="flex items-start gap-2">
@@ -594,13 +672,25 @@ function WorkspaceDetailPanel({
       </div>
       <div className="flex-1 overflow-y-auto">
         {(() => {
-          const favCmds = workspace.allCommands.filter((c) => favorites.has(c.name));
-          const otherCmds = workspace.allCommands.filter((c) => !favorites.has(c.name));
-          const hasFavorites = favCmds.length > 0;
+          const favSet = new Set(favorites);
+          const favourited: RunnableCommand[] = [];
+          const common: RunnableCommand[] = [];
+          const others: RunnableCommand[] = [];
+
+          for (const cmd of workspace.allCommands) {
+            const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
+            if (favSet.has(cmd.name)) {
+              favourited.push(cmd);
+            } else if (isCommon) {
+              common.push(cmd);
+            } else {
+              others.push(cmd);
+            }
+          }
 
           const renderCommand = (cmd: RunnableCommand) => {
             const scriptName = extractScriptName(cmd.name);
-            const isFav = favorites.has(cmd.name);
+            const isFav = favSet.has(cmd.name);
             return (
               <div
                 key={cmd.name}
@@ -637,39 +727,34 @@ function WorkspaceDetailPanel({
 
           return (
             <>
-              {hasFavorites && (
+              {favourited.length > 0 && (
                 <>
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
-                    ★ Favorites
+                    ★ Favourites
                   </div>
-                  {favCmds.map(renderCommand)}
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
-                    All Commands
-                  </div>
+                  {favourited.map(renderCommand)}
                 </>
               )}
-              {otherCmds.map(renderCommand)}
+              {common.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    Common Commands
+                  </div>
+                  {common.map(renderCommand)}
+                </>
+              )}
+              {others.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                    Commands
+                  </div>
+                  {others.map(renderCommand)}
+                </>
+              )}
             </>
           );
         })()}
       </div>
     </div>
   );
-}
-
-// ─── Visible Commands Helper ────────────────────────────────────────────────
-
-/** Get commands visible in the sidebar: quick commands + favorites for this workspace. */
-function getVisibleCommands(ws: WorkspaceGroup, favorites: Set<string>): RunnableCommand[] {
-  const quickSet = new Set(ws.quickCommands.map((c) => c.name));
-  const visible: RunnableCommand[] = [...ws.quickCommands];
-
-  // Add favorites that aren't already in quick commands
-  for (const cmd of ws.allCommands) {
-    if (favorites.has(cmd.name) && !quickSet.has(cmd.name)) {
-      visible.push(cmd);
-    }
-  }
-
-  return visible;
 }
