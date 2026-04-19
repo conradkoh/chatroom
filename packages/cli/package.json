@@ -7,12 +7,12 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm",
+    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
     "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
     "@llamaindex/liteparse": "^1.4.2",
@@ -42,6 +42,7 @@
   },
   "files": [
     "dist/index.js",
+    "dist/index.js.map",
     "package.json",
     "README.md"
   ]
