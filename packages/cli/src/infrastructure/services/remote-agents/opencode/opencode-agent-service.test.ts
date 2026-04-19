@@ -192,7 +192,7 @@ describe('OpenCodeAgentService', () => {
 
       expect(spawnFn).toHaveBeenCalledWith(
         'opencode',
-        ['run', '--format', 'json', '--print-logs', '--model', 'anthropic/claude-3.5-sonnet'],
+        ['run', '--model', 'anthropic/claude-3.5-sonnet'],
         expect.objectContaining({
           cwd: '/tmp/test',
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -206,7 +206,6 @@ describe('OpenCodeAgentService', () => {
       expect(result.pid).toBe(42);
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
-      expect(typeof result.onAgentEnd).toBe('function');
     });
 
     it('spawns without --model flag when model is not specified', async () => {
@@ -237,11 +236,7 @@ describe('OpenCodeAgentService', () => {
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
 
-      expect(spawnFn).toHaveBeenCalledWith(
-        'opencode',
-        ['run', '--format', 'json', '--print-logs'],
-        expect.any(Object)
-      );
+      expect(spawnFn).toHaveBeenCalledWith('opencode', ['run'], expect.any(Object));
     });
 
     it('throws when process exits immediately', async () => {
