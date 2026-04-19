@@ -104,6 +104,50 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
+  describe('panel-git-diff dedup (Bug #5/#14)', () => {
+    it('includes panel-git-diff in legacy (no workspaceCommands) mode', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(true);
+    });
+
+    it('omits panel-git-diff when workspaceCommands are provided (multi-workspace mode)', () => {
+      const workspaceCommands = [
+        {
+          id: 'ws-abc-git-diff',
+          label: 'Git: Show Current Changes',
+          category: 'Actions' as const,
+          action: vi.fn(),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands })
+      );
+
+      // panel-git-diff must not appear — the workspace-specific command covers it
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(false);
+    });
+
+    it('has no duplicate labels for Git: Show Current Changes when workspaceCommands provided', () => {
+      const workspaceCommands = [
+        {
+          id: 'ws-abc-git-diff',
+          label: 'Git: Show Current Changes',
+          category: 'Actions' as const,
+          action: vi.fn(),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands })
+      );
+
+      const gitDiffCmds = result.current.filter((cmd) => cmd.label === 'Git: Show Current Changes');
+      expect(gitDiffCmds).toHaveLength(1);
+    });
+  });
+
   describe('Start All Remote Agents command', () => {
     it('adds Start All Remote Agents command when handler is provided', () => {
       const onStartAllRemoteAgents = vi.fn();

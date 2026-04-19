@@ -339,6 +339,18 @@ export function useCommandPaletteCommands({
         });
       }
 
+      // Git diff — only in legacy (single-workspace) mode.
+      // Multi-workspace mode provides per-workspace 'Git: Show Current Changes'
+      // via workspaceCommands, so registering here too would cause duplicates.
+      commands.push({
+        id: 'panel-git-diff',
+        label: 'Git: Show Current Changes',
+        icon: <GitBranch size={14} />,
+        category: 'Panels',
+        keywords: ['git', 'diff', 'changes', 'modified'],
+        action: onOpenGitPanelDiff,
+      });
+
       // ─── Preferences ─────────────────────────────────────────────
       commands.push({
         id: 'action-reset-command-stats',
@@ -361,14 +373,6 @@ export function useCommandPaletteCommands({
         icon: <GitBranch size={14} />,
         category: 'Panels',
         action: onOpenGitPanel,
-      },
-      {
-        id: 'panel-git-diff',
-        label: 'Git: Show Current Changes',
-        icon: <GitBranch size={14} />,
-        category: 'Panels',
-        keywords: ['git', 'diff', 'changes', 'modified'],
-        action: onOpenGitPanelDiff,
       },
       {
         id: 'panel-configuration',
