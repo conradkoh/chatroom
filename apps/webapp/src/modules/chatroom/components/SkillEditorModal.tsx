@@ -128,7 +128,7 @@ export const SkillEditorModal = memo(function SkillEditorModal({
           <Button variant="outline" size="sm" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={isSaving}>
+          <Button size="sm" onClick={handleSave} disabled={isSaving || content.trim().length === 0}>
             {isSaving ? (
               <>
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />

@@ -7,10 +7,10 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
 import type { Id } from './_generated/dataModel';
+import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
+import { requireChatroomAccess } from './auth/cliSessionAuth';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -25,7 +25,7 @@ async function requireCustomizationInChatroom(
   customizationId: Id<'chatroom_skillCustomizations'>,
   chatroomId: Id<'chatroom_rooms'>
 ) {
-  const customization = await ctx.db.get(customizationId);
+  const customization = await ctx.db.get("chatroom_skillCustomizations", customizationId);
   if (!customization || customization.chatroomId !== chatroomId) {
     throw new ConvexError('Skill customization not found in this chatroom');
   }
@@ -145,7 +145,7 @@ export const update = mutation({
       patch.name = args.name;
     }
 
-    await ctx.db.patch(args.customizationId, patch);
+    await ctx.db.patch("chatroom_skillCustomizations", args.customizationId, patch);
   },
 });
 
@@ -162,7 +162,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await requireCustomizationInChatroom(ctx, args.customizationId, args.chatroomId);
-    await ctx.db.delete(args.customizationId);
+    await ctx.db.delete("chatroom_skillCustomizations", args.customizationId);
   },
 });
 
@@ -184,7 +184,7 @@ export const toggle = mutation({
       args.chatroomId
     );
 
-    await ctx.db.patch(args.customizationId, {
+    await ctx.db.patch("chatroom_skillCustomizations", args.customizationId, {
       isEnabled: !customization.isEnabled,
       updatedAt: Date.now(),
     });
@@ -258,7 +258,7 @@ export const bulkUpdate = mutation({
     const now = Date.now();
     for (const customizationId of args.targetCustomizationIds) {
       await requireCustomizationInChatroom(ctx, customizationId, args.chatroomId);
-      await ctx.db.patch(customizationId, {
+      await ctx.db.patch("chatroom_skillCustomizations", customizationId, {
         content: args.content,
         updatedAt: now,
       });

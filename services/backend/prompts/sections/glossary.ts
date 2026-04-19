@@ -6,6 +6,7 @@
  * so agents know they can run `chatroom skill activate <term>` to get more detail.
  */
 
+import { SKILLS_REGISTRY } from '../../src/domain/usecase/skills/registry';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
@@ -94,12 +95,11 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
   lines.push('## When to Activate Skills');
   lines.push('');
   lines.push('**Proactively activate skills** when your task matches their purpose:');
-  lines.push('- **development-workflow**: Use when planning or managing complex release processes, coordinating development branches, or handling version updates.');
-  lines.push('- **workflow**: Use when breaking down complex multi-step tasks that require coordination across roles or clear dependency management.');
-  lines.push('- **code-review**: Use when reviewing code, evaluating PRs, or assessing code quality.');
-  lines.push('- **backlog**: Use when creating or managing work item lists and task priorities.');
+  for (const skill of SKILLS_REGISTRY) {
+    lines.push(`- **${skill.skillId}**: ${skill.description}`);
+  }
   lines.push('');
-  lines.push('Don\'t wait for the user to ask — proactively activate the skill that matches the task.');
+  lines.push("Don't wait for the user to ask — proactively activate the skill that matches the task.");
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }

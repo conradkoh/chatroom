@@ -64,10 +64,11 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
       ## When to Activate Skills
 
       **Proactively activate skills** when your task matches their purpose:
-      - **development-workflow**: Use when planning or managing complex release processes, coordinating development branches, or handling version updates.
-      - **workflow**: Use when breaking down complex multi-step tasks that require coordination across roles or clear dependency management.
-      - **code-review**: Use when reviewing code, evaluating PRs, or assessing code quality.
-      - **backlog**: Use when creating or managing work item lists and task priorities.
+      - **backlog**: Full backlog command reference with scoring, completion, and workflow guides.
+      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
+      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
