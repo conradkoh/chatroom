@@ -60,7 +60,12 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
       if (action.messages.length === 0) return state;
       const newMessages = deduplicateMessages(state.messages, action.messages);
       if (newMessages.length === 0) return state;
-      const merged = [...state.messages, ...newMessages];
+      // Guard: only append messages at least as new as our latest to prevent
+      // purged/old messages from re-appearing (e.g. after a sinceCursor=0 refetch).
+      const cutoff = state.newestCursor ?? 0;
+      const filtered = newMessages.filter((m) => m._creationTime >= cutoff);
+      if (filtered.length === 0) return state;
+      const merged = [...state.messages, ...filtered];
       const newestCursor = merged[merged.length - 1]._creationTime;
       return {
         ...state,

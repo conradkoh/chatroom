@@ -146,6 +146,44 @@ describe('messageStoreReducer — APPEND_NEW', () => {
     });
     expect(state).toBe(initialized);
   });
+
+  it('rejects messages older than newestCursor (post-purge refetch guard)', () => {
+    const afterPurge: MessageStoreState = {
+      messages: [makeMessage('d', 400), makeMessage('e', 500)],
+      oldestCursor: 400,
+      newestCursor: 500,
+      isInitialized: true,
+      hasMoreOlder: true,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(afterPurge, {
+      type: 'APPEND_NEW',
+      messages: [makeMessage('a', 100), makeMessage('b', 200), makeMessage('f', 600)],
+    });
+    expect(state.messages).toHaveLength(3);
+    expect(state.messages.map((m) => m._id)).toEqual(['d', 'e', 'f']);
+    expect(state.newestCursor).toBe(600);
+  });
+
+  it('allows first message in empty chatroom (newestCursor is null)', () => {
+    const empty: MessageStoreState = {
+      messages: [],
+      oldestCursor: null,
+      newestCursor: null,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(empty, {
+      type: 'APPEND_NEW',
+      messages: [makeMessage('first', 100)],
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]!._id).toBe('first');
+    expect(state.newestCursor).toBe(100);
+  });
 });
 
 // ── PREPEND_OLDER ───────────────────────────────────────────────────────────
