@@ -14,6 +14,8 @@ import {
   exportBacklog,
   importBacklog,
   computeContentHash,
+  updateBacklog,
+  closeBacklog,
   type BacklogExportFile,
 } from './index.js';
 
@@ -503,5 +505,96 @@ describe('importBacklog', () => {
     expect(readCall[0]).toContain('.chatroom');
     expect(readCall[0]).toContain('exports');
     expect(readCall[0]).toContain('backlog-export.json');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateBacklog Tests
+// ---------------------------------------------------------------------------
+
+describe('updateBacklog', () => {
+  it('calls updateBacklogItem mutation with trimmed content', async () => {
+    const deps = createMockDeps();
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    await updateBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: TEST_TASK_ID, content: '  Updated content  ' },
+      deps
+    );
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: TEST_SESSION_ID,
+        itemId: TEST_TASK_ID,
+        content: 'Updated content',
+      })
+    );
+    expect(getAllLogOutput()).toContain('Backlog item updated');
+  });
+
+  it('exits with code 1 when backlogItemId is missing', async () => {
+    const deps = createMockDeps();
+
+    await updateBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: '', content: 'some content' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it('exits with code 1 when content is empty/whitespace', async () => {
+    const deps = createMockDeps();
+
+    await updateBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: TEST_TASK_ID, content: '   ' },
+      deps
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// closeBacklog Tests
+// ---------------------------------------------------------------------------
+
+describe('closeBacklog', () => {
+  it('calls closeBacklogItem mutation with reason', async () => {
+    const deps = createMockDeps();
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    await closeBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: TEST_TASK_ID, reason: 'duplicate of item XYZ' },
+      deps
+    );
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: TEST_SESSION_ID,
+        itemId: TEST_TASK_ID,
+        reason: 'duplicate of item XYZ',
+      })
+    );
+    expect(getAllLogOutput()).toContain('Backlog item closed');
+  });
+
+  it('exits with code 1 when reason is missing', async () => {
+    const deps = createMockDeps();
+
+    await closeBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: TEST_TASK_ID, reason: '' },
+      deps
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });
