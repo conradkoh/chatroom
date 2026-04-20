@@ -128,7 +128,7 @@ async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: strin
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number), allPrs: allPRs.map((pr) => `${pr.number}:${pr.state}`), remotes: remotes.map((r) => `${r.name}:${r.url}`), headCommitStatus }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, commitsAhead, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.prNumber), allPrs: allPRs.map((pr) => `${pr.prNumber}:${pr.state}`), remotes: remotes.map((r) => `${r.name}:${r.url}`), headCommitStatus }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {

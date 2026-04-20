@@ -1348,7 +1348,7 @@ export default defineSchema({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1361,7 +1361,7 @@ export default defineSchema({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1502,12 +1502,14 @@ export default defineSchema({
   /**
    * Stored PR diff content (diff between base branch and HEAD).
    * Populated by the daemon after a `pr_diff` request is fulfilled.
-   * Keyed by machineId + workingDir.
+   * Keyed by machineId + workingDir + prNumber.
+   * prNumber is REQUIRED — all queries must specify which PR.
    */
   chatroom_workspacePRDiffs: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
+    prNumber: v.number(),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -1516,7 +1518,8 @@ export default defineSchema({
       deletions: v.number(),
     }),
     updatedAt: v.number(),
-  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+  })
+    .index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
 
   /**
    * Cached list of commits for a specific PR.

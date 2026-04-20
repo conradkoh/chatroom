@@ -81,8 +81,8 @@ export const PRDetailModal = memo(function PRDetailModal({
   prActionLoading,
 }: PRDetailModalProps) {
   const baseBranch = pr.baseRefName ?? 'master';
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir);
-  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, pr.number);
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, pr.prNumber);
+  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, pr.prNumber);
   const { state: commitDetailState, request: requestCommitDetail, clear: clearCommitDetail } = useCommitDetail(machineId, workingDir);
 
   // Track which view is active: 'pr' for full PR diff, or a SHA for individual commit
@@ -91,9 +91,9 @@ export const PRDetailModal = memo(function PRDetailModal({
   // Auto-request diff when modal opens
   useEffect(() => {
     if (isOpen && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, pr.number);
+      requestPRDiff(baseBranch, pr.prNumber);
     }
-  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, pr.number]);
+  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, pr.prNumber]);
 
   // Auto-request PR commits when modal opens (on demand = when modal is opened)
   useEffect(() => {
@@ -202,7 +202,7 @@ export const PRDetailModal = memo(function PRDetailModal({
         <FixedModalHeader onClose={onClose}>
           <div className="flex items-center gap-3 min-w-0">
             <FixedModalTitle>
-              <span className="text-chatroom-text-muted">#{pr.number}</span>
+              <span className="text-chatroom-text-muted">#{pr.prNumber}</span>
             </FixedModalTitle>
             <span className="text-sm text-chatroom-text-primary truncate">{pr.title}</span>
             <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border flex-shrink-0 ${badge.cls}`}>
@@ -234,7 +234,7 @@ export const PRDetailModal = memo(function PRDetailModal({
         {onPRAction && pr.state === 'OPEN' && (
           <div className="px-4 py-2 border-b border-chatroom-border">
             <PRActionButtons
-              onAction={(action) => onPRAction(pr.number, action)}
+              onAction={(action) => onPRAction(pr.prNumber, action)}
               loading={prActionLoading}
               onSuccess={onClose}
             />
@@ -244,7 +244,7 @@ export const PRDetailModal = memo(function PRDetailModal({
           <div className="h-full overflow-y-auto">
             <WorkspaceDiffViewer
               state={activeDiffState}
-              onRequest={activeView === 'pr' ? () => requestPRDiff(baseBranch, pr.number) : undefined}
+              onRequest={activeView === 'pr' ? () => requestPRDiff(baseBranch, pr.prNumber) : undefined}
             />
           </div>
         </FixedModalBody>
