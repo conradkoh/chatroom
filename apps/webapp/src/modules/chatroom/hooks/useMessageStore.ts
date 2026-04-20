@@ -2,8 +2,9 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useReducer, useEffect, useCallback, useRef } from 'react';
+import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
+import { useConvex } from 'convex/react';
+import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 
 import type { Message } from '../types/message';
 
@@ -24,7 +25,27 @@ export interface MessageStoreState {
 
 export type Action =
   | { type: 'INITIALIZE'; messages: Message[]; cursor: number | null; hasMore: boolean }
+  /**
+   * APPEND_NEW — trusted path for appending messages.
+   *
+   * Used when the caller is trusted to provide valid, correctly-ordered messages
+   * (e.g. during initial load edge cases or direct trusted calls).
+   * No time-guard filtering is applied — messages are appended as-is after dedup.
+   */
   | { type: 'APPEND_NEW'; messages: Message[] }
+  /**
+   * APPEND_DELTA — guarded path for incremental message updates.
+   *
+   * Used by the tail subscription (getMessagesSince) which reactively delivers
+   * new messages. Applies a time-guard filter: only messages with
+   * `_creationTime >= newestCursor` are accepted. This prevents stale/purged
+   * messages from re-appearing if the reactive subscription returns outdated data.
+   *
+   * Requires `newestCursor` to be set (store must be initialized).
+   * If `newestCursor` is null, all messages are rejected — this should never
+   * happen because the tail subscription is skipped until initialization.
+   */
+  | { type: 'APPEND_DELTA'; messages: Message[] }
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMore: boolean }
   | { type: 'PURGE_OLD'; keepAboveCount: number; viewportTopIndex: number }
   | { type: 'REQUEST_OLDER' }
@@ -57,10 +78,34 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
     }
 
     case 'APPEND_NEW': {
+      // Trusted path: no time-guard filtering.
+      // The caller is responsible for providing valid, correctly-ordered messages.
       if (action.messages.length === 0) return state;
       const newMessages = deduplicateMessages(state.messages, action.messages);
       if (newMessages.length === 0) return state;
       const merged = [...state.messages, ...newMessages];
+      const newestCursor = merged[merged.length - 1]._creationTime;
+      return {
+        ...state,
+        messages: merged,
+        newestCursor,
+      };
+    }
+
+    case 'APPEND_DELTA': {
+      // Guarded path: only accept messages at least as new as our latest.
+      // This prevents stale/purged messages from re-appearing if the reactive
+      // subscription returns outdated data (e.g. after a Convex re-evaluation).
+      // newestCursor MUST be set — if null, all messages are rejected.
+      // This should never happen because the tail subscription is skipped until
+      // initialization completes, which sets newestCursor.
+      if (action.messages.length === 0) return state;
+      if (state.newestCursor == null) return state;
+      const newMessages = deduplicateMessages(state.messages, action.messages);
+      if (newMessages.length === 0) return state;
+      const filtered = newMessages.filter((m) => m._creationTime >= state.newestCursor!);
+      if (filtered.length === 0) return state;
+      const merged = [...state.messages, ...filtered];
       const newestCursor = merged[merged.length - 1]._creationTime;
       return {
         ...state,
@@ -241,30 +286,48 @@ export function useMessageStore(chatroomId: string) {
       dispatch({ type: 'RESET' });
       processedOlderCursorRef.current = null;
       tailCursorRef.current = null;
+      setInitialLoadRequested(false);
     }
   }, [chatroomId]);
 
-  // ── Initial load ──────────────────────────────
-  const initialData = useSessionQuery(
-    api.messages.getLatestMessages,
-    state.isInitialized ? 'skip' : { chatroomId: typedChatroomId, limit: 5 }
-  );
+  // ── Initial load (one-shot) ─────────────────
+  // The initial load is a one-shot query — we don't need reactivity here.
+  // Once loaded, the tail subscription handles all subsequent updates.
+  const [sessionId] = useSessionId();
+  const convex = useConvex();
+  const [initialLoadRequested, setInitialLoadRequested] = useState(false);
 
   useEffect(() => {
-    if (initialData && !state.isInitialized) {
-      tailCursorRef.current = initialData.cursor;
-      dispatch({
-        type: 'INITIALIZE',
-        messages: initialData.messages.map(toMessage),
-        cursor: initialData.cursor,
-        hasMore: initialData.hasMore,
+    if (state.isInitialized || !sessionId || initialLoadRequested) return;
+    setInitialLoadRequested(true);
+
+    convex
+      .query(api.messages.getLatestMessages, {
+        chatroomId: typedChatroomId,
+        limit: 5,
+        sessionId,
+      })
+      .then((data) => {
+        tailCursorRef.current = data.cursor;
+        dispatch({
+          type: 'INITIALIZE',
+          messages: data.messages.map(toMessage),
+          cursor: data.cursor,
+          hasMore: data.hasMore,
+        });
+      })
+      .catch((err) => {
+        console.error('[useMessageStore] Initial load failed:', err);
+        // Reset so we can retry on next render
+        setInitialLoadRequested(false);
       });
-    }
-  }, [initialData, state.isInitialized]);
+  }, [state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
 
   // ── Tail subscription (pinned cursor) ─────────
-  // When the chatroom is empty, cursor is null. Use 0 as the sinceCursor
-  // so the subscription picks up the very first message sent.
+  // Reactive subscription that delivers new messages since the pinned cursor.
+  // Uses APPEND_DELTA (guarded) to prevent stale messages from re-appearing.
+  // When the chatroom is empty after initial load, cursor is null. Use 0 as
+  // the sinceCursor so the subscription picks up any new messages.
   const tailData = useSessionQuery(
     api.messages.getMessagesSince,
     state.isInitialized
@@ -274,7 +337,7 @@ export function useMessageStore(chatroomId: string) {
 
   useEffect(() => {
     if (tailData && tailData.messages.length > 0) {
-      dispatch({ type: 'APPEND_NEW', messages: tailData.messages.map(toMessage) });
+      dispatch({ type: 'APPEND_DELTA', messages: tailData.messages.map(toMessage) });
     }
   }, [tailData, dispatch]);
 
