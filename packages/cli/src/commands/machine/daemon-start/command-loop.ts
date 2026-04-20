@@ -39,12 +39,80 @@ type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
-/** Interval for periodic model discovery refresh (5 minutes). */
-const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+/**
+ * Interval for periodic model discovery refresh (10 seconds).
+ *
+ * The refresh itself is cheap — it only spawns local `which` / `--version`
+ * probes per harness. The backend is only called when the discovered model
+ * set actually changes (see `refreshModels` for diff logic), so the polling
+ * cadence does not translate into network traffic.
+ */
+const MODEL_REFRESH_INTERVAL_MS = 10 * 1000;
+
+/** Per-harness diff between two model snapshots. */
+interface ModelDiff {
+  /** Models present in `next` but not in `previous`, grouped by harness. */
+  added: Record<string, string[]>;
+  /** Models present in `previous` but not in `next`, grouped by harness. */
+  removed: Record<string, string[]>;
+  /** True when at least one harness has a non-empty added or removed list. */
+  hasChanges: boolean;
+}
 
 /**
- * Re-discover models and update the backend registration.
- * Called periodically to keep the model list fresh.
+ * Compute the per-harness diff between the previously pushed model snapshot
+ * and the freshly discovered set. A `null` previous snapshot is treated as
+ * an empty record (everything is "added"), which forces an initial push.
+ */
+function diffModels(
+  previous: Record<string, string[]> | null,
+  next: Record<string, string[]>
+): ModelDiff {
+  const prev = previous ?? {};
+  const added: Record<string, string[]> = {};
+  const removed: Record<string, string[]> = {};
+  const harnesses = new Set([...Object.keys(prev), ...Object.keys(next)]);
+
+  for (const harness of harnesses) {
+    const prevSet = new Set(prev[harness] ?? []);
+    const nextSet = new Set(next[harness] ?? []);
+
+    const addedForHarness = [...nextSet].filter((m) => !prevSet.has(m));
+    const removedForHarness = [...prevSet].filter((m) => !nextSet.has(m));
+
+    if (addedForHarness.length > 0) added[harness] = addedForHarness;
+    if (removedForHarness.length > 0) removed[harness] = removedForHarness;
+  }
+
+  return {
+    added,
+    removed,
+    hasChanges: Object.keys(added).length > 0 || Object.keys(removed).length > 0,
+  };
+}
+
+/**
+ * Format a per-harness model map as a human-readable list for log output.
+ * Returns e.g. `opencode: model-a, model-b; pi: model-c`.
+ */
+function formatModelMap(map: Record<string, string[]>): string {
+  return Object.entries(map)
+    .map(([harness, models]) => `${harness}: ${models.join(', ')}`)
+    .join('; ');
+}
+
+/**
+ * Re-discover models and update the backend registration when the set has
+ * changed since the last push.
+ *
+ * The daemon is the source of truth for "what changed since last sync" — the
+ * previously pushed snapshot lives on `ctx.lastPushedModels` and is diffed
+ * locally each tick. The backend mutation is only invoked when the diff is
+ * non-empty, keeping a 10-second poll cadence cheap.
+ *
+ * On a successful push, `ctx.lastPushedModels` is updated to the freshly
+ * discovered set. On failure, the snapshot is left unchanged so the next
+ * tick will retry with the same diff.
  */
 export async function refreshModels(ctx: DaemonContext): Promise<void> {
   if (!ctx.config) return;
@@ -56,6 +124,12 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
 
+  const diff = diffModels(ctx.lastPushedModels, models);
+  if (!diff.hasChanges) {
+    // Nothing new since last successful push — skip the Convex mutation.
+    return;
+  }
+
   const totalCount = Object.values(models).flat().length;
 
   try {
@@ -66,8 +140,22 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
       harnessVersions: ctx.config.harnessVersions,
       availableModels: models,
     });
+    // Snapshot only after the backend successfully accepts the update — on
+    // failure we want the next tick to retry with the same diff.
+    ctx.lastPushedModels = models;
+
+    // Log only after a successful sync so transient failures do not re-print
+    // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
+    if (Object.keys(diff.added).length > 0) {
+      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(diff.added)}`);
+    }
+    if (Object.keys(diff.removed).length > 0) {
+      console.log(
+        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(diff.removed)}`
+      );
+    }
     console.log(
-      `[${formatTimestamp()}] 🔄 Model refresh: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
+      `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
     );
   } catch (error) {
     console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${getErrorMessage(error)}`);
@@ -300,12 +388,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
   // are evicted at the start of each batch to bound memory growth.
   const dedupTracker: DedupTracker = {
-    commandIds: new Map<string, number>(),   // agent.requestStart / agent.requestStop
-    pingIds: new Map<string, number>(),       // daemon.ping
+    commandIds: new Map<string, number>(), // agent.requestStart / agent.requestStop
+    pingIds: new Map<string, number>(), // daemon.ping
     gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
     localActionIds: new Map<string, number>(), // daemon.localAction
-    commandRunIds: new Map<string, number>(),    // command.run
-    commandStopIds: new Map<string, number>(),   // command.stop
+    commandRunIds: new Map<string, number>(), // command.run
+    commandStopIds: new Map<string, number>(), // command.stop
   };
 
   wsClient.onUpdate(

@@ -180,7 +180,9 @@ async function validateSession(
   const typedNewSession: SessionId = newSessionId;
 
   // Validate the new session
-  const revalidation = await client.query(api.cliAuth.validateSession, { sessionId: typedNewSession });
+  const revalidation = await client.query(api.cliAuth.validateSession, {
+    sessionId: typedNewSession,
+  });
   if (!revalidation.valid) {
     console.error(`❌ New session is also invalid: ${revalidation.reason}`);
     releaseLock();
@@ -392,6 +394,10 @@ export async function initDaemon(): Promise<DaemonContext> {
         events,
         agentServices,
         lastPushedGitState: new Map(),
+        // Seed with the snapshot pushed by registerCapabilities() during startup
+        // so the first refreshModels tick correctly detects "no change" instead
+        // of always re-pushing the same set on the first run.
+        lastPushedModels: availableModels,
       };
 
       registerEventListeners(ctx);
@@ -408,12 +414,8 @@ export async function initDaemon(): Promise<DaemonContext> {
     } catch (error) {
       if (isNetworkError(error)) {
         const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
-        console.log(
-          `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying in ${retrySec}s...`
-        );
-        await new Promise((resolve) =>
-          setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS)
-        );
+        console.log(`[${formatTimestamp()}] ⏳ Backend not reachable. Retrying in ${retrySec}s...`);
+        await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS));
         console.log(`[${formatTimestamp()}] 🔄 Retrying backend connection...`);
         // Continue the loop to retry
       } else {

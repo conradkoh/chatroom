@@ -61,6 +61,7 @@ function createCtx(deps: DaemonDeps): DaemonContext {
       ],
     ]),
     lastPushedGitState: new Map(),
+    lastPushedModels: null,
   };
 }
 

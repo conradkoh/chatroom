@@ -102,6 +102,20 @@ export interface DaemonContext {
    */
   lastPushedGitState: Map<string, string>;
   /**
+   * Tracks the last available-models snapshot pushed to the backend.
+   * Map key is the harness name (e.g. `opencode`, `pi`); value is the list of
+   * model IDs reported for that harness on the most recent successful push.
+   *
+   * Used by `refreshModels` to diff locally each tick — the daemon is the
+   * source of truth for "what changed since last sync", so no backend query
+   * is needed. The mutation is only invoked when the snapshot differs from
+   * the freshly discovered set.
+   *
+   * `null` means no snapshot has been recorded yet (e.g. before the first
+   * push); in that case `refreshModels` always pushes.
+   */
+  lastPushedModels: Record<string, string[]> | null;
+  /**
    * Stops the local API HTTP server.
    * Populated after `startLocalApi()` returns successfully.
    * May be undefined if the local API failed to start (e.g. port conflict).
