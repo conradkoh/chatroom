@@ -371,7 +371,7 @@ describe('skills.get', () => {
     expect(skill).toBeNull();
   });
 
-  test('returns the full document with consolidated backlog prompt containing all 3 workflows', async () => {
+  test('returns the full document with consolidated backlog prompt (commands + workflows)', async () => {
     const { sessionId } = await createTestSession('skills-get-prompt-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -384,6 +384,7 @@ describe('skills.get', () => {
 
     expect(skill).toBeDefined();
     expect(typeof skill?.prompt).toBe('string');
+    expect(skill?.prompt).toContain('backlog update');
     // Workflow 3: Continuous Backlog Execution
     expect(skill?.prompt).toContain('Continuous Backlog Execution');
     // Workflow 2: After completing a task

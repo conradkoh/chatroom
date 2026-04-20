@@ -38,6 +38,18 @@ export interface AddBacklogOptions {
   content: string;
 }
 
+export interface UpdateBacklogOptions {
+  role: string;
+  backlogItemId: string;
+  content: string;
+}
+
+export interface CloseBacklogOptions {
+  role: string;
+  backlogItemId: string;
+  reason: string;
+}
+
 export interface CompleteBacklogOptions {
   role: string;
   backlogItemId: string;
@@ -708,11 +720,52 @@ export async function historyBacklog(
 }
 
 /**
+ * Update the content of an existing backlog item.
+ */
+export async function updateBacklog(
+  chatroomId: string,
+  options: UpdateBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
+    process.exit(1);
+    return;
+  }
+  if (!options.content || options.content.trim().length === 0) {
+    console.error(`❌ Content is empty. Provide content via --content-file or stdin.`);
+    process.exit(1);
+    return;
+  }
+
+  try {
+    await d.backend.mutation(api.backlog.updateBacklogItem, {
+      sessionId,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
+      content: options.content.trim(),
+    });
+
+    console.log('');
+    console.log('✅ Backlog item content updated');
+    console.log(`   ID: ${options.backlogItemId}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to update backlog item: ${getErrorMessage(error)}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
  * Close a backlog item (mark as closed/stale).
  */
 export async function closeBacklog(
   chatroomId: string,
-  options: { role: string; backlogItemId: string; reason: string },
+  options: CloseBacklogOptions,
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
@@ -725,7 +778,8 @@ export async function closeBacklog(
     return;
   }
 
-  if (!options.reason || options.reason.trim().length === 0) {
+  const reason = options.reason.trim();
+  if (!reason) {
     console.error(`❌ Reason is required when closing a backlog item`);
     process.exit(1);
     return;
