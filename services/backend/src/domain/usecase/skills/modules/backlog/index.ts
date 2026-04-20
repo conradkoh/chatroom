@@ -56,21 +56,26 @@ ${cliEnvPrefix}chatroom backlog update --chatroom-id=<id> --role=<role> --backlo
 Use **update** to revise a description in place instead of adding a superseding item.
 
 ### Score
+**Requires at least one** of \`--complexity\`, \`--value\`, or \`--priority\` (you can combine multiple).
+
 \`\`\`
 ${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --backlog-item-id=<id> \\
-  --complexity=<low|medium|high> \\
-  --value=<low|medium|high> \\
-  --priority=<1-100>
+  [--complexity=<low|medium|high>] \\
+  [--value=<low|medium|high>] \\
+  [--priority=<n>]
 \`\`\`
+
+\`--priority\` must be an integer (higher = more important). There is no enforced max in the CLI.
 
 **Important**: Only score items that do not already have all three fields set (complexity, value, priority).
 Check the list output — items showing "Score: ..." are already scored. Skip them to avoid overwriting.
 
 ### Complete
 \`\`\`
-${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id> [--force]
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id> [-f|--force]
 \`\`\`
-Use \`--force\` only if an item is stuck in \`in_progress\` / \`pending\` and must be completed anyway.
+
+Optional \`-f\` / \`--force\` is a registered flag (see \`chatroom backlog complete --help\`). It is **not** forwarded to the Convex mutation yet, so it does not change server behavior today; omit it unless your runbook says otherwise.
 
 ### Reopen
 \`\`\`
