@@ -532,7 +532,7 @@ describe('updateBacklog', () => {
         content: 'Updated content',
       })
     );
-    expect(getAllLogOutput()).toContain('Backlog item updated');
+    expect(getAllLogOutput()).toContain('Backlog item content updated');
   });
 
   it('exits with code 1 when backlogItemId is missing', async () => {
@@ -542,6 +542,7 @@ describe('updateBacklog', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(deps.backend.mutation).not.toHaveBeenCalled();
+    expect(getAllErrorOutput()).toContain('Backlog item ID is required');
   });
 
   it('exits with code 1 when content is empty/whitespace', async () => {
@@ -555,6 +556,7 @@ describe('updateBacklog', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(deps.backend.mutation).not.toHaveBeenCalled();
+    expect(getAllErrorOutput()).toContain('Content is empty');
   });
 });
 
@@ -596,5 +598,40 @@ describe('closeBacklog', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(deps.backend.mutation).not.toHaveBeenCalled();
+    expect(getAllErrorOutput()).toContain('Reason is required');
+  });
+
+  it('exits with code 1 when backlog item ID is missing', async () => {
+    const deps = createMockDeps();
+
+    await closeBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: '', reason: 'done' },
+      deps
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+    expect(getAllErrorOutput()).toContain('Backlog item ID is required');
+  });
+
+  it('trims reason before sending to mutation', async () => {
+    const deps = createMockDeps();
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    await closeBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: TEST_TASK_ID, reason: '  trimmed reason  ' },
+      deps
+    );
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        reason: 'trimmed reason',
+      })
+    );
+    expect(getAllLogOutput()).toContain('Reason: trimmed reason');
   });
 });
