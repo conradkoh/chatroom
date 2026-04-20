@@ -2,20 +2,19 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
 import { PRDetailModal } from '../../components/PRDetailModal';
-import { PRActionButtons } from './PRActionButtons';
 
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { WorkspaceGitBranch } from './WorkspaceGitBranch';
 import { WorkspaceGitLog } from './WorkspaceGitLog';
+import { WorkspacePRReview } from './WorkspacePRReview';
 import {
   useWorkspaceGit,
   useFullDiff,
-  usePRDiff,
   useCommitDetail,
   useLoadMoreCommits,
   useGitRefresh,
@@ -75,7 +74,6 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   const activePR = hasActivePR ? gitState.openPullRequests[0] : null;
 
   const { state: fullDiffState, request: requestDiff } = useFullDiff(machineId, workingDir);
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, activePR?.number);
   const {
     state: commitDetailState,
     request: requestCommitDetail,
@@ -175,16 +173,8 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     { id: 'pr-review' as ActiveTab, label: 'Current Branch' },
   ];
 
-  // Auto-request PR diff when switching to PR review tab
   // Determine base branch — default to 'master'
   const baseBranch = 'master';
-
-  // Auto-request PR diff when switching to PR review tab
-  useEffect(() => {
-    if (activeTab === 'pr-review' && hasActivePR && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, activePR?.number);
-    }
-  }, [activeTab, hasActivePR, prDiffState.status, requestPRDiff, baseBranch, activePR?.number]);
 
   // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {
@@ -347,44 +337,14 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
           {activeTab === 'pr-review' && (
             <div className="flex flex-col h-full">
               {activePR ? (
-                <>
-                  {/* PR header */}
-                  <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-chatroom-text-primary">
-                        #{activePR.number}
-                      </span>
-                      <span className="text-xs text-chatroom-text-secondary truncate">
-                        {activePR.title}
-                      </span>
-                      <a
-                        href={activePR.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-auto flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
-                        title="Open PR on GitHub"
-                      >
-                        <ExternalLink size={12} />
-                      </a>
-                    </div>
-                    <div className="text-[10px] text-chatroom-text-muted mt-1">
-                      {activePR.headRefName} → {baseBranch}
-                    </div>
-                  </div>
-                  {/* PR action buttons */}
-                  <div className="px-4 py-2 border-b border-chatroom-border">
-                    <PRActionButtons onAction={handlePRAction} loading={prActionLoading} />
-                  </div>
-                  {/* PR diff content */}
-                  <div className="flex-1 overflow-y-auto">
-                    <WorkspaceDiffViewer
-                      state={prDiffState}
-                      onRequest={() => requestPRDiff(baseBranch, activePR?.number)}
-                      machineId={machineId}
-                      workingDir={workingDir}
-                    />
-                  </div>
-                </>
+                <WorkspacePRReview
+                  activePR={activePR}
+                  machineId={machineId}
+                  workingDir={workingDir}
+                  baseBranch={baseBranch}
+                  onPRAction={handlePRAction}
+                  prActionLoading={prActionLoading}
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
                   <div className="text-chatroom-text-muted text-[11px]">
