@@ -93,7 +93,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         await requestPRActionMutation({
           machineId,
           workingDir,
-          prNumber: activePR.number,
+          prNumber: activePR.prNumber,
           prAction: action,
         });
       } catch (err) {
@@ -285,7 +285,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                     const badge = prStateBadge(pr.state, pr.isDraft, pr.mergedAt);
                     return (
                       <button
-                        key={pr.number}
+                        key={pr.prNumber}
                         type="button"
                         onClick={() => {
                           setSelectedPR(pr);
@@ -295,7 +295,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[11px] font-bold text-chatroom-text-muted">
-                            #{pr.number}
+                            #{pr.prNumber}
                           </span>
                           <span
                             className={cn(

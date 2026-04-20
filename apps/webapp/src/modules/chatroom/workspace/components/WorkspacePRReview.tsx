@@ -32,7 +32,7 @@ interface WorkspacePRReviewProps {
  *
  * This is extracted into a separate component to ensure the usePRDiff hook
  * is called unconditionally (React Hooks Rules).
- * The hook receives activePR.number (always defined) so prNumber is required.
+ * The hook receives activePR.prNumber (always defined) so prNumber is required.
  */
 export const WorkspacePRReview = memo(function WorkspacePRReview({
   activePR,
@@ -45,15 +45,15 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(
     machineId,
     workingDir,
-    activePR.number
+    activePR.prNumber
   );
 
   // Auto-request PR diff when component mounts or prNumber changes
   useEffect(() => {
     if (prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, activePR.number);
+      requestPRDiff(baseBranch, activePR.prNumber);
     }
-  }, [prDiffState.status, requestPRDiff, baseBranch, activePR.number]);
+  }, [prDiffState.status, requestPRDiff, baseBranch, activePR.prNumber]);
 
   const handlePRAction = useCallback(
     async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
@@ -68,7 +68,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-chatroom-text-primary">
-            #{activePR.number}
+            #{activePR.prNumber}
           </span>
           <span className="text-xs text-chatroom-text-secondary truncate">
             {activePR.title}
@@ -97,7 +97,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       <div className="flex-1 overflow-y-auto">
         <WorkspaceDiffViewer
           state={prDiffState}
-          onRequest={() => requestPRDiff(baseBranch, activePR.number)}
+          onRequest={() => requestPRDiff(baseBranch, activePR.prNumber)}
           machineId={machineId}
           workingDir={workingDir}
         />

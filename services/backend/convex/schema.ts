@@ -1348,7 +1348,7 @@ export default defineSchema({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1361,7 +1361,7 @@ export default defineSchema({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),

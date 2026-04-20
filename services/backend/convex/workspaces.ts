@@ -421,7 +421,7 @@ export const upsertWorkspaceGitState = mutation({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -432,7 +432,7 @@ export const upsertWorkspaceGitState = mutation({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
