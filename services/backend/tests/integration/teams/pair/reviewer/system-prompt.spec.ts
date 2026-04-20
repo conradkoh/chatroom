@@ -109,7 +109,7 @@ describe('Pair Team > Reviewer > System Prompt', () => {
       ## When to Activate Skills
 
       **Proactively activate skills** when your task matches their purpose:
-      - **backlog**: Full backlog command reference with scoring, completion, and workflow guides.
+      - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
