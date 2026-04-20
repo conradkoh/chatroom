@@ -619,6 +619,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       // Mark for review: backlog → pending_user_review
       const markResult = await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
       expect(markResult.success).toBe(true);
@@ -635,6 +636,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       // Send back for rework: pending_user_review → backlog
       const sendBackResult = await t.mutation(api.backlog.sendBacklogItemBackForRework, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
       expect(sendBackResult.success).toBe(true);
@@ -665,12 +667,14 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       // Transition to pending_user_review
       await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
 
       // Complete: pending_user_review → closed (with completedAt)
       const completeResult = await t.mutation(api.backlog.completeBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
       expect(completeResult.success).toBe(true);
@@ -702,6 +706,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       // Close it directly from backlog status
       const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
         reason: 'Test: FSM close backlog item',
       });
@@ -732,6 +737,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
       await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
         reason: 'Test: close before reopen',
       });
@@ -739,6 +745,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       // Reopen the item: closed → backlog
       const reopenResult = await t.mutation(api.backlog.reopenBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
       expect(reopenResult.success).toBe(true);
@@ -752,6 +759,60 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const reopenedItem = backlogItems.find((i) => i._id === backlogItemId);
       expect(reopenedItem?.status).toBe('backlog');
       expect(reopenedItem?.completedAt).toBeUndefined();
+    });
+
+    test('backlog mutations reject item when chatroomId does not match the item', async () => {
+      const { sessionId } = await createTestSession('test-fsm-backlog-chatroom-mismatch');
+      const chatroomA = await createPairTeamChatroom(sessionId);
+      const chatroomB = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomA, ['builder', 'reviewer']);
+      await joinParticipants(sessionId, chatroomB, ['builder', 'reviewer']);
+
+      const itemInA = await t.mutation(api.backlog.createBacklogItem, {
+        sessionId,
+        chatroomId: chatroomA,
+        content: 'Item in room A',
+        createdBy: 'user',
+      });
+
+      await expect(
+        t.mutation(api.backlog.closeBacklogItem, {
+          sessionId,
+          chatroomId: chatroomB,
+          itemId: itemInA,
+          reason: 'wrong room',
+        })
+      ).rejects.toThrow('Backlog item does not belong to this chatroom');
+
+      await expect(
+        t.mutation(api.backlog.markBacklogItemForReview, {
+          sessionId,
+          chatroomId: chatroomB,
+          itemId: itemInA,
+        })
+      ).rejects.toThrow('Backlog item does not belong to this chatroom');
+    });
+
+    test('closeBacklogItem rejects whitespace-only reason', async () => {
+      const { sessionId } = await createTestSession('test-fsm-close-empty-reason');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+        sessionId,
+        chatroomId,
+        content: 'Task to close',
+        createdBy: 'user',
+      });
+
+      await expect(
+        t.mutation(api.backlog.closeBacklogItem, {
+          sessionId,
+          chatroomId,
+          itemId: backlogItemId,
+          reason: '   \t  ',
+        })
+      ).rejects.toThrow('Reason cannot be empty');
     });
   });
 
@@ -858,6 +919,7 @@ describe('FSM Error Handling', () => {
     await expect(
       t.mutation(api.backlog.reopenBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       })
     ).rejects.toThrow(); // Cannot reopen a non-closed item
