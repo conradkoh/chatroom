@@ -55,34 +55,32 @@ flowchart TD
 
 3. **Create workflow**:
 
-   **Example** — adding a "comments on posts" feature. Each step is a concrete, shippable slice of work (not an abstract layer):
+   **How to decompose** — think about the phases a human engineer would actually go through to ship the work, then make each phase a step. The right phases depend entirely on what you're building. Some heuristics:
+
+   - **Each step should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+   - **One step ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+   - **Order by dependency**, not by team convention. A step should be runnable/testable when its dependencies are done.
+   - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+   - **Split a phase** when it contains multiple distinct artifacts (e.g., two unrelated use cases → two steps).
+   - **Always end with a code review step** for code-producing workflows.
+
+   **Illustrative example only** — DO NOT copy the step keys, count, or descriptions verbatim. This shows the *shape* of a good decomposition for one specific feature (adding comments to posts). Your steps will look different.
 
    \`\`\`
-   ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="post-comments" << 'EOF'
+   ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="<your-feature-key>" << 'EOF'
    {"steps": [
-     {"stepKey": "schema",            "description": "Design the comments table schema + indexes",             "dependsOn": [],                    "order": 1},
-     {"stepKey": "entities",          "description": "Define Comment domain entity + validation",              "dependsOn": ["schema"],            "order": 2},
-     {"stepKey": "use-cases",         "description": "Implement createComment/listComments use cases + unit tests", "dependsOn": ["entities"],     "order": 3},
-     {"stepKey": "api",               "description": "Expose use cases via API layer (mutations/queries)",     "dependsOn": ["use-cases"],         "order": 4},
-     {"stepKey": "frontend-components","description": "Build CommentList + CommentForm presentational components", "dependsOn": ["api"],           "order": 5},
-     {"stepKey": "frontend-hooks",    "description": "Wire components to API via useComments/useCreateComment hooks", "dependsOn": ["frontend-components"], "order": 6},
-     {"stepKey": "review",            "description": "Code review",                                             "dependsOn": ["frontend-hooks"],    "order": 7}
+     {"stepKey": "schema",             "description": "Design the comments table schema + indexes",                "dependsOn": [],                       "order": 1},
+     {"stepKey": "entities",           "description": "Define Comment domain entity + validation",                  "dependsOn": ["schema"],               "order": 2},
+     {"stepKey": "use-cases",          "description": "Implement createComment/listComments use cases + unit tests","dependsOn": ["entities"],             "order": 3},
+     {"stepKey": "api",                "description": "Expose use cases via API layer (mutations/queries)",         "dependsOn": ["use-cases"],            "order": 4},
+     {"stepKey": "frontend-components","description": "Build CommentList + CommentForm presentational components",  "dependsOn": ["api"],                  "order": 5},
+     {"stepKey": "frontend-hooks",     "description": "Wire components to API via useComments/useCreateComment",    "dependsOn": ["frontend-components"],  "order": 6},
+     {"stepKey": "review",             "description": "Code review",                                                 "dependsOn": ["frontend-hooks"],       "order": 7}
    ]}
    EOF
    \`\`\`
 
-   **Why concrete steps matter:** Each step names a specific artifact ("the comments table schema", "the Comment entity", "createComment use case"). Weak builders fail when steps are abstract ("backend implementation") because the scope is unbounded. Name the artifact, name the file, bound the scope.
-
-   **How to decompose your own feature:** Walk through the phases a human engineer would actually do, in order:
-   1. Data model (schema, migrations, indexes)
-   2. Domain entities (types, validation, pure logic)
-   3. Use cases + their unit tests (one step per use case if non-trivial)
-   4. API layer (expose use cases as mutations/queries)
-   5. Frontend components (presentational, no data-fetching)
-   6. Frontend hooks (bind components to the API)
-   7. Code review
-
-   Skip phases that genuinely don't apply (e.g., no frontend for a backend-only feature). Split a phase into multiple steps when it contains multiple distinct artifacts (e.g., two unrelated use cases → two steps).
+   Other shapes are equally valid — e.g., a bug fix might be \`reproduce → fix → regression-test → review\`; a refactor might be \`extract-interface → migrate-callers → delete-old → review\`; an infra change might have no frontend phases at all. Decompose the work in front of you, not the example.
 
 4. **Specify** each step: ${cmd('workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>"')}
    - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
@@ -96,10 +94,12 @@ flowchart TD
 ⚠️ Workflows complete automatically when all steps are done. Only use ${cmd('workflow exit --workflow-key="<key>"')} to abandon.
 
 **Step specification quality:**
-When specifying steps with \`workflow specify\`, include:
-- **Exact file paths**: List every file to be created/modified with full paths
-- **Interface definitions**: For key files, include TypeScript interfaces inline
-This enables the builder to understand exact expectations and ensures coherence across steps.
+When specifying steps with \`workflow specify\`, give the builder enough to act without guessing:
+- **Concrete artifacts**: name the files/modules to create or change (full paths when known)
+- **Contracts**: when a step produces an interface other steps depend on, sketch it inline (TypeScript types, function signatures, or schema shape)
+- **Acceptance criteria**: how the builder will know they're done
+
+Adapt depth to the step — a one-file fix needs a sentence; a new module needs paths and types.
 
 **Code review:** Include a review step for code-producing workflows. Activate with: ${cmd('skill activate code-review')}
 
