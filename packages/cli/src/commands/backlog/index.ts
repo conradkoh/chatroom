@@ -308,6 +308,7 @@ export async function completeBacklog(
   try {
     const result = await d.backend.mutation(api.backlog.completeBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
@@ -344,6 +345,7 @@ export async function reopenBacklog(
   try {
     await d.backend.mutation(api.backlog.reopenBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
@@ -424,6 +426,7 @@ export async function patchBacklog(
   try {
     await d.backend.mutation(api.backlog.patchBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
@@ -515,6 +518,7 @@ export async function scoreBacklog(
   try {
     await d.backend.mutation(api.backlog.patchBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
@@ -563,6 +567,7 @@ export async function markForReviewBacklog(
   try {
     await d.backend.mutation(api.backlog.markBacklogItemForReview, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
@@ -726,18 +731,21 @@ export async function closeBacklog(
     return;
   }
 
+  const reason = options.reason.trim();
+
   try {
     await d.backend.mutation(api.backlog.closeBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
-      reason: options.reason,
+      reason,
     });
 
     console.log('');
     console.log('✅ Backlog item closed');
     console.log(`   ID: ${options.backlogItemId}`);
     console.log(`   Status: closed`);
-    console.log(`   Reason: ${options.reason}`);
+    console.log(`   Reason: ${reason}`);
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to close backlog item: ${getErrorMessage(error)}`);

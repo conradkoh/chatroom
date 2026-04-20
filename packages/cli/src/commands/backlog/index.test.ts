@@ -166,6 +166,14 @@ describe('completeBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Backlog item completed');
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: TEST_SESSION_ID,
+        chatroomId: TEST_CHATROOM_ID,
+        itemId: TEST_TASK_ID,
+      })
+    );
   });
 });
 
