@@ -785,8 +785,6 @@ export async function closeBacklog(
     return;
   }
 
-  const reason = options.reason.trim();
-
   try {
     await d.backend.mutation(api.backlog.closeBacklogItem, {
       sessionId,
