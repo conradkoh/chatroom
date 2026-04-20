@@ -27,6 +27,24 @@ vi.mock('../../../infrastructure/convex/client.js', () => ({
   getConvexWsClient: vi.fn(),
 }));
 
+const { mockEnsureMachineRegistered } = vi.hoisted(() => ({
+  mockEnsureMachineRegistered: vi.fn(() => ({
+    machineId: 'test-machine-id',
+    hostname: 'test-host',
+    os: 'darwin',
+    availableHarnesses: ['opencode', 'pi'],
+    harnessVersions: {},
+  })),
+}));
+
+vi.mock('../../../infrastructure/machine/index.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../../infrastructure/machine/index.js')>();
+  return {
+    ...mod,
+    ensureMachineRegistered: mockEnsureMachineRegistered,
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Setup / Teardown
 // ---------------------------------------------------------------------------
@@ -112,6 +130,10 @@ describe('refreshModels', () => {
       events: new DaemonEventBus(),
       agentServices,
       lastPushedGitState: new Map(),
+      // Default to `null` so each test starts from "no prior snapshot" — the
+      // first refreshModels() call will detect everything as new and push.
+      // Tests that exercise the diff/no-diff paths override this explicitly.
+      lastPushedModels: null,
     };
   }
 
@@ -190,5 +212,115 @@ describe('refreshModels', () => {
 
     await expect(refreshModels(ctx)).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Model refresh failed'));
+  });
+
+  // ─── Diff-based push behavior ────────────────────────────────────────────
+
+  it('skips backend mutation when discovered models match the previous snapshot', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a', 'opencode/model-b'] },
+      { harness: 'pi', isInstalled: true, models: ['github-copilot/claude-sonnet-4.5'] },
+    ]);
+    // Seed snapshot with the same set the next discovery will return.
+    ctx.lastPushedModels = {
+      opencode: ['opencode/model-a', 'opencode/model-b'],
+      pi: ['github-copilot/claude-sonnet-4.5'],
+    };
+
+    await refreshModels(ctx);
+
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it('treats reordered model lists as unchanged (set comparison, not array)', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['model-b', 'model-a'] },
+    ]);
+    ctx.lastPushedModels = { opencode: ['model-a', 'model-b'] };
+
+    await refreshModels(ctx);
+
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it('logs newly detected models and pushes when models are added', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a', 'opencode/model-b'] },
+    ]);
+    ctx.lastPushedModels = { opencode: ['opencode/model-a'] };
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await refreshModels(ctx);
+
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+    const additionLog = logSpy.mock.calls.find(
+      (args) => typeof args[0] === 'string' && args[0].includes('New models detected')
+    );
+    expect(additionLog?.[0]).toContain('opencode/model-b');
+    expect(additionLog?.[0]).not.toContain('opencode/model-a'); // pre-existing, not "new"
+  });
+
+  it('logs removed models and pushes when models disappear', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a'] },
+    ]);
+    ctx.lastPushedModels = { opencode: ['opencode/model-a', 'opencode/model-gone'] };
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await refreshModels(ctx);
+
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+    const removalLog = logSpy.mock.calls.find(
+      (args) => typeof args[0] === 'string' && args[0].includes('no longer available')
+    );
+    expect(removalLog?.[0]).toContain('opencode/model-gone');
+  });
+
+  it('detects a wholly new harness as added', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a'] },
+      { harness: 'pi', isInstalled: true, models: ['github-copilot/gpt-4o'] },
+    ]);
+    // Previous snapshot only had opencode — pi is entirely new.
+    ctx.lastPushedModels = { opencode: ['opencode/model-a'] };
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await refreshModels(ctx);
+
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+    const additionLog = logSpy.mock.calls.find(
+      (args) => typeof args[0] === 'string' && args[0].includes('New models detected')
+    );
+    expect(additionLog?.[0]).toContain('pi:');
+    expect(additionLog?.[0]).toContain('github-copilot/gpt-4o');
+  });
+
+  it('updates the snapshot only after a successful push', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a', 'opencode/model-b'] },
+    ]);
+    ctx.lastPushedModels = { opencode: ['opencode/model-a'] };
+
+    await refreshModels(ctx);
+
+    expect(ctx.lastPushedModels).toEqual({
+      opencode: ['opencode/model-a', 'opencode/model-b'],
+    });
+  });
+
+  it('leaves the snapshot unchanged when the backend mutation fails (next tick will retry)', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a', 'opencode/model-b'] },
+    ]);
+    const previous = { opencode: ['opencode/model-a'] };
+    ctx.lastPushedModels = previous;
+    vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await refreshModels(ctx);
+
+    // Snapshot must NOT be advanced — otherwise the addition would be lost
+    // and the next tick would compare the new set against itself and skip.
+    expect(ctx.lastPushedModels).toBe(previous);
   });
 });
