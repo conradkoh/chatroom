@@ -24,7 +24,8 @@ export function getDelegationGuidelinesSection(
   const roleArg = options?.role ? `"${options.role}"` : '<role>';
 
   // Full command helper
-  const cmd = (subcommand: string) => `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
+  const cmd = (subcommand: string) =>
+    `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
 
   return `**Delegation Guidelines:**
 
@@ -53,19 +54,35 @@ flowchart TD
 2. **Activate workflow skill**: ${cmd('skill activate workflow')}
 
 3. **Create workflow**:
+
+   **Example** — adding a "comments on posts" feature. Each step is a concrete, shippable slice of work (not an abstract layer):
+
    \`\`\`
-   ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="feature-name" << 'EOF'
+   ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomIdArg} --role=${roleArg} --workflow-key="post-comments" << 'EOF'
    {"steps": [
-     {"stepKey": "design", "description": "Define types + API surface", "dependsOn": [], "order": 1},
-     {"stepKey": "backend", "description": "Backend implementation", "dependsOn": ["design"], "order": 2},
-     {"stepKey": "frontend", "description": "Frontend integration", "dependsOn": ["backend"], "order": 3},
-     {"stepKey": "tests", "description": "Tests + verification", "dependsOn": ["frontend"], "order": 4},
-     {"stepKey": "review", "description": "Code review", "dependsOn": ["tests"], "order": 5}
+     {"stepKey": "schema",            "description": "Design the comments table schema + indexes",             "dependsOn": [],                    "order": 1},
+     {"stepKey": "entities",          "description": "Define Comment domain entity + validation",              "dependsOn": ["schema"],            "order": 2},
+     {"stepKey": "use-cases",         "description": "Implement createComment/listComments use cases + unit tests", "dependsOn": ["entities"],     "order": 3},
+     {"stepKey": "api",               "description": "Expose use cases via API layer (mutations/queries)",     "dependsOn": ["use-cases"],         "order": 4},
+     {"stepKey": "frontend-components","description": "Build CommentList + CommentForm presentational components", "dependsOn": ["api"],           "order": 5},
+     {"stepKey": "frontend-hooks",    "description": "Wire components to API via useComments/useCreateComment hooks", "dependsOn": ["frontend-components"], "order": 6},
+     {"stepKey": "review",            "description": "Code review",                                             "dependsOn": ["frontend-hooks"],    "order": 7}
    ]}
    EOF
    \`\`\`
 
-⚠️ **Anti-pattern:** Avoid the trivial 2-step \`implement → review\` workflow unless the task is genuinely a single-file change. Decompose by layer (data model → backend → frontend → tests → review) or by feature slice.
+   **Why concrete steps matter:** Each step names a specific artifact ("the comments table schema", "the Comment entity", "createComment use case"). Weak builders fail when steps are abstract ("backend implementation") because the scope is unbounded. Name the artifact, name the file, bound the scope.
+
+   **How to decompose your own feature:** Walk through the phases a human engineer would actually do, in order:
+   1. Data model (schema, migrations, indexes)
+   2. Domain entities (types, validation, pure logic)
+   3. Use cases + their unit tests (one step per use case if non-trivial)
+   4. API layer (expose use cases as mutations/queries)
+   5. Frontend components (presentational, no data-fetching)
+   6. Frontend hooks (bind components to the API)
+   7. Code review
+
+   Skip phases that genuinely don't apply (e.g., no frontend for a backend-only feature). Split a phase into multiple steps when it contains multiple distinct artifacts (e.g., two unrelated use cases → two steps).
 
 4. **Specify** each step: ${cmd('workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>"')}
    - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
