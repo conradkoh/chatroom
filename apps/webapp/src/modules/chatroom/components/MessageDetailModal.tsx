@@ -4,7 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
-  X,
   Sparkles,
   FileText,
   Code,
@@ -23,6 +22,13 @@ import remarkGfm from 'remark-gfm';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 import type { Message } from '../types/message';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+} from '@/components/ui/fixed-modal';
 
 interface MessageDetailModalProps {
   isOpen: boolean;
@@ -64,9 +70,8 @@ const getClassificationDisplay = (classification: Message['classification']) => 
 
 /**
  * Modal for displaying (and optionally editing) message details.
- * - For new_feature: shows title, description, tech specs
- * - For question/follow_up: shows sender, target, timestamp, full message content
- * Slides in from the right, consistent with FeatureDetailModal.
+ * Uses the same portaled `FixedModal` pattern as backlog / pending-review modals
+ * so it is not clipped by narrow sidebars (`overflow-hidden`).
  *
  * Pass `editable` to enable inline editing (queued messages only).
  */
@@ -79,6 +84,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
 
@@ -87,36 +93,29 @@ export const MessageDetailModal = memo(function MessageDetailModal({
     if (isOpen && message) {
       setEditedContent(message.content);
       setIsEditing(false);
+      setSaveError(null);
     }
   }, [isOpen, message]);
 
-  // Handle Escape key — cancel editing first; close modal only when not editing
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isEditing) {
-          setEditedContent(message?.content ?? '');
-          setIsEditing(false);
-        } else {
-          onClose();
-        }
-      }
-    },
-    [onClose, isEditing, message]
-  );
+  const handleCancel = useCallback(() => {
+    setEditedContent(message?.content ?? '');
+    setIsEditing(false);
+    setSaveError(null);
+  }, [message]);
 
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
+  /** Escape / header close: leave edit mode first, then dismiss the modal. */
+  const dismissFromChrome = useCallback(() => {
+    if (isEditing) {
+      handleCancel();
+      return;
     }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
+    onClose();
+  }, [isEditing, handleCancel, onClose]);
 
   const handleSave = useCallback(async () => {
     if (!message || !editedContent.trim()) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       await updateQueuedMessage({
         queuedMessageId: message._id as Id<'chatroom_messageQueue'>,
@@ -124,31 +123,18 @@ export const MessageDetailModal = memo(function MessageDetailModal({
       });
       setIsEditing(false);
     } catch (error) {
+      const messageText =
+        error instanceof Error ? error.message : 'Failed to update queued message';
+      setSaveError(messageText);
       console.error('Failed to update queued message:', error);
     } finally {
       setIsSaving(false);
     }
   }, [message, editedContent, updateQueuedMessage]);
 
-  const handleCancel = useCallback(() => {
-    setEditedContent(message?.content ?? '');
-    setIsEditing(false);
-  }, [message]);
-
   if (!isOpen || !message) {
     return null;
   }
-
-  // Handle backdrop click
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      if (isEditing) {
-        // Don't close while editing — user may have clicked accidentally
-        return;
-      }
-      onClose();
-    }
-  };
 
   const isNewFeature = message.classification === 'new_feature';
   const classificationDisplay = getClassificationDisplay(message.classification);
@@ -168,118 +154,153 @@ export const MessageDetailModal = memo(function MessageDetailModal({
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
-        onClick={handleBackdropClick}
-      />
-
-      {/* Modal */}
-      <div className="chatroom-root fixed top-0 right-0 h-full w-full md:w-[500px] lg:w-[600px] bg-chatroom-bg-primary border-l-2 border-chatroom-border-strong z-50 flex flex-col animate-in slide-in-from-right duration-200">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-tertiary">
-          <div className="flex items-center gap-2">
+    <FixedModal
+      isOpen
+      onClose={dismissFromChrome}
+      maxWidth="max-w-2xl"
+      closeOnBackdrop={!isEditing}
+    >
+      <FixedModalContent>
+        <FixedModalHeader onClose={dismissFromChrome}>
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             {classificationDisplay.icon}
-            <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+            <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary truncate">
               {isEditing ? 'Edit Message' : `${classificationDisplay.label} Details`}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Edit button — only shown when editable and not already editing */}
             {editable && !isEditing && (
               <button
-                onClick={() => setIsEditing(true)}
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                type="button"
+                onClick={() => {
+                  setSaveError(null);
+                  setIsEditing(true);
+                }}
+                className="ml-auto sm:ml-2 p-1.5 rounded border border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
                 aria-label="Edit message"
                 title="Edit"
               >
                 <Pencil size={16} />
               </button>
             )}
-            <button
-              className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-              onClick={isEditing ? handleCancel : onClose}
-              aria-label={isEditing ? 'Cancel editing' : 'Close'}
-            >
-              <X size={20} />
-            </button>
           </div>
-        </div>
+        </FixedModalHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Message Metadata */}
-          <div className="flex flex-wrap items-center gap-3 text-xs text-chatroom-text-muted pb-4 border-b border-chatroom-border">
-            {/* Sender → Target */}
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold uppercase text-chatroom-text-primary">
-                {message.senderRole}
-              </span>
-              {message.targetRole && (
-                <>
-                  <ArrowRight size={12} className="text-chatroom-text-muted" />
-                  <span className="font-bold uppercase text-chatroom-text-primary">
-                    {message.targetRole}
-                  </span>
-                </>
-              )}
-            </div>
-            {/* Timestamp */}
-            <span className="font-mono text-[10px]">{formatTime(message._creationTime)}</span>
-          </div>
-
-          {/* Edit mode: textarea replaces content area */}
-          {isEditing ? (
-            <div className="space-y-3">
-              <textarea
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                className="w-full h-48 resize-none rounded border border-chatroom-border bg-chatroom-bg-secondary p-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:ring-2 focus:ring-chatroom-accent font-mono"
-                placeholder="Enter message content..."
-                autoFocus
-              />
-              <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={handleCancel}
-                  className="px-3 py-1.5 text-xs border border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving || !editedContent.trim()}
-                  className="px-3 py-1.5 text-xs bg-chatroom-accent text-chatroom-bg-primary hover:opacity-80 transition-opacity disabled:opacity-50 flex items-center gap-1"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    'Save'
-                  )}
-                </button>
+        <FixedModalBody>
+          <div className="p-6 space-y-6">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-chatroom-text-muted pb-4 border-b border-chatroom-border">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold uppercase text-chatroom-text-primary">
+                  {message.senderRole}
+                </span>
+                {message.targetRole && (
+                  <>
+                    <ArrowRight size={12} className="text-chatroom-text-muted" />
+                    <span className="font-bold uppercase text-chatroom-text-primary">
+                      {message.targetRole}
+                    </span>
+                  </>
+                )}
               </div>
+              <span className="font-mono text-[10px]">{formatTime(message._creationTime)}</span>
             </div>
-          ) : isNewFeature ? (
-            // New Feature: show title, description, tech specs
-            <>
-              {/* Title Section */}
-              {message.featureTitle && (
-                <div>
-                  <h2 className="text-lg font-bold text-chatroom-text-primary mb-2">
-                    {message.featureTitle}
-                  </h2>
+
+            {isEditing ? (
+              <div className="space-y-3">
+                <textarea
+                  value={editedContent}
+                  onChange={(e) => {
+                    setEditedContent(e.target.value);
+                    if (saveError) setSaveError(null);
+                  }}
+                  className="w-full h-48 resize-none rounded border border-chatroom-border bg-chatroom-bg-secondary p-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:ring-2 focus:ring-chatroom-accent font-mono"
+                  placeholder="Enter message content..."
+                  autoFocus
+                  aria-invalid={saveError ? true : undefined}
+                  aria-describedby={saveError ? 'queued-message-save-error' : undefined}
+                />
+                {saveError ? (
+                  <p
+                    id="queued-message-save-error"
+                    role="alert"
+                    className="text-xs text-red-600 dark:text-red-400"
+                  >
+                    {saveError}
+                  </p>
+                ) : null}
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-3 py-1.5 text-xs border border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || !editedContent.trim()}
+                    className="px-3 py-1.5 text-xs bg-chatroom-accent text-chatroom-bg-primary hover:opacity-80 transition-opacity disabled:opacity-50 flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      'Save'
+                    )}
+                  </button>
                 </div>
-              )}
-              {/* Description Section */}
-              {hasDescription && (
+              </div>
+            ) : isNewFeature ? (
+              <>
+                {message.featureTitle && (
+                  <div>
+                    <h2 className="text-lg font-bold text-chatroom-text-primary mb-2">
+                      {message.featureTitle}
+                    </h2>
+                  </div>
+                )}
+                {hasDescription && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText size={14} className="text-chatroom-status-info" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                        Description
+                      </span>
+                    </div>
+                    <div className={proseClassNames}>
+                      <Markdown
+                        remarkPlugins={[remarkGfm, remarkBreaks]}
+                        components={fullMarkdownComponents}
+                      >
+                        {message.featureDescription}
+                      </Markdown>
+                    </div>
+                  </div>
+                )}
+                {hasTechSpecs && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Code size={14} className="text-chatroom-status-success" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                        Technical Specifications
+                      </span>
+                    </div>
+                    <div className={proseClassNames}>
+                      <Markdown
+                        remarkPlugins={[remarkGfm, remarkBreaks]}
+                        components={fullMarkdownComponents}
+                      >
+                        {message.featureTechSpecs}
+                      </Markdown>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <FileText size={14} className="text-chatroom-status-info" />
+                    <MessageSquare size={14} className="text-chatroom-text-muted" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                      Description
+                      Original Message
                     </span>
                   </div>
                   <div className={proseClassNames}>
@@ -287,36 +308,17 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={fullMarkdownComponents}
                     >
-                      {message.featureDescription}
+                      {message.content}
                     </Markdown>
                   </div>
                 </div>
-              )}
-              {/* Tech Specs Section */}
-              {hasTechSpecs && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Code size={14} className="text-chatroom-status-success" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                      Technical Specifications
-                    </span>
-                  </div>
-                  <div className={proseClassNames}>
-                    <Markdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
-                      components={fullMarkdownComponents}
-                    >
-                      {message.featureTechSpecs}
-                    </Markdown>
-                  </div>
-                </div>
-              )}
-              {/* Original Message Section */}
+              </>
+            ) : (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare size={14} className="text-chatroom-text-muted" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                    Original Message
+                    Full Message
                   </span>
                 </div>
                 <div className={proseClassNames}>
@@ -328,28 +330,10 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </Markdown>
                 </div>
               </div>
-            </>
-          ) : (
-            // Question/Follow-up (and default): show full message content
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <MessageSquare size={14} className="text-chatroom-text-muted" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                  Full Message
-                </span>
-              </div>
-              <div className={proseClassNames}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={fullMarkdownComponents}
-                >
-                  {message.content}
-                </Markdown>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
+            )}
+          </div>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });

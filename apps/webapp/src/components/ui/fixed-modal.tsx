@@ -161,6 +161,12 @@ interface FixedModalProps {
   maxWidth?: string;
   /** Additional className for the modal panel */
   className?: string;
+  /**
+   * When false, clicking the backdrop does not call `onClose` (escape still does).
+   * Use while an inner form is dirty / in edit mode so accidental backdrop taps do not dismiss.
+   * @default true
+   */
+  closeOnBackdrop?: boolean;
 }
 
 /**
@@ -212,6 +218,7 @@ const FixedModal = memo(function FixedModal({
   children,
   maxWidth = 'max-w-lg',
   className,
+  closeOnBackdrop = true,
 }: FixedModalProps) {
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -227,11 +234,11 @@ const FixedModal = memo(function FixedModal({
   // Handle backdrop click
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
+      if (e.target === e.currentTarget && closeOnBackdrop) {
         onClose();
       }
     },
-    [onClose]
+    [onClose, closeOnBackdrop]
   );
 
   // Handle Escape key — only the topmost modal responds
