@@ -13,7 +13,7 @@ import { mutation, query } from './_generated/server';
 import { str } from './utils/types';
 import { validateSession } from './auth/cliSessionAuth';
 import { checkAccess, requireAccess } from './auth/accessCheck';
-import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import type { GitPullRequest, WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
@@ -182,8 +182,8 @@ export const getWorkspaceGitState = query({
         diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
-        openPullRequests: row.openPullRequests ?? [],
-        allPullRequests: row.allPullRequests ?? [],
+        openPullRequests: (row.openPullRequests ?? []) as GitPullRequest[],
+        allPullRequests: (row.allPullRequests ?? []) as GitPullRequest[],
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         defaultBranch: row.defaultBranch ?? null,

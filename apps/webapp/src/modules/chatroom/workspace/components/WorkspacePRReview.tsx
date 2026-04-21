@@ -32,7 +32,7 @@ interface WorkspacePRReviewProps {
  *
  * This is extracted into a separate component to ensure the usePRDiff hook
  * is called unconditionally (React Hooks Rules).
- * The hook receives activePR.prNumber (always defined) so prNumber is required.
+ * The hook receives activePR.prNumber (always defined) so the PR number is required.
  */
 export const WorkspacePRReview = memo(function WorkspacePRReview({
   activePR,
@@ -48,7 +48,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
     activePR.prNumber
   );
 
-  // Auto-request PR diff when component mounts or prNumber changes
+  // Auto-request PR diff when component mounts or PR number changes
   useEffect(() => {
     if (prDiffState.status === 'idle') {
       requestPRDiff(baseBranch, activePR.prNumber);

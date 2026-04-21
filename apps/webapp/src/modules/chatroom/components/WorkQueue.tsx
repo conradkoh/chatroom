@@ -446,18 +446,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       </div>
       {/* End of Scrollable Task List Container */}
 
-      {/* Task Detail Modal - only mount when task is selected for better performance */}
-      {selectedTask && (
-        <TaskDetailModal
-          isOpen={true}
-          task={selectedTask}
-          onClose={handleCloseTaskDetail}
-          onEdit={handleModalEdit}
-          onDelete={handleModalForceComplete}
-          onForceComplete={handleModalForceComplete}
-        />
-      )}
-
       {/* Full Task Queue Modal */}
       <TaskQueueModal
         isOpen={isQueueModalOpen}
@@ -468,6 +456,18 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           handleOpenTaskDetail(task);
         }}
       />
+
+      {/* Task detail portals after queue so it stacks above the queue modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          isOpen={true}
+          task={selectedTask}
+          onClose={handleCloseTaskDetail}
+          onEdit={handleModalEdit}
+          onDelete={handleModalForceComplete}
+          onForceComplete={handleModalForceComplete}
+        />
+      )}
 
       {/* Review Panel — Split-pane layout for pending review items */}
       <ReviewPanel
