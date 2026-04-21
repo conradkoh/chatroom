@@ -772,10 +772,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     openGitPanelRef.current?.();
   }, []);
 
-  const handleCmdOpenGitPanelDiff = useCallback(() => {
-    openGitPanelRef.current?.('diff');
-  }, []);
-
   const handleCmdOpenPRReview = useCallback(() => {
     openGitPanelRef.current?.('prs');
   }, []);
@@ -1089,7 +1085,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
     onOpenGitPanel: handleCmdOpenGitPanel,
-    onOpenGitPanelDiff: handleCmdOpenGitPanelDiff,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,

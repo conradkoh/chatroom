@@ -40,7 +40,6 @@ interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
   onOpenEventStream: () => void;
   onOpenGitPanel: () => void;
-  onOpenGitPanelDiff: () => void;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
   /** Navigation callbacks */
@@ -105,7 +104,6 @@ export function useCommandPaletteCommands({
   onOpenSettings,
   onOpenEventStream,
   onOpenGitPanel,
-  onOpenGitPanelDiff,
   onOpenBacklog,
   onOpenPendingReview,
   onOpenChatroomSwitcher,
@@ -339,17 +337,12 @@ export function useCommandPaletteCommands({
         });
       }
 
-      // Git diff — only in legacy (single-workspace) mode.
-      // Multi-workspace mode provides per-workspace 'Git: Show Current Changes'
-      // via workspaceCommands, so registering here too would cause duplicates.
-      commands.push({
-        id: 'panel-git-diff',
-        label: 'Git: Show Current Changes',
-        icon: <GitBranch size={14} />,
-        category: 'Panels',
-        keywords: ['git', 'diff', 'changes', 'modified'],
-        action: onOpenGitPanelDiff,
-      });
+      // Git Diff has no global registration here.
+      //
+      // Per-workspace 'Git: Show Current Changes' commands are contributed by
+      // `useWorkspaceCommandItems` (one per workspace). When zero workspaces are
+      // registered there's nothing meaningful to diff, so users open the Git
+      // Panel via `panel-git` below and pick a workspace from there.
 
       // ─── Preferences ─────────────────────────────────────────────
       commands.push({
@@ -489,7 +482,6 @@ export function useCommandPaletteCommands({
     onOpenSettings,
     onOpenEventStream,
     onOpenGitPanel,
-    onOpenGitPanelDiff,
     onOpenBacklog,
     onOpenPendingReview,
     onOpenChatroomSwitcher,

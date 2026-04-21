@@ -8,7 +8,6 @@ describe('useCommandPaletteCommands', () => {
     onOpenSettings: vi.fn(),
     onOpenEventStream: vi.fn(),
     onOpenGitPanel: vi.fn(),
-    onOpenGitPanelDiff: vi.fn(),
     onOpenBacklog: vi.fn(),
     onOpenPendingReview: vi.fn(),
     onOpenChatroomSwitcher: vi.fn(),
@@ -105,13 +104,13 @@ describe('useCommandPaletteCommands', () => {
   });
 
   describe('panel-git-diff dedup (Bug #5/#14)', () => {
-    it('includes panel-git-diff in legacy (no workspaceCommands) mode', () => {
+    it('does not register a global panel-git-diff command in legacy (no workspaceCommands) mode', () => {
       const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
 
-      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(true);
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(false);
     });
 
-    it('omits panel-git-diff when workspaceCommands are provided (multi-workspace mode)', () => {
+    it('does not register a global panel-git-diff command in multi-workspace mode', () => {
       const workspaceCommands = [
         {
           id: 'ws-abc-git-diff',
@@ -125,11 +124,10 @@ describe('useCommandPaletteCommands', () => {
         useCommandPaletteCommands({ ...baseProps, workspaceCommands })
       );
 
-      // panel-git-diff must not appear — the workspace-specific command covers it
       expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(false);
     });
 
-    it('has no duplicate labels for Git: Show Current Changes when workspaceCommands provided', () => {
+    it('keeps a single Git: Show Current Changes when workspaceCommands provide one', () => {
       const workspaceCommands = [
         {
           id: 'ws-abc-git-diff',
@@ -147,12 +145,11 @@ describe('useCommandPaletteCommands', () => {
       expect(gitDiffCmds).toHaveLength(1);
     });
 
-    it('treats workspaceCommands: [] as legacy mode (panel-git-diff present)', () => {
+    it('still exposes the parent Git Panel entry (panel-git) so users can reach git in legacy mode', () => {
       const { result } = renderHook(() =>
         useCommandPaletteCommands({ ...baseProps, workspaceCommands: [] })
       );
-      // Empty array = no workspace commands = fall through to legacy mode
-      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(true);
+      expect(result.current.some((cmd) => cmd.id === 'panel-git')).toBe(true);
     });
   });
 
