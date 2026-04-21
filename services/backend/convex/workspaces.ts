@@ -820,7 +820,14 @@ export const requestPRDiff = mutation({
           .eq('workingDir', args.workingDir)
           .eq('requestType', 'pr_diff')
       )
-      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('status'), 'pending'),
+          // Key idempotency by prNumber: a pending request for PR #1 must NOT
+          // suppress a new request for PR #2 on the same workspace.
+          q.eq(q.field('prNumber'), args.prNumber)
+        )
+      )
       .first();
 
     if (existing) {
