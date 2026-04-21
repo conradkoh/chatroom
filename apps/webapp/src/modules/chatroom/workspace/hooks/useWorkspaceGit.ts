@@ -107,6 +107,15 @@ export function usePRDiff(
   const requestMutation = useSessionMutation(api.workspaces.requestPRDiff);
   const requestedRef = useRef(false);
 
+  // Reset the requested flag when the target PR changes so the state
+  // transitions back to 'idle' instead of showing stale 'loading' from
+  // a previous PR's request.
+  const prevPrNumberRef = useRef(prNumber);
+  if (prevPrNumberRef.current !== prNumber) {
+    prevPrNumberRef.current = prNumber;
+    requestedRef.current = false;
+  }
+
   const request = useCallback(
     (baseBranch: string, prNumber: number) => {
       requestedRef.current = true;
