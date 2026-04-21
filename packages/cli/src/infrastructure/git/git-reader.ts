@@ -600,7 +600,7 @@ export async function getOpenPRsForBranch(
         return item.headRepositoryOwner.login === repoOwner;
       })
       .map((item) => ({
-        number: item.number,
+        prNumber: item.number,
         title: item.title,
         url: item.url,
         headRefName: item.headRefName,
@@ -670,7 +670,7 @@ export async function getAllPRs(
           ? (item.author as { login?: string }).login
           : undefined;
         return {
-          number: item.number,
+          prNumber: item.number,
           title: item.title,
           url: item.url ?? '',
           headRefName: item.headRefName ?? '',

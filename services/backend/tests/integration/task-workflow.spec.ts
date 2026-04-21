@@ -248,12 +248,14 @@ describe('Task Workflow - Backlog Origin', () => {
       // Transition to pending_user_review
       await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
 
       // Complete: pending_user_review → closed (with completedAt)
       const markResult = await t.mutation(api.backlog.completeBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
 
@@ -288,6 +290,7 @@ describe('Task Workflow - Backlog Origin', () => {
       // Close without completing
       const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
         reason: 'Test: closing backlog item',
       });
@@ -322,12 +325,14 @@ describe('Task Workflow - Backlog Origin', () => {
       // Mark for review
       await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
 
       // Send back for re-work: pending_user_review → backlog
       const sendBackResult = await t.mutation(api.backlog.sendBacklogItemBackForRework, {
         sessionId,
+        chatroomId,
         itemId: backlogItemId,
       });
 
@@ -362,6 +367,7 @@ describe('Task Workflow - Cancel Actions', () => {
     // Close it
     const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
+      chatroomId,
       itemId: backlogItemId,
       reason: 'Test: cancel action close',
     });

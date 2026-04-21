@@ -65,7 +65,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       ## When to Activate Skills
 
       **Proactively activate skills** when your task matches their purpose:
-      - **backlog**: Full backlog command reference with scoring, completion, and workflow guides.
+      - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
@@ -242,14 +242,33 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       2. **Activate workflow skill**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
 
       3. **Create workflow**:
+
+         **How to decompose** — think about the phases a human engineer would actually go through to ship the work, then make each phase a step. The right phases depend entirely on what you're building. Some heuristics:
+
+         - **Each step should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+         - **One step ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+         - **Order by dependency**, not by team convention. A step should be runnable/testable when its dependencies are done.
+         - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+         - **Split a phase** when it contains multiple distinct artifacts (e.g., two unrelated use cases → two steps).
+         - **Always end with a code review step** for code-producing workflows.
+
+         **Illustrative example only** — DO NOT copy the step keys, count, or descriptions verbatim. This shows the *shape* of a good decomposition for one specific feature (adding comments to posts). Your steps will look different.
+
          \`\`\`
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="feature-name" << 'EOF'
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="<your-feature-key>" << 'EOF'
          {"steps": [
-           {"stepKey": "implement", "description": "Implement the feature", "dependsOn": [], "order": 1},
-           {"stepKey": "review", "description": "Code review", "dependsOn": ["implement"], "order": 2}
+           {"stepKey": "schema",             "description": "Design the comments table schema + indexes",                "dependsOn": [],                       "order": 1},
+           {"stepKey": "entities",           "description": "Define Comment domain entity + validation",                  "dependsOn": ["schema"],               "order": 2},
+           {"stepKey": "use-cases",          "description": "Implement createComment/listComments use cases + unit tests","dependsOn": ["entities"],             "order": 3},
+           {"stepKey": "api",                "description": "Expose use cases via API layer (mutations/queries)",         "dependsOn": ["use-cases"],            "order": 4},
+           {"stepKey": "frontend-components","description": "Build CommentList + CommentForm presentational components",  "dependsOn": ["api"],                  "order": 5},
+           {"stepKey": "frontend-hooks",     "description": "Wire components to API via useComments/useCreateComment",    "dependsOn": ["frontend-components"],  "order": 6},
+           {"stepKey": "review",             "description": "Code review",                                                 "dependsOn": ["frontend-hooks"],       "order": 7}
          ]}
          EOF
          \`\`\`
+
+         Other shapes are equally valid — e.g., a bug fix might be \`reproduce → fix → regression-test → review\`; a refactor might be \`extract-interface → migrate-callers → delete-old → review\`; an infra change might have no frontend phases at all. Decompose the work in front of you, not the example.
 
       4. **Specify** each step: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>" --chatroom-id=<id> --role="planner"\`
          - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
@@ -263,10 +282,12 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       ⚠️ Workflows complete automatically when all steps are done. Only use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` to abandon.
 
       **Step specification quality:**
-      When specifying steps with \`workflow specify\`, include:
-      - **Exact file paths**: List every file to be created/modified with full paths
-      - **Interface definitions**: For key files, include TypeScript interfaces inline
-      This enables the builder to understand exact expectations and ensures coherence across steps.
+      When specifying steps with \`workflow specify\`, give the builder enough to act without guessing:
+      - **Concrete artifacts**: name the files/modules to create or change (full paths when known)
+      - **Contracts**: when a step produces an interface other steps depend on, sketch it inline (TypeScript types, function signatures, or schema shape)
+      - **Acceptance criteria**: how the builder will know they're done
+
+      Adapt depth to the step — a one-file fix needs a sentence; a new module needs paths and types.
 
       **Code review:** Include a review step for code-producing workflows. Activate with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`
 

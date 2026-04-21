@@ -463,7 +463,7 @@ describe('getOpenPRsForBranch', () => {
     const result = await getOpenPRsForBranch('/repo', 'feat/feature-x');
     expect(result).toEqual([
       {
-        number: 42,
+        prNumber: 42,
         title: 'Add feature X',
         url: 'https://github.com/user/repo/pull/42',
         headRefName: 'feat/feature-x',
@@ -552,7 +552,7 @@ describe('getOpenPRsForBranch', () => {
     mockSuccess(prJson);
     const result = await getOpenPRsForBranch('/repo', 'feat/x');
     expect(result).toHaveLength(1);
-    expect(result[0]!.number).toBe(42);
+    expect(result[0]!.prNumber).toBe(42);
   });
 
   test('parses multiple PRs', async () => {
@@ -576,8 +576,8 @@ describe('getOpenPRsForBranch', () => {
     mockSuccess(prJson);
     const result = await getOpenPRsForBranch('/repo', 'feat/a');
     expect(result).toHaveLength(2);
-    expect(result[0]!.number).toBe(1);
-    expect(result[1]!.number).toBe(2);
+    expect(result[0]!.prNumber).toBe(1);
+    expect(result[1]!.prNumber).toBe(2);
   });
 
   test('returns empty array when output is not an array', async () => {

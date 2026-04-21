@@ -63,6 +63,7 @@ function createTestContext(): DaemonContext {
       } as any,
     },
     lastPushedGitState: new Map(),
+    lastPushedModels: null,
   };
 }
 

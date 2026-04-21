@@ -146,6 +146,127 @@ describe('messageStoreReducer — APPEND_NEW', () => {
     });
     expect(state).toBe(initialized);
   });
+
+  it('allows first message in empty chatroom (newestCursor is null) — trusted path', () => {
+    const empty: MessageStoreState = {
+      messages: [],
+      oldestCursor: null,
+      newestCursor: null,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(empty, {
+      type: 'APPEND_NEW',
+      messages: [makeMessage('first', 100)],
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]!._id).toBe('first');
+    expect(state.newestCursor).toBe(100);
+  });
+
+  it('appends all messages without time-guard filtering (trusted path)', () => {
+    // APPEND_NEW is the trusted path — it does NOT filter by time.
+    // Even messages older than newestCursor are accepted.
+    const afterPurge: MessageStoreState = {
+      messages: [makeMessage('d', 400), makeMessage('e', 500)],
+      oldestCursor: 400,
+      newestCursor: 500,
+      isInitialized: true,
+      hasMoreOlder: true,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(afterPurge, {
+      type: 'APPEND_NEW',
+      messages: [makeMessage('a', 100), makeMessage('f', 600)],
+    });
+    // All non-duplicate messages are appended, even 'a' which is older
+    expect(state.messages).toHaveLength(4);
+    expect(state.messages.map((m) => m._id)).toEqual(['d', 'e', 'a', 'f']);
+    expect(state.newestCursor).toBe(600);
+  });
+});
+
+// ── APPEND_DELTA ──────────────────────────────────────────────────────────────
+
+describe('messageStoreReducer — APPEND_DELTA', () => {
+  const initialized: MessageStoreState = {
+    messages: [makeMessage('a', 100)],
+    oldestCursor: 100,
+    newestCursor: 100,
+    isInitialized: true,
+    hasMoreOlder: false,
+    isLoadingOlder: false,
+    olderQueryCursor: null,
+  };
+
+  it('appends new messages and updates newestCursor', () => {
+    const state = messageStoreReducer(initialized, {
+      type: 'APPEND_DELTA',
+      messages: [makeMessage('b', 200)],
+    });
+    expect(state.messages).toHaveLength(2);
+    expect(state.newestCursor).toBe(200);
+  });
+
+  it('deduplicates when appending', () => {
+    const state = messageStoreReducer(initialized, {
+      type: 'APPEND_DELTA',
+      messages: [makeMessage('a', 100)], // same as existing
+    });
+    // Should return same state (no change)
+    expect(state).toBe(initialized);
+  });
+
+  it('returns same state for empty messages', () => {
+    const state = messageStoreReducer(initialized, {
+      type: 'APPEND_DELTA',
+      messages: [],
+    });
+    expect(state).toBe(initialized);
+  });
+
+  it('rejects messages older than newestCursor (post-purge refetch guard)', () => {
+    const afterPurge: MessageStoreState = {
+      messages: [makeMessage('d', 400), makeMessage('e', 500)],
+      oldestCursor: 400,
+      newestCursor: 500,
+      isInitialized: true,
+      hasMoreOlder: true,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(afterPurge, {
+      type: 'APPEND_DELTA',
+      messages: [makeMessage('a', 100), makeMessage('b', 200), makeMessage('f', 600)],
+    });
+    expect(state.messages).toHaveLength(3);
+    expect(state.messages.map((m) => m._id)).toEqual(['d', 'e', 'f']);
+    expect(state.newestCursor).toBe(600);
+  });
+
+  it('rejects all messages when newestCursor is null (uninitialized store)', () => {
+    // APPEND_DELTA requires newestCursor to be set. If null (shouldn't happen
+    // in practice since the tail subscription is skipped until initialization),
+    // all messages are rejected — no fallback to invalid behavior.
+    const empty: MessageStoreState = {
+      messages: [],
+      oldestCursor: null,
+      newestCursor: null,
+      isInitialized: true,
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      olderQueryCursor: null,
+    };
+    const state = messageStoreReducer(empty, {
+      type: 'APPEND_DELTA',
+      messages: [makeMessage('first', 100)],
+    });
+    // All messages rejected — no fallback to accepting everything
+    expect(state.messages).toHaveLength(0);
+  });
 });
 
 // ── PREPEND_OLDER ───────────────────────────────────────────────────────────

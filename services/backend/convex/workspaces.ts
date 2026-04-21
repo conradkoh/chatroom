@@ -257,6 +257,7 @@ export const getPRDiff = query({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
+    prNumber: v.number(),
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
@@ -268,11 +269,10 @@ export const getPRDiff = query({
 
     const row = await ctx.db
       .query('chatroom_workspacePRDiffs')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
       )
       .first();
-
     return row ?? null;
   },
 });
@@ -421,7 +421,7 @@ export const upsertWorkspaceGitState = mutation({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -432,7 +432,7 @@ export const upsertWorkspaceGitState = mutation({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          prNumber: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -570,6 +570,7 @@ export const upsertPRDiff = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
+    prNumber: v.number(),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -591,6 +592,7 @@ export const upsertPRDiff = mutation({
       machineId: args.machineId,
       workingDir: args.workingDir,
       baseBranch: args.baseBranch,
+      prNumber: args.prNumber,
       diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
@@ -599,8 +601,8 @@ export const upsertPRDiff = mutation({
 
     const existing = await ctx.db
       .query('chatroom_workspacePRDiffs')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -792,6 +794,7 @@ export const requestFullDiff = mutation({
  *
  * Idempotent: if a pending request already exists, it is not duplicated.
  * The frontend subscribes to `getPRDiff` to receive the result.
+ * prNumber is REQUIRED.
  */
 export const requestPRDiff = mutation({
   args: {
@@ -799,7 +802,7 @@ export const requestPRDiff = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
-    prNumber: v.optional(v.number()),
+    prNumber: v.number(),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);

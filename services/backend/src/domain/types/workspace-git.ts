@@ -16,8 +16,8 @@ export interface DiffStat {
 
 /** An open GitHub pull request for the current branch. */
 export interface GitPullRequest {
-  /** PR number (e.g. 42). */
-  number: number;
+  /** PR number (e.g. 42). Canonical app field; CLI maps from GitHub `number`. */
+  prNumber: number;
   /** PR title. */
   title: string;
   /** Full URL to the PR on GitHub. */
