@@ -1104,7 +1104,11 @@ daemonCommand
   .command('start')
   .description('Start the machine daemon to listen for remote commands')
   .action(async () => {
-    await maybeRequireAuth();
+    // NOTE: do NOT call maybeRequireAuth() here.
+    // initDaemon() inside daemonStart() already handles local auth validation
+    // (validateAuthentication) and the init retry loop handles backend connectivity.
+    // Pre-flight requireAuth() makes a network call and exits on failure, which
+    // causes pm2 to restart the daemon in a tight loop when the backend is down.
     const { daemonStart } = await import('./commands/machine/index.js');
     await daemonStart();
   });
