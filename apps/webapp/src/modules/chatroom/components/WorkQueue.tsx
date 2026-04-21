@@ -31,6 +31,28 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+function QueuedMessageItemWithDetail({
+  message,
+  onSelectMessageId,
+  onPromote,
+  onDelete,
+}: {
+  message: Message;
+  onSelectMessageId: (id: string) => void;
+  onPromote: (queuedMessageId: string) => Promise<void>;
+  onDelete: (queuedMessageId: string) => Promise<void>;
+}) {
+  const onOpenDetails = useCallback(() => onSelectMessageId(message._id), [message._id, onSelectMessageId]);
+  return (
+    <QueuedMessageItem
+      message={message}
+      onPromote={onPromote}
+      onDelete={onDelete}
+      onOpenDetails={onOpenDetails}
+    />
+  );
+}
+
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 
@@ -45,7 +67,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
-  const [selectedQueuedMessage, setSelectedQueuedMessage] = useState<Message | null>(null);
+  const [selectedQueuedMessageId, setSelectedQueuedMessageId] = useState<string | null>(null);
 
   // Register imperative open actions for parent (e.g. command palette)
   useEffect(() => {
@@ -146,6 +168,27 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
+  // Keep modal body in sync with live queue data (edits, reloads)
+  const selectedQueuedMessage = useMemo(() => {
+    if (!selectedQueuedMessageId) return null;
+    return queuedMessages.find((m) => m._id === selectedQueuedMessageId) ?? null;
+  }, [selectedQueuedMessageId, queuedMessages]);
+
+  useEffect(() => {
+    if (!selectedQueuedMessageId) return;
+    if (!queuedMessages.some((m) => m._id === selectedQueuedMessageId)) {
+      setSelectedQueuedMessageId(null);
+    }
+  }, [selectedQueuedMessageId, queuedMessages]);
+
+  const handleSelectQueuedMessageId = useCallback((id: string) => {
+    setSelectedQueuedMessageId(id);
+  }, []);
+
+  const handleCloseQueuedMessageModal = useCallback(() => {
+    setSelectedQueuedMessageId(null);
+  }, []);
+
   // Queued message handlers
   const handleQueuedPromote = useCallback(
     async (queuedMessageId: string) => {
@@ -171,14 +214,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       }
     },
     [deleteQueuedMessage]
-  );
-
-  // Stable row-click handler — avoids new lambda per render (defeats QueuedMessageItem's memo)
-  const handleQueuedRowClick = useCallback(
-    (message: Message) => {
-      setSelectedQueuedMessage(message);
-    },
-    []
   );
 
   // Categorize tasks by status
@@ -376,12 +411,12 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
             </div>
             {/* Show queued messages */}
             {queuedMessages.slice(0, 3).map((message) => (
-              <QueuedMessageItem
+              <QueuedMessageItemWithDetail
                 key={message._id}
                 message={message}
+                onSelectMessageId={handleSelectQueuedMessageId}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
-                onClickRow={() => handleQueuedRowClick(message)}
               />
             ))}
             {queuedMessages.length > 3 && (
@@ -514,14 +549,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         />
       )}
 
-      {/* Queued Message Detail Modal */}
-      <MessageDetailModal
-        isOpen={selectedQueuedMessage !== null}
-        onClose={() => setSelectedQueuedMessage(null)}
-        message={selectedQueuedMessage}
-        editable
-      />
-
       {/* Backlog Queue Modal - shows all backlog items */}
       {isBacklogQueueModalOpen && (
         <BacklogQueueModal
@@ -532,6 +559,13 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           }}
         />
       )}
+
+      <MessageDetailModal
+        isOpen={selectedQueuedMessage !== null}
+        onClose={handleCloseQueuedMessageModal}
+        message={selectedQueuedMessage}
+        editable
+      />
     </div>
   );
 }

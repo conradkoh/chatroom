@@ -40,15 +40,15 @@ interface QueuedMessageItemProps {
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
-  /** Optional click handler for the row itself (opens detail view). */
-  onClickRow?: () => void;
+  /** Optional: opens message details (use a stable handler from parent for memo). */
+  onOpenDetails?: () => void;
 }
 
 export const QueuedMessageItem = memo(function QueuedMessageItem({
   message,
   onPromote,
   onDelete,
-  onClickRow,
+  onOpenDetails,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
@@ -68,8 +68,8 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     [message._id, onPromote, isPromoting, isDeleting]
   );
 
-  const { armedKey: deleteArmed, request: requestDelete } = useTwoTapConfirm<string>(
-    async (id) => {
+  const confirmDelete = useCallback(
+    async (id: string) => {
       if (isDeleting || isPromoting) return;
       setIsDeleting(true);
       try {
@@ -77,8 +77,11 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
       } finally {
         setIsDeleting(false);
       }
-    }
+    },
+    [onDelete, isDeleting, isPromoting]
   );
+
+  const { armedKey: deleteArmed, request: requestDelete } = useTwoTapConfirm<string>(confirmDelete);
 
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
@@ -90,44 +93,45 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
   const isDeleteArmed = deleteArmed === message._id;
 
-  return (
-    <div
-      role={onClickRow ? 'button' : undefined}
-      tabIndex={onClickRow ? 0 : undefined}
-      onClick={onClickRow}
-      onKeyDown={
-        onClickRow
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClickRow();
-              }
-            }
-          : undefined
-      }
-      className={`flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group ${onClickRow ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-[-2px]' : ''}`}
-    >
-      {/* Content - truncate to 2 lines */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
-      </div>
+  const preview = (
+    <>
+      <span className="block text-xs text-foreground line-clamp-2 break-words">{message.content}</span>
+      <span className="mt-0.5 block text-[10px] text-muted-foreground">{elapsed}</span>
+    </>
+  );
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group">
+      {onOpenDetails ? (
         <button
+          type="button"
+          onClick={onOpenDetails}
+          className="flex-1 min-w-0 text-left rounded-md py-0.5 -my-0.5 px-1 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+          aria-label="View queued message details"
+        >
+          {preview}
+        </button>
+      ) : (
+        <div className="flex-1 min-w-0">{preview}</div>
+      )}
+
+      <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
           onClick={handlePromote}
           disabled={isPromoting || isDeleting}
-          className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 disabled:opacity-50"
+          className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
           title="Promote to active"
+          aria-label="Promote queued message to active task"
         >
           <ArrowUp size={14} />
         </button>
         <button
+          type="button"
           onClick={handleDelete}
           disabled={isDeleting || isPromoting}
-          aria-label={isDeleteArmed ? 'Confirm delete' : 'Delete'}
-          className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+          aria-label={isDeleteArmed ? 'Confirm delete' : 'Delete queued message'}
+          className={`p-1.5 rounded transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent ${
             isDeleteArmed
               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
               : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400'
