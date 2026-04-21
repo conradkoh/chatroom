@@ -1,7 +1,10 @@
 'use client';
 
-import { ArrowUp, Timer, Trash2 } from 'lucide-react';
-import React, { memo, useCallback, useState, useEffect } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { ArrowUp, Pencil, Save, Timer, Trash2, X } from 'lucide-react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -16,7 +19,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,12 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(message.content);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -89,8 +97,65 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     }
   }, [message._id, onDelete, isDeleting, isPromoting]);
 
-  const openModal = useCallback(() => setIsModalOpen(true), []);
-  const closeModal = useCallback(() => setIsModalOpen(false), []);
+  const openModal = useCallback(() => {
+    setEditedContent(message.content);
+    setEditError(null);
+    setIsEditing(false);
+    setIsModalOpen(true);
+  }, [message.content]);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setIsEditing(false);
+    setEditError(null);
+  }, []);
+
+  const enterEdit = useCallback(() => {
+    setEditedContent(message.content);
+    setEditError(null);
+    setIsEditing(true);
+  }, [message.content]);
+
+  const cancelEdit = useCallback(() => {
+    setEditedContent(message.content);
+    setEditError(null);
+    setIsEditing(false);
+  }, [message.content]);
+
+  const handleSave = useCallback(async () => {
+    const trimmed = editedContent.trim();
+    if (!trimmed) {
+      setEditError('Message cannot be empty.');
+      return;
+    }
+    if (trimmed === message.content) {
+      // No-op save — just exit edit mode.
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      await updateQueuedMessage({
+        queuedMessageId: message._id as Id<'chatroom_messageQueue'>,
+        content: trimmed,
+      });
+      setIsEditing(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to update queued message.');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editedContent, message.content, message._id, updateQueuedMessage]);
+
+  /** Backdrop / Escape: exit edit first, otherwise close the modal. */
+  const dismissFromChrome = useCallback(() => {
+    if (isEditing) {
+      cancelEdit();
+      return;
+    }
+    closeModal();
+  }, [isEditing, cancelEdit, closeModal]);
 
   /** Stop the surrounding row click from firing when an action button is pressed. */
   const stop = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
@@ -142,15 +207,33 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
       </div>
 
       {/* Full-content modal — opens when the row is clicked. */}
-      <FixedModal isOpen={isModalOpen} onClose={closeModal} maxWidth="max-w-2xl">
+      <FixedModal
+        isOpen={isModalOpen}
+        onClose={dismissFromChrome}
+        maxWidth="max-w-2xl"
+        closeOnBackdrop={!isEditing}
+      >
         <FixedModalContent>
-          <FixedModalHeader onClose={closeModal}>
-            <FixedModalTitle>
-              <span className="flex items-center gap-2">
-                <Timer size={14} className="text-orange-500" />
-                Queued Message
-              </span>
-            </FixedModalTitle>
+          <FixedModalHeader onClose={dismissFromChrome}>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <FixedModalTitle>
+                <span className="flex items-center gap-2">
+                  <Timer size={14} className="text-orange-500" />
+                  Queued Message
+                </span>
+              </FixedModalTitle>
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={enterEdit}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide border border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary transition-colors"
+                  title="Edit queued message"
+                >
+                  <Pencil size={12} />
+                  Edit
+                </button>
+              )}
+            </div>
           </FixedModalHeader>
           <FixedModalBody>
             <div className="p-6 space-y-4">
@@ -159,14 +242,57 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
                 <span aria-hidden>•</span>
                 <span>{elapsed} ago</span>
               </div>
-              <div className={messageFeedProseClassNames}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={baseMarkdownComponents}
-                >
-                  {message.content}
-                </Markdown>
-              </div>
+
+              {isEditing ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        if (editedContent.trim()) void handleSave();
+                      }
+                    }}
+                    autoFocus
+                    placeholder="Edit your queued message..."
+                    className="w-full min-h-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border focus:border-chatroom-accent text-chatroom-text-primary text-sm p-3 resize-y focus:outline-none font-mono"
+                  />
+                  {editError && (
+                    <p className="text-xs text-chatroom-status-error">{editError}</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={isSaving || !editedContent.trim()}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Save size={12} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      disabled={isSaving}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+                    >
+                      <X size={12} />
+                      Cancel
+                    </button>
+                    <span className="ml-auto text-[10px] text-muted-foreground">⌘ + Enter to save</span>
+                  </div>
+                </div>
+              ) : (
+                <div className={messageFeedProseClassNames}>
+                  <Markdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={baseMarkdownComponents}
+                  >
+                    {message.content}
+                  </Markdown>
+                </div>
+              )}
             </div>
           </FixedModalBody>
         </FixedModalContent>
