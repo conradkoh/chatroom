@@ -33,7 +33,7 @@ import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-import type { GitRemote, CommitStatusSummary } from '../types/git';
+import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -152,7 +152,7 @@ interface DerivedGitInfo {
   /** Remotes array (empty when not available). */
   remotes: GitRemote[];
   /** Open pull requests (empty when not available). */
-  openPullRequests: { prNumber: number; title: string; url: string }[];
+  openPullRequests: GitPullRequest[];
   /** Diff stat (zeros when not available). */
   diffStat: { filesChanged: number; insertions: number; deletions: number };
   /** CI/CD status for the current branch head commit. */
