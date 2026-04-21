@@ -1345,10 +1345,11 @@ export default defineSchema({
     hasMoreCommits: v.optional(v.boolean()),
 
     // Open pull requests for the current branch (only when status === 'available')
+    // number: matches gh JSON; allow string for legacy rows (normalized on write).
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          number: v.union(v.number(), v.string()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1361,18 +1362,18 @@ export default defineSchema({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          number: v.union(v.number(), v.string()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
-          baseRefName: v.optional(v.string()),
+          baseRefName: v.optional(v.union(v.string(), v.null())),
           state: v.string(),
-          author: v.optional(v.string()),
+          author: v.optional(v.union(v.string(), v.null())),
           createdAt: v.optional(v.string()),
           updatedAt: v.optional(v.string()),
           mergedAt: v.optional(v.union(v.string(), v.null())),
           closedAt: v.optional(v.union(v.string(), v.null())),
-          isDraft: v.optional(v.boolean()),
+          isDraft: v.optional(v.union(v.boolean(), v.null())),
         })
       )
     ),

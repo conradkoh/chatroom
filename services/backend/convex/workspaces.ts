@@ -19,6 +19,79 @@ import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
+import type { GitPullRequest } from '../src/domain/types/workspace-git';
+
+/** Daemon / gh JSON may use loose nulls or stringly-typed numbers before normalization. */
+type AllPullRequestLoose = Omit<GitPullRequest, 'number' | 'mergedAt' | 'closedAt' | 'author' | 'isDraft' | 'baseRefName'> & {
+  number: number | string;
+  /** Legacy field name from older clients */
+  prNumber?: number | string;
+  baseRefName?: string | null;
+  author?: string | null;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  isDraft?: boolean | null;
+};
+
+/** Coerce PR numbers from gh / legacy documents (number or numeric string). */
+function coercePrNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = parseInt(value, 10);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function normalizeOpenPullRequestForStorage(pr: {
+  number?: number | string;
+  prNumber?: number | string;
+  title: string;
+  url: string;
+  headRefName: string;
+  state: string;
+}): GitPullRequest {
+  const n = pr.number !== undefined ? pr.number : pr.prNumber;
+  return {
+    number: coercePrNumber(n),
+    title: String(pr.title ?? ''),
+    url: String(pr.url ?? ''),
+    headRefName: String(pr.headRefName ?? ''),
+    state: String(pr.state ?? ''),
+  };
+}
+
+function normalizeAllPullRequestForStorage(pr: AllPullRequestLoose): GitPullRequest {
+  const n = pr.number !== undefined ? pr.number : pr.prNumber;
+  const out: GitPullRequest = {
+    number: coercePrNumber(n),
+    title: String(pr.title ?? ''),
+    url: String(pr.url ?? ''),
+    headRefName: String(pr.headRefName ?? ''),
+    state: String(pr.state ?? ''),
+  };
+  if (pr.baseRefName != null && String(pr.baseRefName) !== '') {
+    out.baseRefName = String(pr.baseRefName);
+  }
+  if (pr.author != null && String(pr.author) !== '') {
+    out.author = String(pr.author);
+  }
+  if (pr.createdAt != null && String(pr.createdAt) !== '') {
+    out.createdAt = String(pr.createdAt);
+  }
+  if (pr.updatedAt != null && String(pr.updatedAt) !== '') {
+    out.updatedAt = String(pr.updatedAt);
+  }
+  out.mergedAt = pr.mergedAt == null ? null : String(pr.mergedAt);
+  out.closedAt = pr.closedAt == null ? null : String(pr.closedAt);
+  if (pr.isDraft != null) {
+    out.isDraft = Boolean(pr.isDraft);
+  }
+  return out;
+}
+
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -182,8 +255,19 @@ export const getWorkspaceGitState = query({
         diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
-        openPullRequests: row.openPullRequests ?? [],
-        allPullRequests: row.allPullRequests ?? [],
+        openPullRequests: (row.openPullRequests ?? []).map((pr) =>
+          normalizeOpenPullRequestForStorage({
+            number: (pr as { number?: number | string; prNumber?: number | string }).number,
+            prNumber: (pr as { prNumber?: number | string }).prNumber,
+            title: pr.title,
+            url: pr.url,
+            headRefName: pr.headRefName,
+            state: pr.state,
+          })
+        ),
+        allPullRequests: (row.allPullRequests ?? []).map((pr) =>
+          normalizeAllPullRequestForStorage(pr as AllPullRequestLoose)
+        ),
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         defaultBranch: row.defaultBranch ?? null,
@@ -421,7 +505,7 @@ export const upsertWorkspaceGitState = mutation({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          number: v.union(v.number(), v.string()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -432,18 +516,18 @@ export const upsertWorkspaceGitState = mutation({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          number: v.union(v.number(), v.string()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
-          baseRefName: v.optional(v.string()),
+          baseRefName: v.optional(v.union(v.string(), v.null())),
           state: v.string(),
-          author: v.optional(v.string()),
+          author: v.optional(v.union(v.string(), v.null())),
           createdAt: v.optional(v.string()),
           updatedAt: v.optional(v.string()),
           mergedAt: v.optional(v.union(v.string(), v.null())),
           closedAt: v.optional(v.union(v.string(), v.null())),
-          isDraft: v.optional(v.boolean()),
+          isDraft: v.optional(v.union(v.boolean(), v.null())),
         })
       )
     ),
@@ -498,6 +582,11 @@ export const upsertWorkspaceGitState = mutation({
 
     const now = Date.now();
 
+    const openPullRequests = args.openPullRequests?.map(normalizeOpenPullRequestForStorage);
+    const allPullRequests = args.allPullRequests?.map((pr) =>
+      normalizeAllPullRequestForStorage(pr as AllPullRequestLoose)
+    );
+
     const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
@@ -507,8 +596,8 @@ export const upsertWorkspaceGitState = mutation({
       diffStat: args.diffStat,
       recentCommits: args.recentCommits,
       hasMoreCommits: args.hasMoreCommits,
-      openPullRequests: args.openPullRequests,
-      allPullRequests: args.allPullRequests,
+      openPullRequests,
+      allPullRequests,
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
       defaultBranch: args.defaultBranch,
