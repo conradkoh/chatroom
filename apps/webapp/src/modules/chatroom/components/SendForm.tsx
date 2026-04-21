@@ -5,6 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Code2, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -232,6 +233,7 @@ export const SendForm = memo(function SendForm({
         setTimeout(() => inputRef.current?.focus(), 0);
       } catch (error) {
         console.error('Failed to send message:', error);
+        toast.error('Failed to send message. Please try again.');
       } finally {
         setSending(false);
       }
@@ -447,7 +449,12 @@ export const SendForm = memo(function SendForm({
           <button
             type="submit"
             disabled={!message.trim() || sending}
-            onPointerDown={(e) => {
+            onMouseDown={(e) => {
+              // Prevent focus from leaving the text input on click
+              // (standard focus-theft prevention pattern).
+              // NOTE: must use onMouseDown, NOT onPointerDown — preventDefault on
+              // pointerdown suppresses the click event on touch/mobile browsers,
+              // making the button appear completely unresponsive.
               e.preventDefault();
             }}
             className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"

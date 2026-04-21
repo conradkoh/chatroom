@@ -2,6 +2,7 @@ import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'sonner';
 
 // ── Mocks (must be before imports that use them) ─────────────────────────────
 
@@ -75,6 +76,13 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
+
 // Attachment mock state (mutable so tests can control it)
 const mockAttachments = {
   remove: vi.fn(),
@@ -136,6 +144,7 @@ describe('SendForm', () => {
     mockAttachments.tasks = [];
     mockAttachments.backlogItems = [];
     mockAttachments.messages = [];
+    vi.mocked(toast.error).mockReset();
 
     // Clear localStorage
     localStorage.clear();
@@ -283,6 +292,68 @@ describe('SendForm', () => {
       await waitFor(() => {
         expect(mockSendMessage).toHaveBeenCalledTimes(1);
         expect(mockAttachments.clearAll).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  // ── Send Failure Resilience ────────────────────────────────────────────────────
+
+  describe('Send Failure Resilience', () => {
+    it('Send button is re-enabled after a failed send', async () => {
+      // Simulate a network/server error during send
+      mockSendMessage.mockRejectedValueOnce(new Error('Network error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+
+      const sendButton = screen.getByRole('button', { name: /send/i });
+
+      // Button should be enabled before send
+      expect(sendButton).not.toBeDisabled();
+
+      await user.click(sendButton);
+
+      // After the failed send resolves, the button must be clickable again
+      await waitFor(() => {
+        expect(sendButton).not.toBeDisabled();
+      });
+    });
+
+    it('shows an error toast after a failed send', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Server error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await waitFor(() => {
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+          expect.stringContaining('Failed to send')
+        );
+      });
+    });
+
+    it('preserves the message text after a failed send (allows retry)', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Timeout'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Retry this message');
+
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      // Message text should still be in the input (not cleared on failure)
+      await waitFor(() => {
+        expect(textarea).toHaveValue('Retry this message');
       });
     });
   });
