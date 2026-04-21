@@ -2,7 +2,6 @@ import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { toast } from 'sonner';
 
 // ── Mocks (must be before imports that use them) ─────────────────────────────
 
@@ -76,12 +75,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-// Mock sonner toast
-vi.mock('sonner', () => ({
-  toast: {
-    error: vi.fn(),
-  },
-}));
+// (no toast mock — SendForm uses an inline error banner instead of toasts)
 
 // Attachment mock state (mutable so tests can control it)
 const mockAttachments = {
@@ -144,7 +138,6 @@ describe('SendForm', () => {
     mockAttachments.tasks = [];
     mockAttachments.backlogItems = [];
     mockAttachments.messages = [];
-    vi.mocked(toast.error).mockReset();
 
     // Clear localStorage
     localStorage.clear();
@@ -322,7 +315,7 @@ describe('SendForm', () => {
       });
     });
 
-    it('shows an error toast after a failed send', async () => {
+    it('shows an inline error banner after a failed send', async () => {
       mockSendMessage.mockRejectedValueOnce(new Error('Server error'));
 
       const user = userEvent.setup();
@@ -333,10 +326,33 @@ describe('SendForm', () => {
 
       await user.click(screen.getByRole('button', { name: /send/i }));
 
+      // Inline error banner appears (role="alert") with the failure message,
+      // and is dismissible via the close button — no toast is shown.
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/Failed to send/i);
+      expect(alert).toHaveTextContent(/Server error/i);
+      expect(
+        screen.getByRole('button', { name: /Dismiss send error/i })
+      ).toBeInTheDocument();
+    });
+
+    it('clears the inline error when the user starts typing again', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Server error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await screen.findByRole('alert');
+
+      // Typing one more character should clear the banner.
+      await user.type(textarea, '!');
+
       await waitFor(() => {
-        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to send')
-        );
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       });
     });
 
