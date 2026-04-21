@@ -27,7 +27,6 @@ import type * as commands from "../commands.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
-import type * as devWorkspaceGitCleanup from "../devWorkspaceGitCleanup.js";
 import type * as discussions from "../discussions.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
@@ -94,7 +93,6 @@ declare const fullApi: ApiFromModules<{
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;
-  devWorkspaceGitCleanup: typeof devWorkspaceGitCleanup;
   discussions: typeof discussions;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
