@@ -811,22 +811,18 @@ export const requestPRDiff = mutation({
     }
     await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
 
-    // Idempotency: check for existing pending request
+    // Idempotency: single index point-lookup for a pending request keyed by
+    // (machineId, workingDir, requestType='pr_diff', prNumber, status='pending').
+    // No filter scan — the index covers every equality.
     const existing = await ctx.db
       .query('chatroom_workspaceDiffRequests')
-      .withIndex('by_machine_workingDir_type', (q) =>
+      .withIndex('by_machine_workingDir_type_pr_status', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
           .eq('requestType', 'pr_diff')
-      )
-      .filter((q) =>
-        q.and(
-          q.eq(q.field('status'), 'pending'),
-          // Key idempotency by prNumber: a pending request for PR #1 must NOT
-          // suppress a new request for PR #2 on the same workspace.
-          q.eq(q.field('prNumber'), args.prNumber)
-        )
+          .eq('prNumber', args.prNumber)
+          .eq('status', 'pending')
       )
       .first();
 

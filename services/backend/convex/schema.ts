@@ -1497,7 +1497,17 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_machine_status', ['machineId', 'status'])
-    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']),
+    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
+    // Lookup pending pr_diff requests by exact (machineId, workingDir, prNumber, status) tuple
+    // so the requestPRDiff idempotency check can be a single index point-lookup
+    // instead of a filter scan over all pr_diff requests for the workspace.
+    .index('by_machine_workingDir_type_pr_status', [
+      'machineId',
+      'workingDir',
+      'requestType',
+      'prNumber',
+      'status',
+    ]),
 
   /**
    * Stored PR diff content (diff between base branch and HEAD).
