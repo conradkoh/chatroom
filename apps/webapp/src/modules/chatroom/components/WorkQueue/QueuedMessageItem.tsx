@@ -204,16 +204,16 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
             openModal();
           }
         }}
-        className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group cursor-pointer text-left w-full"
+        className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
       >
         <div className="flex-1 min-w-0">
           <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
         </div>
 
-        {/* Inline quick actions — duplicated in the modal footer for consistency. */}
+        {/* Inline quick actions — always visible (mirrors the modal footer). */}
         <div
-          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="flex items-center gap-1"
           onClick={stopRowClick}
         >
           <button
