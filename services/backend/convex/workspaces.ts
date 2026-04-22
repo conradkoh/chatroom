@@ -109,7 +109,11 @@ export const listWorkspacesForMachine = query({
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return [];
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     return listWorkspacesForMachineUseCase(ctx, { machineId: args.machineId });
   },
 });
@@ -158,7 +162,11 @@ export const getWorkspaceGitState = query({
     if (!session.ok) {
       return { status: 'loading' };
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) {
       return { status: 'loading' };
     }
@@ -182,8 +190,13 @@ export const getWorkspaceGitState = query({
         diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
-        openPullRequests: row.openPullRequests ?? [],
-        allPullRequests: row.allPullRequests ?? [],
+        openPullRequests: (row.openPullRequests ?? []).map((pr) => ({
+          ...pr,
+          prNumber: pr.prNumber ?? pr.number ?? 0,
+        })),
+        allPullRequests: (row.allPullRequests ?? []).filter(
+          (pr): pr is typeof pr & { prNumber: number } => pr.prNumber !== undefined
+        ),
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         defaultBranch: row.defaultBranch ?? null,
@@ -222,7 +235,11 @@ export const getFullDiff = query({
     if (!session.ok) {
       return null;
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return null;
 
     const row = await ctx.db
@@ -264,15 +281,23 @@ export const getPRDiff = query({
     if (!session.ok) {
       return null;
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return null;
 
     const row = await ctx.db
       .query('chatroom_workspacePRDiffs')
       .withIndex('by_machine_workingDir_prNumber', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
+
     return row ?? null;
   },
 });
@@ -294,7 +319,11 @@ export const getCommitDetail = query({
     if (!session.ok) {
       return null;
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return null;
 
     const row = await ctx.db
@@ -325,7 +354,11 @@ export const getMissingCommitShas = query({
   handler: async (ctx, args): Promise<string[]> => {
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return [];
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return [];
 
     if (args.shas.length === 0) return [];
@@ -366,7 +399,11 @@ export const getPendingRequests = query({
     if (!session.ok) {
       return [];
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return [];
 
     const rows = await ctx.db
@@ -421,7 +458,7 @@ export const upsertWorkspaceGitState = mutation({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          prNumber: v.number(),
+          number: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -432,7 +469,7 @@ export const upsertWorkspaceGitState = mutation({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          prNumber: v.number(),
+          number: v.number(),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -461,31 +498,39 @@ export const upsertWorkspaceGitState = mutation({
     // Default branch name
     defaultBranch: v.optional(v.union(v.string(), v.null())),
     // CI/CD status checks for current branch head
-    headCommitStatus: v.optional(v.union(
-      v.object({
-        state: v.string(),
-        checkRuns: v.array(v.object({
-          name: v.string(),
-          status: v.string(),
-          conclusion: v.union(v.string(), v.null()),
-        })),
-        totalCount: v.number(),
-      }),
-      v.null()
-    )),
+    headCommitStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
     // CI/CD status checks for default branch
-    defaultBranchStatus: v.optional(v.union(
-      v.object({
-        state: v.string(),
-        checkRuns: v.array(v.object({
-          name: v.string(),
-          status: v.string(),
-          conclusion: v.union(v.string(), v.null()),
-        })),
-        totalCount: v.number(),
-      }),
-      v.null()
-    )),
+    defaultBranchStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
   },
@@ -494,7 +539,11 @@ export const upsertWorkspaceGitState = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const now = Date.now();
 
@@ -554,7 +603,7 @@ export const upsertFullDiff = mutation({
   handler: async (): Promise<void> => {
     throw new Error(
       '[DEPRECATED] upsertFullDiff is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-      'Run: npm install -g chatroom-cli@latest'
+        'Run: npm install -g chatroom-cli@latest'
     );
   },
 });
@@ -584,7 +633,11 @@ export const upsertPRDiff = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const now = Date.now();
 
@@ -602,7 +655,10 @@ export const upsertPRDiff = mutation({
     const existing = await ctx.db
       .query('chatroom_workspacePRDiffs')
       .withIndex('by_machine_workingDir_prNumber', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -651,7 +707,7 @@ export const upsertCommitDetail = mutation({
   handler: async (): Promise<void> => {
     throw new Error(
       '[DEPRECATED] upsertCommitDetail is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-      'Run: npm install -g chatroom-cli@latest'
+        'Run: npm install -g chatroom-cli@latest'
     );
   },
 });
@@ -683,7 +739,11 @@ export const appendMoreCommits = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const existing = await ctx.db
       .query('chatroom_workspaceGitState')
@@ -758,7 +818,11 @@ export const requestFullDiff = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Idempotency: check for existing pending request
     const existing = await ctx.db
@@ -794,7 +858,6 @@ export const requestFullDiff = mutation({
  *
  * Idempotent: if a pending request already exists, it is not duplicated.
  * The frontend subscribes to `getPRDiff` to receive the result.
- * prNumber is REQUIRED.
  */
 export const requestPRDiff = mutation({
   args: {
@@ -809,7 +872,11 @@ export const requestPRDiff = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Idempotency: single index point-lookup for a pending request keyed by
     // (machineId, workingDir, requestType='pr_diff', prNumber, status='pending').
@@ -863,7 +930,11 @@ export const requestPRAction = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const now = Date.now();
     await ctx.db.insert('chatroom_workspaceDiffRequests', {
@@ -897,7 +968,11 @@ export const requestCommitDetail = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Idempotency: check for existing pending request for this sha
     const existing = await ctx.db
@@ -947,7 +1022,11 @@ export const requestMoreCommits = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Idempotency: check for existing pending request for this offset
     const existing = await ctx.db
@@ -1000,13 +1079,20 @@ export const getPRCommits = query({
     if (!session.ok) {
       return null;
     }
-    const accessResult = await checkAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
     if (!accessResult.ok) return null;
 
     const row = await ctx.db
       .query('chatroom_workspacePRCommits')
       .withIndex('by_machine_workingDir_prNumber', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -1032,7 +1118,11 @@ export const requestPRCommits = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Idempotency: check for existing pending request
     const existing = await ctx.db
@@ -1088,12 +1178,19 @@ export const upsertPRCommits = mutation({
     if (!session.ok) {
       throw new Error('Authentication required');
     }
-    await requireAccess(ctx, { accessor: { type: 'user', id: session.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const existing = await ctx.db
       .query('chatroom_workspacePRCommits')
       .withIndex('by_machine_workingDir_prNumber', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('prNumber', args.prNumber)
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -1244,10 +1341,12 @@ export const upsertCommitDetailV2 = mutation({
       v.literal('not_found')
     ),
     /** Compressed data object. Present only when status === 'available'. */
-    data: v.optional(v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),
-    })),
+    data: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
     truncated: v.optional(v.boolean()),
     diffStat: v.optional(
       v.object({
@@ -1449,20 +1548,24 @@ export const purgeCommitDetailV2 = mutation({
     // Delete v2 commit details
     const detailsV2 = await ctx.db
       .query('chatroom_workspaceCommitDetailV2')
-      .filter((q) => q.and(
-        q.eq(q.field('machineId'), args.machineId),
-        q.eq(q.field('workingDir'), args.workingDir)
-      ))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('machineId'), args.machineId),
+          q.eq(q.field('workingDir'), args.workingDir)
+        )
+      )
       .collect();
     for (const d of detailsV2) await ctx.db.delete(d._id);
 
     // Delete v1 commit details
     const detailsV1 = await ctx.db
       .query('chatroom_workspaceCommitDetail')
-      .filter((q) => q.and(
-        q.eq(q.field('machineId'), args.machineId),
-        q.eq(q.field('workingDir'), args.workingDir)
-      ))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('machineId'), args.machineId),
+          q.eq(q.field('workingDir'), args.workingDir)
+        )
+      )
       .collect();
     for (const d of detailsV1) await ctx.db.delete(d._id);
   },

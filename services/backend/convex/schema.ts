@@ -1348,7 +1348,8 @@ export default defineSchema({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          prNumber: v.number(),
+          prNumber: v.optional(v.number()), // may be missing in old documents; use number field instead
+          number: v.optional(v.number()), // GitHub API field name (aliased to prNumber)
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1361,7 +1362,8 @@ export default defineSchema({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          prNumber: v.number(),
+          prNumber: v.optional(v.number()),
+          number: v.optional(v.number()), // GitHub API field name (aliased to prNumber)
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -1498,9 +1500,9 @@ export default defineSchema({
   })
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
-    // Lookup pending pr_diff requests by exact (machineId, workingDir, prNumber, status) tuple
-    // so the requestPRDiff idempotency check can be a single index point-lookup
-    // instead of a filter scan over all pr_diff requests for the workspace.
+    // Tight index for the requestPRDiff idempotency check: a single point-lookup
+    // for `(machineId, workingDir, requestType='pr_diff', prNumber, status='pending')`
+    // — every equality is index-covered, no scan.
     .index('by_machine_workingDir_type_pr_status', [
       'machineId',
       'workingDir',
@@ -1512,14 +1514,18 @@ export default defineSchema({
   /**
    * Stored PR diff content (diff between base branch and HEAD).
    * Populated by the daemon after a `pr_diff` request is fulfilled.
-   * Keyed by machineId + workingDir + prNumber.
-   * prNumber is REQUIRED — all queries must specify which PR.
+   * Keyed by machineId + workingDir + prNumber so each PR has its own cache row.
+   *
+   * `prNumber` is `v.optional` for backward compatibility with documents written
+   * before the per-PR cache (PR #427) shipped — such rows are effectively orphaned
+   * (they won't match any indexed lookup) and the daemon repopulates with prNumber
+   * on the next request.
    */
   chatroom_workspacePRDiffs: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
-    prNumber: v.number(),
+    prNumber: v.optional(v.number()),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -1529,6 +1535,7 @@ export default defineSchema({
     }),
     updatedAt: v.number(),
   })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
 
   /**
