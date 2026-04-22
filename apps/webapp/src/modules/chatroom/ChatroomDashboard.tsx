@@ -31,7 +31,6 @@ import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { SendForm } from './components/SendForm';
-import { QueuedMessagesIndicator } from './components/QueuedMessagesIndicator';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
@@ -1458,7 +1457,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                         onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       />
                       <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                        <QueuedMessagesIndicator chatroomId={chatroomId} />
                         <SendForm
                           chatroomId={chatroomId}
                           onBeforeResize={beginResize}
@@ -1482,7 +1480,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                     />
                     <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                      <QueuedMessagesIndicator chatroomId={chatroomId} />
                       <SendForm
                         chatroomId={chatroomId}
                         onBeforeResize={beginResize}
