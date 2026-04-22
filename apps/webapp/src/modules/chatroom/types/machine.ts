@@ -16,9 +16,17 @@ import type {
   AgentHarness,
   AgentStopReason,
   HarnessVersionInfo,
+  HarnessCapabilities,
+  HarnessCapabilitiesByHarness,
 } from '@workspace/backend/src/domain/entities/agent';
 
-export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
+export type {
+  AgentHarness,
+  AgentStopReason,
+  HarnessVersionInfo,
+  HarnessCapabilities,
+  HarnessCapabilitiesByHarness,
+};
 
 export interface MachineInfo {
   machineId: string;
@@ -29,6 +37,8 @@ export interface MachineInfo {
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
   /** Available AI models discovered dynamically, keyed by harness name */
   availableModels: Record<string, string[]>;
+  /** Per-harness driver capabilities (what features each harness supports) */
+  harnessCapabilities?: HarnessCapabilitiesByHarness;
   daemonConnected: boolean;
   lastSeenAt: number;
 }
@@ -149,4 +159,17 @@ export function getModelDisplayLabel(modelId: string): string {
   const { provider, model } = parseModelId(modelId);
   if (!provider) return model;
   return `${provider} / ${model}`;
+}
+
+/**
+ * Get the capabilities for a specific harness, or undefined if not available.
+ *
+ * Returns the full HarnessCapabilities object if the harness has registered capabilities,
+ * or undefined if the harness is unknown or has no capabilities data.
+ */
+export function getHarnessCapabilities(
+  machine: { harnessCapabilities?: HarnessCapabilitiesByHarness },
+  harness: AgentHarness
+): HarnessCapabilities | undefined {
+  return machine.harnessCapabilities?.[harness];
 }

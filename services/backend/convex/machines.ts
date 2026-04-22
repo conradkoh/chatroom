@@ -6,20 +6,20 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { checkAccess, requireAccess } from './auth/accessCheck';
+import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { agentHarnessValidator } from './schema';
-import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
-import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { agentStopReasonValidator } from '../src/domain/entities/agent';
+import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
-import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -112,6 +112,20 @@ export const register = mutation({
     availableHarnesses: v.array(agentHarnessValidator),
     harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    harnessCapabilities: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          sessionPersistence: v.boolean(),
+          abort: v.boolean(),
+          modelSelection: v.boolean(),
+          compaction: v.boolean(),
+          eventStreaming: v.boolean(),
+          messageInjection: v.boolean(),
+          dynamicModelDiscovery: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -140,6 +154,7 @@ export const register = mutation({
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
         availableModels: args.availableModels,
+        harnessCapabilities: args.harnessCapabilities,
         lastSeenAt: now,
       });
 
@@ -155,6 +170,7 @@ export const register = mutation({
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
+      harnessCapabilities: args.harnessCapabilities,
       registeredAt: now,
       lastSeenAt: now,
       daemonConnected: false,
@@ -197,7 +213,7 @@ export const setMachineAlias = mutation({
 /**
  * Patch mutable capabilities on an already-registered machine.
  * Used by the daemon's periodic refresh loop — only updates fields that
- * can change at runtime (harnesses, models). Fails if the machine has
+ * can change at runtime (harnesses, models, capabilities). Fails if the machine has
  * not been registered via `register` first.
  */
 export const refreshCapabilities = mutation({
@@ -207,6 +223,20 @@ export const refreshCapabilities = mutation({
     availableHarnesses: v.array(agentHarnessValidator),
     harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    harnessCapabilities: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          sessionPersistence: v.boolean(),
+          abort: v.boolean(),
+          modelSelection: v.boolean(),
+          compaction: v.boolean(),
+          eventStreaming: v.boolean(),
+          messageInjection: v.boolean(),
+          dynamicModelDiscovery: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -231,6 +261,7 @@ export const refreshCapabilities = mutation({
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
+      harnessCapabilities: args.harnessCapabilities,
       lastSeenAt: Date.now(),
     });
   },
@@ -690,7 +721,7 @@ export const updateDaemonStatus = mutation({
 
     // TODO: Remove once chatroom_machineStatus is the sole source of truth.
     // Kept for backward compatibility during migration.
-    await ctx.db.patch(machine._id, {
+    await ctx.db.patch("chatroom_machines", machine._id, {
       daemonConnected: args.connected,
       lastSeenAt: now,
     });
@@ -702,7 +733,7 @@ export const updateDaemonStatus = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch(existingLiveness._id, {
+      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: args.connected,
       });
@@ -730,7 +761,7 @@ export const updateDaemonStatus = mutation({
       });
     } else if (machineStatus.status !== desiredStatus) {
       // Actual state transition — write
-      await ctx.db.patch(machineStatus._id, {
+      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
         status: desiredStatus,
         lastTransitionAt: now,
       });
@@ -764,7 +795,7 @@ export const daemonHeartbeat = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch(existingLiveness._id, {
+      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: true,
       });
@@ -791,7 +822,7 @@ export const daemonHeartbeat = mutation({
       });
     } else if (machineStatus.status === 'offline') {
       // Transition offline → online
-      await ctx.db.patch(machineStatus._id, {
+      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
         status: 'online',
         lastTransitionAt: now,
       });
@@ -1787,7 +1818,7 @@ export const getAgentOverviewForChatroom = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return null;
 
-    const chatroom = await ctx.db.get(args.chatroomId);
+    const chatroom = await ctx.db.get("chatroom_rooms", args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
 
     const userMachines = await ctx.db

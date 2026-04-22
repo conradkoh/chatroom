@@ -4,6 +4,7 @@
 
 import { stat } from 'node:fs/promises';
 
+import type { HarnessCapabilitiesByHarness } from '@workspace/backend/src/domain/entities/agent';
 import type { ConvexHttpClient } from 'convex/browser';
 
 import type { DaemonDeps } from './deps.js';
@@ -11,11 +12,13 @@ import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
+import { createDefaultDriverRegistry } from '../../../infrastructure/agent-drivers/registry.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import { startLocalApi } from '../../../infrastructure/local-api/index.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -26,19 +29,18 @@ import {
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
-import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
-import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 
@@ -223,7 +225,15 @@ async function registerCapabilities(
   // Discover available models from all installed harnesses (dynamic)
   const availableModels = await discoverModels(agentServices);
 
-  // Register/update machine info in backend (includes harnesses and models)
+  // Build per-harness capabilities from the driver registry
+  const registry = createDefaultDriverRegistry();
+  const harnessCapabilities: HarnessCapabilitiesByHarness = {};
+
+  for (const driver of registry.all()) {
+    harnessCapabilities[driver.harness] = driver.capabilities;
+  }
+
+  // Register/update machine info in backend (includes harnesses, models, and capabilities)
   // This ensures the web UI has current machine capabilities
   try {
     await client.mutation(api.machines.register, {
@@ -234,6 +244,7 @@ async function registerCapabilities(
       availableHarnesses: config.availableHarnesses,
       harnessVersions: config.harnessVersions,
       availableModels,
+      harnessCapabilities,
     });
   } catch (error) {
     // Registration failure is non-critical — daemon can still work
@@ -371,9 +382,7 @@ export async function initDaemon(): Promise<DaemonContext> {
 
       // Log recovery if the backend was previously unreachable.
       if (consecutiveFailures > 0) {
-        console.log(
-          `[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`
-        );
+        console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
         consecutiveFailures = 0;
       }
 

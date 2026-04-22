@@ -22,6 +22,37 @@ import { v } from 'convex/values';
 
 export type AgentHarness = 'opencode' | 'opencode-sdk' | 'pi' | 'cursor' | 'claude' | 'copilot';
 
+// ─── Harness Capabilities ────────────────────────────────────────────────────
+
+/**
+ * Declares what features a given agent harness supports.
+ *
+ * Mirrors the AgentCapabilities interface from the CLI driver layer.
+ * This is the backend domain representation — the UI layer mirrors it again.
+ */
+export interface HarnessCapabilities {
+  /** Can persist and resume sessions across restarts */
+  sessionPersistence: boolean;
+  /** Can abort a running agent without killing the process */
+  abort: boolean;
+  /** Supports selecting a specific AI model */
+  modelSelection: boolean;
+  /** Can compact/summarize conversation context */
+  compaction: boolean;
+  /** Can stream real-time events (tool calls, messages) */
+  eventStreaming: boolean;
+  /** Can inject messages into an existing session */
+  messageInjection: boolean;
+  /** Can list available models dynamically */
+  dynamicModelDiscovery: boolean;
+}
+
+/**
+ * Per-harness capabilities indexed by AgentHarness.
+ * Partial because not every harness may have a driver yet.
+ */
+export type HarnessCapabilitiesByHarness = Partial<Record<AgentHarness, HarnessCapabilities>>;
+
 /**
  * Detected harness version info from a machine's installed toolchain.
  */

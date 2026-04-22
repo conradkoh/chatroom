@@ -832,6 +832,23 @@ export default defineSchema({
         })
       )
     ),
+    // Per-harness driver capabilities (what features each harness supports)
+    // Shape: { opencode: { sessionPersistence: true, abort: true, ... }, opencode-sdk: { ... } }
+    // Optional because not every harness has a driver yet
+    harnessCapabilities: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          sessionPersistence: v.boolean(),
+          abort: v.boolean(),
+          modelSelection: v.boolean(),
+          compaction: v.boolean(),
+          eventStreaming: v.boolean(),
+          messageInjection: v.boolean(),
+          dynamicModelDiscovery: v.boolean(),
+        })
+      )
+    ),
     // Available AI models discovered per harness (dynamic, per-machine)
     // Shape: { opencode: [...], pi: [...] }
     // DEPRECATED SHAPE: v.array(v.string()) — kept to pass validation until

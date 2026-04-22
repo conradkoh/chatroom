@@ -53,5 +53,33 @@ describe('AgentDriverRegistry', () => {
       const caps2 = registry.capabilities('opencode');
       expect(caps1).toEqual(caps2);
     });
+
+    it('all registered harnesses expose capabilities', () => {
+      const registry = createDefaultDriverRegistry();
+      const drivers = registry.all();
+      expect(drivers.length).toBeGreaterThan(0);
+
+      for (const driver of drivers) {
+        const capabilities = registry.capabilities(driver.harness);
+
+        // Verify the capabilities object has all required boolean fields
+        expect(capabilities).toHaveProperty('sessionPersistence');
+        expect(capabilities).toHaveProperty('abort');
+        expect(capabilities).toHaveProperty('modelSelection');
+        expect(capabilities).toHaveProperty('compaction');
+        expect(capabilities).toHaveProperty('eventStreaming');
+        expect(capabilities).toHaveProperty('messageInjection');
+        expect(capabilities).toHaveProperty('dynamicModelDiscovery');
+
+        // Verify all values are booleans
+        expect(typeof capabilities.sessionPersistence).toBe('boolean');
+        expect(typeof capabilities.abort).toBe('boolean');
+        expect(typeof capabilities.modelSelection).toBe('boolean');
+        expect(typeof capabilities.compaction).toBe('boolean');
+        expect(typeof capabilities.eventStreaming).toBe('boolean');
+        expect(typeof capabilities.messageInjection).toBe('boolean');
+        expect(typeof capabilities.dynamicModelDiscovery).toBe('boolean');
+      }
+    });
   });
 });
