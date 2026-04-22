@@ -20,7 +20,7 @@ import { createMockDaemonDeps } from '../testing/index.js';
 
 function createMockContext(overrides?: {
   activeSlots?: Array<{ chatroomId: string; role: string; slot: any }>;
-  configs?: Array<{ machineId: string; workingDir?: string; role?: string }>;
+  configs?: Array<any>;
 }): DaemonContext {
   const deps: DaemonDeps = createMockDaemonDeps();
 
@@ -124,5 +124,94 @@ describe('recoverAgentState', () => {
     expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
     // No mutations should be called when there are no active agents
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it('reconciles recovered SDK handles with matching Convex config', async () => {
+    const agentHandle = { sessionId: 'sdk-session-123', serverUrl: 'http://localhost:5000' };
+    const ctx = createMockContext({
+      activeSlots: [
+        {
+          chatroomId: 'room-1',
+          role: 'builder',
+          slot: {
+            state: 'running',
+            harness: 'opencode-sdk',
+            workingDir: '/workspace',
+            agentHandle,
+          },
+        },
+      ],
+      configs: [
+        {
+          machineId: 'test-machine-id',
+          workingDir: '/workspace',
+          role: 'builder',
+          agentType: 'opencode-sdk',
+        },
+      ],
+    });
+
+    await recoverAgentState(ctx);
+
+    // Should call updateSdkSessionState mutation with recovered session data
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(), // api.machines.updateSdkSessionState
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        machineId: 'test-machine-id',
+        role: 'builder',
+        recoveredSessionId: 'sdk-session-123',
+        recoveredServerUrl: 'http://localhost:5000',
+      })
+    );
+  });
+
+  it('logs warning for orphan SDK sessions (no matching Convex config)', async () => {
+    const agentHandle = { sessionId: 'orphan-session', serverUrl: 'http://localhost:5000' };
+    const warnSpy = vi.spyOn(console, 'warn');
+    const ctx = createMockContext({
+      activeSlots: [
+        {
+          chatroomId: 'room-1',
+          role: 'builder',
+          slot: {
+            state: 'running',
+            harness: 'opencode-sdk',
+            workingDir: '/unknown-workspace',
+            agentHandle,
+          },
+        },
+      ],
+      configs: [
+        {
+          machineId: 'test-machine-id',
+          workingDir: '/other-workspace',
+          role: 'builder',
+          agentType: 'opencode-sdk',
+        },
+      ],
+    });
+
+    await recoverAgentState(ctx);
+
+    // Should log warning about orphan session
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Recovered SDK session'));
+  });
+
+  it('handles no recovered SDK sessions', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/workspace', role: 'builder' }],
+    });
+
+    await recoverAgentState(ctx);
+
+    // Should still register workspaces but not call updateSdkSessionState
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(), // api.workspaces.registerWorkspace
+      expect.any(Object)
+    );
   });
 });

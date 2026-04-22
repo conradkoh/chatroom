@@ -446,6 +446,8 @@ export const getMachineAgentConfigs = query({
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
         spawnedAt: config.spawnedAt,
+        sessionId: config.sessionId,
+        serverUrl: config.serverUrl,
       };
     });
 
@@ -721,7 +723,7 @@ export const updateDaemonStatus = mutation({
 
     // TODO: Remove once chatroom_machineStatus is the sole source of truth.
     // Kept for backward compatibility during migration.
-    await ctx.db.patch("chatroom_machines", machine._id, {
+    await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
       lastSeenAt: now,
     });
@@ -733,7 +735,7 @@ export const updateDaemonStatus = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
+      await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: args.connected,
       });
@@ -761,7 +763,7 @@ export const updateDaemonStatus = mutation({
       });
     } else if (machineStatus.status !== desiredStatus) {
       // Actual state transition — write
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: desiredStatus,
         lastTransitionAt: now,
       });
@@ -795,7 +797,7 @@ export const daemonHeartbeat = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
+      await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: true,
       });
@@ -822,7 +824,7 @@ export const daemonHeartbeat = mutation({
       });
     } else if (machineStatus.status === 'offline') {
       // Transition offline → online
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: 'online',
         lastTransitionAt: now,
       });
@@ -1086,6 +1088,51 @@ export const updateSpawnedAgent = mutation({
         });
       }
     }
+
+    return { success: true };
+  },
+});
+
+/** Updates SDK session state (sessionId, serverUrl) after driver.recover(). Used during daemon recovery for opencode-sdk. */
+export const updateSdkSessionState = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    recoveredSessionId: v.string(),
+    recoveredServerUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    // Find the agent config
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom?.teamId) {
+      throw new Error('Chatroom has no teamId');
+    }
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+
+    if (!config || config.machineId !== args.machineId) {
+      throw new Error('Agent config not found');
+    }
+
+    const now = Date.now();
+
+    // Update session fields (idempotent)
+    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+      sessionId: args.recoveredSessionId,
+      serverUrl: args.recoveredServerUrl,
+      updatedAt: now,
+    });
 
     return { success: true };
   },
@@ -1818,7 +1865,7 @@ export const getAgentOverviewForChatroom = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return null;
 
-    const chatroom = await ctx.db.get("chatroom_rooms", args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
 
     const userMachines = await ctx.db
