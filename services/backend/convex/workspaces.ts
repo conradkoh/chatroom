@@ -274,6 +274,7 @@ export const getPRDiff = query({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
+    prNumber: v.number(),
   },
   handler: async (ctx, args) => {
     const session = await validateSession(ctx, args.sessionId);
@@ -289,8 +290,11 @@ export const getPRDiff = query({
 
     const row = await ctx.db
       .query('chatroom_workspacePRDiffs')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -615,6 +619,7 @@ export const upsertPRDiff = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
+    prNumber: v.number(),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -640,6 +645,7 @@ export const upsertPRDiff = mutation({
       machineId: args.machineId,
       workingDir: args.workingDir,
       baseBranch: args.baseBranch,
+      prNumber: args.prNumber,
       diffContent: args.diffContent,
       truncated: args.truncated,
       diffStat: args.diffStat,
@@ -648,8 +654,11 @@ export const upsertPRDiff = mutation({
 
     const existing = await ctx.db
       .query('chatroom_workspacePRDiffs')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      .withIndex('by_machine_workingDir_prNumber', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('prNumber', args.prNumber)
       )
       .first();
 
@@ -856,7 +865,7 @@ export const requestPRDiff = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
-    prNumber: v.optional(v.number()),
+    prNumber: v.number(),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -869,16 +878,19 @@ export const requestPRDiff = mutation({
       permission: 'write-access',
     });
 
-    // Idempotency: check for existing pending request
+    // Idempotency: single index point-lookup for a pending request keyed by
+    // (machineId, workingDir, requestType='pr_diff', prNumber, status='pending').
+    // No filter scan — the index covers every equality.
     const existing = await ctx.db
       .query('chatroom_workspaceDiffRequests')
-      .withIndex('by_machine_workingDir_type', (q) =>
+      .withIndex('by_machine_workingDir_type_pr_status', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
           .eq('requestType', 'pr_diff')
+          .eq('prNumber', args.prNumber)
+          .eq('status', 'pending')
       )
-      .filter((q) => q.eq(q.field('status'), 'pending'))
       .first();
 
     if (existing) {

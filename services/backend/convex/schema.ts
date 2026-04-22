@@ -1499,18 +1499,33 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_machine_status', ['machineId', 'status'])
-    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']),
+    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
+    // Tight index for the requestPRDiff idempotency check: a single point-lookup
+    // for `(machineId, workingDir, requestType='pr_diff', prNumber, status='pending')`
+    // — every equality is index-covered, no scan.
+    .index('by_machine_workingDir_type_pr_status', [
+      'machineId',
+      'workingDir',
+      'requestType',
+      'prNumber',
+      'status',
+    ]),
 
   /**
    * Stored PR diff content (diff between base branch and HEAD).
    * Populated by the daemon after a `pr_diff` request is fulfilled.
-   * Keyed by machineId + workingDir.
+   * Keyed by machineId + workingDir + prNumber so each PR has its own cache row.
+   *
+   * `prNumber` is `v.optional` for backward compatibility with documents written
+   * before the per-PR cache (PR #427) shipped — such rows are effectively orphaned
+   * (they won't match any indexed lookup) and the daemon repopulates with prNumber
+   * on the next request.
    */
   chatroom_workspacePRDiffs: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     baseBranch: v.string(),
-    prNumber: v.optional(v.number()), // optional — old documents may not have this field
+    prNumber: v.optional(v.number()),
     diffContent: v.string(),
     truncated: v.boolean(),
     diffStat: v.object({
@@ -1519,7 +1534,9 @@ export default defineSchema({
       deletions: v.number(),
     }),
     updatedAt: v.number(),
-  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
 
   /**
    * Cached list of commits for a specific PR.
