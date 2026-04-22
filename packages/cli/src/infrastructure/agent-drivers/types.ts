@@ -102,6 +102,13 @@ export interface AgentToolDriver {
    * Returns empty array if not supported.
    */
   listModels(): Promise<string[]>;
+
+  /**
+   * Recover running agent sessions after a daemon restart (optional).
+   * Only supported when sessionPersistence capability is true.
+   * Returns handles for any sessions that are still alive.
+   */
+  recover?(workingDir: string): Promise<AgentHandle[]>;
 }
 
 // ─── Driver Registry Interface ────────────────────────────────────────────────

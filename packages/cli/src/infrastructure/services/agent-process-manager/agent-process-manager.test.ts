@@ -5,10 +5,8 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
-import {
-  CRASH_LOOP_MAX_RESTARTS,
-  CrashLoopTracker,
-} from '../../machine/crash-loop-tracker.js';
+import type { AgentHandle, AgentToolDriver, DriverRegistry } from '../../agent-drivers/types.js';
+import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -201,9 +199,7 @@ describe('AgentProcessManager', () => {
       }
       now.mockReturnValue(t);
 
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.crash_recovery' })
-      );
+      const result = await manager.ensureRunning(createOpts({ reason: 'platform.crash_recovery' }));
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('crash_loop');
@@ -414,7 +410,8 @@ describe('AgentProcessManager', () => {
       const service = deps.agentServices.get('opencode')!;
       const spawnMockResult = (service.spawn as ReturnType<typeof vi.fn>).mock.results[0].value;
       const resolvedSpawn = await spawnMockResult;
-      const registeredOnExit = (resolvedSpawn.onExit as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+      const registeredOnExit = (resolvedSpawn.onExit as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
 
       // Reset the backend mutation mock to track calls from here
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
@@ -592,9 +589,7 @@ describe('AgentProcessManager', () => {
             (c[1] as Record<string, unknown>).stopReason !== undefined
         );
         expect(exitCall).toBeDefined();
-        expect((exitCall![1] as Record<string, unknown>).stopReason).toBe(
-          'agent_process.crashed'
-        );
+        expect((exitCall![1] as Record<string, unknown>).stopReason).toBe('agent_process.crashed');
       });
     });
 
@@ -714,8 +709,9 @@ describe('AgentProcessManager', () => {
       // Arrange: mutation mock — all calls succeed by default, except for recordAgentExited on first try
       const mutation = vi.fn().mockResolvedValue(undefined);
       // Allow first spawn, then block restarts
-      const shouldAllowSpawn = vi.fn()
-        .mockReturnValueOnce({ allowed: true })      // first spawn succeeds
+      const shouldAllowSpawn = vi
+        .fn()
+        .mockReturnValueOnce({ allowed: true }) // first spawn succeeds
         .mockReturnValue({ allowed: false, retryAfterMs: 60_000 }); // no restarts
 
       const localDeps = createDeps({
@@ -745,7 +741,13 @@ describe('AgentProcessManager', () => {
       const callsBeforeExit = mutation.mock.calls.length;
 
       // Trigger exit
-      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
 
       // Let the promise rejection propagate
       await Promise.resolve();
@@ -784,7 +786,13 @@ describe('AgentProcessManager', () => {
       // recordAgentExited fails first time
       mutation.mockRejectedValueOnce(new Error('fetch failed'));
 
-      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
       await Promise.resolve();
       await Promise.resolve();
 
@@ -822,7 +830,13 @@ describe('AgentProcessManager', () => {
 
       // Initial recordAgentExited fails
       mutation.mockRejectedValueOnce(new Error('fetch failed'));
-      localManager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
       await Promise.resolve();
       await Promise.resolve();
 
@@ -872,8 +886,20 @@ describe('AgentProcessManager', () => {
       mutation.mockRejectedValueOnce(new Error('offline'));
       mutation.mockRejectedValueOnce(new Error('offline'));
 
-      localManager.handleExit({ chatroomId: 'room-1', role: 'builder', pid: PID, code: 0, signal: null });
-      localManager.handleExit({ chatroomId: 'room-2', role: 'builder', pid: PID, code: 0, signal: null });
+      localManager.handleExit({
+        chatroomId: 'room-1',
+        role: 'builder',
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
+      localManager.handleExit({
+        chatroomId: 'room-2',
+        role: 'builder',
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -888,6 +914,167 @@ describe('AgentProcessManager', () => {
 
       // 2 additional retry calls were made
       expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
+    });
+  });
+
+  // ── dispatch ──────────────────────────────────────────────────────────
+
+  describe('dispatch — driver registry vs legacy service', () => {
+    function createMockSdkDriver(): AgentToolDriver & {
+      start: ReturnType<typeof vi.fn>;
+      stop: ReturnType<typeof vi.fn>;
+    } {
+      const mockHandle: AgentHandle = {
+        harness: 'opencode-sdk',
+        type: 'session',
+        sessionId: 'sdk-session-123',
+        serverUrl: 'http://localhost:60000',
+        workingDir: '/tmp/test',
+      };
+      return {
+        harness: 'opencode-sdk',
+        capabilities: {
+          sessionPersistence: true,
+          abort: true,
+          modelSelection: true,
+          compaction: true,
+          eventStreaming: false,
+          messageInjection: false,
+          dynamicModelDiscovery: true,
+        },
+        start: vi.fn().mockResolvedValue(mockHandle),
+        stop: vi.fn().mockResolvedValue(undefined),
+        isAlive: vi.fn().mockReturnValue(true),
+        listModels: vi.fn().mockResolvedValue([]),
+        recover: vi.fn().mockResolvedValue([]),
+      };
+    }
+
+    function createMockDriverRegistry(driver: AgentToolDriver): DriverRegistry {
+      return {
+        get: vi.fn((harness) => {
+          if (harness === driver.harness) return driver;
+          // Return a stub for other harnesses — APM calls .capabilities on the result
+          return {
+            harness,
+            capabilities: {
+              sessionPersistence: false,
+              abort: false,
+              modelSelection: false,
+              compaction: false,
+              eventStreaming: false,
+              messageInjection: false,
+              dynamicModelDiscovery: false,
+            },
+            start: vi.fn(),
+            stop: vi.fn(),
+            isAlive: vi.fn(),
+            listModels: vi.fn(),
+          };
+        }) as unknown as DriverRegistry['get'],
+        all: vi.fn().mockReturnValue([driver]),
+        capabilities: vi.fn((harness) =>
+          driver.harness === harness
+            ? driver.capabilities
+            : {
+                sessionPersistence: false,
+                abort: false,
+                modelSelection: false,
+                compaction: false,
+                eventStreaming: false,
+                messageInjection: false,
+                dynamicModelDiscovery: false,
+              }
+        ),
+      };
+    }
+
+    test('opencode-sdk harness: dispatches to SDK driver, not legacy service', async () => {
+      const sdkDriver = createMockSdkDriver();
+      const driverRegistry = createMockDriverRegistry(sdkDriver);
+
+      const depsWithRegistry = createDeps({ driverRegistry });
+      const localManager = new AgentProcessManager(depsWithRegistry);
+
+      const result = await localManager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk' }));
+
+      expect(result.success).toBe(true);
+
+      // SDK driver was called
+      expect(sdkDriver.start).toHaveBeenCalledOnce();
+      expect(sdkDriver.start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workingDir: '/tmp/test',
+          initialMessage: 'Start working',
+          rolePrompt: 'You are a builder',
+        })
+      );
+
+      // Legacy service spawn was NOT called
+      const legacyService = depsWithRegistry.agentServices.get('opencode')!;
+      expect(legacyService.spawn).not.toHaveBeenCalled();
+
+      // Slot has no PID, has agentHandle
+      const slot = localManager.getSlot(CHATROOM_ID, ROLE);
+      expect(slot).toBeDefined();
+      expect(slot!.state).toBe('running');
+      expect(slot!.pid).toBeUndefined();
+      expect(slot!.agentHandle).toBeDefined();
+      expect(slot!.agentHandle!.sessionId).toBe('sdk-session-123');
+    });
+
+    test('opencode harness: dispatches to legacy service, not SDK driver', async () => {
+      const sdkDriver = createMockSdkDriver();
+      const driverRegistry = createMockDriverRegistry(sdkDriver);
+
+      const depsWithRegistry = createDeps({ driverRegistry });
+      const localManager = new AgentProcessManager(depsWithRegistry);
+
+      const result = await localManager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
+
+      expect(result.success).toBe(true);
+      expect(result.pid).toBe(PID);
+
+      // SDK driver was NOT called for opencode harness
+      expect(sdkDriver.start).not.toHaveBeenCalled();
+
+      // Legacy service spawn was called
+      const legacyService = depsWithRegistry.agentServices.get('opencode')!;
+      expect(legacyService.spawn).toHaveBeenCalledOnce();
+
+      // Slot has PID, no agentHandle
+      const slot = localManager.getSlot(CHATROOM_ID, ROLE);
+      expect(slot!.pid).toBe(PID);
+      expect(slot!.agentHandle).toBeUndefined();
+    });
+
+    test('opencode-sdk stop: calls driver.stop(), not process kill', async () => {
+      const sdkDriver = createMockSdkDriver();
+      const driverRegistry = createMockDriverRegistry(sdkDriver);
+
+      const depsWithRegistry = createDeps({ driverRegistry });
+      const localManager = new AgentProcessManager(depsWithRegistry);
+
+      await localManager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk' }));
+
+      const stopResult = await localManager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(stopResult.success).toBe(true);
+
+      // SDK driver stop was called
+      expect(sdkDriver.stop).toHaveBeenCalledOnce();
+
+      // No process kill was attempted
+      expect(depsWithRegistry.processes.kill).not.toHaveBeenCalled();
+
+      // Slot is idle
+      const slot = localManager.getSlot(CHATROOM_ID, ROLE);
+      expect(slot!.state).toBe('idle');
+      expect(slot!.agentHandle).toBeUndefined();
     });
   });
 });

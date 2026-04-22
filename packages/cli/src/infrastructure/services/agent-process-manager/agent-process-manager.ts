@@ -13,6 +13,7 @@
  */
 
 import { api } from '../../../api.js';
+import type { AgentHandle, DriverRegistry } from '../../agent-drivers/types.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
@@ -26,6 +27,8 @@ export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
+  /** Session-based agent handle (for driver-managed harnesses like opencode-sdk) */
+  agentHandle?: AgentHandle;
   harness?: AgentHarness;
   model?: string;
   workingDir?: string;
@@ -68,6 +71,13 @@ export interface HandleExitOpts {
 export interface AgentProcessManagerDeps {
   agentServices: Map<string, RemoteAgentService>;
   /**
+   * Driver registry for session-based agent harnesses (e.g. opencode-sdk).
+   * When present, the manager checks the registry first; if a driver exists for
+   * the requested harness, it uses driver.start() / driver.stop() instead of
+   * the legacy agentServices map.
+   */
+  driverRegistry?: DriverRegistry;
+  /**
    * Backend client for Convex queries/mutations.
    * Uses `any` because the Convex client type is complex and varies by context.
    * All call sites use typed `api.*` references which provide compile-time safety.
@@ -87,13 +97,14 @@ export interface AgentProcessManagerDeps {
       chatroomId: string,
       role: string,
       pid: number,
-      harness: AgentHarness
+      harness: AgentHarness,
+      workingDir?: string
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
     listAgentEntries: (machineId: string) => Array<{
       chatroomId: string;
       role: string;
-      entry: { pid: number; harness: AgentHarness };
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
     }>;
   };
   spawning: {
@@ -205,12 +216,10 @@ export class AgentProcessManager {
         signal: undefined as string | undefined,
         agentHarness: undefined as string | undefined,
       };
-      this.deps.backend
-        .mutation(api.machines.recordAgentExited, exitArgs1)
-        .catch((err: Error) => {
-          console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
-          this.queueExitRetry({ role: opts.role, args: exitArgs1 });
-        });
+      this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs1).catch((err: Error) => {
+        console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
+        this.queueExitRetry({ role: opts.role, args: exitArgs1 });
+      });
       return { success: true };
     }
     if (slot.state === 'stopping' && slot.pendingOperation) {
@@ -219,6 +228,17 @@ export class AgentProcessManager {
     }
 
     const pid = slot.pid;
+    const agentHandle = slot.agentHandle;
+
+    // Session-based agent (e.g. opencode-sdk) — no PID, has agentHandle
+    if (!pid && agentHandle) {
+      slot.state = 'stopping';
+      const operation = this.doStopSession(key, slot, agentHandle, opts);
+      slot.pendingOperation = operation;
+      await operation;
+      return { success: true };
+    }
+
     if (!pid) {
       slot.state = 'idle';
       slot.pendingOperation = undefined;
@@ -267,6 +287,7 @@ export class AgentProcessManager {
     // Transition: running → idle
     slot.state = 'idle';
     slot.pid = undefined;
+    slot.agentHandle = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
 
@@ -283,12 +304,10 @@ export class AgentProcessManager {
       signal: opts.signal ?? undefined,
       agentHarness: harness,
     };
-    this.deps.backend
-      .mutation(api.machines.recordAgentExited, exitArgs2)
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-        this.queueExitRetry({ role: opts.role, args: exitArgs2 });
-      });
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs2).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs2 });
+    });
 
     // Clear from disk
     this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
@@ -299,7 +318,10 @@ export class AgentProcessManager {
     }
 
     // Restart decision
-    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'daemon.shutdown';
+    const isIntentionalStop =
+      stopReason === 'user.stop' ||
+      stopReason === 'platform.team_switch' ||
+      stopReason === 'daemon.shutdown';
     const isDaemonRespawn = stopReason === 'daemon.respawn';
 
     if (isIntentionalStop) {
@@ -367,6 +389,34 @@ export class AgentProcessManager {
 
     for (const { chatroomId, role, entry } of entries) {
       const key = agentKey(chatroomId, role);
+
+      // Session-based harness (pid=0) — delegate to driver.recover()
+      if (entry.pid === 0 && entry.workingDir) {
+        const driver = this.deps.driverRegistry?.get(entry.harness);
+        if (driver && driver.capabilities.sessionPersistence) {
+          const handles = (await driver.recover?.(entry.workingDir).catch(() => [])) ?? [];
+          if (handles.length > 0) {
+            this.slots.set(key, {
+              state: 'running',
+              pid: undefined,
+              agentHandle: handles[0],
+              harness: entry.harness,
+              workingDir: entry.workingDir,
+            });
+            recovered++;
+          } else {
+            this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+            cleaned++;
+          }
+        } else {
+          // No driver or driver changed — clean up
+          this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+          cleaned++;
+        }
+        continue;
+      }
+
+      // Process-based harness — check if PID is still alive
       let alive = false;
       try {
         this.deps.processes.kill(entry.pid, 0); // Signal 0 = check if alive
@@ -488,9 +538,7 @@ export class AgentProcessManager {
         if (!loopCheck.allowed) {
           if (loopCheck.waitMs !== undefined && loopCheck.waitMs > 0) {
             // Temporary backoff - log and return backoff error (don't emit limit event)
-            console.log(
-              `   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`
-            );
+            console.log(`   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`);
             slot.state = 'idle';
             slot.pendingOperation = undefined;
             return { success: false, error: 'backoff' };
@@ -564,7 +612,71 @@ export class AgentProcessManager {
         return { success: false, error: 'Failed to fetch init prompt from backend' };
       }
 
-      // Step 6: Spawn process
+      // Step 6: Dispatch — driver registry first (session-based harnesses), then legacy service map
+      const driver = this.deps.driverRegistry?.get(opts.agentHarness);
+
+      if (driver && driver.capabilities.sessionPersistence) {
+        // ── Session-based path (e.g. opencode-sdk) ──────────────────────────
+        let agentHandle: AgentHandle;
+        try {
+          agentHandle = await driver.start({
+            workingDir: opts.workingDir,
+            initialMessage: initPromptResult.initialMessage,
+            rolePrompt: initPromptResult.rolePrompt ?? '',
+            model: opts.model,
+          });
+        } catch (e) {
+          slot.state = 'idle';
+          slot.pendingOperation = undefined;
+          return { success: false, error: `Failed to start SDK agent: ${(e as Error).message}` };
+        }
+
+        // Track spawn
+        this.deps.spawning.recordSpawn(opts.chatroomId);
+
+        // Transition: spawning → running (no PID for session-based)
+        slot.state = 'running';
+        slot.pid = undefined;
+        slot.agentHandle = agentHandle;
+        slot.harness = opts.agentHarness;
+        slot.model = opts.model;
+        slot.workingDir = opts.workingDir;
+        slot.startedAt = this.deps.clock.now();
+        slot.pendingOperation = undefined;
+
+        // Emit agent started event (fire-and-forget, pid=0 for session-based)
+        this.deps.backend
+          .mutation(api.machines.updateSpawnedAgent, {
+            sessionId: this.deps.sessionId,
+            machineId: this.deps.machineId,
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid: 0,
+            model: opts.model,
+            reason: opts.reason,
+          })
+          .catch((err: Error) => {
+            console.log(`   ⚠️  Failed to update agent state in backend: ${err.message}`);
+          });
+
+        // Persist to disk so recovery can reconnect on daemon restart
+        try {
+          this.deps.persistence.persistAgentPid(
+            this.deps.machineId,
+            opts.chatroomId,
+            opts.role,
+            0,
+            opts.agentHarness,
+            opts.workingDir
+          );
+        } catch {
+          // Non-critical
+        }
+
+        return { success: true };
+      }
+
+      // ── Legacy process-based path ──────────────────────────────────────────
       const service = this.deps.agentServices.get(opts.agentHarness);
       if (!service) {
         slot.state = 'idle';
@@ -735,6 +847,7 @@ export class AgentProcessManager {
     // Transition: stopping → idle
     slot.state = 'idle';
     slot.pid = undefined;
+    slot.agentHandle = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
 
@@ -750,12 +863,10 @@ export class AgentProcessManager {
       signal: undefined as string | undefined,
       agentHarness: slot.harness,
     };
-    this.deps.backend
-      .mutation(api.machines.recordAgentExited, exitArgs3)
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-        this.queueExitRetry({ role: opts.role, args: exitArgs3 });
-      });
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs3).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs3 });
+    });
 
     // Clear from disk
     this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
@@ -764,6 +875,49 @@ export class AgentProcessManager {
     for (const service of this.deps.agentServices.values()) {
       service.untrack(pid);
     }
+
+    return { success: true };
+  }
+
+  private async doStopSession(
+    key: string,
+    slot: AgentSlot,
+    handle: AgentHandle,
+    opts: StopOpts
+  ): Promise<OperationResult> {
+    // Stop the SDK session via the driver
+    try {
+      const driver = this.deps.driverRegistry?.get(handle.harness);
+      if (driver) {
+        await driver.stop(handle);
+      }
+    } catch {
+      // Best-effort — if the server is already gone, continue cleanup
+    }
+
+    // Transition: stopping → idle
+    slot.state = 'idle';
+    slot.pid = undefined;
+    slot.agentHandle = undefined;
+    slot.startedAt = undefined;
+    slot.pendingOperation = undefined;
+
+    // Emit agent.exited to backend (fire-and-forget)
+    const exitArgs = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid: 0,
+      stopReason: opts.reason,
+      exitCode: undefined as number | undefined,
+      signal: undefined as string | undefined,
+      agentHarness: slot.harness,
+    };
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record SDK agent exit event: ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs });
+    });
 
     return { success: true };
   }
