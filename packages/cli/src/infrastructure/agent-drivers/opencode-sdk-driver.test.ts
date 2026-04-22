@@ -34,6 +34,7 @@ type MockClient = {
     create: ReturnType<typeof vi.fn>;
     promptAsync: ReturnType<typeof vi.fn>;
     abort: ReturnType<typeof vi.fn>;
+    summarize: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
     status: ReturnType<typeof vi.fn>;
   };
@@ -48,6 +49,7 @@ function makeClient(): MockClient {
       create: vi.fn().mockResolvedValue({ data: makeSession() }),
       promptAsync: vi.fn().mockResolvedValue({ data: null }),
       abort: vi.fn().mockResolvedValue({ data: null }),
+      summarize: vi.fn().mockResolvedValue({ data: null }),
       get: vi.fn().mockResolvedValue({ data: makeSession() }),
       status: vi.fn().mockResolvedValue({ data: { 'sess-1': { type: 'idle' } } }),
     },
@@ -193,6 +195,41 @@ describe('OpenCodeSdkDriver', () => {
       };
 
       await expect(driver.stop(handle)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('summarize()', () => {
+    it('calls session.summarize with the session id', async () => {
+      const deps = makeDeps();
+      const driver = new OpenCodeSdkDriver(deps);
+
+      const handle: AgentHandle = {
+        harness: 'opencode-sdk',
+        type: 'session',
+        sessionId: 'sess-1',
+        serverUrl: 'http://localhost:4444',
+        workingDir: '/tmp/work',
+      };
+
+      await driver.summarize(handle);
+
+      expect(deps.client.session.summarize).toHaveBeenCalledWith({ path: { id: 'sess-1' } });
+    });
+
+    it('does not throw if server is unreachable', async () => {
+      const deps = makeDeps();
+      deps.client.session.summarize.mockRejectedValue(new Error('ECONNREFUSED'));
+      const driver = new OpenCodeSdkDriver(deps);
+
+      const handle: AgentHandle = {
+        harness: 'opencode-sdk',
+        type: 'session',
+        sessionId: 'sess-1',
+        serverUrl: 'http://localhost:4444',
+        workingDir: '/tmp/work',
+      };
+
+      await expect(driver.summarize(handle)).resolves.toBeUndefined();
     });
   });
 
