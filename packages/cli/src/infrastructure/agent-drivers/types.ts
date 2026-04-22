@@ -109,6 +109,13 @@ export interface AgentToolDriver {
    * Returns handles for any sessions that are still alive.
    */
   recover?(workingDir: string): Promise<AgentHandle[]>;
+
+  /**
+   * Summarize/compact a session (optional).
+   * Only supported when compaction capability is true.
+   * No-op if not implemented.
+   */
+  summarize?(handle: AgentHandle): Promise<void>;
 }
 
 // ─── Driver Registry Interface ────────────────────────────────────────────────

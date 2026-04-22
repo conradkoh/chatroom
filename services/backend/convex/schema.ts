@@ -1063,6 +1063,20 @@ export default defineSchema({
         timestamp: v.number(),
         pid: v.optional(v.number()),
       }),
+      // An agent abort was requested (graceful session termination)
+      v.object({
+        type: v.literal('agent.requestAbort'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        timestamp: v.number(),
+      }),
+      // An agent session compact/summarize was requested
+      v.object({
+        type: v.literal('agent.requestCompact'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        timestamp: v.number(),
+      }),
       // Agent declared its type for a chatroom role (custom or remote)
       v.object({
         type: v.literal('agent.registered'),

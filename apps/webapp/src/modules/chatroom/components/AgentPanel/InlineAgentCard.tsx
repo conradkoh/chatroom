@@ -13,6 +13,7 @@ import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow } from './AgentStatusRow';
+import { AgentActionButtons } from './AgentActionButtons';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
 
 import { getDaemonStartCommand } from '@/lib/environment';
@@ -135,14 +136,24 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
-        {/* Status row at top — extra breathing room below */}
-        <div className="mb-2">
+        {/* Status row at top with action buttons — extra breathing room below */}
+        <div className="mb-2 flex items-center justify-between gap-2">
           <AgentStatusRow
             role={role}
             online={online}
             statusLabel={statusLabel}
             statusVariant={resolvedVariant}
             lastSeenAt={lastSeenAt}
+          />
+          <AgentActionButtons
+            role={role}
+            chatroomId={chatroomId}
+            machine={connectedMachines.find(
+              (m) => agentConfigs.find((c) => c.role === role)?.machineId === m.machineId
+            )}
+            agentHarness={agentRoleView?.agentHarness}
+            online={online}
+            sendCommand={sendCommand}
           />
         </div>
 

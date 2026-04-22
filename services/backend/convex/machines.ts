@@ -884,6 +884,8 @@ export const sendCommand = mutation({
     type: v.union(
       v.literal('start-agent'),
       v.literal('stop-agent'),
+      v.literal('abort-agent'),
+      v.literal('compact-agent'),
       v.literal('ping'),
       v.literal('status')
     ),
@@ -974,6 +976,30 @@ export const sendCommand = mutation({
         reason: args.payload.reason ?? 'user.stop',
       });
       return {};
+    }
+
+    // ── abort-agent: emit daemon event ────────────────────────────────────
+    if (args.type === 'abort-agent' && args.payload?.chatroomId && args.payload?.role) {
+      const now = Date.now();
+      const eventId = await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.requestAbort',
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        timestamp: now,
+      });
+      return { eventId };
+    }
+
+    // ── compact-agent: emit daemon event ──────────────────────────────────
+    if (args.type === 'compact-agent' && args.payload?.chatroomId && args.payload?.role) {
+      const now = Date.now();
+      const eventId = await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.requestCompact',
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        timestamp: now,
+      });
+      return { eventId };
     }
 
     // ── ping / status: emit daemon.ping event to stream ───────────────

@@ -10,6 +10,8 @@ import type { FunctionReturnType } from 'convex/server';
 
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onRequestAbortAgent } from '../../../events/daemon/agent/on-request-abort-agent.js';
+import { onRequestCompactAgent } from '../../../events/daemon/agent/on-request-compact-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
 import { pushCommands } from './command-sync-heartbeat.js';
@@ -233,6 +235,16 @@ async function dispatchCommandEvent(
     if (tracker.commandIds.has(eventId)) return;
     tracker.commandIds.set(eventId, Date.now());
     await onRequestStopAgent(ctx, event);
+  } else if (event.type === 'agent.requestAbort') {
+    // Session dedup — use commandIds for consistency
+    if (tracker.commandIds.has(eventId)) return;
+    tracker.commandIds.set(eventId, Date.now());
+    await onRequestAbortAgent(ctx, event);
+  } else if (event.type === 'agent.requestCompact') {
+    // Session dedup — use commandIds for consistency
+    if (tracker.commandIds.has(eventId)) return;
+    tracker.commandIds.set(eventId, Date.now());
+    await onRequestCompactAgent(ctx, event);
   } else if (event.type === 'daemon.ping') {
     // Session dedup — prevents re-ponging the same ping twice in one daemon run
     if (tracker.pingIds.has(eventId)) return;

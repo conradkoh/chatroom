@@ -138,6 +138,18 @@ export class OpenCodeSdkDriver implements AgentToolDriver {
     }
   }
 
+  async summarize(handle: AgentHandle): Promise<void> {
+    if (!handle.sessionId || !handle.serverUrl) return;
+
+    try {
+      const client = this.createClient({ baseUrl: handle.serverUrl });
+      await client.session.summarize({ path: { id: handle.sessionId } });
+    } catch {
+      // Best-effort — if the server is already gone or summarize fails, log and ignore
+      console.warn(`[SDK] Failed to summarize session ${handle.sessionId}`);
+    }
+  }
+
   isAlive(handle: AgentHandle): boolean {
     // Synchronous check — we can only do a best-effort check using persisted state.
     // For the session handle to be considered alive, it must have both sessionId and serverUrl.

@@ -81,6 +81,22 @@ export type SendCommandArgs =
     }
   | {
       machineId: string;
+      type: 'abort-agent';
+      payload: {
+        chatroomId: Id<'chatroom_rooms'>;
+        role: string;
+      };
+    }
+  | {
+      machineId: string;
+      type: 'compact-agent';
+      payload: {
+        chatroomId: Id<'chatroom_rooms'>;
+        role: string;
+      };
+    }
+  | {
+      machineId: string;
       type: 'ping';
     }
   | {
