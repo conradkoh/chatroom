@@ -7,6 +7,7 @@
  */
 
 import { OpenCodeProcessDriver } from './opencode-process-driver.js';
+import { OpenCodeSdkDriver } from './opencode-sdk-driver.js';
 import type { AgentCapabilities, AgentHarness, AgentToolDriver, DriverRegistry } from './types.js';
 
 // ─── Registry Implementation ──────────────────────────────────────────────────
@@ -39,5 +40,5 @@ export class AgentDriverRegistry implements DriverRegistry {
 
 /** Creates the default registry with all built-in drivers. */
 export function createDefaultDriverRegistry(): AgentDriverRegistry {
-  return new AgentDriverRegistry([new OpenCodeProcessDriver()]);
+  return new AgentDriverRegistry([new OpenCodeProcessDriver(), new OpenCodeSdkDriver()]);
 }

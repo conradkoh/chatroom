@@ -22,6 +22,12 @@
  *       "harness": "opencode",
  *       "startedAt": "ISO string"
  *     }
+ *   },
+ *   "sdkSessions": {
+ *     "<workingDir>": {
+ *       "serverUrl": "http://localhost:PORT",
+ *       "sessionId": "uuid"
+ *     }
  *   }
  * }
  */
@@ -54,6 +60,14 @@ export interface DaemonAgentEntry {
   startedAt: string;
 }
 
+/** Persisted SDK session state for reconnection after daemon restart */
+export interface SdkSessionEntry {
+  /** URL of the running OpenCode SDK server */
+  serverUrl: string;
+  /** Session ID within that server */
+  sessionId: string;
+}
+
 /** On-disk shape of a per-machine state file */
 export interface DaemonStateFile {
   /** Schema version for forward-compat migrations */
@@ -69,6 +83,11 @@ export interface DaemonStateFile {
    * Persisted so the daemon resumes from the correct cursor after restart.
    */
   lastSeenEventId?: string;
+  /**
+   * SDK session state keyed by workingDir.
+   * Allows recover() to reconnect to a previously-running OpenCode SDK server.
+   */
+  sdkSessions?: Record<string, SdkSessionEntry>;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,4 +265,67 @@ export function persistEventCursor(machineId: string, lastSeenEventId: string): 
 export function loadEventCursor(machineId: string): string | null {
   const state = loadDaemonState(machineId);
   return state?.lastSeenEventId ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// SDK Session Persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * The SDK session state is stored in a separate file keyed by workingDir,
+ * independent of the per-machine state file (which is keyed by machineId).
+ * This allows the SDK driver to recover sessions across daemon restarts
+ * without needing the machineId at recovery time.
+ *
+ * File: ~/.chatroom/machines/sdk-sessions.json
+ * Shape: { "<workingDir>": { serverUrl, sessionId } }
+ */
+
+const SDK_SESSIONS_FILE = join(STATE_DIR, 'sdk-sessions.json');
+
+function loadSdkSessionsFile(): Record<string, SdkSessionEntry> {
+  try {
+    if (!existsSync(SDK_SESSIONS_FILE)) return {};
+    const content = readFileSync(SDK_SESSIONS_FILE, 'utf-8');
+    return JSON.parse(content) as Record<string, SdkSessionEntry>;
+  } catch {
+    return {};
+  }
+}
+
+function saveSdkSessionsFile(sessions: Record<string, SdkSessionEntry>): void {
+  ensureStateDir();
+  const tempPath = `${SDK_SESSIONS_FILE}.tmp`;
+  writeFileSync(tempPath, JSON.stringify(sessions, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  renameSync(tempPath, SDK_SESSIONS_FILE);
+}
+
+/**
+ * Persist SDK session state (serverUrl + sessionId) keyed by workingDir.
+ * Called after successfully starting an SDK session.
+ */
+export function persistSdkSession(workingDir: string, entry: SdkSessionEntry): void {
+  const sessions = loadSdkSessionsFile();
+  sessions[workingDir] = entry;
+  saveSdkSessionsFile(sessions);
+}
+
+/**
+ * Load SDK session state for a given workingDir.
+ * Returns null if no state is persisted for that directory.
+ */
+export function loadSdkSession(workingDir: string): SdkSessionEntry | null {
+  const sessions = loadSdkSessionsFile();
+  return sessions[workingDir] ?? null;
+}
+
+/**
+ * Remove SDK session state for a given workingDir.
+ * Called after a session ends or when a stale session is detected.
+ */
+export function clearSdkSession(workingDir: string): void {
+  const sessions = loadSdkSessionsFile();
+  if (!(workingDir in sessions)) return;
+  delete sessions[workingDir];
+  saveSdkSessionsFile(sessions);
 }

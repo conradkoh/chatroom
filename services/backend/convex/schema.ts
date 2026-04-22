@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 /** Canonical harness validator — add new harnesses here. */
 export const agentHarnessValidator = v.union(
   v.literal('opencode'),
+  v.literal('opencode-sdk'),
   v.literal('pi'),
   v.literal('cursor'),
   v.literal('claude'),
@@ -789,7 +790,10 @@ export default defineSchema({
     // See migration.deleteOldFormatAgentPreferences for cleanup.
     // These fields must remain in the schema until the migration has run in production.
     harnessByRole: v.optional(
-      v.record(v.string(), v.union(v.literal('opencode'), v.literal('pi')))
+      v.record(
+        v.string(),
+        v.union(v.literal('opencode'), v.literal('opencode-sdk'), v.literal('pi'))
+      )
     ),
     modelByRole: v.optional(v.record(v.string(), v.string())),
   })
@@ -936,6 +940,9 @@ export default defineSchema({
 
     spawnedAgentPid: v.optional(v.number()),
     spawnedAt: v.optional(v.number()),
+    // SDK session state (for 'opencode-sdk' harness)
+    sessionId: v.optional(v.string()),
+    serverUrl: v.optional(v.string()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])

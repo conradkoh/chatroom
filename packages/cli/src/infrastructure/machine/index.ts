@@ -18,4 +18,7 @@ export {
   persistAgentPid,
   persistEventCursor,
   loadEventCursor,
+  persistSdkSession,
+  loadSdkSession,
+  clearSdkSession,
 } from './daemon-state.js';

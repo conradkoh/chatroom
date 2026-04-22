@@ -19,4 +19,7 @@ export type { ProcessDriverDeps } from './process-driver.js';
 export { OpenCodeProcessDriver } from './opencode-process-driver.js';
 export type { OpenCodeProcessDriverDeps } from './opencode-process-driver.js';
 
+export { OpenCodeSdkDriver } from './opencode-sdk-driver.js';
+export type { OpenCodeSdkDriverDeps } from './opencode-sdk-driver.js';
+
 export { AgentDriverRegistry, createDefaultDriverRegistry } from './registry.js';
