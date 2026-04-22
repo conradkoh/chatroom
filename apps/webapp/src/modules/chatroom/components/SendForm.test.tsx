@@ -75,6 +75,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
+// (no toast mock — SendForm uses an inline error banner instead of toasts)
+
 // Attachment mock state (mutable so tests can control it)
 const mockAttachments = {
   remove: vi.fn(),
@@ -283,6 +285,91 @@ describe('SendForm', () => {
       await waitFor(() => {
         expect(mockSendMessage).toHaveBeenCalledTimes(1);
         expect(mockAttachments.clearAll).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  // ── Send Failure Resilience ────────────────────────────────────────────────────
+
+  describe('Send Failure Resilience', () => {
+    it('Send button is re-enabled after a failed send', async () => {
+      // Simulate a network/server error during send
+      mockSendMessage.mockRejectedValueOnce(new Error('Network error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+
+      const sendButton = screen.getByRole('button', { name: /send/i });
+
+      // Button should be enabled before send
+      expect(sendButton).not.toBeDisabled();
+
+      await user.click(sendButton);
+
+      // After the failed send resolves, the button must be clickable again
+      await waitFor(() => {
+        expect(sendButton).not.toBeDisabled();
+      });
+    });
+
+    it('shows an inline error banner after a failed send', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Server error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      // Inline error banner appears (role="alert") with the failure message,
+      // and is dismissible via the close button — no toast is shown.
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/Failed to send/i);
+      expect(alert).toHaveTextContent(/Server error/i);
+      expect(
+        screen.getByRole('button', { name: /Dismiss send error/i })
+      ).toBeInTheDocument();
+    });
+
+    it('clears the inline error when the user starts typing again', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Server error'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await screen.findByRole('alert');
+
+      // Typing one more character should clear the banner.
+      await user.type(textarea, '!');
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      });
+    });
+
+    it('preserves the message text after a failed send (allows retry)', async () => {
+      mockSendMessage.mockRejectedValueOnce(new Error('Timeout'));
+
+      const user = userEvent.setup();
+      renderSendForm();
+
+      const textarea = screen.getByPlaceholderText('Type a message...');
+      await user.type(textarea, 'Retry this message');
+
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      // Message text should still be in the input (not cleared on failure)
+      await waitFor(() => {
+        expect(textarea).toHaveValue('Retry this message');
       });
     });
   });

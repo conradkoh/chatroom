@@ -95,7 +95,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     if (!item || !editedContent.trim()) return;
     setIsLoading(true);
     try {
-      await updateItem({ itemId: item._id, content: editedContent.trim() });
+      await updateItem({
+        chatroomId: item.chatroomId,
+        itemId: item._id,
+        content: editedContent.trim(),
+      });
       setIsEditing(false);
     } catch (error) {
       console.error('Failed to save backlog item:', error);
@@ -279,7 +283,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 <>
                   <button
                     type="button"
-                    onClick={() => handleMutation(() => completeItem({ itemId: item._id }))}
+                    onClick={() =>
+                      handleMutation(() =>
+                        completeItem({ chatroomId: item.chatroomId, itemId: item._id })
+                      )
+                    }
                     disabled={isLoading}
                     className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success text-chatroom-status-success hover:bg-chatroom-status-success hover:text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -292,7 +300,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               {item.status === 'closed' && (
                 <button
                   type="button"
-                  onClick={() => handleMutation(() => reopenItem({ itemId: item._id }))}
+                  onClick={() =>
+                    handleMutation(() =>
+                      reopenItem({ chatroomId: item.chatroomId, itemId: item._id })
+                    )
+                  }
                   disabled={isLoading}
                   className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-violet-500 text-violet-500 dark:border-violet-400 dark:text-violet-400 hover:bg-violet-500 hover:text-white dark:hover:bg-violet-400 dark:hover:text-white transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -328,7 +340,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   {/* Mark for Review — only for backlog status */}
                   {item.status === 'backlog' && (
                     <DropdownMenuItem
-                      onClick={() => handleMutation(() => markForReview({ itemId: item._id }))}
+                      onClick={() =>
+                        handleMutation(() =>
+                          markForReview({ chatroomId: item.chatroomId, itemId: item._id })
+                        )
+                      }
                       disabled={isLoading}
                       className="flex items-center gap-2 cursor-pointer text-violet-500 dark:text-violet-400"
                     >
@@ -350,7 +366,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   {/* Return to Backlog — only for pending_user_review */}
                   {item.status === 'pending_user_review' && (
                     <DropdownMenuItem
-                      onClick={() => handleMutation(() => sendBackForRework({ itemId: item._id }))}
+                      onClick={() =>
+                        handleMutation(() =>
+                          sendBackForRework({ chatroomId: item.chatroomId, itemId: item._id })
+                        )
+                      }
                       disabled={isLoading}
                       className="flex items-center gap-2 cursor-pointer"
                     >
@@ -364,7 +384,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => handleMutation(() => completeItem({ itemId: item._id }))}
+                        onClick={() =>
+                          handleMutation(() =>
+                            completeItem({ chatroomId: item.chatroomId, itemId: item._id })
+                          )
+                        }
                         disabled={isLoading}
                         className="flex items-center gap-2 cursor-pointer text-chatroom-status-success"
                       >
@@ -374,7 +398,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                       <DropdownMenuItem
                         onClick={() =>
                           handleMutation(() =>
-                            closeItem({ itemId: item._id, reason: 'Closed by user from UI' })
+                            closeItem({
+                              chatroomId: item.chatroomId,
+                              itemId: item._id,
+                              reason: 'Closed by user from UI',
+                            })
                           )
                         }
                         disabled={isLoading}

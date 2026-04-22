@@ -94,19 +94,30 @@ export function useFullDiff(
 /**
  * Returns the PR diff state and a request function.
  *
- * `request(baseBranch)` triggers a daemon fetch for the PR diff.
+ * `request(baseBranch, prNumber)` triggers a daemon fetch for the PR diff.
  * The result is read from the `getPRDiff` query.
+ * prNumber is REQUIRED — use getPRDiffByNumber for fetching by explicit PR number.
  */
 export function usePRDiff(
   machineId: string,
-  workingDir: string
-): { state: PRDiffState; request: (baseBranch: string, prNumber?: number) => void } {
-  const result = useSessionQuery(api.workspaces.getPRDiff, { machineId, workingDir });
+  workingDir: string,
+  prNumber: number
+): { state: PRDiffState; request: (baseBranch: string, prNumber: number) => void } {
+  const result = useSessionQuery(api.workspaces.getPRDiff, { machineId, workingDir, prNumber });
   const requestMutation = useSessionMutation(api.workspaces.requestPRDiff);
   const requestedRef = useRef(false);
 
+  // Reset the requested flag when the target PR changes so the state
+  // transitions back to 'idle' instead of showing stale 'loading' from
+  // a previous PR's request.
+  const prevPrNumberRef = useRef(prNumber);
+  if (prevPrNumberRef.current !== prNumber) {
+    prevPrNumberRef.current = prNumber;
+    requestedRef.current = false;
+  }
+
   const request = useCallback(
-    (baseBranch: string, prNumber?: number) => {
+    (baseBranch: string, prNumber: number) => {
       requestedRef.current = true;
       requestMutation({ machineId, workingDir, baseBranch, prNumber });
     },

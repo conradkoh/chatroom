@@ -181,64 +181,27 @@ async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise
  * Run `git diff origin/<baseBranch>...HEAD`, get diff stat, push via `upsertPRDiff`.
  */
 async function processPRDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
-  const baseBranch = req.baseBranch ?? 'main';
-
-  // If a PR number is specified, use `gh pr diff <number>` for the exact PR diff
-  if (req.prNumber) {
-    const result = await gitReader.getPRDiffByNumber(req.workingDir, req.prNumber);
-
-    if (result.status === 'available' || result.status === 'truncated') {
-      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        workingDir: req.workingDir,
-        baseBranch,
-        diffContent: result.content,
-        truncated: result.truncated,
-        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-      });
-      console.log(
-        `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (#${req.prNumber}, ${result.truncated ? 'truncated' : 'complete'})`
-      );
-    } else {
-      await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        workingDir: req.workingDir,
-        baseBranch,
-        diffContent: '',
-        truncated: false,
-        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-      });
-      console.log(
-        `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (#${req.prNumber}, ${result.status})`
-      );
-    }
-    return;
+  // prNumber is now REQUIRED for PR diff requests
+  if (!req.prNumber) {
+    throw new Error('PR diff request missing prNumber');
   }
 
-  // Fallback: use branch comparison (origin/<baseBranch>...HEAD)
-  const result = await gitReader.getPRDiff(req.workingDir, baseBranch);
+  const baseBranch = req.baseBranch ?? 'main';
+  const result = await gitReader.getPRDiffByNumber(req.workingDir, req.prNumber);
 
   if (result.status === 'available' || result.status === 'truncated') {
-    const diffStatResult = await gitReader.getPRDiffStat(req.workingDir, baseBranch);
-    const diffStat =
-      diffStatResult.status === 'available'
-        ? diffStatResult.diffStat
-        : { filesChanged: 0, insertions: 0, deletions: 0 };
-
     await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir: req.workingDir,
       baseBranch,
+      prNumber: req.prNumber,
       diffContent: result.content,
       truncated: result.truncated,
-      diffStat,
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
-
     console.log(
-      `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (${baseBranch}...HEAD, ${diffStat.filesChanged} files, ${result.truncated ? 'truncated' : 'complete'})`
+      `[${formatTimestamp()}] 📄 PR diff pushed: ${req.workingDir} (#${req.prNumber}, ${result.truncated ? 'truncated' : 'complete'})`
     );
   } else {
     await ctx.deps.backend.mutation(api.workspaces.upsertPRDiff, {
@@ -246,13 +209,13 @@ async function processPRDiff(ctx: DaemonContext, req: PendingRequest): Promise<v
       machineId: ctx.machineId,
       workingDir: req.workingDir,
       baseBranch,
+      prNumber: req.prNumber,
       diffContent: '',
       truncated: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     });
-
     console.log(
-      `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (${result.status})`
+      `[${formatTimestamp()}] 📄 PR diff pushed (empty): ${req.workingDir} (#${req.prNumber}, ${result.status})`
     );
   }
 }

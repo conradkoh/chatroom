@@ -1,9 +1,10 @@
 'use client';
 
 import { ArrowUp, Trash2 } from 'lucide-react';
-import React, { memo, useCallback, useState, useEffect } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Message } from '../../types/message';
+import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,11 @@ interface QueuedMessageItemProps {
   onDelete: (queuedMessageId: string) => Promise<void>;
 }
 
+/**
+ * Sidebar row for a queued chatroom message. Clicking the row opens a detail
+ * modal (see `QueuedMessageDetailModal`) that mirrors the layout used by
+ * `BacklogItemDetailModal` and `TaskDetailModal`.
+ */
 export const QueuedMessageItem = memo(function QueuedMessageItem({
   message,
   onPromote,
@@ -49,8 +55,17 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handlePromote = useCallback(async () => {
+  const openModal = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  const handleRowPromote = useCallback(async () => {
     if (isPromoting || isDeleting) return;
     setIsPromoting(true);
     try {
@@ -60,7 +75,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     }
   }, [message._id, onPromote, isPromoting, isDeleting]);
 
-  const handleDelete = useCallback(async () => {
+  const handleRowDelete = useCallback(async () => {
     if (isDeleting || isPromoting) return;
     setIsDeleting(true);
     try {
@@ -70,33 +85,58 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     }
   }, [message._id, onDelete, isDeleting, isPromoting]);
 
+  /** Stop the surrounding row click from firing when an action button is pressed. */
+  const stopRowClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors group">
-      {/* Content - truncate to 2 lines */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={openModal}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openModal();
+          }
+        }}
+        className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
+        </div>
+
+        {/* Inline quick actions — always visible. */}
+        <div className="flex items-center gap-1" onClick={stopRowClick}>
+          <button
+            type="button"
+            onClick={handleRowPromote}
+            disabled={isPromoting || isDeleting}
+            className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 disabled:opacity-50"
+            title="Promote to active"
+          >
+            <ArrowUp size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={handleRowDelete}
+            disabled={isDeleting || isPromoting}
+            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={handlePromote}
-          disabled={isPromoting || isDeleting}
-          className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 disabled:opacity-50"
-          title="Promote to active"
-        >
-          <ArrowUp size={14} />
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={isDeleting || isPromoting}
-          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
-          title="Delete"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-    </div>
+      <QueuedMessageDetailModal
+        message={message}
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onPromote={onPromote}
+        onDelete={onDelete}
+      />
+    </>
   );
 });

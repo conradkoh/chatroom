@@ -49,6 +49,7 @@ import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -1053,10 +1054,10 @@ const LatestEventTicker = memo(function LatestEventTicker({
     return (
       <button
         onClick={onClick}
-        className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer px-2 py-1 rounded"
+        className="flex items-center gap-1.5 min-w-0 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer px-2 py-1 rounded"
       >
-        <span className="uppercase tracking-wider font-bold">Event Stream</span>
-        <ChevronRight size={10} className="opacity-50" />
+        <span className="uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">Event Stream</span>
+        <ChevronRight size={10} className="opacity-50 shrink-0" />
       </button>
     );
   }
@@ -1064,23 +1065,26 @@ const LatestEventTicker = memo(function LatestEventTicker({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200 cursor-pointer px-2 py-1 rounded"
+      className="flex items-center gap-1.5 min-w-0 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200 cursor-pointer px-2 py-1 rounded"
     >
-      <span className={`font-bold uppercase tracking-wider ${getEventBadgeTextColor(event.type)}`}>
-        {formatEventType(event.type)}
+      {/* Text content group — shrinks and truncates on tight widths. */}
+      <span className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        <span className={`font-bold uppercase tracking-wider whitespace-nowrap shrink-0 ${getEventBadgeTextColor(event.type)}`}>
+          {formatEventType(event.type)}
+        </span>
+        {/* Workflow-specific detail (step count, step name, etc.) */}
+        {workflowDetail && (
+          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+            {workflowDetail}
+          </span>
+        )}
+        {'role' in event && event.role && (
+          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+            {event.role}
+          </span>
+        )}
       </span>
-      {/* Workflow-specific detail (step count, step name, etc.) */}
-      {workflowDetail && (
-        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
-          {workflowDetail}
-        </span>
-      )}
-      {'role' in event && event.role && (
-        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
-          {event.role}
-        </span>
-      )}
-      <ChevronRight size={10} className="opacity-50 ml-0.5" />
+      <ChevronRight size={10} className="opacity-50 ml-0.5 shrink-0" />
     </button>
   );
 });
@@ -1460,6 +1464,10 @@ export const MessageFeed = memo(function MessageFeed({
         onLoadMore={() => loadMoreEvents(20)}
         hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
+      {/* Queued-messages indicator — sits directly above the status bar so users
+          on mobile (and in the desktop messages view) see queued messages without
+          having to open the WorkQueue sidebar. Returns null when no messages queued. */}
+      <QueuedMessagesIndicator chatroomId={chatroomId} />
       {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Latest event ticker - clickable to toggle event stream modal */}

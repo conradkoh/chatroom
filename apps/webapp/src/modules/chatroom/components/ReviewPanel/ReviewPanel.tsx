@@ -408,13 +408,13 @@ export const ReviewPanel = memo(function ReviewPanel({
       addToUndoStack({ item, action: 'completed', timestamp: Date.now() });
 
       // Fire mutation in background
-      completeItem({ itemId }).catch((error) => {
+      completeItem({ chatroomId, itemId }).catch((error) => {
         console.error('Failed to complete item:', error);
         // Revert optimistic update on failure
         revertDismissal(itemId);
       });
     },
-    [visibleItems, completeItem, selectNextItem, addToUndoStack, revertDismissal]
+    [visibleItems, completeItem, selectNextItem, addToUndoStack, revertDismissal, chatroomId]
   );
 
   // ── Handle send back — optimistic ──────────────────────────────────────
@@ -432,13 +432,13 @@ export const ReviewPanel = memo(function ReviewPanel({
       addToUndoStack({ item, action: 'sent_back', timestamp: Date.now() });
 
       // Fire mutation in background
-      sendBackForRework({ itemId }).catch((error) => {
+      sendBackForRework({ chatroomId, itemId }).catch((error) => {
         console.error('Failed to send item back:', error);
         // Revert optimistic update on failure
         revertDismissal(itemId);
       });
     },
-    [visibleItems, sendBackForRework, selectNextItem, addToUndoStack, revertDismissal]
+    [visibleItems, sendBackForRework, selectNextItem, addToUndoStack, revertDismissal, chatroomId]
   );
 
   // ── Handle undo ────────────────────────────────────────────────────────
@@ -454,18 +454,18 @@ export const ReviewPanel = memo(function ReviewPanel({
       // For completed items: reopenBacklogItem (closed → backlog) then markForReview (backlog → pending_user_review)
       // For sent_back items: markForReview (backlog → pending_user_review)
       if (entry.action === 'completed') {
-        reopenItem({ itemId })
-          .then(() => markForReview({ itemId }))
+        reopenItem({ chatroomId, itemId })
+          .then(() => markForReview({ chatroomId, itemId }))
           .catch((error) => {
             console.error('Failed to undo completion:', error);
           });
       } else {
-        markForReview({ itemId }).catch((error) => {
+        markForReview({ chatroomId, itemId }).catch((error) => {
           console.error('Failed to undo send-back:', error);
         });
       }
     },
-    [reopenItem, markForReview, revertDismissal]
+    [reopenItem, markForReview, revertDismissal, chatroomId]
   );
 
   return (

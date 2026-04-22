@@ -180,7 +180,9 @@ async function validateSession(
   const typedNewSession: SessionId = newSessionId;
 
   // Validate the new session
-  const revalidation = await client.query(api.cliAuth.validateSession, { sessionId: typedNewSession });
+  const revalidation = await client.query(api.cliAuth.validateSession, {
+    sessionId: typedNewSession,
+  });
   if (!revalidation.valid) {
     console.error(`❌ New session is also invalid: ${revalidation.reason}`);
     releaseLock();
@@ -259,7 +261,8 @@ async function connectDaemon(
     });
   } catch (error) {
     if (isNetworkError(error)) {
-      formatConnectivityError(error, convexUrl);
+      // Do NOT log here — the caller (initDaemon retry loop) owns failure logging
+      // so it can suppress the verbose block after the first occurrence.
       throw error; // Re-throw for caller retry logic
     } else {
       console.error(`❌ Failed to update daemon status: ${getErrorMessage(error)}`);
@@ -317,7 +320,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
-const CONNECTION_RETRY_INTERVAL_MS = 60_000;
+export const CONNECTION_RETRY_INTERVAL_MS = 10_000;
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
@@ -340,7 +343,11 @@ export async function initDaemon(): Promise<DaemonContext> {
   // between our storage format and Convex's branded type system.
   let typedSessionId: SessionId = sessionId;
 
-  // Retry loop for network errors — waits 1s between attempts
+  // Counts consecutive backend-availability failures for log-dedup logic.
+  // Reset to 0 on every successful connectDaemon call.
+  let consecutiveFailures = 0;
+
+  // Retry loop for network errors — waits 10s between attempts
   while (true) {
     try {
       typedSessionId = await validateSession(client, typedSessionId, convexUrl);
@@ -361,6 +368,14 @@ export async function initDaemon(): Promise<DaemonContext> {
         agentServices
       );
       await connectDaemon(client, typedSessionId, machineId, convexUrl);
+
+      // Log recovery if the backend was previously unreachable.
+      if (consecutiveFailures > 0) {
+        console.log(
+          `[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`
+        );
+        consecutiveFailures = 0;
+      }
 
       // Create default dependencies and bind the real Convex client
       const deps = createDefaultDeps();
@@ -392,6 +407,10 @@ export async function initDaemon(): Promise<DaemonContext> {
         events,
         agentServices,
         lastPushedGitState: new Map(),
+        // Seed with the snapshot pushed by registerCapabilities() during startup
+        // so the first refreshModels tick correctly detects "no change" instead
+        // of always re-pushing the same set on the first run.
+        lastPushedModels: availableModels,
       };
 
       registerEventListeners(ctx);
@@ -407,14 +426,21 @@ export async function initDaemon(): Promise<DaemonContext> {
       return ctx;
     } catch (error) {
       if (isNetworkError(error)) {
+        consecutiveFailures++;
         const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
-        console.log(
-          `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying in ${retrySec}s...`
-        );
-        await new Promise((resolve) =>
-          setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS)
-        );
-        console.log(`[${formatTimestamp()}] 🔄 Retrying backend connection...`);
+        if (consecutiveFailures === 1) {
+          // First failure — emit the full guidance block so the user knows what to check.
+          formatConnectivityError(error, convexUrl);
+          console.log(
+            `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying every ${retrySec}s...`
+          );
+        } else {
+          // Subsequent failures — a single concise line to avoid log spam.
+          console.log(
+            `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${consecutiveFailures}, retrying in ${retrySec}s)`
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS));
         // Continue the loop to retry
       } else {
         // Non-network error — propagate (will crash the process)

@@ -3,7 +3,8 @@ import type { SkillModule } from '../../registry';
 export const backlogSkill: SkillModule = {
   skillId: 'backlog',
   name: 'Backlog Reference',
-  description: 'Full backlog command reference with scoring, completion, and workflow guides.',
+  description:
+    'Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.',
   getPrompt: (cliEnvPrefix: string) => `You have been activated with the "backlog" skill.
 
 ## Command Reference
@@ -12,8 +13,7 @@ export const backlogSkill: SkillModule = {
 \`\`\`
 ${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
 \`\`\`
-Status (optional, defaults to \`backlog\`): \`backlog\` | \`pending\` | \`in_progress\` | \`pending_user_review\` | \`active\` | \`all\`
-Flags: \`--status=<status>\`, \`--limit=<n>\`, \`--full\`
+Options: \`--limit=<n>\`, \`--sort=date:desc|priority:desc\`, \`--filter=unscored\` (only items without a priority score)
 
 The list output shows scoring info (complexity, value, priority) for each item if it has been scored.
 
@@ -21,40 +21,70 @@ The list output shows scoring info (complexity, value, priority) for each item i
 \`\`\`
 ${cliEnvPrefix}chatroom backlog history --chatroom-id=<id> --role=<role>
 \`\`\`
-Options: \`--from=YYYY-MM-DD\`, \`--to=YYYY-MM-DD\`, \`--status=<completed|closed>\`
-Defaults: last 30 days, both completed and closed items.
+Options: \`--from=YYYY-MM-DD\`, \`--to=YYYY-MM-DD\`, \`--limit=<n>\`
 
-Use \`history\` to see what was previously completed or cancelled. Use \`list\` for active items.
+Defaults: last 30 days through today; shows completed and closed tasks in range.
+
+Use \`history\` for finished work; use \`list\` for active backlog items.
 
 ### Add
+Content via **stdin / heredoc** or \`--content-file\`:
+
 \`\`\`
-${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> --content="<content>"
+${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> << 'EOF'
+Your backlog item content here
+EOF
 \`\`\`
 
+\`\`\`
+${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> --content-file=./task.md
+\`\`\`
+
+### Update
+Replace the **text content** of an existing item. Allowed only while the item is in \`backlog\` status. Same input pattern as **add** (stdin/heredoc or \`--content-file\`).
+
+\`\`\`
+${cliEnvPrefix}chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'EOF'
+New content here
+EOF
+\`\`\`
+
+\`\`\`
+${cliEnvPrefix}chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --content-file=./revised.md
+\`\`\`
+
+Use **update** to revise a description in place instead of adding a superseding item.
+
 ### Score
+**Requires at least one** of \`--complexity\`, \`--value\`, or \`--priority\` (you can combine multiple).
+
 \`\`\`
-${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --task-id=<id> \\
-  --complexity=<low|medium|high> \\
-  --value=<low|medium|high> \\
-  --priority=<1-100>
+${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --backlog-item-id=<id> \\
+  [--complexity=<low|medium|high>] \\
+  [--value=<low|medium|high>] \\
+  [--priority=<n>]
 \`\`\`
+
+\`--priority\` must be an integer (higher = more important). There is no enforced max in the CLI.
 
 **Important**: Only score items that do not already have all three fields set (complexity, value, priority).
 Check the list output — items showing "Score: ..." are already scored. Skip them to avoid overwriting.
 
 ### Complete
 \`\`\`
-${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id> [-f|--force]
 \`\`\`
+
+Optional \`-f\` / \`--force\` is a registered flag (see \`chatroom backlog complete --help\`). It is **not** forwarded to the Convex mutation yet, so it does not change server behavior today; omit it unless your runbook says otherwise.
 
 ### Reopen
 \`\`\`
-${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
 \`\`\`
 
 ### Mark for Review
 \`\`\`
-${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
 \`\`\`
 
 ### Export
@@ -75,14 +105,16 @@ Imports backlog items from a \`backlog-export.json\` file in the specified direc
 Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 
 ### Close
+Retires an item as stale, superseded, or duplicate. **\`--reason\` is required** (audit trail).
+
 \`\`\`
-${cliEnvPrefix}chatroom backlog close --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --reason="<reason>"
+${cliEnvPrefix}chatroom backlog close --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --reason="duplicate of XYZ"
 \`\`\`
 
-⚠️ **RESTRICTED: Only use this command when the user explicitly instructs you to close an item.**
-Agents must NEVER close backlog items autonomously. If an item appears stale or already implemented, use \`mark-for-review\` instead and let the user make the final decision.
+⚠️ **RESTRICTED: Only use when the user explicitly asks you to close an item.**
+Agents must NEVER close backlog items autonomously. If an item looks stale or already implemented, prefer \`mark-for-review\` so the user decides.
 
-The \`--reason\` flag is mandatory — provide a clear explanation of why the item is being closed (e.g. "User confirmed: already implemented in PR #119").
+Give a concise, factual reason (e.g. \`User confirmed: shipped in PR #119\`).
 
 ---
 
@@ -155,6 +187,7 @@ Follow these steps to clean up the backlog by identifying and closing stale item
 
 2. For each item, assess staleness:
    - Read the content carefully
+   - If the item is still valid but the **wording is wrong**, use \`backlog update\` to fix the description in place (do not add a duplicate item)
    - Check if already implemented (look at recent commits, PRs, or existing code)
    - Check if superseded by a newer backlog item
 

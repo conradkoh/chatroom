@@ -1,7 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from './_generated/server';
+import type { Doc, Id } from './_generated/dataModel';
+import { mutation, query, type MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 import { closeBacklogItem as closeBacklogItemUseCase } from '../src/domain/usecase/backlog/close-backlog-item';
 import { completeBacklogItem as completeBacklogItemUseCase } from '../src/domain/usecase/backlog/complete-backlog-item';
@@ -13,6 +14,19 @@ import { patchBacklogItem as patchBacklogItemUseCase } from '../src/domain/useca
 import { reopenBacklogItem as reopenBacklogItemUseCase } from '../src/domain/usecase/backlog/reopen-backlog-item';
 import { sendBacklogItemBackForRework as sendBacklogItemBackForReworkUseCase } from '../src/domain/usecase/backlog/send-backlog-item-back-for-rework';
 import { updateBacklogItem as updateBacklogItemUseCase } from '../src/domain/usecase/backlog/update-backlog-item';
+
+/** Ensures the session can access the chatroom and the backlog item lives in that chatroom. */
+async function requireBacklogItemForChatroom(
+  ctx: MutationCtx,
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  item: Doc<'chatroom_backlog'>
+): Promise<void> {
+  await requireChatroomAccess(ctx, sessionId, chatroomId);
+  if (item.chatroomId !== chatroomId) {
+    throw new ConvexError('Backlog item does not belong to this chatroom');
+  }
+}
 
 /** Lists backlog items for a chatroom. statusFilter defaults to 'backlog' (excludes pending_user_review). */
 export const listBacklogItems = query({
@@ -72,14 +86,19 @@ export const createBacklogItem = mutation({
 export const closeBacklogItem = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
     reason: v.string(),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
-    await closeBacklogItemUseCase(ctx, item, { reason: args.reason });
+    const reason = args.reason.trim();
+    if (reason.length === 0) {
+      throw new ConvexError('Reason cannot be empty');
+    }
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
+    await closeBacklogItemUseCase(ctx, item, { reason });
     return { success: true };
   },
 });
@@ -88,12 +107,13 @@ export const closeBacklogItem = mutation({
 export const completeBacklogItem = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await completeBacklogItemUseCase(ctx, args.itemId);
     return { success: true };
   },
@@ -103,12 +123,13 @@ export const completeBacklogItem = mutation({
 export const reopenBacklogItem = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await reopenBacklogItemUseCase(ctx, args.itemId);
     return { success: true };
   },
@@ -118,12 +139,13 @@ export const reopenBacklogItem = mutation({
 export const markBacklogItemForReview = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await markBacklogItemForReviewUseCase(ctx, args.itemId);
     return { success: true };
   },
@@ -133,12 +155,13 @@ export const markBacklogItemForReview = mutation({
 export const sendBacklogItemBackForRework = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await sendBacklogItemBackForReworkUseCase(ctx, args.itemId);
     return { success: true };
   },
@@ -148,13 +171,14 @@ export const sendBacklogItemBackForRework = mutation({
 export const updateBacklogItem = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
     content: v.string(),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await updateBacklogItemUseCase(ctx, { itemId: args.itemId, content: args.content });
     return { success: true };
   },
@@ -180,6 +204,7 @@ export const getBacklogItemsByIds = query({
 export const patchBacklogItem = mutation({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     itemId: v.id('chatroom_backlog'),
     priority: v.optional(v.number()),
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
@@ -188,7 +213,7 @@ export const patchBacklogItem = mutation({
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
-    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await patchBacklogItemUseCase(ctx, {
       itemId: args.itemId,
       priority: args.priority,

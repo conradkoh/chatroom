@@ -8,7 +8,6 @@ describe('useCommandPaletteCommands', () => {
     onOpenSettings: vi.fn(),
     onOpenEventStream: vi.fn(),
     onOpenGitPanel: vi.fn(),
-    onOpenGitPanelDiff: vi.fn(),
     onOpenBacklog: vi.fn(),
     onOpenPendingReview: vi.fn(),
     onOpenChatroomSwitcher: vi.fn(),
@@ -101,6 +100,56 @@ describe('useCommandPaletteCommands', () => {
       const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
 
       expect(result.current.some((command) => command.id === 'agents-stop-all-remote')).toBe(false);
+    });
+  });
+
+  describe('panel-git-diff dedup (Bug #5/#14)', () => {
+    it('does not register a global panel-git-diff command in legacy (no workspaceCommands) mode', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(false);
+    });
+
+    it('does not register a global panel-git-diff command in multi-workspace mode', () => {
+      const workspaceCommands = [
+        {
+          id: 'ws-abc-git-diff',
+          label: 'Git: Show Current Changes',
+          category: 'Actions' as const,
+          action: vi.fn(),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands })
+      );
+
+      expect(result.current.some((cmd) => cmd.id === 'panel-git-diff')).toBe(false);
+    });
+
+    it('keeps a single Git: Show Current Changes when workspaceCommands provide one', () => {
+      const workspaceCommands = [
+        {
+          id: 'ws-abc-git-diff',
+          label: 'Git: Show Current Changes',
+          category: 'Actions' as const,
+          action: vi.fn(),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands })
+      );
+
+      const gitDiffCmds = result.current.filter((cmd) => cmd.label === 'Git: Show Current Changes');
+      expect(gitDiffCmds).toHaveLength(1);
+    });
+
+    it('still exposes the parent Git Panel entry (panel-git) so users can reach git in legacy mode', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, workspaceCommands: [] })
+      );
+      expect(result.current.some((cmd) => cmd.id === 'panel-git')).toBe(true);
     });
   });
 

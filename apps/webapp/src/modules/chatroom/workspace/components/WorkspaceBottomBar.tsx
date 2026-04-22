@@ -33,7 +33,7 @@ import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-import type { GitRemote, CommitStatusSummary } from '../types/git';
+import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -152,7 +152,7 @@ interface DerivedGitInfo {
   /** Remotes array (empty when not available). */
   remotes: GitRemote[];
   /** Open pull requests (empty when not available). */
-  openPullRequests: { number: number; title: string; url: string }[];
+  openPullRequests: GitPullRequest[];
   /** Diff stat (zeros when not available). */
   diffStat: { filesChanged: number; insertions: number; deletions: number };
   /** CI/CD status for the current branch head commit. */
@@ -331,7 +331,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                     <GitBranch size={11} className="shrink-0" />
                   )}
                   <span className="uppercase tracking-wider">{branchDisplay}</span>
-                  {hasPR && <span>(#{openPullRequests[0]!.number})</span>}
+                  {hasPR && <span>(#{openPullRequests[0]!.prNumber})</span>}
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
@@ -360,7 +360,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                       ) : (
                         <ExternalLink size={12} className="shrink-0" />
                       )}
-                      {`View PR #${openPullRequests[0]!.number} on GitHub`}
+                      {`View PR #${openPullRequests[0]!.prNumber} on GitHub`}
                     </a>
                   ) : (
                     <span
@@ -456,7 +456,7 @@ const MobileStatusContent = memo(function MobileStatusContent({
             </span>
             {hasPR && (
               <span className="text-chatroom-text-muted shrink-0">
-                (#{openPullRequests[0]!.number})
+                (#{openPullRequests[0]!.prNumber})
               </span>
             )}
           </div>
@@ -720,7 +720,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       </span>
                       {hasPR && (
                         <span className="text-[12px] text-chatroom-text-muted shrink-0">
-                          (#{openPullRequests[0]!.number})
+                          (#{openPullRequests[0]!.prNumber})
                         </span>
                       )}
                       <ChevronDown
@@ -770,7 +770,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             ) : (
                               <ExternalLink size={12} className="shrink-0" />
                             )}
-                            {`View PR #${openPullRequests[0]!.number} on GitHub`}
+                            {`View PR #${openPullRequests[0]!.prNumber} on GitHub`}
                           </a>
                         ) : (
                           <span

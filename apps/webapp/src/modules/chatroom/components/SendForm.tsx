@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
-import { Code2, Plus } from 'lucide-react';
+import { AlertTriangle, Code2, Plus, X } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -123,6 +123,13 @@ export const SendForm = memo(function SendForm({
 }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  /**
+   * Inline error from the most recent failed send. Cleared on next successful
+   * send, when the user types, or when they explicitly dismiss it.
+   * Rendered inline above the form (toasts were intentionally avoided
+   * because they steal attention away from the input the user is fixing).
+   */
+  const [sendError, setSendError] = useState<string | null>(null);
   const inputRef = useRef<ContentEditableInputRef>(null);
   const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
@@ -221,6 +228,7 @@ export const SendForm = memo(function SendForm({
           }),
         });
         setMessage('');
+        setSendError(null);
         localStorage.removeItem(draftKey);
         if (
           attachedTasks.length > 0 ||
@@ -232,6 +240,11 @@ export const SendForm = memo(function SendForm({
         setTimeout(() => inputRef.current?.focus(), 0);
       } catch (error) {
         console.error('Failed to send message:', error);
+        setSendError(
+          error instanceof Error && error.message
+            ? `Failed to send: ${error.message}`
+            : 'Failed to send message. Please try again.'
+        );
       } finally {
         setSending(false);
       }
@@ -305,6 +318,8 @@ export const SendForm = memo(function SendForm({
   const handleContentChange = useCallback(
     (newValue: string) => {
       setMessage(newValue);
+      // Clear any prior send error as soon as the user starts editing again.
+      setSendError(null);
 
       // Get cursor position from the contenteditable
       const cursorPos = inputRef.current?.getCursorOffset() ?? newValue.length;
@@ -392,6 +407,29 @@ export const SendForm = memo(function SendForm({
           ))}
         </div>
       )}
+      {/* Inline send-error banner — replaces the previous toast. Sits directly
+          above the form so it's visible without stealing focus from the input. */}
+      {sendError && (
+        <div
+          role="alert"
+          className="mx-4 mt-2 flex items-start gap-2 px-3 py-2 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
+        >
+          <AlertTriangle
+            size={14}
+            className="flex-shrink-0 mt-0.5 text-chatroom-status-error"
+            aria-hidden
+          />
+          <p className="flex-1 text-xs text-chatroom-status-error break-words">{sendError}</p>
+          <button
+            type="button"
+            onClick={() => setSendError(null)}
+            className="flex-shrink-0 text-chatroom-status-error/60 hover:text-chatroom-status-error"
+            aria-label="Dismiss send error"
+          >
+            <X size={12} aria-hidden />
+          </button>
+        </div>
+      )}
       {/* Input Form */}
       <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
         <ContentEditableInput
@@ -447,7 +485,12 @@ export const SendForm = memo(function SendForm({
           <button
             type="submit"
             disabled={!message.trim() || sending}
-            onPointerDown={(e) => {
+            onMouseDown={(e) => {
+              // Prevent focus from leaving the text input on click
+              // (standard focus-theft prevention pattern).
+              // NOTE: must use onMouseDown, NOT onPointerDown — preventDefault on
+              // pointerdown suppresses the click event on touch/mobile browsers,
+              // making the button appear completely unresponsive.
               e.preventDefault();
             }}
             className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
