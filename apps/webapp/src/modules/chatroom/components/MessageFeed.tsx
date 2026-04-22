@@ -49,6 +49,7 @@ import { AttachedWorkflowChip } from './AttachedWorkflowChip';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -1460,6 +1461,10 @@ export const MessageFeed = memo(function MessageFeed({
         onLoadMore={() => loadMoreEvents(20)}
         hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
+      {/* Queued-messages indicator — sits directly above the status bar so users
+          on mobile (and in the desktop messages view) see queued messages without
+          having to open the WorkQueue sidebar. Returns null when no messages queued. */}
+      <QueuedMessagesIndicator chatroomId={chatroomId} />
       {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Latest event ticker - clickable to toggle event stream modal */}
