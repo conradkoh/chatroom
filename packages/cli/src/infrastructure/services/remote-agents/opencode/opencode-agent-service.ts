@@ -1,16 +1,19 @@
 /**
  * OpenCodeAgentService — concrete RemoteAgentService for the OpenCode runtime.
  *
- * Encapsulates all interactions with OpenCode: installation detection,
- * version queries, model discovery, agent spawning, and process lifecycle.
+ * Thin delegator over OpenCodeProcessDriver for arg building and prompt
+ * construction. The actual spawn() wiring (process registry, onExit/onOutput)
+ * remains here to preserve the RemoteAgentService contract without exposing
+ * ChildProcess through the AgentToolDriver interface.
  *
- * Extends BaseCLIAgentService which handles all shared boilerplate:
- * process registry, stop/isAlive/getTrackedProcesses/untrack, and
- * the underlying isInstalled/getVersion helpers.
+ * All other shared boilerplate (stop/isAlive/getTrackedProcesses/untrack,
+ * isInstalled/getVersion) is handled by BaseCLIAgentService.
  */
 
 import { type ChildProcess } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 
+import { OpenCodeProcessDriver } from '../../../agent-drivers/opencode-process-driver.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
@@ -27,8 +30,16 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
   readonly displayName = 'OpenCode';
   readonly command = OPENCODE_COMMAND;
 
+  private readonly driver: OpenCodeProcessDriver;
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
+    // Wire driver with the same injected spawn/kill so tests can mock spawn
+    this.driver = new OpenCodeProcessDriver({
+      execSync: deps?.execSync ?? execSync,
+      spawn: deps?.spawn ?? spawn,
+      kill: deps?.kill ?? ((pid, signal) => process.kill(pid, signal)),
+    });
   }
 
   isInstalled(): boolean {
@@ -40,37 +51,13 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const output = this.deps
-        .execSync(`${OPENCODE_COMMAND} models`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000,
-        })
-        .toString()
-        .trim();
-
-      if (!output) return [];
-
-      return output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-    } catch {
-      return [];
-    }
+    return this.driver.listModels();
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const args: string[] = ['run'];
-    if (options.model) {
-      args.push('--model', options.model);
-    }
-
-    // Combine systemPrompt and prompt — opencode doesn't have a --system-prompt flag,
-    // so we prepend the role prompt to the initial message as a single combined prompt.
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
+    // Delegate arg-building and prompt-building to the driver
+    const args = this.driver.buildArgsForService(options.model);
+    const fullPrompt = this.driver.buildPromptForService(options.systemPrompt, options.prompt);
 
     const childProcess: ChildProcess = this.deps.spawn(OPENCODE_COMMAND, args, {
       cwd: options.workingDir,
