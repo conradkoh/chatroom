@@ -274,6 +274,9 @@ importers:
       '@llamaindex/liteparse':
         specifier: ^1.4.2
         version: 1.4.6
+      '@opencode-ai/sdk':
+        specifier: latest
+        version: 1.14.20
       commander:
         specifier: ^14.0.0
         version: 14.0.3
@@ -1338,6 +1341,9 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@opencode-ai/sdk@1.14.20':
+    resolution: {integrity: sha512-kPZP1An1ZdWOfLfDYhNjh665HX4RcI8au6Lzjn0FktoQ3RpWHq1WXRLHrJO8rJqwWvQDOzS48cXt9jbr+uwQiA==}
 
   '@oven/bun-darwin-aarch64@1.3.2':
     resolution: {integrity: sha512-licBDIbbLP5L5/S0+bwtJynso94XD3KyqSP48K59Sq7Mude6C7dR5ZujZm4Ut4BwZqUFfNOfYNMWBU5nlL7t1A==}
@@ -7355,6 +7361,10 @@ snapshots:
       fastq: 1.20.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@opencode-ai/sdk@1.14.20':
+    dependencies:
+      cross-spawn: 7.0.6
 
   '@oven/bun-darwin-aarch64@1.3.2':
     optional: true

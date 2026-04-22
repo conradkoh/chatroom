@@ -22,6 +22,35 @@ import type { RemoteAgentService } from '../../../infrastructure/services/remote
 // Mocks
 // ---------------------------------------------------------------------------
 
+const mockRegistry = {
+  all: () => [
+    {
+      harness: 'opencode',
+      capabilities: {
+        sessionPersistence: false,
+        abort: false,
+        modelSelection: false,
+        compaction: false,
+        eventStreaming: false,
+        messageInjection: false,
+        dynamicModelDiscovery: true, // Test harness has discovery enabled
+      },
+    },
+    {
+      harness: 'pi',
+      capabilities: {
+        sessionPersistence: false,
+        abort: false,
+        modelSelection: false,
+        compaction: false,
+        eventStreaming: false,
+        messageInjection: false,
+        dynamicModelDiscovery: true,
+      },
+    },
+  ],
+};
+
 vi.mock('../../../infrastructure/convex/client.js', () => ({
   getConvexUrl: () => 'http://test:3210',
   getConvexWsClient: vi.fn(),
@@ -44,6 +73,10 @@ vi.mock('../../../infrastructure/machine/index.js', async (importOriginal) => {
     ensureMachineRegistered: mockEnsureMachineRegistered,
   };
 });
+
+vi.mock('../../../infrastructure/agent-drivers/registry.js', () => ({
+  createDefaultDriverRegistry: () => mockRegistry,
+}));
 
 // ---------------------------------------------------------------------------
 // Setup / Teardown

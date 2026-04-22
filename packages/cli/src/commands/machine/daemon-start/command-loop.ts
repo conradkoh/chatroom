@@ -27,6 +27,7 @@ import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
+import { createDefaultDriverRegistry } from '../../../infrastructure/agent-drivers/registry.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
@@ -117,7 +118,16 @@ function formatModelMap(map: Record<string, string[]>): string {
 export async function refreshModels(ctx: DaemonContext): Promise<void> {
   if (!ctx.config) return;
 
-  const models = await discoverModels(ctx.agentServices);
+  // Build per-harness capabilities from the driver registry
+  const registry = createDefaultDriverRegistry();
+  const harnessCapabilities: Record<string, { dynamicModelDiscovery?: boolean }> = {};
+
+  for (const driver of registry.all()) {
+    harnessCapabilities[driver.harness] = driver.capabilities;
+  }
+
+  // Discover models only for harnesses with dynamicModelDiscovery=true
+  const models = await discoverModels(ctx.agentServices, harnessCapabilities);
 
   // Re-detect available harnesses so any newly installed tools are reflected immediately.
   const freshConfig = ensureMachineRegistered();

@@ -171,6 +171,10 @@ async function getMockClient() {
 // ---------------------------------------------------------------------------
 
 describe('discoverModels', () => {
+  const createCapabilities = (harness: string, dynamicDiscovery = true) => ({
+    [harness]: { dynamicModelDiscovery: dynamicDiscovery },
+  });
+
   it('returns models from the remote agent service', async () => {
     const mockService = {
       isInstalled: vi.fn().mockReturnValue(true),
@@ -178,7 +182,8 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([['opencode', mockService]]);
-    const models = await discoverModels(agentServices);
+    const capabilities = createCapabilities('opencode', true);
+    const models = await discoverModels(agentServices, capabilities);
     expect(models).toEqual({ opencode: ['gpt-4', 'claude-3'] });
     expect(mockService.listModels).toHaveBeenCalledOnce();
   });
@@ -190,7 +195,8 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([['opencode', mockService]]);
-    const models = await discoverModels(agentServices);
+    const capabilities = createCapabilities('opencode', true);
+    const models = await discoverModels(agentServices, capabilities);
     expect(models).toEqual({ opencode: [] });
   });
 
@@ -201,7 +207,8 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([['opencode', mockService]]);
-    const models = await discoverModels(agentServices);
+    const capabilities = createCapabilities('opencode', true);
+    const models = await discoverModels(agentServices, capabilities);
     expect(models).toEqual({});
   });
 
@@ -221,7 +228,11 @@ describe('discoverModels', () => {
       ['opencode', opencodeService],
       ['pi', piService],
     ]);
-    const models = await discoverModels(agentServices);
+    const capabilities = {
+      ...createCapabilities('opencode', true),
+      ...createCapabilities('pi', true),
+    };
+    const models = await discoverModels(agentServices, capabilities);
 
     expect(models).toEqual({
       opencode: ['opencode/model-a'],
@@ -243,7 +254,11 @@ describe('discoverModels', () => {
       ['opencode', opencodeService],
       ['pi', piService],
     ]);
-    const models = await discoverModels(agentServices);
+    const capabilities = {
+      ...createCapabilities('opencode', true),
+      ...createCapabilities('pi', true),
+    };
+    const models = await discoverModels(agentServices, capabilities);
 
     expect(models).toEqual({ opencode: ['opencode/model-a'] });
     // pi.listModels should never be called when pi is not installed
@@ -264,12 +279,43 @@ describe('discoverModels', () => {
       ['opencode', opencodeService],
       ['pi', piService],
     ]);
-    const models = await discoverModels(agentServices);
+    const capabilities = {
+      ...createCapabilities('opencode', true),
+      ...createCapabilities('pi', true),
+    };
+    const models = await discoverModels(agentServices, capabilities);
 
     expect(models).toEqual({
       opencode: [], // failed → empty array fallback
       pi: ['github-copilot/gpt-4o'],
     });
+  });
+
+  it('skips discovery for harnesses with dynamicModelDiscovery=false', async () => {
+    const opencodeService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
+    } as any;
+    const piService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['pi/model-b']),
+    } as any;
+
+    const agentServices = new Map([
+      ['opencode', opencodeService],
+      ['pi', piService],
+    ]);
+    const capabilities = {
+      opencode: { dynamicModelDiscovery: false }, // disabled
+      pi: { dynamicModelDiscovery: true }, // enabled
+    };
+    const models = await discoverModels(agentServices, capabilities);
+
+    // Only pi should be discovered
+    expect(models).toEqual({ pi: ['pi/model-b'] });
+    // opencode.listModels should not be called
+    expect(opencodeService.listModels).not.toHaveBeenCalled();
+    expect(piService.listModels).toHaveBeenCalledOnce();
   });
 });
 

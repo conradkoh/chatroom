@@ -50,14 +50,18 @@ import { acquireLock, releaseLock } from '../pid.js';
 
 /**
  * Discover available models from all installed remote agent services.
+ * Only discovers for harnesses where `dynamicModelDiscovery=true`.
  * Non-critical: returns empty record on failure per harness.
  */
 export async function discoverModels(
-  agentServices: Map<string, RemoteAgentService>
+  agentServices: Map<string, RemoteAgentService>,
+  harnessCapabilities: Record<string, { dynamicModelDiscovery?: boolean }>
 ): Promise<Record<string, string[]>> {
   const results: Record<string, string[]> = {};
   for (const [harness, service] of agentServices) {
-    if (service.isInstalled()) {
+    const capabilities = harnessCapabilities[harness];
+    // Only discover models for harnesses that support dynamic model discovery
+    if (service.isInstalled() && capabilities?.dynamicModelDiscovery) {
       try {
         results[harness] = await service.listModels();
       } catch {
@@ -222,16 +226,16 @@ async function registerCapabilities(
 ): Promise<Record<string, string[]>> {
   const { machineId } = config;
 
-  // Discover available models from all installed harnesses (dynamic)
-  const availableModels = await discoverModels(agentServices);
-
-  // Build per-harness capabilities from the driver registry
+  // Build per-harness capabilities from the driver registry (needed before model discovery)
   const registry = createDefaultDriverRegistry();
   const harnessCapabilities: HarnessCapabilitiesByHarness = {};
 
   for (const driver of registry.all()) {
     harnessCapabilities[driver.harness] = driver.capabilities;
   }
+
+  // Discover available models from harnesses with dynamicModelDiscovery=true
+  const availableModels = await discoverModels(agentServices, harnessCapabilities);
 
   // Register/update machine info in backend (includes harnesses, models, and capabilities)
   // This ensures the web UI has current machine capabilities
