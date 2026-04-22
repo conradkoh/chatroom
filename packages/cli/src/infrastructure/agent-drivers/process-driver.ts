@@ -20,7 +20,8 @@ import type {
   AgentHandle,
   AgentStartOptions,
   AgentToolDriver,
- AgentHarness } from './types.js';
+  AgentHarness,
+} from './types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

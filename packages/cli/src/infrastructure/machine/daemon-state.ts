@@ -22,14 +22,11 @@
  *       "harness": "opencode",
  *       "startedAt": "ISO string"
  *     }
- *   },
- *   "sdkSessions": {
- *     "<workingDir>": {
- *       "serverUrl": "http://localhost:PORT",
- *       "sessionId": "uuid"
- *     }
  *   }
  * }
+ *
+ * SDK session state is stored separately in sdk-sessions.json (keyed by workingDir),
+ * not in this per-machine file, to decouple session recovery from machine identity.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
@@ -83,11 +80,6 @@ export interface DaemonStateFile {
    * Persisted so the daemon resumes from the correct cursor after restart.
    */
   lastSeenEventId?: string;
-  /**
-   * SDK session state keyed by workingDir.
-   * Allows recover() to reconnect to a previously-running OpenCode SDK server.
-   */
-  sdkSessions?: Record<string, SdkSessionEntry>;
 }
 
 // ---------------------------------------------------------------------------
