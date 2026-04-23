@@ -121,11 +121,10 @@ export async function registerAgent(
     const config = loadMachineConfig();
 
     try {
-      await d.backend.mutation(api.machines.recordAgentRegistered, {
+      await d.backend.mutation(api.machines.recordRemoteAgentRegistered, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-        agentType: 'remote',
         machineId,
       });
     } catch {
@@ -136,13 +135,12 @@ export async function registerAgent(
     console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
     console.log(`   Working directory: ${process.cwd()}`);
   } else {
-    // Custom type: register without machine details
+    // Custom type: team config + agent.registered (via dedicated mutation)
     try {
-      await d.backend.mutation(api.machines.saveTeamAgentConfig, {
+      await d.backend.mutation(api.machines.recordCustomAgentRegistered, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-        type: 'custom',
       });
 
       console.log(`✅ Registered as custom agent for role "${role}"`);

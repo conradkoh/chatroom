@@ -142,9 +142,16 @@ export const register = mutation({
       .first();
 
     if (existing) {
-      // Verify ownership
       if (existing.userId !== user._id) {
-        throw new Error('Machine is registered to a different user');
+        throw new Error(
+          `machineId "${args.machineId}" is already registered to another user. Generate a new machineId (delete local config and re-run "chatroom machine register").`
+        );
+      }
+
+      if (existing.hostname !== args.hostname) {
+        console.warn(
+          `[chatroom] Machine "${args.machineId}" hostname changed from "${existing.hostname}" to "${args.hostname}" — updating registration.`
+        );
       }
 
       // Update existing machine
@@ -1136,7 +1143,160 @@ export const recordAgentExited = mutation({
   },
 });
 
-/** Emits an agent.registered event to the event stream when an agent registers via the CLI. */
+// ─── recordAgent* helpers (used by recordRemote/recordCustom and deprecated shim) ─
+
+async function runRecordRemoteAgentRegistered(
+  ctx: MutationCtx,
+  args: { sessionId: string; chatroomId: Id<'chatroom_rooms'>; role: string; machineId: string }
+): Promise<{ success: true }> {
+  const auth = await getAuthenticatedUser(ctx, args.sessionId);
+  if (!auth.ok) {
+    throw new Error('Authentication required');
+  }
+
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!chatroom || chatroom.ownerId !== auth.user._id) {
+    throw new Error('Chatroom not found or access denied');
+  }
+
+  await getOwnedMachine(ctx, args.machineId, auth.user._id);
+  if (chatroom.teamId) {
+    const regTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+    const teamCfgForReg = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', regTeamRoleKey))
+      .first();
+    if (teamCfgForReg?.machineId) {
+      await assertMachineBelongsToChatroom(ctx, {
+        chatroomId: args.chatroomId,
+        machineId: args.machineId,
+        role: args.role,
+        allowNewMachine: false,
+      });
+    }
+  }
+
+  const now = Date.now();
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'agent.registered',
+    chatroomId: args.chatroomId,
+    role: args.role,
+    agentType: 'remote' as const,
+    machineId: args.machineId,
+    timestamp: now,
+  });
+  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered');
+  return { success: true };
+}
+
+async function runRecordCustomAgentRegistered(
+  ctx: MutationCtx,
+  args: { sessionId: string; chatroomId: Id<'chatroom_rooms'>; role: string }
+): Promise<{ success: true }> {
+  const auth = await getAuthenticatedUser(ctx, args.sessionId);
+  if (!auth.ok) {
+    throw new Error('Authentication required');
+  }
+
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!chatroom) throw new Error('Chatroom not found');
+  if (chatroom.ownerId !== auth.user._id) {
+    throw new Error('Not authorized to modify team agent configs for this chatroom');
+  }
+
+  if (!chatroom.teamId) {
+    throw new ConvexError('Chatroom has no teamId — cannot build agent config key');
+  }
+  const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+
+  const existing = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+    .first();
+
+  const now = Date.now();
+  const nextConfig = {
+    teamRoleKey,
+    chatroomId: args.chatroomId,
+    role: args.role,
+    type: 'custom' as const,
+    machineId: undefined,
+    agentHarness: undefined,
+    model: undefined,
+    workingDir: undefined,
+    updatedAt: now,
+    desiredState: 'running' as const,
+  };
+
+  if (existing) {
+    await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, nextConfig);
+  } else {
+    await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
+    await ctx.db.insert('chatroom_teamAgentConfigs', {
+      ...nextConfig,
+      createdAt: now,
+    });
+  }
+
+  await ensureOnlyAgentForRole(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+    excludeMachineId: undefined,
+  });
+
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'agent.registered',
+    chatroomId: args.chatroomId,
+    role: args.role,
+    agentType: 'custom' as const,
+    machineId: undefined,
+    timestamp: now,
+  });
+  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
+
+  return { success: true };
+}
+
+/** Records remote CLI agent registration: requires a registered machine and enforces team binding invariants. */
+export const recordRemoteAgentRegistered = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Enforced in runRecordRemoteAgentRegistered via getAuthenticatedUser
+    return runRecordRemoteAgentRegistered(ctx, {
+      sessionId: args.sessionId,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+    });
+  },
+});
+
+/** Records custom (non-daemon) agent registration: team config + agent.registered event. */
+export const recordCustomAgentRegistered = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Enforced in runRecordCustomAgentRegistered via getAuthenticatedUser
+    return runRecordCustomAgentRegistered(ctx, {
+      sessionId: args.sessionId,
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+  },
+});
+
+/**
+ * @deprecated Use {@link recordRemoteAgentRegistered} or {@link recordCustomAgentRegistered} instead.
+ * Thin shim; emits a console warning when invoked. Signature preserved for existing clients.
+ */
 export const recordAgentRegistered = mutation({
   args: {
     ...SessionIdArg,
@@ -1146,51 +1306,26 @@ export const recordAgentRegistered = mutation({
     machineId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify chatroom access
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.user._id) {
-      throw new Error('Chatroom not found or access denied');
-    }
-
+    // Enforced in runRecord* via getAuthenticatedUser
+    console.warn(
+      '[chatroom] machines.recordAgentRegistered is deprecated; use recordRemoteAgentRegistered (remote) or recordCustomAgentRegistered (custom).'
+    );
     if (args.agentType === 'remote') {
       if (!args.machineId) {
         throw new Error('machineId is required for remote agent registration');
       }
-      await getOwnedMachine(ctx, args.machineId, auth.user._id);
-      if (chatroom.teamId) {
-        const regTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-        const teamCfgForReg = await ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', regTeamRoleKey))
-          .first();
-        if (teamCfgForReg?.machineId) {
-          await assertMachineBelongsToChatroom(ctx, {
-            chatroomId: args.chatroomId,
-            machineId: args.machineId,
-            role: args.role,
-            allowNewMachine: false,
-          });
-        }
-      }
+      return runRecordRemoteAgentRegistered(ctx, {
+        sessionId: args.sessionId,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        machineId: args.machineId,
+      });
     }
-
-    const now = Date.now();
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.registered',
+    return runRecordCustomAgentRegistered(ctx, {
+      sessionId: args.sessionId,
       chatroomId: args.chatroomId,
       role: args.role,
-      agentType: args.agentType,
-      machineId: args.machineId,
-      timestamp: now,
     });
-    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered');
-
-    return { success: true };
   },
 });
 
