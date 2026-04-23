@@ -10,6 +10,11 @@ vi.mock('../convex/client.js', () => ({
   getConvexUrl: vi.fn(() => 'https://unit-test.convex.cloud'),
 }));
 
+vi.mock('./detection.js', () => ({
+  detectAvailableHarnesses: vi.fn(() => []),
+  detectHarnessVersions: vi.fn(() => ({})),
+}));
+
 import { ensureMachineRegistered, getMachineId } from './storage.js';
 
 describe('ensureMachineRegistered', () => {
