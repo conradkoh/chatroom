@@ -584,6 +584,9 @@ export class AgentProcessManager {
             chatroomId: opts.chatroomId,
             role: opts.role,
           },
+          env: {
+            CHATROOM_CONVEX_URL: this.deps.convexUrl,
+          },
         });
       } catch (e) {
         slot.state = 'idle';

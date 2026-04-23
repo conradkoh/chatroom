@@ -37,6 +37,8 @@ export interface SpawnOptions {
   systemPrompt: string;
   model?: string;
   context: SpawnContext;
+  /** Merged into the child process environment after `process.env` (daemon sets `CHATROOM_CONVEX_URL`, etc.). */
+  env?: Record<string, string>;
 }
 
 export interface SpawnResult {

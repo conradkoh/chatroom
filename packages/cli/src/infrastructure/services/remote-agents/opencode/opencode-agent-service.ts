@@ -79,6 +79,7 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
       detached: true,
       env: {
         ...process.env,
+        ...options.env,
         // Prevent git rebase/merge from opening an interactive editor
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',

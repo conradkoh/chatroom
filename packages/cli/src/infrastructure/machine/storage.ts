@@ -28,17 +28,22 @@ import type {
 import { MACHINE_CONFIG_VERSION } from './types.js';
 import { getConvexUrl } from '../convex/client.js';
 
-const CHATROOM_DIR = join(homedir(), '.chatroom');
 const MACHINE_FILE = 'machine.json';
+
+/** Resolves on each call so tests (and rare HOME changes) see the current directory. */
+function chatroomConfigDir(): string {
+  return join(homedir(), '.chatroom');
+}
 
 /**
  * Ensure the chatroom config directory exists
  */
 function ensureConfigDir(): void {
-  if (!existsSync(CHATROOM_DIR)) {
+  const dir = chatroomConfigDir();
+  if (!existsSync(dir)) {
     // SECURITY: 0o700 restricts directory access to owner only.
     // Machine config contains identity credentials (machineId).
-    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -46,7 +51,7 @@ function ensureConfigDir(): void {
  * Get the path to the machine config file
  */
 export function getMachineConfigPath(): string {
-  return join(CHATROOM_DIR, MACHINE_FILE);
+  return join(chatroomConfigDir(), MACHINE_FILE);
 }
 
 /**
@@ -138,18 +143,36 @@ function createNewEndpointConfig(): MachineEndpointConfig {
   };
 }
 
+export type EnsureMachineRegisteredOptions = {
+  /**
+   * When true, creates local machine identity if missing for this Convex URL.
+   * Only `machine start` (daemon bootstrap) should pass this — other callers must
+   * require an existing registration so we never silently mint a new UUID mid-session.
+   */
+  allowCreate?: boolean;
+};
+
 /**
- * Ensure machine is registered for the current Convex URL (idempotent)
+ * Ensure machine is registered for the current Convex URL (idempotent).
  *
- * Creates a new endpoint entry if not exists, otherwise refreshes harness detection.
+ * When no local config exists: throws unless `allowCreate: true` (explicit first-time
+ * bootstrap via daemon startup).
  *
  * @returns Machine registration info for backend sync
  */
-export function ensureMachineRegistered(): MachineRegistrationInfo {
+export function ensureMachineRegistered(
+  options: EnsureMachineRegisteredOptions = {}
+): MachineRegistrationInfo {
+  const { allowCreate = false } = options;
   let config = loadMachineConfig();
 
   if (!config) {
-    // First time registration for this endpoint
+    if (!allowCreate) {
+      const convexUrl = getConvexUrl();
+      throw new Error(
+        `Machine not registered for endpoint "${convexUrl}". Run "chatroom machine start" to create a new machine identity for this deployment.`
+      );
+    }
     config = createNewEndpointConfig();
     saveMachineConfig(config);
   } else {
@@ -171,7 +194,9 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
 }
 
 /**
- * Get the machine ID for the current endpoint (or null if not registered)
+ * Get the machine ID for the current endpoint (or null if not registered).
+ * Does not read stale disk state into a new identity — never creates or mutates config;
+ * callers that require a registration must use {@link ensureMachineRegistered} or handle `null`.
  */
 export function getMachineId(): string | null {
   const config = loadMachineConfig();
