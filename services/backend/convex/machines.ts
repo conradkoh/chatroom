@@ -1190,7 +1190,12 @@ async function runRecordRemoteAgentRegistered(
 
 async function runRecordCustomAgentRegistered(
   ctx: MutationCtx,
-  args: { sessionId: string; chatroomId: Id<'chatroom_rooms'>; role: string }
+  args: {
+    sessionId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    allowTypeChange?: boolean;
+  }
 ): Promise<{ success: true }> {
   const auth = await getAuthenticatedUser(ctx, args.sessionId);
   if (!auth.ok) {
@@ -1212,6 +1217,17 @@ async function runRecordCustomAgentRegistered(
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
+
+  // Prevent silent un-binding of a machine via custom registration. Switching
+  // a role from a machine-bound (remote) config to custom clears `machineId`,
+  // which would bypass the assertMachineBelongsToChatroom invariant on a
+  // subsequent remote re-registration. Require explicit opt-in.
+  if (existing?.machineId && args.allowTypeChange !== true) {
+    throw new Error(
+      `Role "${args.role}" is currently bound to machine ${existing.machineId}. ` +
+        `Pass allowTypeChange: true to switch this role to a custom agent.`
+    );
+  }
 
   const now = Date.now();
   const nextConfig = {
@@ -1281,6 +1297,12 @@ export const recordCustomAgentRegistered = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    /**
+     * Required to switch a role from a machine-bound (remote) config to custom.
+     * Without this, the mutation rejects when an existing remote binding would be
+     * silently cleared — see assertMachineBelongsToChatroom invariant.
+     */
+    allowTypeChange: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Enforced in runRecordCustomAgentRegistered via getAuthenticatedUser
@@ -1288,6 +1310,7 @@ export const recordCustomAgentRegistered = mutation({
       sessionId: args.sessionId,
       chatroomId: args.chatroomId,
       role: args.role,
+      allowTypeChange: args.allowTypeChange,
     });
   },
 });
@@ -1307,6 +1330,8 @@ export const recordAgentRegistered = mutation({
     role: v.string(),
     agentType: v.union(v.literal('remote'), v.literal('custom')),
     machineId: v.optional(v.string()),
+    /** Forwards to recordCustomAgentRegistered when agentType === 'custom'. */
+    allowTypeChange: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Enforced in runRecord* via getAuthenticatedUser
@@ -1328,6 +1353,7 @@ export const recordAgentRegistered = mutation({
       sessionId: args.sessionId,
       chatroomId: args.chatroomId,
       role: args.role,
+      allowTypeChange: args.allowTypeChange,
     });
   },
 });

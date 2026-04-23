@@ -23,6 +23,12 @@ export type { RegisterAgentDeps } from './deps.js';
 export interface RegisterAgentOptions {
   role: string;
   type: 'remote' | 'custom';
+  /**
+   * For `type: 'custom'` only — explicit opt-in to switch a role from a
+   * machine-bound (remote) config to custom. Required because the switch
+   * clears the existing machine binding.
+   */
+  allowTypeChange?: boolean;
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -50,7 +56,7 @@ export async function registerAgent(
   deps?: RegisterAgentDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, type } = options;
+  const { role, type, allowTypeChange } = options;
 
   // Get session ID for authentication
   const sessionId = d.session.getSessionId();
@@ -141,6 +147,7 @@ export async function registerAgent(
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
+        allowTypeChange,
       });
 
       console.log(`✅ Registered as custom agent for role "${role}"`);
