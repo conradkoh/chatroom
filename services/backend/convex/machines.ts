@@ -34,9 +34,8 @@ function resolveAllowNewMachineForStart(
   payload: { allowNewMachine?: boolean } | undefined,
   existingConfig: Doc<'chatroom_teamAgentConfigs'> | null
 ): boolean {
-  if (payload?.allowNewMachine === true) return true;
-  if (payload?.allowNewMachine === false) return false;
-  return !Boolean(existingConfig?.machineId);
+  if (payload?.allowNewMachine !== undefined) return payload.allowNewMachine;
+  return !existingConfig?.machineId;
 }
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -1296,6 +1295,10 @@ export const recordCustomAgentRegistered = mutation({
 /**
  * @deprecated Use {@link recordRemoteAgentRegistered} or {@link recordCustomAgentRegistered} instead.
  * Thin shim; emits a console warning when invoked. Signature preserved for existing clients.
+ *
+ * Scheduled for removal after one release cycle — see PR #433 follow-up (b).
+ * External CLI versions may still call this mutation, so do not remove without a
+ * deprecation window and release-notes callout.
  */
 export const recordAgentRegistered = mutation({
   args: {

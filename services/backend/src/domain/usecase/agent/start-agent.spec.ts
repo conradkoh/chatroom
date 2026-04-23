@@ -252,4 +252,33 @@ describe('startAgent use case — desiredState', () => {
       startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: false })
     ).rejects.toThrow(/allowNewMachine: true/);
   });
+
+  test('rejects start on a different machine when allowNewMachine is omitted (default policy)', async () => {
+    const { sessionId } = await createTestSession('start-agent-switch-4');
+    const chatroomId = await createChatroom(sessionId);
+    const machineA = 'start-default-a';
+    const machineB = 'start-default-b';
+
+    await registerMachine(sessionId, machineA);
+    await registerMachine(sessionId, machineB);
+    // First start binds the role to machineA (initial binding is permitted by default policy).
+    await startAgent(sessionId, machineA, chatroomId, 'builder');
+
+    // Second start on machineB without an explicit allowNewMachine flag must be rejected —
+    // once bound, switching machines requires explicit opt-in.
+    await expect(startAgent(sessionId, machineB, chatroomId, 'builder')).rejects.toThrow(
+      /allowNewMachine: true/
+    );
+
+    // Verify no machine.switched event was emitted.
+    const switched = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        )
+        .collect();
+    });
+    expect(switched.length).toBe(0);
+  });
 });

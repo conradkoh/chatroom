@@ -34,18 +34,17 @@ async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: stri
 }
 
 describe('Participant Status Tracking', () => {
-  test('agent.registered via recordAgentRegistered', async () => {
+  test('agent.registered via recordRemoteAgentRegistered', async () => {
     const { sessionId } = await createTestSession('test-pst-registered');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-pst-registered';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
-    await t.mutation(api.machines.recordAgentRegistered, {
+    await t.mutation(api.machines.recordRemoteAgentRegistered, {
       sessionId,
       chatroomId,
       role: 'builder',
-      agentType: 'remote',
       machineId,
     });
 
@@ -262,12 +261,11 @@ describe('Participant Status Tracking', () => {
     const machineId = 'machine-pst-noop';
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // recordAgentRegistered without joining as participant first
-    await t.mutation(api.machines.recordAgentRegistered, {
+    // recordRemoteAgentRegistered without joining as participant first
+    await t.mutation(api.machines.recordRemoteAgentRegistered, {
       sessionId,
       chatroomId,
       role: 'builder',
-      agentType: 'remote',
       machineId,
     });
 
@@ -284,11 +282,10 @@ describe('Participant Status Tracking', () => {
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     // 1. Register
-    await t.mutation(api.machines.recordAgentRegistered, {
+    await t.mutation(api.machines.recordRemoteAgentRegistered, {
       sessionId,
       chatroomId,
       role: 'builder',
-      agentType: 'remote',
       machineId,
     });
     expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe('agent.registered');
