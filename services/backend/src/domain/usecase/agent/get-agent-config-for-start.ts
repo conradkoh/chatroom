@@ -22,6 +22,7 @@ export interface ConnectedMachineView {
   hostname: string;
   availableHarnesses: AgentHarness[];
   availableModels: Record<string, string[]>;
+  availableAgents: Record<string, string[]>;
 }
 
 export interface AgentStartDefaults {
@@ -29,6 +30,7 @@ export interface AgentStartDefaults {
   agentHarness?: AgentHarness;
   model?: string;
   workingDir?: string;
+  opencodeAgentName?: string;
 }
 
 export interface AgentStartFormData {
@@ -73,6 +75,7 @@ export async function getAgentConfigForStart(
         hostname: m.hostname,
         availableHarnesses: m.availableHarnesses as AgentHarness[],
         availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
+        availableAgents: (m.availableAgents ?? {}) as Record<string, string[]>,
       });
     }
   }
@@ -100,6 +103,7 @@ export async function getAgentConfigForStart(
         agentHarness: preference.agentHarness as AgentHarness | undefined,
         model: preference.model,
         workingDir: preference.workingDir,
+        opencodeAgentName: preference.opencodeAgentName,
       },
     };
   }
@@ -123,6 +127,7 @@ export async function getAgentConfigForStart(
         agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
         model: teamConfig.model,
         workingDir: teamConfig.workingDir,
+        opencodeAgentName: teamConfig.opencodeAgentName,
       },
     };
   }

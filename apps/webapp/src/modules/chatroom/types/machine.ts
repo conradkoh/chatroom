@@ -37,6 +37,8 @@ export interface MachineInfo {
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
   /** Available AI models discovered dynamically, keyed by harness name */
   availableModels: Record<string, string[]>;
+  /** OpenCode agent profile names per harness (e.g. opencode-sdk → build, plan) */
+  availableAgents?: Record<string, string[]>;
   /** Per-harness driver capabilities (what features each harness supports) */
   harnessCapabilities?: HarnessCapabilitiesByHarness;
   daemonConnected: boolean;
@@ -51,11 +53,18 @@ export interface AgentConfig {
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
+  opencodeAgentName?: string;
   daemonConnected: boolean;
   availableHarnesses: AgentHarness[];
+  /** Denormalized from the machine row for model / agent pickers */
+  availableModels: Record<string, string[]>;
+  availableAgents?: Record<string, string[]>;
+  harnessCapabilities?: HarnessCapabilitiesByHarness;
   updatedAt: number;
   spawnedAgentPid?: number;
   spawnedAt?: number;
+  sessionId?: string;
+  serverUrl?: string;
 }
 
 export type SendCommandArgs =
@@ -68,6 +77,7 @@ export type SendCommandArgs =
         model?: string;
         agentHarness: AgentHarness;
         workingDir?: string;
+        opencodeAgentName?: string;
       };
     }
   | {
@@ -121,6 +131,11 @@ export function getHarnessDisplayName(harness: string): string {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/** True when the harness is the OpenCode SDK integration (not the CLI harness). */
+export function isOpenCodeSdkHarness(harness: AgentHarness | null): harness is 'opencode-sdk' {
+  return harness === 'opencode-sdk';
+}
 
 /** Returns the display name for a machine: alias if set, otherwise hostname. */
 export function getMachineDisplayName(machine: { hostname: string; alias?: string }): string {

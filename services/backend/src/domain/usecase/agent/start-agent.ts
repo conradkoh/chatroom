@@ -15,6 +15,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { transitionAgentStatus } from './transition-agent-status';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -23,7 +24,6 @@ import {
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +46,9 @@ export interface StartAgentInput {
   agentHarness: AgentHarness;
   /** Working directory on the machine (absolute path). */
   workingDir: string;
+
+  /** OpenCode SDK agent profile (optional — SDK default when omitted). */
+  opencodeAgentName?: string;
 
   /**
    * Human-readable reason for this start command.
@@ -87,7 +90,8 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, opencodeAgentName, reason } =
+    input;
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 
@@ -118,6 +122,7 @@ export async function startAgent(
       agentHarness: agentHarness as AgentHarness | undefined,
       model,
       workingDir,
+      opencodeAgentName,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
       // Reset circuit breaker — manual start is an explicit user intent to retry
@@ -148,6 +153,7 @@ export async function startAgent(
     agentHarness,
     model,
     workingDir,
+    opencodeAgentName,
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,

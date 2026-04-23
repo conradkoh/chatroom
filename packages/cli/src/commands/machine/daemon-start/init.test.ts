@@ -77,6 +77,28 @@ vi.mock('../../../version.js', () => ({
   getVersion: vi.fn().mockReturnValue('1.0.0-test'),
 }));
 
+/** Stub registry — no `listAgents` so discoverAgents() is a no-op (avoids real SDK I/O in tests). */
+vi.mock('../../../infrastructure/agent-drivers/registry.js', () => ({
+  createDefaultDriverRegistry: () => ({
+    all: () => [
+      {
+        harness: 'opencode',
+        capabilities: {
+          sessionPersistence: false,
+          abort: false,
+          modelSelection: false,
+          compaction: false,
+          eventStreaming: false,
+          messageInjection: false,
+          dynamicModelDiscovery: true,
+        },
+      },
+    ],
+    get: vi.fn(),
+    capabilities: vi.fn(),
+  }),
+}));
+
 vi.mock('./handlers/state-recovery.js', () => ({
   recoverAgentState: vi.fn().mockResolvedValue(undefined),
 }));

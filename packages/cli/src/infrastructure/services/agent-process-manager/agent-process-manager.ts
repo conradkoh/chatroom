@@ -31,6 +31,8 @@ export interface AgentSlot {
   agentHandle?: AgentHandle;
   harness?: AgentHarness;
   model?: string;
+  /** OpenCode SDK agent profile used for the current session (crash recovery). */
+  agentName?: string;
   workingDir?: string;
   startedAt?: number;
   /** Promise that resolves when a pending spawn or stop completes */
@@ -49,6 +51,8 @@ export interface EnsureRunningOpts {
   agentHarness: AgentHarness;
   model?: string;
   workingDir: string;
+  /** OpenCode SDK agent profile — forwarded to the SDK driver when set. */
+  agentName?: string;
   reason: string;
 }
 
@@ -101,11 +105,11 @@ export interface AgentProcessManagerDeps {
       workingDir?: string
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
-    listAgentEntries: (machineId: string) => Array<{
+    listAgentEntries: (machineId: string) => {
       chatroomId: string;
       role: string;
       entry: { pid: number; harness: AgentHarness; workingDir?: string };
-    }>;
+    }[];
   };
   spawning: {
     shouldAllowSpawn: (
@@ -348,6 +352,7 @@ export class AgentProcessManager {
       agentHarness: harness,
       model,
       workingDir,
+      agentName: slot.agentName,
       reason: 'platform.crash_recovery',
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
@@ -371,8 +376,8 @@ export class AgentProcessManager {
     return this.slots.get(agentKey(chatroomId, role));
   }
 
-  listActive(): Array<{ chatroomId: string; role: string; slot: AgentSlot }> {
-    const result: Array<{ chatroomId: string; role: string; slot: AgentSlot }> = [];
+  listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
+    const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
     for (const [key, slot] of this.slots) {
       if (slot.state === 'running' || slot.state === 'spawning') {
         const [chatroomId, role] = key.split(':');
@@ -624,6 +629,7 @@ export class AgentProcessManager {
             initialMessage: initPromptResult.initialMessage,
             rolePrompt: initPromptResult.rolePrompt ?? '',
             model: opts.model,
+            agentName: opts.agentName,
           });
         } catch (e) {
           slot.state = 'idle';
@@ -640,6 +646,7 @@ export class AgentProcessManager {
         slot.agentHandle = agentHandle;
         slot.harness = opts.agentHarness;
         slot.model = opts.model;
+        slot.agentName = opts.agentName;
         slot.workingDir = opts.workingDir;
         slot.startedAt = this.deps.clock.now();
         slot.pendingOperation = undefined;

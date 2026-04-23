@@ -18,7 +18,6 @@ import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from '
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
-import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -26,7 +25,13 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { getHarnessDisplayName, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
+import {
+  getHarnessDisplayName,
+  getModelDisplayLabel,
+  getMachineDisplayName,
+  isOpenCodeSdkHarness,
+} from '../types/machine';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
 
 import {
   Command,
@@ -59,6 +64,7 @@ export interface AgentPreference {
   agentHarness: AgentHarness;
   model?: string;
   workingDir?: string;
+  opencodeAgentName?: string;
 }
 
 function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
@@ -154,6 +160,28 @@ function deriveInitialWorkingDir(
   return preference?.workingDir ?? '';
 }
 
+function deriveInitialOpenCodeAgentName(
+  machineId: string | null,
+  harness: AgentHarness | null,
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): string {
+  if (!machineId || !isOpenCodeSdkHarness(harness)) return '';
+  const config = roleConfigs.find(
+    (c) => c.machineId === machineId && isOpenCodeSdkHarness(c.agentType)
+  );
+  if (config?.opencodeAgentName) return config.opencodeAgentName;
+  if (
+    preference &&
+    preference.machineId === machineId &&
+    isOpenCodeSdkHarness(preference.agentHarness) &&
+    preference.opencodeAgentName
+  ) {
+    return preference.opencodeAgentName;
+  }
+  return '';
+}
+
 export function useAgentControls({
   role,
   chatroomId,
@@ -192,6 +220,7 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
+  const [openCodeAgentName, setOpenCodeAgentName] = useState('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -255,6 +284,7 @@ export function useAgentControls({
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
+    setOpenCodeAgentName(deriveInitialOpenCodeAgentName(machine, harness, roleConfigs, pref));
     setIsInitialized(true);
   }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
 
@@ -347,6 +377,9 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: selectedHarness,
           workingDir: workingDir.trim() || undefined,
+          opencodeAgentName: isOpenCodeSdkHarness(selectedHarness)
+            ? openCodeAgentName.trim() || undefined
+            : undefined,
         },
       });
       // Save user preference so the Remote tab pre-populates these values next time
@@ -356,6 +389,9 @@ export function useAgentControls({
         agentHarness: selectedHarness,
         model: selectedModel || undefined,
         workingDir: workingDir.trim() || undefined,
+        opencodeAgentName: isOpenCodeSdkHarness(selectedHarness)
+          ? openCodeAgentName.trim() || undefined
+          : undefined,
       });
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
@@ -373,6 +409,7 @@ export function useAgentControls({
     chatroomId,
     role,
     onSavePreference,
+    openCodeAgentName,
   ]);
 
   const handleStopAgent = useCallback(async () => {
@@ -416,6 +453,9 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
+          opencodeAgentName: isOpenCodeSdkHarness(runningAgentConfig.agentType)
+            ? openCodeAgentName.trim() || undefined
+            : undefined,
         },
       });
       setSuccess('Restart command sent!');
@@ -426,7 +466,7 @@ export function useAgentControls({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role, openCodeAgentName]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -438,14 +478,22 @@ export function useAgentControls({
       const pref = initialPreferenceRef.current;
       const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref);
       setWorkingDir(wd);
+      setOpenCodeAgentName(deriveInitialOpenCodeAgentName(machineId, null, roleConfigs, pref));
     },
     [roleConfigs]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
-  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
-    setSelectedHarness(harness);
-  }, []);
+  const handleHarnessChange = useCallback(
+    (harness: AgentHarness | null) => {
+      setSelectedHarness(harness);
+      const pref = initialPreferenceRef.current;
+      setOpenCodeAgentName(
+        deriveInitialOpenCodeAgentName(selectedMachineId, harness, roleConfigs, pref)
+      );
+    },
+    [roleConfigs, selectedMachineId]
+  );
 
   // Wrapper for user manually selecting a model — stored per harness
   const handleModelChange = useCallback(
@@ -469,6 +517,10 @@ export function useAgentControls({
     setWorkingDir(dir);
   }, []);
 
+  const handleOpenCodeAgentNameChange = useCallback((name: string) => {
+    setOpenCodeAgentName(name);
+  }, []);
+
   return {
     selectedMachineId,
     selectedHarness,
@@ -483,6 +535,7 @@ export function useAgentControls({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    openCodeAgentName,
     visibleModels,
     machineModelFilter,
     isAgentRunning,
@@ -498,6 +551,7 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    handleOpenCodeAgentNameChange,
   };
 }
 
@@ -528,6 +582,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    openCodeAgentName,
     runningAgentConfig,
     isAgentRunning,
     isBusy,
@@ -542,6 +597,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    handleOpenCodeAgentNameChange,
   } = controls;
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
@@ -550,6 +606,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
+  const displayOpenCodeAgentName = isAgentRunning
+    ? (runningAgentConfig!.opencodeAgentName ?? '')
+    : openCodeAgentName;
+
+  const displayAvailableAgentsForSdk = useMemo(() => {
+    if (!displayMachineId) return [];
+    const machine = connectedMachines.find((m) => m.machineId === displayMachineId);
+    return machine?.availableAgents?.['opencode-sdk'] ?? [];
+  }, [displayMachineId, connectedMachines]);
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -798,6 +863,49 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               />
             )}
           </div>
+
+          {displayHarness && isOpenCodeSdkHarness(displayHarness) && (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                OpenCode agent
+              </span>
+              {isAgentRunning ? (
+                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                  {displayOpenCodeAgentName || '(default)'}
+                </div>
+              ) : displayAvailableAgentsForSdk.length > 0 ? (
+                <select
+                  value={displayOpenCodeAgentName}
+                  onChange={(e) => handleOpenCodeAgentNameChange(e.target.value)}
+                  disabled={isBusy}
+                  className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="OpenCode agent profile"
+                >
+                  <option value="">(SDK default)</option>
+                  {displayAvailableAgentsForSdk.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={displayOpenCodeAgentName}
+                    onChange={(e) => handleOpenCodeAgentNameChange(e.target.value)}
+                    placeholder="e.g. build"
+                    disabled={isBusy}
+                    className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="OpenCode agent profile name"
+                  />
+                  <span className="text-[9px] text-chatroom-text-muted leading-tight">
+                    Default agent will be used if left blank.
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">

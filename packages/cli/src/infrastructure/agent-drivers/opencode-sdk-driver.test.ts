@@ -41,6 +41,9 @@ type MockClient = {
   provider: {
     list: ReturnType<typeof vi.fn>;
   };
+  app: {
+    agents: ReturnType<typeof vi.fn>;
+  };
 };
 
 function makeClient(): MockClient {
@@ -67,6 +70,11 @@ function makeClient(): MockClient {
             },
           ],
         },
+      }),
+    },
+    app: {
+      agents: vi.fn().mockResolvedValue({
+        data: [{ name: 'build' }, { name: 'plan' }],
       }),
     },
   };
@@ -157,6 +165,26 @@ describe('OpenCodeSdkDriver', () => {
         expect.objectContaining({
           body: expect.objectContaining({
             model: { providerID: 'anthropic', modelID: 'claude-3-5-sonnet' },
+          }),
+        })
+      );
+    });
+
+    it('forwards agentName to promptAsync body as agent when set', async () => {
+      const deps = makeDeps();
+      const driver = new OpenCodeSdkDriver(deps);
+
+      await driver.start({
+        workingDir: '/tmp/work',
+        rolePrompt: '',
+        initialMessage: 'Hello',
+        agentName: 'plan',
+      });
+
+      expect(deps.client.session.promptAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            agent: 'plan',
           }),
         })
       );
@@ -276,6 +304,27 @@ describe('OpenCodeSdkDriver', () => {
       const models = await driver.listModels();
 
       expect(models).toEqual([]);
+    });
+  });
+
+  describe('listAgents()', () => {
+    it('returns agent names from app.agents()', async () => {
+      const deps = makeDeps();
+      const driver = new OpenCodeSdkDriver(deps);
+
+      const agents = await driver.listAgents();
+
+      expect(agents).toEqual(['build', 'plan']);
+    });
+
+    it('returns [] if server creation fails', async () => {
+      const deps = makeDeps();
+      deps.createServer = vi.fn().mockRejectedValue(new Error('Cannot start'));
+      const driver = new OpenCodeSdkDriver(deps);
+
+      const agents = await driver.listAgents();
+
+      expect(agents).toEqual([]);
     });
   });
 });

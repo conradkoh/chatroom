@@ -8,28 +8,28 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 
-import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { onRequestAbortAgent } from '../../../events/daemon/agent/on-request-abort-agent.js';
 import { onRequestCompactAgent } from '../../../events/daemon/agent/on-request-compact-agent.js';
 import { releaseLock } from '../pid.js';
-import { pushGitState } from './git-heartbeat.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
+import { pushGitState } from './git-heartbeat.js';
 import { startGitRequestSubscription } from './git-subscription.js';
-import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
-import { discoverModels } from './init.js';
+import { handlePing } from './handlers/ping.js';
+import { discoverAgents, discoverModels } from './init.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { createDefaultDriverRegistry } from '../../../infrastructure/agent-drivers/registry.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
-import { createDefaultDriverRegistry } from '../../../infrastructure/agent-drivers/registry.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
@@ -130,14 +130,16 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
 
   // Discover models only for harnesses with dynamicModelDiscovery=true
   const models = await discoverModels(ctx.agentServices, harnessCapabilities);
+  const agents = await discoverAgents(registry);
 
   // Re-detect available harnesses so any newly installed tools are reflected immediately.
   const freshConfig = ensureMachineRegistered();
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
 
-  const diff = diffModels(ctx.lastPushedModels, models);
-  if (!diff.hasChanges) {
+  const modelDiff = diffModels(ctx.lastPushedModels, models);
+  const agentDiff = diffModels(ctx.lastPushedAgents, agents);
+  if (!modelDiff.hasChanges && !agentDiff.hasChanges) {
     // Nothing new since last successful push — skip the Convex mutation.
     return;
   }
@@ -151,19 +153,29 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
       availableHarnesses: ctx.config.availableHarnesses,
       harnessVersions: ctx.config.harnessVersions,
       availableModels: models,
+      availableAgents: agents,
     });
     // Snapshot only after the backend successfully accepts the update — on
     // failure we want the next tick to retry with the same diff.
     ctx.lastPushedModels = models;
+    ctx.lastPushedAgents = agents;
 
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-    if (Object.keys(diff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(diff.added)}`);
+    if (Object.keys(modelDiff.added).length > 0) {
+      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
     }
-    if (Object.keys(diff.removed).length > 0) {
+    if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
-        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(diff.removed)}`
+        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
+      );
+    }
+    if (Object.keys(agentDiff.added).length > 0) {
+      console.log(`[${formatTimestamp()}] ➕ New agents detected — ${formatModelMap(agentDiff.added)}`);
+    }
+    if (Object.keys(agentDiff.removed).length > 0) {
+      console.log(
+        `[${formatTimestamp()}] ➖ Agents no longer available — ${formatModelMap(agentDiff.removed)}`
       );
     }
     console.log(

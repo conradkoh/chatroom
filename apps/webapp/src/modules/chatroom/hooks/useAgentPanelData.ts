@@ -70,6 +70,7 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
         agentHarness: p.agentHarness,
         model: p.model,
         workingDir: p.workingDir,
+        opencodeAgentName: p.opencodeAgentName,
       }));
       setCachedPreferences(prefs);
       setPrefsLoaded(true);
@@ -99,6 +100,7 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
         agentHarness: pref.agentHarness,
         model: pref.model,
         workingDir: pref.workingDir,
+        opencodeAgentName: pref.opencodeAgentName,
       }).catch((err) => {
         console.error('[AgentPanel] Failed to save preference:', err);
       });

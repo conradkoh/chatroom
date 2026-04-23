@@ -65,6 +65,11 @@ export interface AgentStartOptions {
   initialMessage: string;
   /** AI model to use (only when modelSelection capability is true) */
   model?: string;
+  /**
+   * OpenCode SDK agent profile (e.g. build / plan). Only consumed by the
+   * opencode-sdk driver — forwarded to `session.promptAsync` when set.
+   */
+  agentName?: string;
 }
 
 // ─── Driver Interface ─────────────────────────────────────────────────────────
@@ -102,6 +107,12 @@ export interface AgentToolDriver {
    * Returns empty array if not supported.
    */
   listModels(): Promise<string[]>;
+
+  /**
+   * List OpenCode agent profile names (optional).
+   * Only implemented by harnesses that support dynamic discovery (e.g. opencode-sdk).
+   */
+  listAgents?(): Promise<string[]>;
 
   /**
    * Recover running agent sessions after a daemon restart (optional).

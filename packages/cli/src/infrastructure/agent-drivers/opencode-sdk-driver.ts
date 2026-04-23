@@ -68,7 +68,7 @@ export class OpenCodeSdkDriver implements AgentToolDriver {
   }
 
   async start(options: AgentStartOptions): Promise<AgentHandle> {
-    const { workingDir, rolePrompt, initialMessage, model } = options;
+    const { workingDir, rolePrompt, initialMessage, model, agentName } = options;
 
     // Start (or reuse) an OpenCode server for this working directory
     const server = await this.createServer({
@@ -109,6 +109,7 @@ export class OpenCodeSdkDriver implements AgentToolDriver {
       path: { id: sessionId },
       body: {
         ...(modelBody ? { model: modelBody } : {}),
+        ...(agentName ? { agent: agentName } : {}),
         parts: [{ type: 'text', text: combinedPrompt }],
       },
     });
@@ -174,6 +175,22 @@ export class OpenCodeSdkDriver implements AgentToolDriver {
           }
         }
         return models;
+      } finally {
+        server.close();
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  async listAgents(): Promise<string[]> {
+    try {
+      const server = await this.createServer({ timeout: SERVER_START_TIMEOUT_MS });
+      const client = this.createClient({ baseUrl: server.url });
+      try {
+        const result = await client.app.agents();
+        const agents = result.data ?? [];
+        return agents.map((a) => a.name);
       } finally {
         server.close();
       }

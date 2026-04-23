@@ -13,6 +13,7 @@
 
 import { execSync } from 'node:child_process';
 
+import { OpenCodeSdkDriver } from '../../../agent-drivers/opencode-sdk-driver.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
@@ -41,8 +42,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    // Model discovery is handled by OpenCodeSdkDriver.listModels() (dynamicModelDiscovery)
-    return [];
+    return new OpenCodeSdkDriver().listModels();
+  }
+
+  async listAgents(): Promise<string[]> {
+    return new OpenCodeSdkDriver().listAgents();
   }
 
   async spawn(_options: SpawnOptions): Promise<SpawnResult> {

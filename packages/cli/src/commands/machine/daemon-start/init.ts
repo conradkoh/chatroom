@@ -15,6 +15,7 @@ import { api } from '../../../api.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { createDefaultDriverRegistry } from '../../../infrastructure/agent-drivers/registry.js';
+import type { DriverRegistry } from '../../../infrastructure/agent-drivers/types.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import { startLocalApi } from '../../../infrastructure/local-api/index.js';
@@ -67,6 +68,22 @@ export async function discoverModels(
       } catch {
         results[harness] = [];
       }
+    }
+  }
+  return results;
+}
+
+/**
+ * Discover OpenCode agent profile names from drivers that implement `listAgents`.
+ */
+export async function discoverAgents(registry: DriverRegistry): Promise<Record<string, string[]>> {
+  const results: Record<string, string[]> = {};
+  for (const driver of registry.all()) {
+    if (!driver.listAgents) continue;
+    try {
+      results[driver.harness] = await driver.listAgents();
+    } catch {
+      results[driver.harness] = [];
     }
   }
   return results;
@@ -223,7 +240,7 @@ async function registerCapabilities(
   sessionId: SessionId,
   config: MachineConfig,
   agentServices: Map<string, RemoteAgentService>
-): Promise<Record<string, string[]>> {
+): Promise<{ availableModels: Record<string, string[]>; availableAgents: Record<string, string[]> }> {
   const { machineId } = config;
 
   // Build per-harness capabilities from the driver registry (needed before model discovery)
@@ -236,6 +253,7 @@ async function registerCapabilities(
 
   // Discover available models from harnesses with dynamicModelDiscovery=true
   const availableModels = await discoverModels(agentServices, harnessCapabilities);
+  const availableAgents = await discoverAgents(registry);
 
   // Register/update machine info in backend (includes harnesses, models, and capabilities)
   // This ensures the web UI has current machine capabilities
@@ -248,6 +266,7 @@ async function registerCapabilities(
       availableHarnesses: config.availableHarnesses,
       harnessVersions: config.harnessVersions,
       availableModels,
+      availableAgents,
       harnessCapabilities,
     });
   } catch (error) {
@@ -255,7 +274,7 @@ async function registerCapabilities(
     console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
   }
 
-  return availableModels;
+  return { availableModels, availableAgents };
 }
 
 /**
@@ -376,7 +395,7 @@ export async function initDaemon(): Promise<DaemonContext> {
         getAllHarnesses().map((s) => [s.id, s])
       );
 
-      const availableModels = await registerCapabilities(
+      const { availableModels, availableAgents } = await registerCapabilities(
         client,
         typedSessionId,
         config,
@@ -398,6 +417,7 @@ export async function initDaemon(): Promise<DaemonContext> {
       // Create the AgentProcessManager with all required dependencies
       deps.agentProcessManager = new AgentProcessManager({
         agentServices,
+        driverRegistry: createDefaultDriverRegistry(),
         backend: deps.backend,
         sessionId: typedSessionId,
         machineId,
@@ -424,6 +444,7 @@ export async function initDaemon(): Promise<DaemonContext> {
         // so the first refreshModels tick correctly detects "no change" instead
         // of always re-pushing the same set on the first run.
         lastPushedModels: availableModels,
+        lastPushedAgents: availableAgents,
       };
 
       registerEventListeners(ctx);

@@ -19,8 +19,8 @@ import { createMockDaemonDeps } from '../testing/index.js';
 // ---------------------------------------------------------------------------
 
 function createMockContext(overrides?: {
-  activeSlots?: Array<{ chatroomId: string; role: string; slot: any }>;
-  configs?: Array<any>;
+  activeSlots?: { chatroomId: string; role: string; slot: any }[];
+  configs?: any[];
 }): DaemonContext {
   const deps: DaemonDeps = createMockDaemonDeps();
 
@@ -51,6 +51,7 @@ function createMockContext(overrides?: {
     ]),
     lastPushedGitState: new Map(),
     lastPushedModels: null,
+    lastPushedAgents: null,
   };
 }
 

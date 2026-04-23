@@ -116,6 +116,11 @@ export interface DaemonContext {
    */
   lastPushedModels: Record<string, string[]> | null;
   /**
+   * Tracks the last OpenCode agent-name snapshot pushed to the backend (per harness).
+   * Same diff semantics as `lastPushedModels`.
+   */
+  lastPushedAgents: Record<string, string[]> | null;
+  /**
    * Stops the local API HTTP server.
    * Populated after `startLocalApi()` returns successfully.
    * May be undefined if the local API failed to start (e.g. port conflict).

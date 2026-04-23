@@ -112,6 +112,7 @@ export const register = mutation({
     availableHarnesses: v.array(agentHarnessValidator),
     harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    availableAgents: v.optional(v.record(v.string(), v.array(v.string()))),
     harnessCapabilities: v.optional(
       v.record(
         v.string(),
@@ -154,6 +155,7 @@ export const register = mutation({
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
         availableModels: args.availableModels,
+        availableAgents: args.availableAgents,
         harnessCapabilities: args.harnessCapabilities,
         lastSeenAt: now,
       });
@@ -170,6 +172,7 @@ export const register = mutation({
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
+      availableAgents: args.availableAgents,
       harnessCapabilities: args.harnessCapabilities,
       registeredAt: now,
       lastSeenAt: now,
@@ -223,6 +226,7 @@ export const refreshCapabilities = mutation({
     availableHarnesses: v.array(agentHarnessValidator),
     harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    availableAgents: v.optional(v.record(v.string(), v.array(v.string()))),
     harnessCapabilities: v.optional(
       v.record(
         v.string(),
@@ -261,6 +265,7 @@ export const refreshCapabilities = mutation({
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
+      availableAgents: args.availableAgents,
       harnessCapabilities: args.harnessCapabilities,
       lastSeenAt: Date.now(),
     });
@@ -327,6 +332,8 @@ export const listMachines = query({
           availableHarnesses: m.availableHarnesses,
           harnessVersions: m.harnessVersions ?? {},
           availableModels: m.availableModels ?? {},
+          harnessCapabilities: m.harnessCapabilities,
+          availableAgents: m.availableAgents ?? {},
           daemonConnected: status?.status === 'online',
           lastSeenAt: livenessData.get(m.machineId) ?? 0,
           registeredAt: m.registeredAt,
@@ -441,8 +448,12 @@ export const getMachineAgentConfigs = query({
         agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
+        opencodeAgentName: config.opencodeAgentName,
         daemonConnected: status?.daemonConnected ?? false,
         availableHarnesses: machine?.availableHarnesses ?? [],
+        availableModels: machine?.availableModels ?? {},
+        availableAgents: machine?.availableAgents ?? {},
+        harnessCapabilities: machine?.harnessCapabilities,
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
         spawnedAt: config.spawnedAt,
@@ -897,6 +908,7 @@ export const sendCommand = mutation({
         // For first-time starts when no agent config exists:
         agentHarness: v.optional(agentHarnessValidator),
         workingDir: v.optional(v.string()),
+        opencodeAgentName: v.optional(v.string()),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -941,6 +953,9 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+      const resolvedOpenCodeAgentName =
+        args.payload.opencodeAgentName ??
+        (existingConfig?.type === 'remote' ? existingConfig.opencodeAgentName : undefined);
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
@@ -959,6 +974,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
+          opencodeAgentName: resolvedOpenCodeAgentName,
           reason: 'user.start',
         },
         machine
@@ -1322,6 +1338,7 @@ export const saveTeamAgentConfig = mutation({
     agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    opencodeAgentName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -1352,6 +1369,10 @@ export const saveTeamAgentConfig = mutation({
     // Preserve existing agentHarness if the new value is undefined (e.g. register-agent doesn't pass agentHarness)
     const resolvedAgentHarness =
       args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
+    const resolvedOpenCodeAgentName =
+      args.type === 'remote'
+        ? (args.opencodeAgentName ?? existing?.opencodeAgentName)
+        : undefined;
 
     const config = {
       teamRoleKey,
@@ -1362,6 +1383,7 @@ export const saveTeamAgentConfig = mutation({
       agentHarness: resolvedAgentHarness,
       model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
+      opencodeAgentName: resolvedOpenCodeAgentName,
       updatedAt: now,
       desiredState: 'running' as const,
     };
@@ -1428,6 +1450,7 @@ export const saveAgentPreference = mutation({
     agentHarness: agentHarnessValidator,
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    opencodeAgentName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -1457,6 +1480,7 @@ export const saveAgentPreference = mutation({
       agentHarness: args.agentHarness,
       model: args.model,
       workingDir: args.workingDir,
+      opencodeAgentName: args.opencodeAgentName,
       updatedAt: now,
     };
 
@@ -2131,6 +2155,7 @@ export const getAgentPreferences = query({
           agentHarness: p.agentHarness!,
           model: p.model,
           workingDir: p.workingDir,
+          opencodeAgentName: p.opencodeAgentName,
         })),
     };
   },

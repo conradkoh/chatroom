@@ -167,6 +167,7 @@ describe('refreshModels', () => {
       // first refreshModels() call will detect everything as new and push.
       // Tests that exercise the diff/no-diff paths override this explicitly.
       lastPushedModels: null,
+      lastPushedAgents: null,
     };
   }
 
@@ -259,6 +260,7 @@ describe('refreshModels', () => {
       opencode: ['opencode/model-a', 'opencode/model-b'],
       pi: ['github-copilot/claude-sonnet-4.5'],
     };
+    ctx.lastPushedAgents = {};
 
     await refreshModels(ctx);
 
@@ -270,6 +272,7 @@ describe('refreshModels', () => {
       { harness: 'opencode', isInstalled: true, models: ['model-b', 'model-a'] },
     ]);
     ctx.lastPushedModels = { opencode: ['model-a', 'model-b'] };
+    ctx.lastPushedAgents = {};
 
     await refreshModels(ctx);
 
@@ -339,6 +342,7 @@ describe('refreshModels', () => {
     expect(ctx.lastPushedModels).toEqual({
       opencode: ['opencode/model-a', 'opencode/model-b'],
     });
+    expect(ctx.lastPushedAgents).toEqual({});
   });
 
   it('leaves the snapshot unchanged when the backend mutation fails (next tick will retry)', async () => {
@@ -347,6 +351,8 @@ describe('refreshModels', () => {
     ]);
     const previous = { opencode: ['opencode/model-a'] };
     ctx.lastPushedModels = previous;
+    const previousAgents = { 'opencode-sdk': ['build'] };
+    ctx.lastPushedAgents = previousAgents;
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -355,5 +361,6 @@ describe('refreshModels', () => {
     // Snapshot must NOT be advanced — otherwise the addition would be lost
     // and the next tick would compare the new set against itself and skip.
     expect(ctx.lastPushedModels).toBe(previous);
+    expect(ctx.lastPushedAgents).toBe(previousAgents);
   });
 });

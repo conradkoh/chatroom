@@ -19,6 +19,7 @@ export interface AgentRequestStartEventPayload {
   agentHarness: AgentHarness;
   model: string;
   workingDir: string;
+  opencodeAgentName?: string;
   reason: string;
   deadline: number;
 }
@@ -45,6 +46,7 @@ export async function onRequestStartAgent(
     agentHarness: event.agentHarness,
     model: event.model,
     workingDir: event.workingDir,
+    agentName: event.opencodeAgentName,
     reason: event.reason as StartAgentReason,
   });
 

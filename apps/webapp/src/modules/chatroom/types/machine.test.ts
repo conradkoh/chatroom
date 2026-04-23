@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName, getHarnessCapabilities } from './machine';
+import {
+  HARNESS_DISPLAY_NAMES,
+  getHarnessDisplayName,
+  getHarnessCapabilities,
+  isOpenCodeSdkHarness,
+} from './machine';
 
 /**
  * Canonical list of all harnesses supported by the backend and CLI.
  * When a new harness is added, it must also be added here and to the
  * frontend HARNESS_DISPLAY_NAMES record.
  */
-const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'pi', 'cursor'];
+const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'opencode-sdk', 'pi', 'cursor'];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
   it.each(ALL_KNOWN_HARNESSES)('should have a display name for the "%s" harness', (harness) => {
@@ -93,5 +98,13 @@ describe('getHarnessCapabilities', () => {
 
     const caps = getHarnessCapabilities(machine, 'opencode');
     expect(caps).toBeUndefined();
+  });
+});
+
+describe('isOpenCodeSdkHarness', () => {
+  it('is true only for opencode-sdk', () => {
+    expect(isOpenCodeSdkHarness('opencode-sdk')).toBe(true);
+    expect(isOpenCodeSdkHarness('opencode')).toBe(false);
+    expect(isOpenCodeSdkHarness(null)).toBe(false);
   });
 });

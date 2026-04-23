@@ -778,6 +778,8 @@ export default defineSchema({
     agentHarness: v.optional(agentHarnessValidator),
     // Preferred AI model
     model: v.optional(v.string()),
+    // Preferred OpenCode SDK agent profile (build / plan / …)
+    opencodeAgentName: v.optional(v.string()),
     // Preferred working directory (absolute path on the machine)
     workingDir: v.optional(v.string()),
     // When this preference was last saved
@@ -856,6 +858,8 @@ export default defineSchema({
     availableModels: v.optional(
       v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
     ),
+    // OpenCode agent profile names per harness (e.g. { 'opencode-sdk': ['build', 'plan'] })
+    availableAgents: v.optional(v.record(v.string(), v.array(v.string()))),
     // When machine was first registered
     registeredAt: v.number(),
     // Last sync/heartbeat from CLI
@@ -941,6 +945,8 @@ export default defineSchema({
     agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    /** OpenCode SDK agent profile (e.g. build / plan); only used when agentHarness === 'opencode-sdk' */
+    opencodeAgentName: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -1048,6 +1054,7 @@ export default defineSchema({
         agentHarness: agentHarnessValidator,
         model: v.string(),
         workingDir: v.string(),
+        opencodeAgentName: v.optional(v.string()),
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),

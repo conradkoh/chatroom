@@ -77,6 +77,9 @@ export interface RemoteAgentService {
   /** List available AI models from the runtime. */
   listModels(): Promise<string[]>;
 
+  /** Optional: list OpenCode-style agent profile names (e.g. build / plan). */
+  listAgents?(): Promise<string[]>;
+
   /** Spawn an agent process. Returns PID + lifecycle callbacks. */
   spawn(options: SpawnOptions): Promise<SpawnResult>;
 
