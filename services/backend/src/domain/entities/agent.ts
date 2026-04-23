@@ -15,9 +15,8 @@
  * The type of agent harness used to run an agent process.
  *
  * A harness is the execution environment that hosts the AI agent.
- * Supported harnesses: 'opencode', 'pi', 'cursor', 'claude', 'copilot'.
+ * Supported harnesses: 'opencode', 'opencode-sdk', 'pi', 'cursor', 'claude', 'copilot'.
  */
-// Convex validator exports for use in schema.ts
 import { v } from 'convex/values';
 
 export type AgentHarness = 'opencode' | 'opencode-sdk' | 'pi' | 'cursor' | 'claude' | 'copilot';
