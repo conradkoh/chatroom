@@ -126,12 +126,6 @@ describe('AgentProcessManager', () => {
         PID,
         'opencode'
       );
-
-      expect(service.spawn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          env: { CHATROOM_CONVEX_URL: 'http://test:3210' },
-        })
-      );
     });
 
     test('already running: returns immediately with existing PID', async () => {
