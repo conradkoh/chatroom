@@ -86,8 +86,6 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
 
-  private currentSessionId?: string;
-
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
   }
@@ -192,7 +190,6 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     }
 
     const sessionId = sessionCreateResult.data.id;
-    this.currentSessionId = sessionId;
 
     const modelParts = model ? parseModelId(model) : undefined;
     await client.session.promptAsync({
@@ -220,14 +217,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     const outputCallbacks: (() => void)[] = [];
 
-    const cleanup = () => {
-      if (this.currentSessionId === sessionId) {
-        this.currentSessionId = undefined;
-        childProcess.kill();
-        removeSessionMetadata(sessionId);
-      }
-      this.deleteProcess(pid);
-    };
+    // Forward serve logs to the daemon's stdout/stderr so they appear in pm2/journal
+    // output alongside other harness logs (mirrors OpenCodeAgentService).
+    childProcess.stdout?.pipe(process.stdout, { end: false });
+    childProcess.stderr?.pipe(process.stderr, { end: false });
 
     if (childProcess.stdout) {
       childProcess.stdout.on('data', () => {
@@ -246,7 +239,8 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
-          cleanup();
+          removeSessionMetadata(sessionId);
+          this.deleteProcess(pid);
           cb({ code, signal, context });
         });
       },

@@ -35,8 +35,16 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 
 /** Build a fake child process with EventEmitter-backed stdout/stderr/exit. */
 function makeFakeChild(pid = 4321) {
-  const stdout = new EventEmitter() as EventEmitter & { removeListener: typeof EventEmitter.prototype.removeListener };
-  const stderr = new EventEmitter() as EventEmitter & { removeListener: typeof EventEmitter.prototype.removeListener };
+  const stdout = new EventEmitter() as EventEmitter & {
+    removeListener: typeof EventEmitter.prototype.removeListener;
+    pipe: ReturnType<typeof vi.fn>;
+  };
+  stdout.pipe = vi.fn();
+  const stderr = new EventEmitter() as EventEmitter & {
+    removeListener: typeof EventEmitter.prototype.removeListener;
+    pipe: ReturnType<typeof vi.fn>;
+  };
+  stderr.pipe = vi.fn();
   const child = new EventEmitter() as EventEmitter & {
     pid: number;
     stdout: EventEmitter;
