@@ -20,7 +20,7 @@
 // Convex validator exports for use in schema.ts
 import { v } from 'convex/values';
 
-export type AgentHarness = 'opencode' | 'pi' | 'cursor' | 'claude' | 'copilot';
+export type AgentHarness = 'opencode' | 'opencode-sdk' | 'pi' | 'cursor' | 'claude' | 'copilot';
 
 /**
  * Detected harness version info from a machine's installed toolchain.
