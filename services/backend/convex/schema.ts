@@ -1048,6 +1048,16 @@ export default defineSchema({
         machineId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Team agent config machine binding changed (e.g. start on a different machine)
+      v.object({
+        type: v.literal('machine.switched'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        previousMachineId: v.string(),
+        newMachineId: v.string(),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
       // Agent entered the get-next-task loop (standing by for tasks)
       v.object({
         type: v.literal('agent.waiting'),

@@ -37,6 +37,8 @@ describe('Participant Status Tracking', () => {
   test('agent.registered via recordAgentRegistered', async () => {
     const { sessionId } = await createTestSession('test-pst-registered');
     const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-pst-registered';
+    await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     await t.mutation(api.machines.recordAgentRegistered, {
@@ -44,6 +46,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       agentType: 'remote',
+      machineId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
@@ -256,6 +259,8 @@ describe('Participant Status Tracking', () => {
   test('no-op when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-pst-noop');
     const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-pst-noop';
+    await registerMachineWithDaemon(sessionId, machineId);
 
     // recordAgentRegistered without joining as participant first
     await t.mutation(api.machines.recordAgentRegistered, {
@@ -263,6 +268,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       agentType: 'remote',
+      machineId,
     });
 
     // No participant should exist, so no crash
@@ -283,6 +289,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       agentType: 'remote',
+      machineId,
     });
     expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe('agent.registered');
 

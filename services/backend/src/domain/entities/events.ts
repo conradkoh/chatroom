@@ -86,6 +86,16 @@ export type AgentRegisteredEvent = {
   timestamp: number;
 };
 
+export type MachineSwitchedEvent = {
+  type: 'machine.switched';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  previousMachineId: string;
+  newMachineId: string;
+  reason: string;
+  timestamp: number;
+};
+
 export type AgentCircuitOpenEvent = {
   type: 'agent.circuitOpen';
   chatroomId: Id<'chatroom_rooms'>;
@@ -170,6 +180,7 @@ export type ChatroomEvent =
   | AgentRequestStartEvent
   | AgentRequestStopEvent
   | AgentRegisteredEvent
+  | MachineSwitchedEvent
   | AgentWaitingEvent
   | TaskAcknowledgedEvent
   | TaskInProgressEvent

@@ -16,6 +16,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
@@ -24,6 +25,19 @@ import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-as
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
+
+/**
+ * Default start-agent policy: first bind (no machine on team config) allows omitted flag;
+ * once bound, switching machines requires explicit `allowNewMachine: true`.
+ */
+function resolveAllowNewMachineForStart(
+  payload: { allowNewMachine?: boolean } | undefined,
+  existingConfig: Doc<'chatroom_teamAgentConfigs'> | null
+): boolean {
+  if (payload?.allowNewMachine === true) return true;
+  if (payload?.allowNewMachine === false) return false;
+  return !Boolean(existingConfig?.machineId);
+}
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 
@@ -862,6 +876,8 @@ export const sendCommand = mutation({
         // For first-time starts when no agent config exists:
         agentHarness: v.optional(agentHarnessValidator),
         workingDir: v.optional(v.string()),
+        /** When true, allows binding to a new machine or switching from a previously bound machine. */
+        allowNewMachine: v.optional(v.boolean()),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -913,6 +929,14 @@ export const sendCommand = mutation({
             'Provide them in the payload or ensure an existing config exists.'
         );
       }
+
+      const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
+      await assertMachineBelongsToChatroom(ctx, {
+        chatroomId: args.payload.chatroomId,
+        machineId: args.machineId,
+        role: args.payload.role,
+        allowNewMachine,
+      });
 
       await startAgentUseCase(
         ctx,
@@ -973,11 +997,18 @@ export const updateSpawnedAgent = mutation({
     }
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
-    // Find the agent config
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
       throw new Error('Chatroom has no teamId — cannot look up agent config');
     }
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
     const spawnTeamRoleKey = buildTeamRoleKey(spawnChatroom._id, spawnChatroom.teamId, args.role);
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -1124,6 +1155,28 @@ export const recordAgentRegistered = mutation({
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) {
       throw new Error('Chatroom not found or access denied');
+    }
+
+    if (args.agentType === 'remote') {
+      if (!args.machineId) {
+        throw new Error('machineId is required for remote agent registration');
+      }
+      await getOwnedMachine(ctx, args.machineId, auth.user._id);
+      if (chatroom.teamId) {
+        const regTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+        const teamCfgForReg = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', regTeamRoleKey))
+          .first();
+        if (teamCfgForReg?.machineId) {
+          await assertMachineBelongsToChatroom(ctx, {
+            chatroomId: args.chatroomId,
+            machineId: args.machineId,
+            role: args.role,
+            allowNewMachine: false,
+          });
+        }
+      }
     }
 
     const now = Date.now();
@@ -1887,6 +1940,13 @@ export const emitAgentStartFailed = mutation({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
 
     await ctx.db.insert('chatroom_eventStream', {
       type: 'agent.startFailed',
