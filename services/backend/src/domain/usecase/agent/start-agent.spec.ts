@@ -44,7 +44,8 @@ async function startAgent(
   sessionId: SessionId,
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string
+  role: string,
+  options?: { allowNewMachine?: boolean }
 ) {
   return await t.mutation(api.machines.sendCommand, {
     sessionId,
@@ -56,6 +57,9 @@ async function startAgent(
       model: 'anthropic/claude-sonnet-4',
       agentHarness: 'opencode',
       workingDir: '/tmp/test',
+      ...(options?.allowNewMachine !== undefined
+        ? { allowNewMachine: options.allowNewMachine }
+        : {}),
     },
   });
 }
@@ -180,5 +184,101 @@ describe('startAgent use case — desiredState', () => {
     expect(config?.circuitState).toBe('closed');
     expect(config?.circuitOpenedAt).toBeUndefined();
     expect(config?.desiredState).toBe('running');
+  });
+
+  test('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
+    const { sessionId } = await createTestSession('start-agent-switch-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineA = 'start-switch-a';
+    const machineB = 'start-switch-b';
+
+    await registerMachine(sessionId, machineA);
+    await registerMachine(sessionId, machineB);
+    await startAgent(sessionId, machineA, chatroomId, 'builder');
+
+    await startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: true });
+
+    const switched = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        )
+        .collect();
+    });
+
+    expect(switched.length).toBeGreaterThanOrEqual(1);
+    const last = switched[switched.length - 1];
+    expect(last.type).toBe('machine.switched');
+    if (last.type === 'machine.switched') {
+      expect(last.previousMachineId).toBe(machineA);
+      expect(last.newMachineId).toBe(machineB);
+      expect(last.role).toBe('builder');
+    }
+  });
+
+  test('does not emit machine.switched when the same machine is used again', async () => {
+    const { sessionId } = await createTestSession('start-agent-switch-2');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-switch-same';
+
+    await registerMachine(sessionId, machineId);
+    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'builder');
+
+    const switched = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        )
+        .collect();
+    });
+
+    expect(switched.length).toBe(0);
+  });
+
+  test('rejects start on a different machine when allowNewMachine is false', async () => {
+    const { sessionId } = await createTestSession('start-agent-switch-3');
+    const chatroomId = await createChatroom(sessionId);
+    const machineA = 'start-reject-a';
+    const machineB = 'start-reject-b';
+
+    await registerMachine(sessionId, machineA);
+    await registerMachine(sessionId, machineB);
+    await startAgent(sessionId, machineA, chatroomId, 'builder');
+
+    await expect(
+      startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: false })
+    ).rejects.toThrow(/allowNewMachine: true/);
+  });
+
+  test('rejects start on a different machine when allowNewMachine is omitted (default policy)', async () => {
+    const { sessionId } = await createTestSession('start-agent-switch-4');
+    const chatroomId = await createChatroom(sessionId);
+    const machineA = 'start-default-a';
+    const machineB = 'start-default-b';
+
+    await registerMachine(sessionId, machineA);
+    await registerMachine(sessionId, machineB);
+    // First start binds the role to machineA (initial binding is permitted by default policy).
+    await startAgent(sessionId, machineA, chatroomId, 'builder');
+
+    // Second start on machineB without an explicit allowNewMachine flag must be rejected —
+    // once bound, switching machines requires explicit opt-in.
+    await expect(startAgent(sessionId, machineB, chatroomId, 'builder')).rejects.toThrow(
+      /allowNewMachine: true/
+    );
+
+    // Verify no machine.switched event was emitted.
+    const switched = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        )
+        .collect();
+    });
+    expect(switched.length).toBe(0);
   });
 });

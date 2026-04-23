@@ -36,6 +36,16 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
@@ -91,14 +101,15 @@ function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): stri
 
 // ─── Pure helpers for initialization ────────────────────────────────
 
-function deriveInitialMachine(
+/** Exported for unit tests — deterministic machine pick; never falls back to arbitrary first online machine. */
+export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
   runningAgentConfig: AgentConfig | undefined,
   preference: AgentPreference | undefined
 ): string | null {
   if (connectedMachines.length === 0) return null;
-  // Priority: running agent > saved preference > existing config machine > first available
+  // Priority: running agent > saved preference > existing config machine
   if (runningAgentConfig) return runningAgentConfig.machineId;
   if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
     return preference.machineId;
@@ -107,7 +118,7 @@ function deriveInitialMachine(
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
   if (configMachine) return configMachine.machineId;
-  return connectedMachines[0]?.machineId ?? null;
+  return null;
 }
 
 function deriveInitialHarness(
@@ -164,6 +175,7 @@ export function useAgentControls({
   teamConfigHarness,
   agentPreference,
   onSavePreference,
+  teamConfigMachineId,
 }: {
   role: string;
   chatroomId: string;
@@ -179,6 +191,8 @@ export function useAgentControls({
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — saves preference for future sessions */
   onSavePreference?: (pref: AgentPreference) => void;
+  /** Team-config machine binding for this role (from team agent config / agent status view). */
+  teamConfigMachineId?: string | null;
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
@@ -196,6 +210,7 @@ export function useAgentControls({
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -242,7 +257,7 @@ export function useAgentControls({
     if (isInitialized || connectedMachines.length === 0) return;
 
     const pref = initialPreferenceRef.current;
-    const machine = deriveInitialMachine(connectedMachines, roleConfigs, runningAgentConfig, pref);
+    const machine = deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig, pref);
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
@@ -323,57 +338,91 @@ export function useAgentControls({
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
-    selectedMachineId &&
-    selectedHarness &&
+    !!selectedMachineId &&
+    !!selectedHarness &&
     (!hasModels || selectedModel) &&
     workingDir.trim() &&
     !isStarting &&
     !isAgentRunning &&
     !success;
+
+  const rehomeDialogLabels = useMemo(() => {
+    if (!teamConfigMachineId || !selectedMachineId) return null;
+    const prevM = connectedMachines.find((m) => m.machineId === teamConfigMachineId);
+    const nextM = connectedMachines.find((m) => m.machineId === selectedMachineId);
+    return {
+      previous: prevM ? getMachineDisplayName(prevM) : teamConfigMachineId,
+      next: nextM ? getMachineDisplayName(nextM) : selectedMachineId,
+    };
+  }, [teamConfigMachineId, selectedMachineId, connectedMachines]);
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
-  const handleStartAgent = useCallback(async () => {
-    if (!selectedMachineId || !selectedHarness) return;
-    setIsStarting(true);
-    setError(null);
-    try {
-      await sendCommand({
-        machineId: selectedMachineId,
-        type: 'start-agent',
-        payload: {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  const executeStartAgent = useCallback(
+    async (allowNewMachine?: boolean) => {
+      if (!selectedMachineId || !selectedHarness) return;
+      setIsStarting(true);
+      setError(null);
+      try {
+        await sendCommand({
+          machineId: selectedMachineId,
+          type: 'start-agent',
+          payload: {
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            model: selectedModel || undefined,
+            agentHarness: selectedHarness,
+            workingDir: workingDir.trim() || undefined,
+            ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
+          },
+        });
+        // Save user preference so the Remote tab pre-populates these values next time
+        onSavePreference?.({
           role,
-          model: selectedModel || undefined,
+          machineId: selectedMachineId,
           agentHarness: selectedHarness,
+          model: selectedModel || undefined,
           workingDir: workingDir.trim() || undefined,
-        },
-      });
-      // Save user preference so the Remote tab pre-populates these values next time
-      onSavePreference?.({
-        role,
-        machineId: selectedMachineId,
-        agentHarness: selectedHarness,
-        model: selectedModel || undefined,
-        workingDir: workingDir.trim() || undefined,
-      });
-      setSuccess('Start command sent!');
-      setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start agent');
-    } finally {
-      setIsStarting(false);
+        });
+        setSuccess('Start command sent!');
+        setTimeout(() => setSuccess(null), 2000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to start agent');
+      } finally {
+        setIsStarting(false);
+      }
+    },
+    [
+      selectedMachineId,
+      selectedHarness,
+      selectedModel,
+      workingDir,
+      sendCommand,
+      chatroomId,
+      role,
+      onSavePreference,
+    ]
+  );
+
+  const handleStartAgent = useCallback(() => {
+    if (!selectedMachineId || !selectedHarness) return;
+    const isRehome =
+      teamConfigMachineId != null && selectedMachineId !== teamConfigMachineId;
+    if (isRehome) {
+      setRehomeConfirmOpen(true);
+      return;
     }
-  }, [
-    selectedMachineId,
-    selectedHarness,
-    selectedModel,
-    workingDir,
-    sendCommand,
-    chatroomId,
-    role,
-    onSavePreference,
-  ]);
+    void executeStartAgent();
+  }, [selectedMachineId, selectedHarness, teamConfigMachineId, executeStartAgent]);
+
+  const handleConfirmRehomeStart = useCallback(() => {
+    setRehomeConfirmOpen(false);
+    void executeStartAgent(true);
+  }, [executeStartAgent]);
+
+  const handleCancelRehomeStart = useCallback(() => {
+    setRehomeConfirmOpen(false);
+  }, []);
 
   const handleStopAgent = useCallback(async () => {
     if (!runningAgentConfig) return;
@@ -498,6 +547,10 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    rehomeConfirmOpen,
+    rehomeDialogLabels,
+    handleConfirmRehomeStart,
+    handleCancelRehomeStart,
   };
 }
 
@@ -542,6 +595,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    rehomeConfirmOpen,
+    rehomeDialogLabels,
+    handleConfirmRehomeStart,
+    handleCancelRehomeStart,
   } = controls;
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
@@ -799,6 +856,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
           </div>
 
+          {!isAgentRunning &&
+            !selectedMachineId &&
+            connectedMachines.length > 0 &&
+            !isLoadingMachines && (
+              <p className="text-[10px] text-muted-foreground">
+                Select a machine to start this agent.
+              </p>
+            )}
+
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
             {hasModels ? (
@@ -976,6 +1042,35 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               )}
             </div>
           </div>
+
+          <AlertDialog
+            open={rehomeConfirmOpen}
+            onOpenChange={(open) => {
+              if (!open) handleCancelRehomeStart();
+            }}
+          >
+            <AlertDialogContent className="bg-card border-border">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-foreground">Move agent to another machine?</AlertDialogTitle>
+                <AlertDialogDescription className="text-muted-foreground">
+                  {rehomeDialogLabels ? (
+                    <>
+                      Starting this agent will move the role from{' '}
+                      <span className="font-semibold text-foreground">{rehomeDialogLabels.previous}</span> to{' '}
+                      <span className="font-semibold text-foreground">{rehomeDialogLabels.next}</span>. Existing
+                      work on the old machine will continue until it exits. Continue?
+                    </>
+                  ) : (
+                    'Existing work on the old machine will continue until it exits. Continue?'
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="border-t border-border pt-4">
+                <AlertDialogCancel onClick={handleCancelRehomeStart}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmRehomeStart}>Continue</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>

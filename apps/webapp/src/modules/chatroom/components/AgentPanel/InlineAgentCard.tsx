@@ -93,6 +93,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigHarness: agentRoleView?.agentHarness,
     agentPreference,
     onSavePreference,
+    teamConfigMachineId: agentRoleView?.machineId,
   });
 
   const daemonStartCommand = getDaemonStartCommand();

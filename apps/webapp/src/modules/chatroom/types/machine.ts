@@ -58,6 +58,8 @@ export type SendCommandArgs =
         model?: string;
         agentHarness: AgentHarness;
         workingDir?: string;
+        /** Allows switching to a different machine when the role was already bound elsewhere. */
+        allowNewMachine?: boolean;
       };
     }
   | {

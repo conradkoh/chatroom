@@ -107,6 +107,7 @@ export async function startAgent(
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
+    const previousMachineId = existingTeamConfig?.machineId;
 
     const teamConfigNow = Date.now();
     const teamConfig = {
@@ -132,6 +133,21 @@ export async function startAgent(
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         ...teamConfig,
         createdAt: teamConfigNow,
+      });
+    }
+
+    if (
+      previousMachineId != null &&
+      previousMachineId !== machineId
+    ) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'machine.switched',
+        chatroomId,
+        role,
+        previousMachineId,
+        newMachineId: machineId,
+        reason,
+        timestamp: teamConfigNow,
       });
     }
   }

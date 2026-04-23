@@ -197,12 +197,12 @@ async function validateSession(
  * Returns the full machine config (guaranteed non-null).
  */
 function setupMachine(): MachineConfig {
-  // ensureMachineRegistered() creates a new machine ID on first run and always
-  // re-detects available harnesses live — so `chatroom machine start` is fully
-  // self-contained: no prior `auth status` or `register-agent` step required.
-  ensureMachineRegistered();
+  // Daemon bootstrap is the only path that may mint a new machine ID for this endpoint.
+  // Mid-session callers use ensureMachineRegistered() without allowCreate so a missing
+  // ~/.chatroom config surfaces as an explicit error instead of a silent UUID.
+  ensureMachineRegistered({ allowCreate: true });
 
-  // Load the full machine config (guaranteed non-null after ensureMachineRegistered())
+  // Load the full machine config (guaranteed non-null after ensureMachineRegistered)
   const config = loadMachineConfig()!;
   return config;
 }
@@ -335,6 +335,8 @@ export async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
+  // Single source of truth for backend URL at daemon boot — same value is passed to
+  // AgentProcessManager as convexUrl and forwarded to spawned agents as CHATROOM_CONVEX_URL.
   const convexUrl = getConvexUrl();
   const sessionId = await validateAuthentication(convexUrl);
   const client = await getConvexClient();

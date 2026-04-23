@@ -120,21 +120,33 @@ program
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Role to register as (e.g., builder, reviewer)')
   .requiredOption('--type <type>', 'Agent type: remote or custom')
-  .action(async (options: { chatroomId: string; role: string; type: string }) => {
-    await maybeRequireAuth();
+  .option(
+    '--allow-type-change',
+    'Required for --type=custom when the role is currently bound to a remote machine; explicitly opts into clearing the existing binding.'
+  )
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      type: string;
+      allowTypeChange?: boolean;
+    }) => {
+      await maybeRequireAuth();
 
-    // Validate type
-    if (options.type !== 'remote' && options.type !== 'custom') {
-      console.error(`❌ Invalid agent type: "${options.type}". Must be "remote" or "custom".`);
-      process.exit(1);
+      // Validate type
+      if (options.type !== 'remote' && options.type !== 'custom') {
+        console.error(`❌ Invalid agent type: "${options.type}". Must be "remote" or "custom".`);
+        process.exit(1);
+      }
+
+      const { registerAgent } = await import('./commands/register-agent/index.js');
+      await registerAgent(options.chatroomId, {
+        role: options.role,
+        type: options.type as 'remote' | 'custom',
+        allowTypeChange: options.allowTypeChange,
+      });
     }
-
-    const { registerAgent } = await import('./commands/register-agent/index.js');
-    await registerAgent(options.chatroomId, {
-      role: options.role,
-      type: options.type as 'remote' | 'custom',
-    });
-  });
+  );
 
 program
   .command('get-next-task')
