@@ -1,10 +1,21 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
+
+// Mock node:fs for metadata tests
+const mockSessionData: Record<string, unknown> = {};
+vi.mock('node:fs', () => ({
+  readFileSync: vi.fn(() => JSON.stringify(mockSessionData)),
+  writeFileSync: vi.fn(() => {
+    // Capture writes
+  }),
+  existsSync: vi.fn(() => true),
+  mkdirSync: vi.fn(),
+}));
 
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
@@ -17,11 +28,16 @@ function createMockDeps(
   };
 }
 
+const sharedAbortFn = vi.fn();
+const sharedCreateFn = vi.fn();
+const sharedPromptAsyncFn = vi.fn();
+
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
     session: {
-      create: vi.fn(),
-      promptAsync: vi.fn(),
+      create: sharedCreateFn,
+      promptAsync: sharedPromptAsyncFn,
+      abort: sharedAbortFn,
     },
   })),
 }));
@@ -64,16 +80,29 @@ function stubSdkClient(
     promptAsyncThrows: Error;
   }>
 ) {
-  const create = overrides?.sessionCreateThrows
-    ? vi.fn().mockRejectedValue(overrides.sessionCreateThrows)
-    : vi.fn().mockResolvedValue(overrides?.sessionCreateResult ?? { data: { id: 'sess-1' } });
-  const promptAsync = overrides?.promptAsyncThrows
-    ? vi.fn().mockRejectedValue(overrides.promptAsyncThrows)
-    : vi.fn().mockResolvedValue({ data: {} });
-  vi.mocked(createOpencodeClient).mockReturnValueOnce({
-    session: { create, promptAsync },
-  } as unknown as ReturnType<typeof createOpencodeClient>);
-  return { create, promptAsync };
+  sharedCreateFn.mockReset();
+  sharedPromptAsyncFn.mockReset();
+  sharedAbortFn.mockReset();
+
+  sharedCreateFn.mockImplementation(
+    overrides?.sessionCreateThrows
+      ? () => Promise.reject(overrides.sessionCreateThrows)
+      : () => Promise.resolve(overrides?.sessionCreateResult ?? { data: { id: 'sess-1' } })
+  );
+  sharedPromptAsyncFn.mockImplementation(
+    overrides?.promptAsyncThrows
+      ? () => Promise.reject(overrides.promptAsyncThrows)
+      : () => Promise.resolve({ data: {} })
+  );
+  sharedAbortFn.mockResolvedValue({});
+  return { create: sharedCreateFn, promptAsync: sharedPromptAsyncFn };
+}
+
+function stubSdkClientForStop(overrides?: { abortThrows?: Error }) {
+  sharedAbortFn.mockImplementation(
+    overrides?.abortThrows ? () => Promise.reject(overrides.abortThrows) : () => Promise.resolve({})
+  );
+  return { abort: sharedAbortFn };
 }
 
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
@@ -176,6 +205,27 @@ describe('OpenCodeSdkAgentService', () => {
   });
 
   describe('stop', () => {
+    beforeEach(() => {
+      vi.mocked(createOpencodeClient).mockReset();
+      vi.mocked(createOpencodeClient).mockImplementation(
+        () =>
+          ({
+            session: {
+              create: sharedCreateFn,
+              promptAsync: sharedPromptAsyncFn,
+              abort: sharedAbortFn,
+            },
+          }) as unknown as ReturnType<typeof createOpencodeClient>
+      );
+      sharedAbortFn.mockReset();
+      sharedAbortFn.mockImplementation(() => Promise.resolve({}));
+      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
+    });
+
+    afterEach(() => {
+      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
+    });
+
     it('sends SIGTERM to process group then returns when process exits', async () => {
       const kill = vi
         .fn()
@@ -202,6 +252,89 @@ describe('OpenCodeSdkAgentService', () => {
 
       expect(kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
       expect(kill).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls session.abort with the correct sessionId before SIGTERM', async () => {
+      mockSessionData['sess-1'] = {
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      };
+
+      const kill = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error('ESRCH');
+        });
+      const deps = createMockDeps({ kill });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const { abort } = stubSdkClientForStop();
+
+      await service.stop(4321);
+
+      expect(abort).toHaveBeenCalledTimes(1);
+      expect(abort).toHaveBeenCalledWith({ path: { id: 'sess-1' } });
+      expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
+    });
+
+    it('proceeds with SIGTERM even if session.abort throws', async () => {
+      mockSessionData['sess-1'] = {
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      };
+
+      const kill = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error('ESRCH');
+        });
+      const deps = createMockDeps({ kill });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      stubSdkClientForStop({ abortThrows: new Error('connection refused') });
+
+      await expect(service.stop(4321)).resolves.toBeUndefined();
+      expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {
+      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
+
+      const kill = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error('ESRCH');
+        });
+      const deps = createMockDeps({ kill });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      await service.stop(9999);
+
+      expect(vi.mocked(createOpencodeClient)).not.toHaveBeenCalled();
+      expect(kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
+    });
+
+    it('DEBUG: verify mock factory intact', async () => {
+      const client = createOpencodeClient();
+      expect(client).toBeTruthy();
+      expect(client.session).toBeTruthy();
+      expect(client.session.abort).toBeTruthy();
     });
   });
 
