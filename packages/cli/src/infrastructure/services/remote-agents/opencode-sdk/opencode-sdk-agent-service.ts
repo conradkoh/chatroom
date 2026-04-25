@@ -185,12 +185,17 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const sessionId = sessionCreateResult.data.id;
 
     const modelParts = model ? parseModelId(model) : undefined;
+    // Combine system + user prompt into a single user-message text part, mirroring
+    // OpenCodeAgentService (CLI) which concatenates them with `\n\n` and pipes via
+    // stdin. Empirically, OpenCode's session.promptAsync sends an empty user-message
+    // array to downstream providers (e.g. MiniMax → "messages must not be empty")
+    // when the body uses a separate `system` field, so keep parity with the CLI.
+    const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
     await client.session.promptAsync({
       path: { id: sessionId },
       body: {
         agent: DEFAULT_AGENT_NAME,
-        system: systemPrompt || undefined,
-        parts: [{ type: 'text', text: prompt }],
+        parts: [{ type: 'text', text: combinedPrompt }],
         ...(modelParts ? { model: modelParts } : {}),
       },
     });

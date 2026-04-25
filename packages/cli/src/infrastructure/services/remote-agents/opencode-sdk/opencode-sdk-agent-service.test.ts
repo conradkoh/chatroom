@@ -236,8 +236,11 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sdk.promptAsync).toHaveBeenCalledTimes(1);
       const promptCall = sdk.promptAsync.mock.calls[0][0];
       expect(promptCall.path.id).toBe('sess-1');
-      expect(promptCall.body.system).toBe('sys');
-      expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'hello' }]);
+      // System + user prompt are combined into a single text part (no separate `system` field)
+      // to match OpenCodeAgentService (CLI) and avoid OpenCode forwarding empty user messages
+      // to providers like MiniMax.
+      expect(promptCall.body.system).toBeUndefined();
+      expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'sys\n\nhello' }]);
       expect(promptCall.body.agent).toBe('build');
       expect(promptCall.body.model).toEqual({ providerID: 'anthropic', modelID: 'claude-sonnet-4' });
     });
