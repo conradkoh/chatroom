@@ -26,9 +26,25 @@ const OPENCODE_COMMAND = 'opencode';
 const DEFAULT_AGENT_NAME = 'build';
 const SESSION_METADATA_PATH = join(homedir(), '.chatroom', 'opencode-sdk-sessions.json');
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
+const SESSION_CREATE_TIMEOUT_MS = 30_000;
+const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 // opencode serve --print-logs outputs: "opencode server listening on http://127.0.0.1:<port>"
 // Anchor the regex to this prefix to avoid capturing unrelated URLs in serve output.
 const LISTENING_URL_RE = /opencode server listening on (https?:\/\/127\.0\.0\.1:\d+(?:\/[^\s]*)?)/;
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 interface SessionMetadata {
   sessionId: string;
@@ -200,30 +216,39 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       baseUrl,
     });
 
-    const sessionCreateResult = await client.session.create({ body: {} });
+    let sessionId: string | undefined;
+    try {
+      const sessionCreateResult = await withTimeout(
+        client.session.create({ body: {} }),
+        SESSION_CREATE_TIMEOUT_MS,
+        'session.create'
+      );
 
-    if (!sessionCreateResult.data?.id) {
+      if (!sessionCreateResult.data?.id) {
+        throw new Error('Failed to create session');
+      }
+
+      sessionId = sessionCreateResult.data.id;
+
+      const modelParts = model ? parseModelId(model) : undefined;
+      const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
+      await withTimeout(
+        client.session.promptAsync({
+          path: { id: sessionId },
+          body: {
+            agent: DEFAULT_AGENT_NAME,
+            parts: [{ type: 'text', text: combinedPrompt }],
+            ...(modelParts ? { model: modelParts } : {}),
+          },
+        }),
+        PROMPT_ASYNC_TIMEOUT_MS,
+        'session.promptAsync'
+      );
+    } catch (err) {
       childProcess.kill();
-      throw new Error('Failed to create session');
+      if (sessionId) removeSessionMetadata(sessionId);
+      throw err;
     }
-
-    const sessionId = sessionCreateResult.data.id;
-
-    const modelParts = model ? parseModelId(model) : undefined;
-    // Combine system + user prompt into a single user-message text part, mirroring
-    // OpenCodeAgentService (CLI) which concatenates them with `\n\n` and pipes via
-    // stdin. Empirically, OpenCode's session.promptAsync sends an empty user-message
-    // array to downstream providers (e.g. MiniMax → "messages must not be empty")
-    // when the body uses a separate `system` field, so keep parity with the CLI.
-    const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
-    await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: DEFAULT_AGENT_NAME,
-        parts: [{ type: 'text', text: combinedPrompt }],
-        ...(modelParts ? { model: modelParts } : {}),
-      },
-    });
 
     const meta: SessionMetadata = {
       sessionId,

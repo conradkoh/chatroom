@@ -341,6 +341,67 @@ describe('OpenCodeSdkAgentService', () => {
       );
     });
 
+    it('kills the serve child when promptAsync rejects', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient({ promptAsyncThrows: new Error('provider auth failed') });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+
+      await expect(spawnPromise).rejects.toThrow(/provider auth failed/);
+      expect(child.kill).toHaveBeenCalled();
+    });
+
+    it('kills the serve child when session.create times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const child = makeFakeChild(4321);
+        const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+        const sdk = stubSdkClient();
+        // Make session.create hang forever
+        sdk.create.mockImplementation(() => new Promise(() => {}));
+        const service = new OpenCodeSdkAgentService(deps);
+
+        const spawnPromise = service.spawn(spawnOptions());
+        child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+        const settled = spawnPromise.catch((e) => e);
+        await vi.advanceTimersByTimeAsync(31_000); // past 30s timeout
+
+        const err = await settled;
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toMatch(/session\.create.*timed out/i);
+        expect(child.kill).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('kills the serve child when promptAsync times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const child = makeFakeChild(4321);
+        const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+        const sdk = stubSdkClient();
+        // Make promptAsync hang forever
+        sdk.promptAsync.mockImplementation(() => new Promise(() => {}));
+        const service = new OpenCodeSdkAgentService(deps);
+
+        const spawnPromise = service.spawn(spawnOptions());
+        child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+        const settled = spawnPromise.catch((e) => e);
+        await vi.advanceTimersByTimeAsync(61_000); // past 60s timeout
+
+        const err = await settled;
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toMatch(/session\.promptAsync.*timed out/i);
+        expect(child.kill).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('rejects and kills the child when session.create returns no id', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
