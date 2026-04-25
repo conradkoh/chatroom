@@ -19,6 +19,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { waitForListeningUrl, LISTENING_URL_RE, type ChildLike } from './parse-listening-url.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -29,9 +30,6 @@ const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
-// opencode serve --print-logs outputs: "opencode server listening on http://127.0.0.1:<port>"
-// Anchor the regex to this prefix to avoid capturing unrelated URLs in serve output.
-const LISTENING_URL_RE = /opencode server listening on (https?:\/\/127\.0\.0\.1:\d+(?:\/[^\s]*)?)/;
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -227,36 +225,8 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     const pid = childProcess.pid;
 
-    const baseUrl = await new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error('opencode serve did not print a listening URL within 10s')),
-        SERVE_STARTUP_TIMEOUT_MS
-      );
-
-      const onData = (buf: Buffer) => {
-        const s = buf.toString();
-        const match = s.match(LISTENING_URL_RE);
-        if (match) {
-          clearTimeout(timer);
-          childProcess.stdout?.removeListener('data', onData);
-          childProcess.stderr?.removeListener('data', onData);
-          resolve(match[1]);
-        }
-      };
-
-      childProcess.stdout?.on('data', onData);
-      childProcess.stderr?.on('data', onData);
-
-      childProcess.once('exit', (code, signal) => {
-        clearTimeout(timer);
-        childProcess.stdout?.removeListener('data', onData);
-        childProcess.stderr?.removeListener('data', onData);
-        reject(
-          new Error(
-            `opencode serve exited unexpectedly during startup (code=${code}, signal=${signal})`
-          )
-        );
-      });
+    const baseUrl = await waitForListeningUrl(childProcess as unknown as ChildLike, {
+      timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
     }).catch((err) => {
       childProcess.kill();
       throw err;
