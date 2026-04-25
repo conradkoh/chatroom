@@ -52,6 +52,30 @@ function findSessionMetadataByPid(pid: number): SessionMetadata | undefined {
   return Object.values(sessions).find((m) => m.pid === pid);
 }
 
+function forwardFiltered(
+  source: NodeJS.ReadableStream | undefined,
+  target: NodeJS.WritableStream,
+  shouldDrop: (line: string) => boolean
+): void {
+  if (!source) return;
+  let buf = '';
+  source.on('data', (chunk: Buffer | string) => {
+    buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      if (!shouldDrop(line)) target.write(line + '\n');
+    }
+  });
+  source.on('end', () => {
+    if (buf.length > 0 && !shouldDrop(buf)) target.write(buf);
+    buf = '';
+  });
+}
+
+const isInfoLine = (line: string): boolean => line.trimStart().startsWith('INFO ');
+
 interface SessionMetadata {
   sessionId: string;
   machineId: string;
@@ -291,10 +315,8 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     const outputCallbacks: (() => void)[] = [];
 
-    // Forward serve logs to the daemon's stdout/stderr so they appear in pm2/journal
-    // output alongside other harness logs (mirrors OpenCodeAgentService).
-    childProcess.stdout?.pipe(process.stdout, { end: false });
-    childProcess.stderr?.pipe(process.stderr, { end: false });
+    forwardFiltered(childProcess.stdout, process.stdout, isInfoLine);
+    forwardFiltered(childProcess.stderr, process.stderr, isInfoLine);
 
     if (childProcess.stdout) {
       childProcess.stdout.on('data', () => {
