@@ -19,7 +19,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
-import { waitForListeningUrl, LISTENING_URL_RE, type ChildLike } from './parse-listening-url.js';
+import { waitForListeningUrl } from './parse-listening-url.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -225,7 +225,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     const pid = childProcess.pid;
 
-    const baseUrl = await waitForListeningUrl(childProcess as unknown as ChildLike, {
+    const baseUrl = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
     }).catch((err) => {
       childProcess.kill();

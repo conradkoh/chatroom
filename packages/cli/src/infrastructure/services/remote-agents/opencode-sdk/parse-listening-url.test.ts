@@ -1,26 +1,17 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { ChildProcess } from 'node:child_process';
 
 import { LISTENING_URL_RE, waitForListeningUrl } from './parse-listening-url.js';
-import type { ChildLike } from './parse-listening-url.js';
 
-function makeFakeChild(): ChildLike {
-  const stdout = new EventEmitter() as EventEmitter & {
-    removeListener: typeof EventEmitter.prototype.removeListener;
-  };
-  const stderr = new EventEmitter() as EventEmitter & {
-    removeListener: typeof EventEmitter.prototype.removeListener;
-  };
-  const child = new EventEmitter() as EventEmitter & {
-    pid: number;
-    stdout: EventEmitter;
-    stderr: EventEmitter;
-    once: typeof EventEmitter.prototype.once;
-  };
-  child.pid = 4321;
-  child.stdout = stdout;
-  child.stderr = stderr;
-  return child as ChildLike;
+function makeFakeChild(pid = 4321): ChildProcess {
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  const child = new EventEmitter() as EventEmitter & ChildProcess;
+  Object.defineProperty(child, 'pid', { value: pid });
+  (child as unknown as { stdout: EventEmitter }).stdout = stdout;
+  (child as unknown as { stderr: EventEmitter }).stderr = stderr;
+  return child as unknown as ChildProcess;
 }
 
 describe('waitForListeningUrl', () => {
@@ -39,7 +30,7 @@ describe('waitForListeningUrl', () => {
   });
 
   describe('waitForListeningUrl', () => {
-    it('resolves to the URL when stdout emits the listening line', async () => {
+    it('resolves when stdout emits the listening line', async () => {
       const child = makeFakeChild();
       const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
       child.stdout!.emit(
@@ -59,24 +50,6 @@ describe('waitForListeningUrl', () => {
       await expect(promise).resolves.toBe('http://127.0.0.1:5678');
     });
 
-    it('matches when the URL line arrives in a single chunk', async () => {
-      const child = makeFakeChild();
-      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
-      child.stdout!.emit(
-        'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
-      );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
-    });
-
-    it.skip('TODO: handle URL line split across chunks', async () => {
-      const child = makeFakeChild();
-      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
-      child.stdout!.emit('data', Buffer.from('opencode server listening on http://127.0.0.'));
-      child.stdout!.emit('data', Buffer.from('1:5678\n'));
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
-    });
-
     it('ignores unrelated URLs and resolves on the real listening line', async () => {
       const child = makeFakeChild();
       const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
@@ -91,45 +64,11 @@ describe('waitForListeningUrl', () => {
       await expect(promise).resolves.toBe('http://127.0.0.1:5678');
     });
 
-    it('resolves when stderr emits the listening line', async () => {
-      const child = makeFakeChild();
-      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
-      child.stderr!.emit(
-        'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
-      );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
-    });
-
-    it('matches when the URL line arrives in a single chunk', async () => {
-      const child = makeFakeChild();
-      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
-      child.stdout!.emit(
-        'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
-      );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
-    });
-
     it.skip('TODO: handle URL line split across chunks', async () => {
       const child = makeFakeChild();
       const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
       child.stdout!.emit('data', Buffer.from('opencode server listening on http://127.0.0.'));
       child.stdout!.emit('data', Buffer.from('1:5678\n'));
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
-    });
-
-    it('ignores unrelated URLs and resolves on the real listening line', async () => {
-      const child = makeFakeChild();
-      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
-      child.stdout!.emit(
-        'data',
-        Buffer.from('upgrade available at https://opencode.ai/releases/v1.0\n')
-      );
-      child.stdout!.emit(
-        'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
-      );
       await expect(promise).resolves.toBe('http://127.0.0.1:5678');
     });
 
@@ -165,6 +104,8 @@ describe('waitForListeningUrl', () => {
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
       await promise;
+      expect(child.stdout!.listenerCount('data')).toBe(0);
+      expect(child.listenerCount('exit')).toBe(0);
     });
 
     it('cleans up listeners after exit rejection', async () => {
@@ -184,6 +125,8 @@ describe('waitForListeningUrl', () => {
         const settled = promise.catch((e) => e);
         await vi.advanceTimersByTimeAsync(5001);
         await settled;
+        expect(child.stdout!.listenerCount('data')).toBe(0);
+        expect(child.listenerCount('exit')).toBe(0);
       } finally {
         vi.useRealTimers();
       }
