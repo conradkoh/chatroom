@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -140,6 +140,15 @@ describe('FileSessionMetadataStore', () => {
       store.upsert(SAMPLE_META);
       store.remove('sess-1');
       expect(store.get('sess-1')).toBeUndefined();
+    });
+  });
+
+  describe('nested path', () => {
+    it('creates parent directories when upserting to a path with non-existent parents', () => {
+      const nestedPath = join(tmpDir, `never-existed-${Date.now()}`, 'sessions.json');
+      const store = new FileSessionMetadataStore(nestedPath);
+      store.upsert(SAMPLE_META);
+      expect(store.get('sess-1')).toEqual(SAMPLE_META);
     });
   });
 

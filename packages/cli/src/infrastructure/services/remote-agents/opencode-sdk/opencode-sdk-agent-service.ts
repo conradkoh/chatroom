@@ -22,6 +22,7 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
+import { forwardFiltered, isInfoLine, parseModelId } from './pure.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
@@ -46,48 +47,6 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
   } finally {
     if (timer) clearTimeout(timer);
   }
-}
-
-function forwardFiltered(
-  source: NodeJS.ReadableStream | undefined,
-  target: NodeJS.WritableStream,
-  shouldDrop: (line: string) => boolean
-): void {
-  if (!source) return;
-  let buf = '';
-  source.on('data', (chunk: Buffer | string) => {
-    buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    let nl: number;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl);
-      buf = buf.slice(nl + 1);
-      if (!shouldDrop(line)) target.write(line + '\n');
-    }
-  });
-  source.on('end', () => {
-    if (buf.length > 0 && !shouldDrop(buf)) target.write(buf);
-    buf = '';
-  });
-}
-
-const isInfoLine = (line: string): boolean => line.trimStart().startsWith('INFO ');
-
-/**
- * Parse an OpenCode model ID like "anthropic/claude-sonnet-4" or
- * "github-copilot/claude-sonnet-4.5" into the SDK's `{providerID, modelID}` shape.
- *
- * Splits on the FIRST slash so model slugs containing `/` (rare, but possible)
- * are preserved in the modelID portion. Returns undefined for inputs without
- * any `/` (no provider prefix → we cannot determine the provider).
- */
-function parseModelId(model: string): { providerID: string; modelID: string } | undefined {
-  if (!model) return undefined;
-  const slashIdx = model.indexOf('/');
-  if (slashIdx === -1) return undefined;
-  const providerID = model.substring(0, slashIdx);
-  const modelID = model.substring(slashIdx + 1);
-  if (!providerID || !modelID) return undefined;
-  return { providerID, modelID };
 }
 
 export class OpenCodeSdkAgentService extends BaseCLIAgentService {

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
 export interface SessionMetadata {
@@ -61,7 +61,7 @@ export class FileSessionMetadataStore implements SessionMetadataStore {
 
   private save(sessions: SessionRecord): void {
     try {
-      const dir = join(homedir(), '.chatroom');
+      const dir = dirname(this.filePath);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
