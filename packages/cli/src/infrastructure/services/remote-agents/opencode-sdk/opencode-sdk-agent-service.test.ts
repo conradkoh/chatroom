@@ -66,9 +66,7 @@ function stubSdkClient(
 ) {
   const create = overrides?.sessionCreateThrows
     ? vi.fn().mockRejectedValue(overrides.sessionCreateThrows)
-    : vi.fn().mockResolvedValue(
-        overrides?.sessionCreateResult ?? { data: { id: 'sess-1' } }
-      );
+    : vi.fn().mockResolvedValue(overrides?.sessionCreateResult ?? { data: { id: 'sess-1' } });
   const promptAsync = overrides?.promptAsyncThrows
     ? vi.fn().mockRejectedValue(overrides.promptAsyncThrows)
     : vi.fn().mockResolvedValue({ data: {} });
@@ -222,7 +220,10 @@ describe('OpenCodeSdkAgentService', () => {
         spawnOptions({ model: 'anthropic/claude-sonnet-4', systemPrompt: 'sys', prompt: 'hello' })
       );
       // Simulate the serve printing its URL on stdout.
-      child.stdout.emit('data', Buffer.from('opencode server listening at http://127.0.0.1:5678\n'));
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
 
       const result = await spawnPromise;
 
@@ -242,7 +243,10 @@ describe('OpenCodeSdkAgentService', () => {
       expect(promptCall.body.system).toBeUndefined();
       expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'sys\n\nhello' }]);
       expect(promptCall.body.agent).toBe('build');
-      expect(promptCall.body.model).toEqual({ providerID: 'anthropic', modelID: 'claude-sonnet-4' });
+      expect(promptCall.body.model).toEqual({
+        providerID: 'anthropic',
+        modelID: 'claude-sonnet-4',
+      });
     });
 
     it('rejects with timeout error when serve never prints a URL, and kills the child', async () => {
@@ -260,11 +264,81 @@ describe('OpenCodeSdkAgentService', () => {
 
         const err = await settled;
         expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toMatch(/did not print a listening URL/);
+        expect((err as Error).message).toMatch(
+          /did not print a listening URL|opencode server listening/
+        );
         expect(child.kill).toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('rejects immediately when serve exits during URL parse (not at 10s timeout)', async () => {
+      vi.useFakeTimers();
+      try {
+        const child = makeFakeChild(4321);
+        const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+        stubSdkClient();
+        const service = new OpenCodeSdkAgentService(deps);
+
+        const spawnPromise = service.spawn(spawnOptions());
+        const settled = spawnPromise.catch((e) => e);
+        // Serve exits before printing URL
+        child.emit('exit', 1, null);
+        await vi.advanceTimersByTimeAsync(100); // well before 10s timeout
+
+        const err = await settled;
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toMatch(/exited unexpectedly/);
+        expect((err as Error).message).toMatch(/code=1/);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('ignores unrelated URLs in serve output and uses the correct listening line', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      // Unrelated URL before the listening line
+      child.stdout.emit(
+        'data',
+        Buffer.from('upgrade available at https://opencode.ai/releases/v1.0\n')
+      );
+      // Real listening line
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+      await spawnPromise;
+
+      // Verify createOpencodeClient was called with the CORRECT URL (127.0.0.1), not the unrelated one
+      expect(vi.mocked(createOpencodeClient)).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'http://127.0.0.1:5678' })
+      );
+    });
+
+    it('strips trailing punctuation (period) from captured URL', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      // Trailing period - should NOT be captured
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678.\n')
+      );
+      await spawnPromise;
+
+      // Verify the URL does NOT include the trailing period
+      expect(vi.mocked(createOpencodeClient)).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'http://127.0.0.1:5678' })
+      );
     });
 
     it('rejects and kills the child when session.create returns no id', async () => {
@@ -274,7 +348,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions());
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
 
       await expect(spawnPromise).rejects.toThrow(/Failed to create session/);
       expect(child.kill).toHaveBeenCalled();
@@ -287,7 +361,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions());
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       const result = await spawnPromise;
 
       const onExit = vi.fn();
@@ -305,7 +379,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions());
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       const result = await spawnPromise;
 
       const onOutput = vi.fn();
@@ -323,7 +397,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions({ model: 'github-copilot/gpt-4o' }));
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
@@ -341,7 +415,7 @@ describe('OpenCodeSdkAgentService', () => {
       const spawnPromise = service.spawn(
         spawnOptions({ model: 'anthropic/claude-sonnet-4.5/thinking' })
       );
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
@@ -357,7 +431,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions({ model: undefined }));
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
@@ -370,7 +444,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions({ model: 'no-slash-here' }));
-      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();

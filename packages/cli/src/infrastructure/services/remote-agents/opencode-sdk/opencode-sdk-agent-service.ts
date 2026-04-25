@@ -26,6 +26,9 @@ const OPENCODE_COMMAND = 'opencode';
 const DEFAULT_AGENT_NAME = 'build';
 const SESSION_METADATA_PATH = join(homedir(), '.chatroom', 'opencode-sdk-sessions.json');
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
+// opencode serve --print-logs outputs: "opencode server listening on http://127.0.0.1:<port>"
+// Anchor the regex to this prefix to avoid capturing unrelated URLs in serve output.
+const LISTENING_URL_RE = /opencode server listening on (https?:\/\/127\.0\.0\.1:\d+(?:\/[^\s]*)?)/;
 
 interface SessionMetadata {
   sessionId: string;
@@ -166,17 +169,28 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
       const onData = (buf: Buffer) => {
         const s = buf.toString();
-        const match = s.match(/https?:\/\/[^\s]+/);
+        const match = s.match(LISTENING_URL_RE);
         if (match) {
           clearTimeout(timer);
           childProcess.stdout?.removeListener('data', onData);
           childProcess.stderr?.removeListener('data', onData);
-          resolve(match[0]);
+          resolve(match[1]);
         }
       };
 
       childProcess.stdout?.on('data', onData);
       childProcess.stderr?.on('data', onData);
+
+      childProcess.once('exit', (code, signal) => {
+        clearTimeout(timer);
+        childProcess.stdout?.removeListener('data', onData);
+        childProcess.stderr?.removeListener('data', onData);
+        reject(
+          new Error(
+            `opencode serve exited unexpectedly during startup (code=${code}, signal=${signal})`
+          )
+        );
+      });
     }).catch((err) => {
       childProcess.kill();
       throw err;
