@@ -458,7 +458,11 @@ export const upsertWorkspaceGitState = mutation({
     openPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          // Accept either prNumber (canonical app field, sent by current CLI) or
+          // number (raw gh CLI field, sent by older CLIs). The handler normalizes
+          // to prNumber before persistence.
+          prNumber: v.optional(v.number()),
+          number: v.optional(v.number()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -469,7 +473,9 @@ export const upsertWorkspaceGitState = mutation({
     allPullRequests: v.optional(
       v.array(
         v.object({
-          number: v.number(),
+          // Same dual-field acceptance as openPullRequests above.
+          prNumber: v.optional(v.number()),
+          number: v.optional(v.number()),
           title: v.string(),
           url: v.string(),
           headRefName: v.string(),
@@ -547,6 +553,15 @@ export const upsertWorkspaceGitState = mutation({
 
     const now = Date.now();
 
+    // Normalize PR objects so storage always has `prNumber` set, regardless of
+    // whether the client sent `prNumber` (canonical) or the raw gh `number` field.
+    // The schema accepts both for backward compat with old documents, but new
+    // writes should use the canonical name.
+    const normalizePr = <T extends { prNumber?: number; number?: number }>(pr: T): T => ({
+      ...pr,
+      prNumber: pr.prNumber ?? pr.number,
+    });
+
     const data = {
       machineId: args.machineId,
       workingDir: args.workingDir,
@@ -556,8 +571,8 @@ export const upsertWorkspaceGitState = mutation({
       diffStat: args.diffStat,
       recentCommits: args.recentCommits,
       hasMoreCommits: args.hasMoreCommits,
-      openPullRequests: args.openPullRequests,
-      allPullRequests: args.allPullRequests,
+      openPullRequests: args.openPullRequests?.map(normalizePr),
+      allPullRequests: args.allPullRequests?.map(normalizePr),
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
       defaultBranch: args.defaultBranch,
