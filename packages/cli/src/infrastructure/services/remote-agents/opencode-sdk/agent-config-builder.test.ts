@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildChatroomAgentDescriptor,
-  type ChatroomAgentDescriptor,
-} from './agent-config-builder.js';
-
-function isDeepEqual(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+import { buildChatroomAgentDescriptor } from './agent-config-builder.js';
 
 describe('buildChatroomAgentDescriptor', () => {
   it('happy path', () => {
@@ -67,6 +60,6 @@ describe('buildChatroomAgentDescriptor', () => {
     const input = { role: 'builder', systemPrompt: 'You are X' };
     const first = buildChatroomAgentDescriptor(input);
     const second = buildChatroomAgentDescriptor(input);
-    expect(isDeepEqual(first, second)).toBe(true);
+    expect(first).toEqual(second);
   });
 });
