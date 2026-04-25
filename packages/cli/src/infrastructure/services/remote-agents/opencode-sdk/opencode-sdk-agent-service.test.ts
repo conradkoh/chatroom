@@ -1,21 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
-
-// Mock node:fs for metadata tests
-const mockSessionData: Record<string, unknown> = {};
-vi.mock('node:fs', () => ({
-  readFileSync: vi.fn(() => JSON.stringify(mockSessionData)),
-  writeFileSync: vi.fn(() => {
-    // Capture writes
-  }),
-  existsSync: vi.fn(() => true),
-  mkdirSync: vi.fn(),
-}));
+import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
@@ -24,6 +14,7 @@ function createMockDeps(
     execSync: vi.fn(),
     spawn: vi.fn(),
     kill: vi.fn(),
+    sessionMetadataStore: new InMemorySessionMetadataStore(),
     ...overrides,
   };
 }
@@ -219,11 +210,6 @@ describe('OpenCodeSdkAgentService', () => {
       );
       sharedAbortFn.mockReset();
       sharedAbortFn.mockImplementation(() => Promise.resolve({}));
-      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
-    });
-
-    afterEach(() => {
-      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
     });
 
     it('sends SIGTERM to process group then returns when process exits', async () => {
@@ -255,7 +241,8 @@ describe('OpenCodeSdkAgentService', () => {
     });
 
     it('calls session.abort with the correct sessionId before SIGTERM', async () => {
-      mockSessionData['sess-1'] = {
+      const store = new InMemorySessionMetadataStore();
+      store.upsert({
         sessionId: 'sess-1',
         machineId: 'm1',
         chatroomId: 'c1',
@@ -263,7 +250,7 @@ describe('OpenCodeSdkAgentService', () => {
         pid: 4321,
         createdAt: new Date().toISOString(),
         baseUrl: 'http://127.0.0.1:5678',
-      };
+      });
 
       const kill = vi
         .fn()
@@ -271,7 +258,7 @@ describe('OpenCodeSdkAgentService', () => {
         .mockImplementationOnce(() => {
           throw new Error('ESRCH');
         });
-      const deps = createMockDeps({ kill });
+      const deps = createMockDeps({ kill, sessionMetadataStore: store });
       const service = new OpenCodeSdkAgentService(deps);
 
       const { abort } = stubSdkClientForStop();
@@ -285,7 +272,8 @@ describe('OpenCodeSdkAgentService', () => {
     });
 
     it('proceeds with SIGTERM even if session.abort throws', async () => {
-      mockSessionData['sess-1'] = {
+      const store = new InMemorySessionMetadataStore();
+      store.upsert({
         sessionId: 'sess-1',
         machineId: 'm1',
         chatroomId: 'c1',
@@ -293,7 +281,7 @@ describe('OpenCodeSdkAgentService', () => {
         pid: 4321,
         createdAt: new Date().toISOString(),
         baseUrl: 'http://127.0.0.1:5678',
-      };
+      });
 
       const kill = vi
         .fn()
@@ -301,7 +289,7 @@ describe('OpenCodeSdkAgentService', () => {
         .mockImplementationOnce(() => {
           throw new Error('ESRCH');
         });
-      const deps = createMockDeps({ kill });
+      const deps = createMockDeps({ kill, sessionMetadataStore: store });
       const service = new OpenCodeSdkAgentService(deps);
 
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -314,8 +302,6 @@ describe('OpenCodeSdkAgentService', () => {
     });
 
     it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {
-      Object.keys(mockSessionData).forEach((k) => delete mockSessionData[k]);
-
       const kill = vi
         .fn()
         .mockImplementationOnce(() => {})

@@ -11,21 +11,24 @@
  */
 
 import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
+import {
+  FileSessionMetadataStore,
+  type SessionMetadata,
+  type SessionMetadataStore,
+} from './session-metadata-store.js';
 
-export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps;
+export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
+  sessionMetadataStore?: SessionMetadataStore;
+};
 
 const OPENCODE_COMMAND = 'opencode';
 const DEFAULT_AGENT_NAME = 'build';
-const SESSION_METADATA_PATH = join(homedir(), '.chatroom', 'opencode-sdk-sessions.json');
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
@@ -43,11 +46,6 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
   } finally {
     if (timer) clearTimeout(timer);
   }
-}
-
-function findSessionMetadataByPid(pid: number): SessionMetadata | undefined {
-  const sessions = loadSessionMetadata();
-  return Object.values(sessions).find((m) => m.pid === pid);
 }
 
 function forwardFiltered(
@@ -74,51 +72,6 @@ function forwardFiltered(
 
 const isInfoLine = (line: string): boolean => line.trimStart().startsWith('INFO ');
 
-interface SessionMetadata {
-  sessionId: string;
-  machineId: string;
-  chatroomId: string;
-  role: string;
-  pid: number;
-  createdAt: string;
-  baseUrl: string;
-}
-
-function loadSessionMetadata(): Record<string, SessionMetadata> {
-  try {
-    if (existsSync(SESSION_METADATA_PATH)) {
-      return JSON.parse(readFileSync(SESSION_METADATA_PATH, 'utf-8'));
-    }
-  } catch {
-    // Ignore errors, return empty object
-  }
-  return {};
-}
-
-function saveSessionMetadata(sessions: Record<string, SessionMetadata>): void {
-  try {
-    const dir = join(homedir(), '.chatroom');
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-    writeFileSync(SESSION_METADATA_PATH, JSON.stringify(sessions, null, 2));
-  } catch {
-    // Ignore errors for now
-  }
-}
-
-function updateSessionMetadata(sessionId: string, meta: SessionMetadata): void {
-  const sessions = loadSessionMetadata();
-  sessions[sessionId] = meta;
-  saveSessionMetadata(sessions);
-}
-
-function removeSessionMetadata(sessionId: string): void {
-  const sessions = loadSessionMetadata();
-  delete sessions[sessionId];
-  saveSessionMetadata(sessions);
-}
-
 /**
  * Parse an OpenCode model ID like "anthropic/claude-sonnet-4" or
  * "github-copilot/claude-sonnet-4.5" into the SDK's `{providerID, modelID}` shape.
@@ -141,9 +94,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
+  private readonly sessionStore: SessionMetadataStore;
 
-  constructor(deps?: Partial<CLIAgentServiceDeps>) {
+  constructor(deps?: Partial<OpenCodeSdkAgentServiceDeps>) {
     super(deps);
+    this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
   }
 
   isInstalled(): boolean {
@@ -185,7 +140,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   }
 
   override async stop(pid: number): Promise<void> {
-    const meta = findSessionMetadataByPid(pid);
+    const meta = this.sessionStore.findByPid(pid);
     if (meta) {
       try {
         const client = createOpencodeClient({ baseUrl: meta.baseUrl });
@@ -266,7 +221,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       );
     } catch (err) {
       childProcess.kill();
-      if (sessionId) removeSessionMetadata(sessionId);
+      if (sessionId) this.sessionStore.remove(sessionId);
       throw err;
     }
 
@@ -279,7 +234,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       createdAt: new Date().toISOString(),
       baseUrl,
     };
-    updateSessionMetadata(sessionId, meta);
+    this.sessionStore.upsert(meta);
 
     const entry = this.registerProcess(pid, context);
 
@@ -305,7 +260,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
-          removeSessionMetadata(sessionId);
+          this.sessionStore.remove(sessionId);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });

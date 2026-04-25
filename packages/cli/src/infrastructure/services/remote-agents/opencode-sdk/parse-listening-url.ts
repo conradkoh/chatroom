@@ -13,8 +13,8 @@ export async function waitForListeningUrl(
       const match = s.match(LISTENING_URL_RE);
       if (match) {
         clearTimeout(timer);
-        child.stdout?.removeListener('data', onData as (...args: unknown[]) => void);
-        child.stderr?.removeListener('data', onData as (...args: unknown[]) => void);
+        child.stdout?.removeListener('data', onData);
+        child.stderr?.removeListener('data', onData);
         child.removeListener('exit', onExit);
         resolve(match[1]);
       }
@@ -22,8 +22,8 @@ export async function waitForListeningUrl(
 
     const onExit = (code: number | null, signal: string | null) => {
       clearTimeout(timer);
-      child.stdout?.removeListener('data', onData as (...args: unknown[]) => void);
-      child.stderr?.removeListener('data', onData as (...args: unknown[]) => void);
+      child.stdout?.removeListener('data', onData);
+      child.stderr?.removeListener('data', onData);
       child.removeListener('exit', onExit);
       reject(
         new Error(
@@ -32,13 +32,13 @@ export async function waitForListeningUrl(
       );
     };
 
-    child.stdout?.on('data', onData as (...args: unknown[]) => void);
-    child.stderr?.on('data', onData as (...args: unknown[]) => void);
+    child.stdout?.on('data', onData);
+    child.stderr?.on('data', onData);
     child.on('exit', onExit);
 
     const timer = setTimeout(() => {
-      child.stdout?.removeListener('data', onData as (...args: unknown[]) => void);
-      child.stderr?.removeListener('data', onData as (...args: unknown[]) => void);
+      child.stdout?.removeListener('data', onData);
+      child.stderr?.removeListener('data', onData);
       child.removeListener('exit', onExit);
       reject(
         new Error(`opencode serve did not print a listening URL within ${options.timeoutMs}ms`)
