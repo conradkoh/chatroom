@@ -72,11 +72,22 @@ function removeSessionMetadata(sessionId: string): void {
   saveSessionMetadata(sessions);
 }
 
+/**
+ * Parse an OpenCode model ID like "anthropic/claude-sonnet-4" or
+ * "github-copilot/claude-sonnet-4.5" into the SDK's `{providerID, modelID}` shape.
+ *
+ * Splits on the FIRST slash so model slugs containing `/` (rare, but possible)
+ * are preserved in the modelID portion. Returns undefined for inputs without
+ * any `/` (no provider prefix → we cannot determine the provider).
+ */
 function parseModelId(model: string): { providerID: string; modelID: string } | undefined {
   if (!model) return undefined;
-  const parts = model.split('/');
-  if (parts.length !== 2) return undefined;
-  return { providerID: parts[0], modelID: parts[1] };
+  const slashIdx = model.indexOf('/');
+  if (slashIdx === -1) return undefined;
+  const providerID = model.substring(0, slashIdx);
+  const modelID = model.substring(slashIdx + 1);
+  if (!providerID || !modelID) return undefined;
+  return { providerID, modelID };
 }
 
 export class OpenCodeSdkAgentService extends BaseCLIAgentService {

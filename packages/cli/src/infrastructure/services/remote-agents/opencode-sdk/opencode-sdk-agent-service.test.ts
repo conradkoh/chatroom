@@ -315,5 +315,65 @@ describe('OpenCodeSdkAgentService', () => {
 
       expect(onOutput).toHaveBeenCalledTimes(2);
     });
+
+    it('forwards model slug with a single slash as {providerID, modelID}', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions({ model: 'github-copilot/gpt-4o' }));
+      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
+        providerID: 'github-copilot',
+        modelID: 'gpt-4o',
+      });
+    });
+
+    it('forwards model slug with a multi-segment modelID (split on first slash only)', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(
+        spawnOptions({ model: 'anthropic/claude-sonnet-4.5/thinking' })
+      );
+      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
+        providerID: 'anthropic',
+        modelID: 'claude-sonnet-4.5/thinking',
+      });
+    });
+
+    it('omits the model field when no model is selected (lets opencode default apply)', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions({ model: undefined }));
+      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
+    });
+
+    it('omits the model field when the slug has no provider prefix (malformed input)', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions({ model: 'no-slash-here' }));
+      child.stdout.emit('data', Buffer.from('listening at http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
+    });
   });
 });
