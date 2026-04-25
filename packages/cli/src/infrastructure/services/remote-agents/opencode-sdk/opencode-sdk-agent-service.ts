@@ -28,6 +28,7 @@ const SESSION_METADATA_PATH = join(homedir(), '.chatroom', 'opencode-sdk-session
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
+const SESSION_ABORT_TIMEOUT_MS = 5_000;
 // opencode serve --print-logs outputs: "opencode server listening on http://127.0.0.1:<port>"
 // Anchor the regex to this prefix to avoid capturing unrelated URLs in serve output.
 const LISTENING_URL_RE = /opencode server listening on (https?:\/\/127\.0\.0\.1:\d+(?:\/[^\s]*)?)/;
@@ -44,6 +45,11 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+function findSessionMetadataByPid(pid: number): SessionMetadata | undefined {
+  const sessions = loadSessionMetadata();
+  return Object.values(sessions).find((m) => m.pid === pid);
 }
 
 interface SessionMetadata {
@@ -154,6 +160,26 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     } catch {
       return [];
     }
+  }
+
+  override async stop(pid: number): Promise<void> {
+    const meta = findSessionMetadataByPid(pid);
+    if (meta) {
+      try {
+        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+        await withTimeout(
+          client.session.abort({ path: { id: meta.sessionId } }),
+          SESSION_ABORT_TIMEOUT_MS,
+          'session.abort'
+        );
+      } catch (err) {
+        console.warn(
+          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+    await super.stop(pid);
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
