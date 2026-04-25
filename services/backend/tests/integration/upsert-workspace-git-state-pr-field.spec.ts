@@ -109,4 +109,51 @@ describe('upsertWorkspaceGitState — PR number field', () => {
     expect(stored?.openPullRequests?.[0]?.prNumber).toBe(7);
     expect(stored?.allPullRequests?.[0]?.prNumber).toBe(8);
   });
+
+  test('getWorkspaceGitState normalizes legacy `number`-only allPullRequests rows on read', async () => {
+    const { sessionId } = await createTestSession('upsert-pr-field-allprs-legacy');
+    const machineId = 'upsert-pr-allprs-legacy';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceGitState', {
+        machineId,
+        workingDir: WORKING_DIR,
+        status: 'available',
+        branch: 'main',
+        isDirty: false,
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+        recentCommits: [],
+        hasMoreCommits: false,
+        openPullRequests: [],
+        allPullRequests: [
+          {
+            number: 55,
+            title: 'legacy all pr',
+            url: 'https://example.test/pulls/55',
+            headRefName: 'feat/legacy-allprs',
+            state: 'MERGED',
+          },
+        ],
+        remotes: [],
+        commitsAhead: 0,
+        defaultBranch: 'main',
+        headCommitStatus: null,
+        defaultBranchStatus: null,
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.query(api.workspaces.getWorkspaceGitState, {
+      sessionId: sessionId as any,
+      machineId,
+      workingDir: WORKING_DIR,
+    });
+
+    expect(result.status).toBe('available');
+    if (result.status !== 'available') throw new Error('expected available');
+    expect(result.allPullRequests).toHaveLength(1);
+    expect(result.allPullRequests[0].prNumber).toBe(55);
+    expect(result.allPullRequests[0].title).toBe('legacy all pr');
+  });
 });
