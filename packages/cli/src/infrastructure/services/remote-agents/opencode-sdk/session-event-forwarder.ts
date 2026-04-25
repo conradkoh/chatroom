@@ -11,9 +11,20 @@ export interface SessionEventForwarderHandle {
   done: Promise<void>;
 }
 
-interface OpenCodeEvent {
+export interface OpenCodeEvent {
   type: string;
   properties?: Record<string, unknown>;
+}
+
+/**
+ * Minimal client surface needed by the forwarder. Structurally compatible with
+ * the real `OpencodeClient.event` subset, plus loose enough that tests can
+ * supply a fake without satisfying the full SDK type.
+ */
+export interface SessionEventForwarderClient {
+  event: {
+    subscribe: (options?: unknown) => Promise<{ stream: AsyncGenerator<OpenCodeEvent> }>;
+  };
 }
 
 function formatLogLine(
@@ -39,9 +50,7 @@ function eventSessionId(event: OpenCodeEvent): string | undefined {
 }
 
 export function startSessionEventForwarder(
-  client: {
-    event: { subscribe: (options?: unknown) => Promise<{ stream: AsyncGenerator<OpenCodeEvent> }> };
-  },
+  client: SessionEventForwarderClient,
   options: SessionEventForwarderOptions
 ): SessionEventForwarderHandle {
   const target = options.target ?? process.stdout;

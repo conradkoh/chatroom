@@ -26,21 +26,9 @@ import {
 import { forwardFiltered, isInfoLine, parseModelId } from './pure.js';
 import {
   startSessionEventForwarder,
+  type SessionEventForwarderClient,
   type SessionEventForwarderHandle,
 } from './session-event-forwarder.js';
-
-interface EventSubscribeClient {
-  event: {
-    subscribe: (options?: unknown) => Promise<{
-      stream: AsyncGenerator<OpenCodeEvent, unknown, unknown>;
-    }>;
-  };
-}
-
-interface OpenCodeEvent {
-  type: string;
-  [key: string]: unknown;
-}
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
@@ -176,7 +164,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     });
 
     let sessionId: string | undefined;
-    let forwarder: SessionEventForwarderHandle;
+    let forwarder: SessionEventForwarderHandle | undefined;
     try {
       const agentDescriptor = buildChatroomAgentDescriptor({
         role: context.role,
@@ -207,7 +195,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
       sessionId = sessionCreateResult.data.id;
 
-      forwarder = startSessionEventForwarder(client as EventSubscribeClient, {
+      forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
         sessionId,
         role: context.role,
       });
@@ -227,7 +215,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         'session.promptAsync'
       );
     } catch (err) {
-      if (sessionId) forwarder!.stop(); // forwarder assigned before any await after sessionId
+      forwarder?.stop();
       childProcess.kill();
       if (sessionId) this.sessionStore.remove(sessionId);
       throw err;
@@ -245,7 +233,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     this.sessionStore.upsert(meta);
 
     const entry = this.registerProcess(pid, context);
-    this.forwarders.set(pid, forwarder!); // sessionId non-null = forwarder assigned
+    if (forwarder) this.forwarders.set(pid, forwarder);
 
     const outputCallbacks: (() => void)[] = [];
 
