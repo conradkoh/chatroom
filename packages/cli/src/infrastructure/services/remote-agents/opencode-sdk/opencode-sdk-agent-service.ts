@@ -20,9 +20,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
-export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
-  resolveModule?: (moduleName: string) => string;
-};
+export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps;
 
 const OPENCODE_COMMAND = 'opencode';
 const DEFAULT_AGENT_NAME = 'build';
@@ -91,20 +89,15 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   }
 
   isInstalled(): boolean {
-    const cliInstalled = this.checkInstalled(OPENCODE_COMMAND);
-    if (!cliInstalled) return false;
-
-    try {
-      const sdkDeps = this.deps as OpenCodeSdkAgentServiceDeps;
-      if (sdkDeps.resolveModule) {
-        sdkDeps.resolveModule('@opencode-ai/sdk');
-      } else {
-        require.resolve('@opencode-ai/sdk');
-      }
-      return true;
-    } catch {
-      return false;
-    }
+    // The SDK is a runtime dependency of this CLI package (declared in our
+    // package.json), so it's guaranteed to be present whenever this code
+    // executes. The only meaningful gate is the `opencode` binary itself.
+    //
+    // Historical note: an earlier version called `require.resolve('@opencode-ai/sdk')`,
+    // which throws ReferenceError in pure ESM (this CLI is `"type": "module"`),
+    // silently returning false from the catch and hiding the harness from the
+    // picker. The runtime check is unnecessary — the dependency contract handles it.
+    return this.checkInstalled(OPENCODE_COMMAND);
   }
 
   getVersion() {

@@ -85,7 +85,7 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 // ─── Constants ──────────────────────────────────────────────────────
 
 export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
-  opencode: 'OpenCode',
+  opencode: 'OpenCode (CLI)',
   'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
   cursor: 'Cursor',

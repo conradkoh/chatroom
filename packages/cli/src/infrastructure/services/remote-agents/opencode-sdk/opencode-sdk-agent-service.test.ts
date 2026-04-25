@@ -13,7 +13,6 @@ function createMockDeps(
     execSync: vi.fn(),
     spawn: vi.fn(),
     kill: vi.fn(),
-    resolveModule: vi.fn(),
     ...overrides,
   };
 }
@@ -93,11 +92,8 @@ function spawnOptions(overrides?: { model?: string; systemPrompt?: string; promp
 
 describe('OpenCodeSdkAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when opencode CLI and SDK are available', () => {
-      const deps = createMockDeps({
-        execSync: vi.fn(),
-        resolveModule: vi.fn(() => '/mocked/path'),
-      });
+    it('returns true when the opencode CLI is on PATH (SDK is bundled, no runtime resolve)', () => {
+      const deps = createMockDeps({ execSync: vi.fn() });
       const service = new OpenCodeSdkAgentService(deps);
       expect(service.isInstalled()).toBe(true);
     });
@@ -105,18 +101,6 @@ describe('OpenCodeSdkAgentService', () => {
     it('returns false when opencode command is missing', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
-        }),
-        resolveModule: vi.fn(),
-      });
-      const service = new OpenCodeSdkAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
-    });
-
-    it('returns false when SDK module cannot be resolved', () => {
-      const deps = createMockDeps({
-        execSync: vi.fn(),
-        resolveModule: vi.fn(() => {
           throw new Error('not found');
         }),
       });
