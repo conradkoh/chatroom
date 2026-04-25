@@ -23,6 +23,7 @@ const sharedAbortFn = vi.fn();
 const sharedConfigUpdateFn = vi.fn();
 const sharedCreateFn = vi.fn();
 const sharedPromptAsyncFn = vi.fn();
+const sharedEventSubscribeFn = vi.fn();
 
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
@@ -32,6 +33,7 @@ vi.mock('@opencode-ai/sdk', () => ({
       abort: sharedAbortFn,
     },
     config: { update: sharedConfigUpdateFn },
+    event: { subscribe: sharedEventSubscribeFn },
   })),
 }));
 
@@ -72,12 +74,14 @@ function stubSdkClient(
     sessionCreateThrows: Error;
     configUpdateThrows: Error;
     promptAsyncThrows: Error;
+    subscribeStream: AsyncGenerator<unknown>;
   }>
 ) {
   sharedCreateFn.mockReset();
   sharedConfigUpdateFn.mockReset();
   sharedPromptAsyncFn.mockReset();
   sharedAbortFn.mockReset();
+  sharedEventSubscribeFn.mockReset();
 
   sharedCreateFn.mockImplementation(
     overrides?.sessionCreateThrows
@@ -95,6 +99,13 @@ function stubSdkClient(
       : () => Promise.resolve({ data: {} })
   );
   sharedAbortFn.mockResolvedValue({});
+  sharedEventSubscribeFn.mockResolvedValue({
+    stream:
+      overrides?.subscribeStream ??
+      (async function* () {
+        await new Promise(() => {});
+      })(),
+  });
   return {
     create: sharedCreateFn,
     configUpdate: sharedConfigUpdateFn,
@@ -734,6 +745,82 @@ describe('OpenCodeSdkAgentService', () => {
         stdoutWriteSpy.mockRestore();
         stderrWriteSpy.mockRestore();
       }
+    });
+  });
+
+  describe('session event forwarder', () => {
+    it('C-E1: spawn happy path calls event.subscribe once after session.create', async () => {
+      const child = makeFakeChild(9001);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sharedEventSubscribeFn).toHaveBeenCalledTimes(1);
+      expect(sharedCreateFn.mock.invocationCallOrder[0]).toBeLessThan(
+        sharedEventSubscribeFn.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('C-E2: stop(pid) clears forwarders map after stopping the stream', async () => {
+      const child = makeFakeChild(9002);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient({
+        subscribeStream: (async function* () {
+          yield {
+            type: 'session.status',
+            properties: { message: 'started' },
+          };
+          await new Promise(() => {});
+        })(),
+      });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+
+      await service.stop(result.pid);
+
+      expect(sharedAbortFn).toHaveBeenCalled();
+    }, 10000);
+
+    it('C-E3: session.create rejection path never starts the forwarder', async () => {
+      const child = makeFakeChild(9003);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient({ sessionCreateThrows: new Error('create failed') });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+
+      await expect(spawnPromise).rejects.toThrow('create failed');
+      expect(sharedEventSubscribeFn).not.toHaveBeenCalled();
+    });
+
+    it('C-E4: promptAsync rejection stops the forwarder before rethrowing', async () => {
+      const child = makeFakeChild(9004);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient({
+        promptAsyncThrows: new Error('prompt failed'),
+        subscribeStream: (async function* () {
+          yield {
+            type: 'session.status',
+            properties: { message: 'started' },
+          };
+          await new Promise(() => {});
+        })(),
+      });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+
+      await expect(spawnPromise).rejects.toThrow('prompt failed');
+      expect(sharedEventSubscribeFn).toHaveBeenCalledTimes(1);
     });
   });
 });

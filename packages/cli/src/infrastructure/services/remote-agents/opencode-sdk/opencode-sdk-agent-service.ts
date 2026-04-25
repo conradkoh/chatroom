@@ -24,6 +24,23 @@ import {
   type SessionMetadataStore,
 } from './session-metadata-store.js';
 import { forwardFiltered, isInfoLine, parseModelId } from './pure.js';
+import {
+  startSessionEventForwarder,
+  type SessionEventForwarderHandle,
+} from './session-event-forwarder.js';
+
+interface EventSubscribeClient {
+  event: {
+    subscribe: (options?: unknown) => Promise<{
+      stream: AsyncGenerator<OpenCodeEvent, unknown, unknown>;
+    }>;
+  };
+}
+
+interface OpenCodeEvent {
+  type: string;
+  [key: string]: unknown;
+}
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
@@ -55,6 +72,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
   private readonly sessionStore: SessionMetadataStore;
+  private readonly forwarders = new Map<number, SessionEventForwarderHandle>();
 
   constructor(deps?: Partial<OpenCodeSdkAgentServiceDeps>) {
     super(deps);
@@ -100,6 +118,12 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   }
 
   override async stop(pid: number): Promise<void> {
+    const forwarder = this.forwarders.get(pid);
+    if (forwarder) {
+      forwarder.stop();
+      this.forwarders.delete(pid);
+    }
+
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
       try {
@@ -152,6 +176,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     });
 
     let sessionId: string | undefined;
+    let forwarder: SessionEventForwarderHandle;
     try {
       const agentDescriptor = buildChatroomAgentDescriptor({
         role: context.role,
@@ -182,6 +207,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
       sessionId = sessionCreateResult.data.id;
 
+      forwarder = startSessionEventForwarder(client as EventSubscribeClient, {
+        sessionId,
+        role: context.role,
+      });
+
       const modelParts = model ? parseModelId(model) : undefined;
       const userMessage = prompt;
       await withTimeout(
@@ -197,6 +227,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         'session.promptAsync'
       );
     } catch (err) {
+      if (sessionId) forwarder!.stop(); // forwarder assigned before any await after sessionId
       childProcess.kill();
       if (sessionId) this.sessionStore.remove(sessionId);
       throw err;
@@ -214,6 +245,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     this.sessionStore.upsert(meta);
 
     const entry = this.registerProcess(pid, context);
+    this.forwarders.set(pid, forwarder!); // sessionId non-null = forwarder assigned
 
     const outputCallbacks: (() => void)[] = [];
 
@@ -237,6 +269,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
+          const fwd = this.forwarders.get(pid);
+          if (fwd) {
+            fwd.stop();
+            this.forwarders.delete(pid);
+          }
           this.sessionStore.remove(sessionId);
           this.deleteProcess(pid);
           cb({ code, signal, context });

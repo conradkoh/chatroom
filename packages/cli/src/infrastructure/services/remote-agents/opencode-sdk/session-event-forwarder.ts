@@ -59,6 +59,11 @@ export function startSessionEventForwarder(
       const result = await client.event.subscribe();
       const stream = result.stream;
 
+      if (cancelled) {
+        await stream.return?.(undefined);
+        return;
+      }
+
       for await (const event of stream) {
         if (cancelled) {
           await stream.return?.(undefined);
