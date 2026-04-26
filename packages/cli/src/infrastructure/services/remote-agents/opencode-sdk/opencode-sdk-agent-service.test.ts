@@ -122,13 +122,16 @@ function stubSdkClientForStop(overrides?: { abortThrows?: Error }) {
 
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
 
-function spawnOptions(overrides?: { model?: string; systemPrompt?: string; prompt?: string }) {
+function spawnOptions(
+  overrides?: { model?: string; systemPrompt?: string; prompt?: string },
+  contextOverride?: { role?: string }
+) {
   return {
     workingDir: '/tmp/test',
     prompt: overrides?.prompt ?? 'do the thing',
     systemPrompt: overrides?.systemPrompt ?? 'you are a helpful builder',
     model: overrides?.model,
-    context: SPAWN_CONTEXT,
+    context: { ...SPAWN_CONTEXT, ...contextOverride },
   };
 }
 
@@ -347,7 +350,7 @@ describe('OpenCodeSdkAgentService', () => {
       vi.mocked(createOpencodeClient).mockReset();
     });
 
-    it('happy path: spawns serve, parses URL, registers custom agent, creates session, sends promptAsync', async () => {
+    it('happy path: spawns serve, parses URL, creates session, sends promptAsync with built-in agent', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
@@ -356,7 +359,6 @@ describe('OpenCodeSdkAgentService', () => {
       const spawnPromise = service.spawn(
         spawnOptions({ model: 'anthropic/claude-sonnet-4', systemPrompt: 'sys', prompt: 'hello' })
       );
-      // Simulate the serve printing its URL on stdout.
       child.stdout.emit(
         'data',
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
@@ -371,80 +373,72 @@ describe('OpenCodeSdkAgentService', () => {
         expect.objectContaining({ cwd: '/tmp/test', detached: true })
       );
 
-      // config.update was called with the custom agent config
-      expect(sdk.configUpdate).toHaveBeenCalledTimes(1);
-      const configCall = sdk.configUpdate.mock.calls[0][0];
-      expect(configCall.body.agent['chatroom-builder']).toMatchObject({
-        prompt: 'sys',
-        mode: 'primary',
-      });
+      expect(sdk.configUpdate).not.toHaveBeenCalled();
 
       expect(sdk.create).toHaveBeenCalledTimes(1);
       expect(sdk.promptAsync).toHaveBeenCalledTimes(1);
       const promptCall = sdk.promptAsync.mock.calls[0][0];
       expect(promptCall.path.id).toBe('sess-1');
 
-      // System prompt lives in the agent config, not in the user message
-      expect(promptCall.body.system).toBeUndefined();
+      expect(promptCall.body.agent).toBe('build');
+      expect(promptCall.body.system).toBe('sys');
       expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'hello' }]);
-      expect(promptCall.body.agent).toBe('chatroom-builder');
       expect(promptCall.body.model).toEqual({
         providerID: 'anthropic',
         modelID: 'claude-sonnet-4',
       });
     });
 
-    it('kills the serve child when config.update rejects (C-A1)', async () => {
-      const child = makeFakeChild(4321);
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-      stubSdkClient({ configUpdateThrows: new Error('config rejected') });
-      const service = new OpenCodeSdkAgentService(deps);
-
-      const spawnPromise = service.spawn(spawnOptions());
-      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
-
-      await expect(spawnPromise).rejects.toThrow(/config rejected/);
-      expect(child.kill).toHaveBeenCalled();
-    });
-
-    it('kills the serve child when config.update times out (C-A2)', async () => {
-      vi.useFakeTimers();
-      try {
-        const child = makeFakeChild(4321);
-        const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-        const sdk = stubSdkClient();
-        // Make config.update hang forever
-        sdk.configUpdate.mockImplementation(() => new Promise(() => {}));
-        const service = new OpenCodeSdkAgentService(deps);
-
-        const spawnPromise = service.spawn(spawnOptions());
-        child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
-        const settled = spawnPromise.catch((e) => e);
-        await vi.advanceTimersByTimeAsync(11_000); // past 10s CONFIG_UPDATE_TIMEOUT_MS
-
-        const err = await settled;
-        expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toMatch(/config\.update.*timed out/i);
-        expect(child.kill).toHaveBeenCalled();
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('registers agent BEFORE session.create is called (C-A3)', async () => {
+    it('uses built-in "plan" agent for planner role', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
 
-      const spawnPromise = service.spawn(spawnOptions());
-      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const spawnPromise = service.spawn(
+        spawnOptions({ prompt: 'hello', systemPrompt: 'plan only' }, { role: 'planner' })
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
       await spawnPromise;
 
-      // config.update was called before session.create
-      expect(sdk.configUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-        sdk.create.mock.invocationCallOrder[0]
+      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('plan');
+    });
+
+    it('omits system field when systemPrompt is empty', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions({ prompt: 'hello', systemPrompt: '' }));
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.system).toBeUndefined();
+    });
+
+    it('omits system field when systemPrompt is whitespace only', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(
+        spawnOptions({ prompt: 'hello', systemPrompt: '   \n\t  ' })
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.system).toBeUndefined();
     });
 
     it('rejects with timeout error when serve never prints a URL, and kills the child', async () => {

@@ -14,8 +14,8 @@ import { execSync } from 'node:child_process';
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
-import { buildChatroomAgentDescriptor } from './agent-config-builder.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { selectBuiltInAgent } from './select-builtin-agent.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import {
@@ -36,7 +36,6 @@ export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
 
 const OPENCODE_COMMAND = 'opencode';
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
-const CONFIG_UPDATE_TIMEOUT_MS = 10_000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
@@ -166,23 +165,6 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     let sessionId: string | undefined;
     let forwarder: SessionEventForwarderHandle | undefined;
     try {
-      const agentDescriptor = buildChatroomAgentDescriptor({
-        role: context.role,
-        systemPrompt,
-      });
-
-      await withTimeout(
-        client.config.update({
-          body: {
-            agent: {
-              [agentDescriptor.name]: agentDescriptor.config,
-            },
-          },
-        }),
-        CONFIG_UPDATE_TIMEOUT_MS,
-        'config.update'
-      );
-
       const sessionCreateResult = await withTimeout(
         client.session.create({ body: {} }),
         SESSION_CREATE_TIMEOUT_MS,
@@ -202,11 +184,14 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
       const modelParts = model ? parseModelId(model) : undefined;
       const userMessage = prompt;
+      const agentName = selectBuiltInAgent(context.role);
+      const trimmedSystemPrompt = systemPrompt.trim();
       await withTimeout(
         client.session.promptAsync({
           path: { id: sessionId },
           body: {
-            agent: agentDescriptor.name,
+            agent: agentName,
+            ...(trimmedSystemPrompt ? { system: systemPrompt } : {}),
             parts: [{ type: 'text', text: userMessage }],
             ...(modelParts ? { model: modelParts } : {}),
           },
