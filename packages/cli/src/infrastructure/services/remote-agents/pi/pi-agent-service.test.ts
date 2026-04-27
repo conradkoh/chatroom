@@ -1,4 +1,5 @@
 import { EventEmitter, Readable } from 'node:stream';
+import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -208,7 +209,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'You are a test agent',
-        prompt: 'Hello world',
+        prompt: createSpawnPrompt('Hello world'),
         model: 'github-copilot/claude-sonnet-4.6',
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
       });
@@ -242,7 +243,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'You are a test agent',
-        prompt: 'Hello world',
+        prompt: createSpawnPrompt('Hello world'),
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
       });
 
@@ -259,7 +260,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: "It's a system prompt with 'quotes'",
-        prompt: "Don't stop",
+        prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -279,7 +280,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -304,7 +305,7 @@ describe('PiAgentService', () => {
         service.spawn({
           workingDir: '/tmp',
           systemPrompt: 'test',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           context: { machineId: 'm', chatroomId: 'c', role: 'r' },
         })
       ).rejects.toThrow('exited immediately');
@@ -319,7 +320,7 @@ describe('PiAgentService', () => {
       const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -337,7 +338,7 @@ describe('PiAgentService', () => {
       const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -367,7 +368,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'You are an agent',
-        prompt: '',
+        prompt: createSpawnPrompt(''),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -388,7 +389,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'You are an agent',
-        prompt: '   ',
+        prompt: createSpawnPrompt('   '),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -407,7 +408,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: "It's a system prompt with 'quotes'",
-        prompt: "Don't stop",
+        prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 

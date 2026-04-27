@@ -1,4 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
 import {
   AgentProcessManager,
@@ -126,6 +127,27 @@ describe('AgentProcessManager', () => {
         PID,
         'opencode'
       );
+    });
+
+    test('substitutes DEFAULT_TRIGGER_PROMPT when backend returns empty initialMessage', async () => {
+      // Use case-level regression guard: composeInitMessage in the backend currently
+      // returns '' for every role. The manager must wrap that via createSpawnPrompt
+      // before calling service.spawn so harnesses never receive an empty user message.
+      // Without this, the opencode-sdk harness sends parts:[{text:''}] which
+      // some providers (e.g. MiniMax) reject with `messages must not be empty`.
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        prompt: true,
+        rolePrompt: 'You are a builder',
+        initialMessage: '',
+      });
+
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      expect(service.spawn).toHaveBeenCalledOnce();
+      const spawnArgs = (service.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnArgs.prompt).toBe(DEFAULT_TRIGGER_PROMPT);
+      expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
     test('already running: returns immediately with existing PID', async () => {

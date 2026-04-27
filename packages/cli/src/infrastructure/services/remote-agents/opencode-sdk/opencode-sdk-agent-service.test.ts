@@ -7,6 +7,7 @@ import {
 } from './opencode-sdk-agent-service.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt.js';
+import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
@@ -155,7 +156,7 @@ function spawnOptions(
 ) {
   return {
     workingDir: '/tmp/test',
-    prompt: overrides?.prompt ?? 'do the thing',
+    prompt: createSpawnPrompt(overrides?.prompt ?? 'do the thing'),
     systemPrompt: overrides?.systemPrompt ?? 'you are a helpful builder',
     model: overrides?.model,
     context: { ...SPAWN_CONTEXT, ...contextOverride },

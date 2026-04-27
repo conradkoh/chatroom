@@ -18,6 +18,7 @@ import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -576,7 +577,7 @@ export class AgentProcessManager {
       try {
         spawnResult = await service.spawn({
           workingDir: opts.workingDir,
-          prompt: initPromptResult.initialMessage,
+          prompt: createSpawnPrompt(initPromptResult.initialMessage),
           systemPrompt: initPromptResult.rolePrompt,
           model: opts.model,
           context: {
