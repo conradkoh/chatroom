@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.35.1",
+  "version": "1.36.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@llamaindex/liteparse": "^1.4.2",
+    "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
     "convex": "^1.31.0",
     "convex-helpers": "^0.1.108"

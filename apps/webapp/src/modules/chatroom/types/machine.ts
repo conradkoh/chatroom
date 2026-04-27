@@ -85,7 +85,8 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 // ─── Constants ──────────────────────────────────────────────────────
 
 export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
-  opencode: 'OpenCode',
+  opencode: 'OpenCode (CLI)',
+  'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
   cursor: 'Cursor',
 };
@@ -93,6 +94,11 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
 /** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
 export function getHarnessDisplayName(harness: string): string {
   return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
+}
+
+/** Check if a harness is the OpenCode SDK harness. */
+export function isOpenCodeSdkHarness(harness: string): boolean {
+  return harness === 'opencode-sdk';
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

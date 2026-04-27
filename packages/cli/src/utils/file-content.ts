@@ -6,8 +6,9 @@
  * This makes the CLI more accessible to AI models that struggle with escaping.
  */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { NodeError } from '../infrastructure/types/node-error.js';
 
 /**
  * Read content from a file.
@@ -29,11 +30,9 @@ export function readFileContent(filePath: string, optionName: string): string {
   try {
     return readFileSync(absolutePath, 'utf-8');
   } catch (err) {
-    const nodeErr = err as NodeJS.ErrnoException;
+    const nodeErr = err as NodeError;
     throw new Error(
       `Cannot read file for --${optionName}: ${absolutePath}\n` + `Reason: ${nodeErr.message}`
     );
   }
 }
-
-

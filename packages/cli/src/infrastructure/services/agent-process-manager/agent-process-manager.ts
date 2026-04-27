@@ -14,10 +14,12 @@
 
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
+import type { Signals } from '../../types/signals.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +80,7 @@ export interface AgentProcessManagerDeps {
   };
   sessionId: string;
   machineId: string;
-  processes: { kill: (pid: number, signal?: number | NodeJS.Signals) => void };
+  processes: { kill: (pid: number, signal?: number | Signals) => void };
   clock: { delay: (ms: number) => Promise<void>; now: () => number };
   fs: { stat: (path: string) => Promise<{ isDirectory: () => boolean }> };
   persistence: {
@@ -205,12 +207,10 @@ export class AgentProcessManager {
         signal: undefined as string | undefined,
         agentHarness: undefined as string | undefined,
       };
-      this.deps.backend
-        .mutation(api.machines.recordAgentExited, exitArgs1)
-        .catch((err: Error) => {
-          console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
-          this.queueExitRetry({ role: opts.role, args: exitArgs1 });
-        });
+      this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs1).catch((err: Error) => {
+        console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
+        this.queueExitRetry({ role: opts.role, args: exitArgs1 });
+      });
       return { success: true };
     }
     if (slot.state === 'stopping' && slot.pendingOperation) {
@@ -283,12 +283,10 @@ export class AgentProcessManager {
       signal: opts.signal ?? undefined,
       agentHarness: harness,
     };
-    this.deps.backend
-      .mutation(api.machines.recordAgentExited, exitArgs2)
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-        this.queueExitRetry({ role: opts.role, args: exitArgs2 });
-      });
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs2).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs2 });
+    });
 
     // Clear from disk
     this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
@@ -299,7 +297,10 @@ export class AgentProcessManager {
     }
 
     // Restart decision
-    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'daemon.shutdown';
+    const isIntentionalStop =
+      stopReason === 'user.stop' ||
+      stopReason === 'platform.team_switch' ||
+      stopReason === 'daemon.shutdown';
     const isDaemonRespawn = stopReason === 'daemon.respawn';
 
     if (isIntentionalStop) {
@@ -488,9 +489,7 @@ export class AgentProcessManager {
         if (!loopCheck.allowed) {
           if (loopCheck.waitMs !== undefined && loopCheck.waitMs > 0) {
             // Temporary backoff - log and return backoff error (don't emit limit event)
-            console.log(
-              `   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`
-            );
+            console.log(`   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`);
             slot.state = 'idle';
             slot.pendingOperation = undefined;
             return { success: false, error: 'backoff' };
@@ -576,7 +575,7 @@ export class AgentProcessManager {
       try {
         spawnResult = await service.spawn({
           workingDir: opts.workingDir,
-          prompt: initPromptResult.initialMessage,
+          prompt: createSpawnPrompt(initPromptResult.initialMessage),
           systemPrompt: initPromptResult.rolePrompt,
           model: opts.model,
           context: {
@@ -750,12 +749,10 @@ export class AgentProcessManager {
       signal: undefined as string | undefined,
       agentHarness: slot.harness,
     };
-    this.deps.backend
-      .mutation(api.machines.recordAgentExited, exitArgs3)
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-        this.queueExitRetry({ role: opts.role, args: exitArgs3 });
-      });
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs3).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs3 });
+    });
 
     // Clear from disk
     this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);

@@ -1,4 +1,5 @@
 import { EventEmitter, Readable } from 'node:stream';
+import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -184,7 +185,7 @@ describe('OpenCodeAgentService', () => {
 
       const result = await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello agent',
+        prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
         model: 'anthropic/claude-3.5-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
@@ -231,7 +232,7 @@ describe('OpenCodeAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'test',
+        prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
@@ -258,7 +259,7 @@ describe('OpenCodeAgentService', () => {
       await expect(
         service.spawn({
           workingDir: '/tmp',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         })

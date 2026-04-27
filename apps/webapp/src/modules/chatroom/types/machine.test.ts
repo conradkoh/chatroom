@@ -7,7 +7,7 @@ import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName } from './machine';
  * When a new harness is added, it must also be added here and to the
  * frontend HARNESS_DISPLAY_NAMES record.
  */
-const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'pi', 'cursor'];
+const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'opencode-sdk', 'pi', 'cursor'];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
   it.each(ALL_KNOWN_HARNESSES)('should have a display name for the "%s" harness', (harness) => {
@@ -27,7 +27,8 @@ describe('HARNESS_DISPLAY_NAMES', () => {
 
 describe('getHarnessDisplayName', () => {
   it('returns known display name for registered harnesses', () => {
-    expect(getHarnessDisplayName('opencode')).toBe('OpenCode');
+    expect(getHarnessDisplayName('opencode')).toBe('OpenCode (CLI)');
+    expect(getHarnessDisplayName('opencode-sdk')).toBe('OpenCode (SDK)');
     expect(getHarnessDisplayName('pi')).toBe('Pi');
     expect(getHarnessDisplayName('cursor')).toBe('Cursor');
   });

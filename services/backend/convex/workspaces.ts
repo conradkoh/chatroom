@@ -194,9 +194,10 @@ export const getWorkspaceGitState = query({
           ...pr,
           prNumber: pr.prNumber ?? pr.number ?? 0,
         })),
-        allPullRequests: (row.allPullRequests ?? []).filter(
-          (pr): pr is typeof pr & { prNumber: number } => pr.prNumber !== undefined
-        ),
+        allPullRequests: (row.allPullRequests ?? []).map((pr) => ({
+          ...pr,
+          prNumber: pr.prNumber ?? pr.number ?? 0,
+        })),
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         defaultBranch: row.defaultBranch ?? null,

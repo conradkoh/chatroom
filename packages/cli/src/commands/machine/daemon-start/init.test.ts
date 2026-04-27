@@ -96,6 +96,21 @@ vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () =
   };
 });
 
+vi.mock('../../../infrastructure/services/remote-agents/opencode-sdk/index.js', () => {
+  return {
+    OpenCodeSdkAgentService: class MockOpenCodeSdkAgentService {
+      isInstalled = vi.fn().mockReturnValue(false);
+      getVersion = vi.fn().mockReturnValue(null);
+      listModels = vi.fn().mockResolvedValue([]);
+      spawn = vi.fn();
+      stop = vi.fn();
+      isAlive = vi.fn();
+      getTrackedProcesses = vi.fn().mockReturnValue([]);
+      untrack = vi.fn();
+    },
+  };
+});
+
 vi.mock('./utils.js', () => ({
   formatTimestamp: vi.fn().mockReturnValue('2026-01-01 00:00:00'),
 }));

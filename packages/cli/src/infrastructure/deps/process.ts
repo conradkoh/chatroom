@@ -5,7 +5,9 @@
  * Used by onAgentShutdown and onDaemonShutdown for process-group kills.
  */
 
+import type { Signals } from '../types/signals.js';
+
 export interface ProcessOps {
   /** Send a signal to a process (wraps process.kill) */
-  kill: (pid: number, signal?: NodeJS.Signals | number) => void;
+  kill: (pid: number, signal?: Signals | number) => void;
 }

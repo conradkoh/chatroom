@@ -23,16 +23,6 @@ import { ClaudeStreamReader } from './claude-stream-reader.js';
 
 export type ClaudeCodeAgentServiceDeps = CLIAgentServiceDeps;
 
-/**
- * Default trigger message used when the caller provides no prompt.
- *
- * Claude Code requires a non-empty prompt argument in print mode (-p).
- * When the init prompt is empty (e.g. composeInitMessage returns ''), we send
- * this trigger so the agent reads its system prompt and begins working.
- */
-const DEFAULT_TRIGGER_PROMPT =
-  'Please read your system prompt carefully and follow the Getting Started instructions.';
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CLAUDE_COMMAND = 'claude';
@@ -71,11 +61,10 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, model } = options;
-
-    // Claude Code requires a non-empty prompt in print mode — fall back to a
-    // default trigger when the caller passes an empty prompt (e.g. composeInitMessage returns '').
-    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
+    // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
+    // at the use-case layer (`agent-process-manager`). See
+    // `infrastructure/services/remote-agents/spawn-prompt.ts`.
+    const { prompt, systemPrompt, model } = options;
 
     // Build args for print mode (-p): non-interactive, processes prompt and exits.
     // stream-json emits one NDJSON event per line so we can parse and log in real-time.

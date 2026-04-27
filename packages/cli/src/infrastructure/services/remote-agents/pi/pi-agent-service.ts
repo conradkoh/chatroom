@@ -32,16 +32,6 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 const PI_COMMAND = 'pi';
 
-/**
- * Default trigger message used when the caller provides no prompt.
- *
- * Pi requires at least one user message to call the AI API. When the init
- * prompt is empty (e.g. composeInitMessage returns ''), we send this trigger
- * so Pi can read the system prompt and execute the Getting Started steps.
- */
-const DEFAULT_TRIGGER_PROMPT =
-  'Please read your system prompt carefully and follow the Getting Started instructions.';
-
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
@@ -98,11 +88,10 @@ export class PiAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, model } = options;
-
-    // Pi requires at least one user message — fall back to a default trigger when
-    // the caller passes an empty prompt (e.g. composeInitMessage returns '').
-    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
+    // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
+    // at the use-case layer (`agent-process-manager`). See
+    // `infrastructure/services/remote-agents/spawn-prompt.ts`.
+    const { prompt, systemPrompt, model } = options;
 
     // Build args for RPC mode. The prompt is NOT a positional arg — it is sent
     // over stdin as a JSON command after the process starts.
