@@ -24,3 +24,4 @@ patches/
 # opencode (local-only package lockfile; .opencode/.gitignore is self-ignored)
 /.opencode/package-lock.json
 package-lock.json
+
