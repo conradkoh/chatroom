@@ -6,6 +6,10 @@
  * - newly observed workingDir → push immediately + start per-workingDir safety poll
  * - no-longer-observed → clearInterval + cleanup
  * - still observed → no-op
+ *
+ * TTL reconcile: a periodic local timer re-runs handleObservedChange so stale observations
+ * (whose TTL expired while the browser tab was closed) are cleaned up even if Convex does
+ * not re-deliver the onUpdate callback solely due to Date.now() crossing the TTL boundary.
  */
 
 import type { FunctionReturnType } from 'convex/server';
@@ -14,17 +18,20 @@ import type { ConvexClient } from 'convex/browser';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { OBSERVED_SAFETY_POLL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  OBSERVED_SAFETY_POLL_MS,
+  OBSERVATION_TTL_MS,
+} from '@workspace/backend/config/reliability.js';
 import { pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import { pushSingleWorkspaceCommands } from './command-sync-heartbeat.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type ObservedChatrooms = FunctionReturnType<typeof api.machines.getObservedChatroomsForMachine>;
-type ObservedChatroom = ObservedChatrooms[number];
 
 interface ObservedWorkingDirState {
   intervalHandle: ReturnType<typeof setInterval>;
-  observingChatroomIds: Set<string>;
+  /** True while a pushForWorkingDir call is already in flight — prevents overlapping pushes. */
+  pushInFlight: boolean;
 }
 
 export function startObservedSyncSubscription(
@@ -35,6 +42,9 @@ export function startObservedSyncSubscription(
 
   const observedWorkingDirs = new Map<string, ObservedWorkingDirState>();
 
+  /** Most-recent observed list from onUpdate — used by the TTL reconcile timer. */
+  let lastObserved: ObservedChatrooms = [];
+
   const unsubscribe = wsClient.onUpdate(
     api.machines.getObservedChatroomsForMachine,
     {
@@ -42,7 +52,8 @@ export function startObservedSyncSubscription(
       machineId: ctx.machineId,
     },
     (observed) => {
-      handleObservedChange(observed ?? []);
+      lastObserved = observed ?? [];
+      handleObservedChange(lastObserved);
     },
     (err: unknown) => {
       console.warn(
@@ -51,11 +62,21 @@ export function startObservedSyncSubscription(
     }
   );
 
+  /**
+   * Local reconcile timer: fires slightly more often than the observation TTL so stale entries
+   * are removed even when Convex does not re-deliver the reactive update.
+   */
+  const reconcileIntervalMs = Math.max(OBSERVATION_TTL_MS / 2, OBSERVED_SAFETY_POLL_MS);
+  const reconcileTimer = setInterval(() => {
+    handleObservedChange(lastObserved);
+  }, reconcileIntervalMs);
+
   console.log(`[${formatTimestamp()}] 👁️ Observed-sync subscription started`);
 
   return {
     stop: () => {
       unsubscribe();
+      clearInterval(reconcileTimer);
       for (const [_, state] of observedWorkingDirs) {
         clearInterval(state.intervalHandle);
       }
@@ -66,15 +87,10 @@ export function startObservedSyncSubscription(
 
   function handleObservedChange(observed: ObservedChatrooms): void {
     const newWorkingDirs = new Set<string>();
-    const chatroomWorkingDirs = new Map<string, Set<string>>();
 
     for (const chatroom of observed) {
-      const chatroomId = chatroom.chatroomId;
       for (const wd of chatroom.workingDirs) {
         newWorkingDirs.add(wd);
-        const existing = chatroomWorkingDirs.get(wd) ?? new Set();
-        existing.add(chatroomId);
-        chatroomWorkingDirs.set(wd, existing);
       }
     }
 
@@ -93,30 +109,38 @@ export function startObservedSyncSubscription(
 
     for (const wd of newWorkingDirs) {
       if (!observedWorkingDirs.has(wd)) {
-        const observingChatroomIds = chatroomWorkingDirs.get(wd) ?? new Set();
         observedWorkingDirs.set(wd, {
           intervalHandle: setInterval(() => {
-            pushForWorkingDir(wd).catch((err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️ Safety poll failed for ${wd}: ${getErrorMessage(err)}`
-              );
-            });
+            schedulePushForWorkingDir(wd);
           }, OBSERVED_SAFETY_POLL_MS),
-          observingChatroomIds,
+          pushInFlight: false,
         });
         console.log(`[${formatTimestamp()}] 👁️ Started observing ${wd}`);
-        pushForWorkingDir(wd).catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️ Initial push failed for ${wd}: ${getErrorMessage(err)}`
-          );
-        });
-      } else {
-        const state = observedWorkingDirs.get(wd);
-        if (state) {
-          state.observingChatroomIds = chatroomWorkingDirs.get(wd) ?? new Set();
-        }
+        schedulePushForWorkingDir(wd);
       }
     }
+  }
+
+  function schedulePushForWorkingDir(workingDir: string): void {
+    const state = observedWorkingDirs.get(workingDir);
+    if (!state) return;
+
+    if (state.pushInFlight) {
+      // A push is already running for this workingDir — skip to prevent overlap
+      return;
+    }
+
+    state.pushInFlight = true;
+    pushForWorkingDir(workingDir)
+      .catch((err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Push failed for ${workingDir}: ${getErrorMessage(err)}`
+        );
+      })
+      .finally(() => {
+        const s = observedWorkingDirs.get(workingDir);
+        if (s) s.pushInFlight = false;
+      });
   }
 
   async function pushForWorkingDir(workingDir: string): Promise<void> {
