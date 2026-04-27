@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 /** Canonical harness validator — add new harnesses here. */
 export const agentHarnessValidator = v.union(
   v.literal('opencode'),
+  v.literal('opencode-sdk'),
   v.literal('pi'),
   v.literal('cursor'),
   v.literal('claude'),

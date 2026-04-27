@@ -26,13 +26,6 @@ export type CopilotAgentServiceDeps = CLIAgentServiceDeps;
 
 const COPILOT_COMMAND = 'copilot';
 
-/**
- * Default trigger message used when the caller provides no prompt.
- * Copilot requires a non-empty prompt argument.
- */
-const DEFAULT_TRIGGER_PROMPT =
-  'Please read your system prompt carefully and follow the Getting Started instructions.';
-
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CopilotAgentService extends BaseCLIAgentService {
@@ -91,8 +84,10 @@ export class CopilotAgentService extends BaseCLIAgentService {
    *   └ output
    */
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    // Copilot requires a non-empty prompt
-    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
+    // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
+    // at the use-case layer (`agent-process-manager`). See
+    // `infrastructure/services/remote-agents/spawn-prompt.ts`.
+    const { prompt } = options;
 
     // Build command arguments for non-interactive prompt mode
     const args: string[] = ['-p'];

@@ -1,4 +1,5 @@
 import { EventEmitter, Readable } from 'node:stream';
+import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -153,7 +154,7 @@ describe('CursorAgentService', () => {
 
       const result = await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello agent',
+        prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
         model: 'claude-4-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
@@ -201,7 +202,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'test',
+        prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
@@ -232,7 +233,7 @@ describe('CursorAgentService', () => {
       await expect(
         service.spawn({
           workingDir: '/tmp',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         })
@@ -262,7 +263,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'just the prompt',
+        prompt: createSpawnPrompt('just the prompt'),
         systemPrompt: '',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
