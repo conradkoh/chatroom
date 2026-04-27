@@ -1,11 +1,12 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
+import { CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt.js';
 
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
@@ -20,10 +21,40 @@ function createMockDeps(
 }
 
 const sharedAbortFn = vi.fn();
-const sharedConfigUpdateFn = vi.fn();
 const sharedCreateFn = vi.fn();
 const sharedPromptAsyncFn = vi.fn();
 const sharedEventSubscribeFn = vi.fn();
+const sharedAppAgentsFn = vi.fn();
+
+const DEFAULT_AGENTS = [
+  {
+    name: 'build',
+    prompt: 'BUILTIN_BUILD_PROMPT',
+    mode: 'primary',
+    builtIn: false,
+    permission: { edit: 'allow', bash: {} },
+    tools: {},
+    options: {},
+  },
+  {
+    name: 'planner',
+    prompt: 'BUILTIN_PLANNER_PROMPT',
+    mode: 'primary',
+    builtIn: false,
+    permission: { edit: 'allow', bash: {} },
+    tools: {},
+    options: {},
+  },
+  {
+    name: 'subagent-helper',
+    prompt: 'SUBAGENT',
+    mode: 'subagent',
+    builtIn: false,
+    permission: { edit: 'allow', bash: {} },
+    tools: {},
+    options: {},
+  },
+];
 
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
@@ -32,7 +63,7 @@ vi.mock('@opencode-ai/sdk', () => ({
       promptAsync: sharedPromptAsyncFn,
       abort: sharedAbortFn,
     },
-    config: { update: sharedConfigUpdateFn },
+    app: { agents: sharedAppAgentsFn },
     event: { subscribe: sharedEventSubscribeFn },
   })),
 }));
@@ -72,26 +103,20 @@ function stubSdkClient(
   overrides?: Partial<{
     sessionCreateResult: { data?: { id?: string } };
     sessionCreateThrows: Error;
-    configUpdateThrows: Error;
     promptAsyncThrows: Error;
     subscribeStream: AsyncGenerator<unknown>;
   }>
 ) {
   sharedCreateFn.mockReset();
-  sharedConfigUpdateFn.mockReset();
   sharedPromptAsyncFn.mockReset();
   sharedAbortFn.mockReset();
   sharedEventSubscribeFn.mockReset();
+  sharedAppAgentsFn.mockReset();
 
   sharedCreateFn.mockImplementation(
     overrides?.sessionCreateThrows
       ? () => Promise.reject(overrides.sessionCreateThrows)
       : () => Promise.resolve(overrides?.sessionCreateResult ?? { data: { id: 'sess-1' } })
-  );
-  sharedConfigUpdateFn.mockImplementation(
-    overrides?.configUpdateThrows
-      ? () => Promise.reject(overrides.configUpdateThrows)
-      : () => Promise.resolve({ data: {} })
   );
   sharedPromptAsyncFn.mockImplementation(
     overrides?.promptAsyncThrows
@@ -106,10 +131,12 @@ function stubSdkClient(
         await new Promise(() => {});
       })(),
   });
+  sharedAppAgentsFn.mockImplementation(() => Promise.resolve({ data: DEFAULT_AGENTS }));
+
   return {
     create: sharedCreateFn,
-    configUpdate: sharedConfigUpdateFn,
     promptAsync: sharedPromptAsyncFn,
+    appAgents: sharedAppAgentsFn,
   };
 }
 
@@ -136,6 +163,17 @@ function spawnOptions(
 }
 
 describe('OpenCodeSdkAgentService', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let stderrWriteSpy: any;
+
+  beforeEach(() => {
+    stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    stderrWriteSpy.mockRestore();
+  });
+
   describe('isInstalled', () => {
     it('returns true when the opencode CLI is on PATH (SDK is bundled, no runtime resolve)', () => {
       const deps = createMockDeps({ execSync: vi.fn() });
@@ -373,15 +411,15 @@ describe('OpenCodeSdkAgentService', () => {
         expect.objectContaining({ cwd: '/tmp/test', detached: true })
       );
 
-      expect(sdk.configUpdate).not.toHaveBeenCalled();
-
       expect(sdk.create).toHaveBeenCalledTimes(1);
       expect(sdk.promptAsync).toHaveBeenCalledTimes(1);
       const promptCall = sdk.promptAsync.mock.calls[0][0];
       expect(promptCall.path.id).toBe('sess-1');
 
       expect(promptCall.body.agent).toBe('build');
-      expect(promptCall.body.system).toBe('sys');
+      expect(promptCall.body.system).toBe(
+        'BUILTIN_BUILD_PROMPT' + CHATROOM_PROMPT_SEPARATOR + 'sys'
+      );
       expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'hello' }]);
       expect(promptCall.body.model).toEqual({
         providerID: 'anthropic',
@@ -389,7 +427,7 @@ describe('OpenCodeSdkAgentService', () => {
       });
     });
 
-    it('uses built-in "plan" agent for planner role', async () => {
+    it('always selects the build agent regardless of role (role context lives in the system prompt)', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
@@ -404,13 +442,29 @@ describe('OpenCodeSdkAgentService', () => {
       );
       await spawnPromise;
 
-      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('planner');
+      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('build');
     });
 
-    it('omits system field when systemPrompt is empty', async () => {
+    it('omits system field when both agent.prompt and chatroom systemPrompt are empty', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
+      // Override appAgents so the chosen build agent has no built-in prompt;
+      // combined with an empty chatroom systemPrompt the composer returns undefined.
+      sharedAppAgentsFn.mockImplementation(() =>
+        Promise.resolve({
+          data: [
+            {
+              name: 'build',
+              mode: 'primary',
+              builtIn: false,
+              permission: { edit: 'allow', bash: {} },
+              tools: {},
+              options: {},
+            },
+          ],
+        })
+      );
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(spawnOptions({ prompt: 'hello', systemPrompt: '' }));
@@ -423,10 +477,24 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sdk.promptAsync.mock.calls[0][0].body.system).toBeUndefined();
     });
 
-    it('omits system field when systemPrompt is whitespace only', async () => {
+    it('omits system field when agent.prompt is missing and chatroom systemPrompt is whitespace only', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
+      sharedAppAgentsFn.mockImplementation(() =>
+        Promise.resolve({
+          data: [
+            {
+              name: 'build',
+              mode: 'primary',
+              builtIn: false,
+              permission: { edit: 'allow', bash: {} },
+              tools: {},
+              options: {},
+            },
+          ],
+        })
+      );
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(
@@ -439,6 +507,131 @@ describe('OpenCodeSdkAgentService', () => {
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.system).toBeUndefined();
+    });
+
+    it('falls back to the first primary agent when build is absent', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      sharedAppAgentsFn.mockImplementation(() =>
+        Promise.resolve({
+          data: [
+            {
+              name: 'general',
+              prompt: 'G',
+              mode: 'primary',
+              builtIn: false,
+              permission: { edit: 'allow', bash: {} },
+              tools: {},
+              options: {},
+            },
+          ],
+        })
+      );
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(
+        spawnOptions({ prompt: 'hello', systemPrompt: 'sys' })
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('general');
+      expect(sdk.promptAsync.mock.calls[0][0].body.system).toBe(
+        'G' + CHATROOM_PROMPT_SEPARATOR + 'sys'
+      );
+    });
+
+    it('filters out subagents and uses the first primary', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      sharedAppAgentsFn.mockImplementation(() =>
+        Promise.resolve({
+          data: [
+            {
+              name: 'sub',
+              prompt: 'X',
+              mode: 'subagent',
+              builtIn: false,
+              permission: { edit: 'allow', bash: {} },
+              tools: {},
+              options: {},
+            },
+            {
+              name: 'general',
+              prompt: 'G',
+              mode: 'primary',
+              builtIn: false,
+              permission: { edit: 'allow', bash: {} },
+              tools: {},
+              options: {},
+            },
+          ],
+        })
+      );
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('general');
+    });
+
+    it('rejects spawn and writes role-prefixed spawn-error when agent list is empty', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      sharedAppAgentsFn.mockImplementation(() => Promise.resolve({ data: [] }));
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions({}, { role: 'planner' }));
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+
+      await expect(spawnPromise).rejects.toThrow(/No usable opencode agent available/);
+      expect(child.kill).toHaveBeenCalled();
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/role:planner spawn-error\] No usable opencode agent available/)
+      );
+    });
+
+    it('rejects spawn and writes role-prefixed spawn-error when app.agents times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const child = makeFakeChild(4321);
+        const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+        stubSdkClient();
+        sharedAppAgentsFn.mockImplementation(() => new Promise(() => {}));
+        const service = new OpenCodeSdkAgentService(deps);
+
+        const spawnPromise = service.spawn(spawnOptions({}, { role: 'planner' }));
+        child.stdout.emit(
+          'data',
+          Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+        );
+        const settled = spawnPromise.catch((e) => e);
+        await vi.advanceTimersByTimeAsync(11_000); // past 10s timeout
+
+        const err = await settled;
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toMatch(/app\.agents.*timed out/i);
+        expect(child.kill).toHaveBeenCalled();
+        expect(stderrWriteSpy).toHaveBeenCalledWith(
+          expect.stringMatching(/role:planner spawn-error\] app\.agents.*timed out/)
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('rejects with timeout error when serve never prints a URL, and kills the child', async () => {
@@ -533,7 +726,7 @@ describe('OpenCodeSdkAgentService', () => {
       );
     });
 
-    it('kills the serve child when promptAsync rejects', async () => {
+    it('kills the serve child and writes role-prefixed spawn-error when promptAsync rejects', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       stubSdkClient({ promptAsyncThrows: new Error('provider auth failed') });
@@ -544,6 +737,9 @@ describe('OpenCodeSdkAgentService', () => {
 
       await expect(spawnPromise).rejects.toThrow(/provider auth failed/);
       expect(child.kill).toHaveBeenCalled();
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/role:[a-z]+ spawn-error\] provider auth failed/)
+      );
     });
 
     it('kills the serve child when session.create times out', async () => {

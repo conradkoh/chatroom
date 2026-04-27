@@ -10,12 +10,11 @@
  * isInstalled/getVersion helpers.
  */
 
-import { execSync } from 'node:child_process';
-
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { selectBuiltInAgent } from './select-builtin-agent.js';
+import { selectAgent } from './select-agent.js';
+import { composeSystemPrompt } from './compose-system-prompt.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import {
@@ -39,6 +38,7 @@ const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
+const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -182,17 +182,27 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         role: context.role,
       });
 
+      // Discover what agents this opencode server actually exposes. We compose
+      // against the runtime list rather than hard-coding names because (a) the
+      // server caches its registry at startup, so client.config.update is a no-op
+      // for runtime registration, and (b) the agent set is user-configurable.
+      const agentsResponse = await withTimeout(
+        client.app.agents(),
+        AGENTS_LIST_TIMEOUT_MS,
+        'app.agents'
+      );
+      const availableAgents = agentsResponse.data ?? [];
+      const selected = selectAgent(availableAgents);
+      const composedSystem = composeSystemPrompt(selected.prompt, systemPrompt);
+
       const modelParts = model ? parseModelId(model) : undefined;
-      const userMessage = prompt;
-      const agentName = selectBuiltInAgent(context.role);
-      const trimmedSystemPrompt = systemPrompt.trim();
       await withTimeout(
         client.session.promptAsync({
           path: { id: sessionId },
           body: {
-            agent: agentName,
-            ...(trimmedSystemPrompt ? { system: systemPrompt } : {}),
-            parts: [{ type: 'text', text: userMessage }],
+            agent: selected.name,
+            ...(composedSystem ? { system: composedSystem } : {}),
+            parts: [{ type: 'text', text: prompt }],
             ...(modelParts ? { model: modelParts } : {}),
           },
         }),
@@ -200,6 +210,14 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         'session.promptAsync'
       );
     } catch (err) {
+      // Surface a human-readable, role-prefixed reason to the daemon log before
+      // tearing down. The daemon already pipes our stderr through; we match the
+      // formatting style used by SessionEventForwarder so operators see one
+      // consistent log shape regardless of failure source.
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[${new Date().toISOString()}] role:${context.role} spawn-error] ${reason}\n`
+      );
       forwarder?.stop();
       childProcess.kill();
       if (sessionId) this.sessionStore.remove(sessionId);
