@@ -42,9 +42,6 @@ export function startObservedSyncSubscription(
 
   const observedWorkingDirs = new Map<string, ObservedWorkingDirState>();
 
-  /** Most-recent observed list from onUpdate — used by the TTL reconcile timer. */
-  let lastObserved: ObservedChatrooms = [];
-
   const unsubscribe = wsClient.onUpdate(
     api.machines.getObservedChatroomsForMachine,
     {
@@ -52,8 +49,7 @@ export function startObservedSyncSubscription(
       machineId: ctx.machineId,
     },
     (observed) => {
-      lastObserved = observed ?? [];
-      handleObservedChange(lastObserved);
+      handleObservedChange(observed ?? []);
     },
     (err: unknown) => {
       console.warn(
@@ -63,12 +59,25 @@ export function startObservedSyncSubscription(
   );
 
   /**
-   * Local reconcile timer: fires slightly more often than the observation TTL so stale entries
-   * are removed even when Convex does not re-deliver the reactive update.
+   * Local reconcile timer: re-queries the backend on each tick so TTL-expired observations
+   * are pruned even when Convex does not re-deliver the onUpdate callback after expiry.
+   * Fires at half the observation TTL (capped to at least the safety-poll interval).
    */
   const reconcileIntervalMs = Math.max(OBSERVATION_TTL_MS / 2, OBSERVED_SAFETY_POLL_MS);
   const reconcileTimer = setInterval(() => {
-    handleObservedChange(lastObserved);
+    ctx.deps.backend
+      .query(api.machines.getObservedChatroomsForMachine, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+      })
+      .then((observed) => {
+        handleObservedChange(observed ?? []);
+      })
+      .catch((err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Observed-sync reconcile query failed: ${getErrorMessage(err)}`
+        );
+      });
   }, reconcileIntervalMs);
 
   console.log(`[${formatTimestamp()}] 👁️ Observed-sync subscription started`);
