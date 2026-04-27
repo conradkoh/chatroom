@@ -404,7 +404,7 @@ describe('OpenCodeSdkAgentService', () => {
       );
       await spawnPromise;
 
-      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('plan');
+      expect(sdk.promptAsync.mock.calls[0][0].body.agent).toBe('planner');
     });
 
     it('omits system field when systemPrompt is empty', async () => {

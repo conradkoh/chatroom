@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { selectBuiltInAgent } from './select-builtin-agent';
 
 describe('selectBuiltInAgent', () => {
-  it('maps planner to plan', () => {
-    expect(selectBuiltInAgent('planner')).toBe('plan');
+  it('maps planner to planner', () => {
+    expect(selectBuiltInAgent('planner')).toBe('planner');
   });
 
-  it('maps PLANNER to plan (case-insensitive)', () => {
-    expect(selectBuiltInAgent('PLANNER')).toBe('plan');
+  it('maps PLANNER to planner (case-insensitive)', () => {
+    expect(selectBuiltInAgent('PLANNER')).toBe('planner');
   });
 
-  it('maps trimmed planner to plan', () => {
-    expect(selectBuiltInAgent('  planner  ')).toBe('plan');
+  it('maps trimmed planner to planner', () => {
+    expect(selectBuiltInAgent('  planner  ')).toBe('planner');
   });
 
   it('maps builder to build', () => {
