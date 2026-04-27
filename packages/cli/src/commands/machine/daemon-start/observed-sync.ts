@@ -42,6 +42,12 @@ export function startObservedSyncSubscription(
 
   const observedWorkingDirs = new Map<string, ObservedWorkingDirState>();
 
+  /** Set to true by stop() to prevent post-shutdown callbacks from restarting state. */
+  let stopped = false;
+
+  /** True while a reconcile query is already in flight — prevents overlapping reconciles. */
+  let reconcileInFlight = false;
+
   const unsubscribe = wsClient.onUpdate(
     api.machines.getObservedChatroomsForMachine,
     {
@@ -49,6 +55,7 @@ export function startObservedSyncSubscription(
       machineId: ctx.machineId,
     },
     (observed) => {
+      if (stopped) return;
       handleObservedChange(observed ?? []);
     },
     (err: unknown) => {
@@ -65,18 +72,23 @@ export function startObservedSyncSubscription(
    */
   const reconcileIntervalMs = Math.max(OBSERVATION_TTL_MS / 2, OBSERVED_SAFETY_POLL_MS);
   const reconcileTimer = setInterval(() => {
+    if (stopped || reconcileInFlight) return;
+    reconcileInFlight = true;
     ctx.deps.backend
       .query(api.machines.getObservedChatroomsForMachine, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
       })
       .then((observed) => {
-        handleObservedChange(observed ?? []);
+        if (!stopped) handleObservedChange(observed ?? []);
       })
       .catch((err: unknown) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️ Observed-sync reconcile query failed: ${getErrorMessage(err)}`
         );
+      })
+      .finally(() => {
+        reconcileInFlight = false;
       });
   }, reconcileIntervalMs);
 
@@ -84,6 +96,7 @@ export function startObservedSyncSubscription(
 
   return {
     stop: () => {
+      stopped = true;
       unsubscribe();
       clearInterval(reconcileTimer);
       for (const [_, state] of observedWorkingDirs) {
@@ -131,6 +144,7 @@ export function startObservedSyncSubscription(
   }
 
   function schedulePushForWorkingDir(workingDir: string): void {
+    if (stopped) return;
     const state = observedWorkingDirs.get(workingDir);
     if (!state) return;
 
