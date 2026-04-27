@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -78,12 +79,16 @@ export async function pushSingleWorkspaceGitState(
   }
 
   // Collect git state in parallel for efficiency
-  const [branchResult, dirtyResult, commits, commitsAhead] = await Promise.all([
+  const [branchResult, dirtyResult, diffStatResult, commits, commitsAhead] = await Promise.all([
     gitReader.getBranch(workingDir),
     gitReader.isDirty(workingDir),
+    gitReader.getDiffStat(workingDir),
     gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE),
     gitReader.getCommitsAhead(workingDir),
   ]);
+
+  // Fetch remotes (non-blocking on failure — returns empty array)
+  const remotes = await gitReader.getRemotes(workingDir);
 
   // Handle error state from branch (primary indicator)
   if (branchResult.status === 'error') {
@@ -109,23 +114,33 @@ export async function pushSingleWorkspaceGitState(
   // Fetch open PRs for the current branch (non-blocking on failure)
   const openPRs = await gitReader.getOpenPRsForBranch(workingDir, branchResult.branch);
 
+  // Fetch all PRs for the repository (non-blocking on failure)
+  const allPRs = await gitReader.getAllPRs(workingDir);
+
   // Fetch commit status checks for the current branch head (non-blocking on failure)
   const headCommitStatus = await gitReader.getCommitStatusChecks(workingDir, branchResult.branch);
 
   // Build available state
   const branch = branchResult.branch;
   const isDirty = dirtyResult;
+  const diffStat =
+    diffStatResult.status === 'available'
+      ? diffStatResult.diffStat
+      : { filesChanged: 0, insertions: 0, deletions: 0 };
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
 
-  // Change detection: hash the relevant state to skip unchanged pushes
+  // Change detection: hash the relevant state (including diffStat, remotes, allPRs) to skip unchanged pushes
   const stateHash = createHash('md5')
     .update(
       JSON.stringify({
         branch,
         isDirty,
+        diffStat,
         commitsAhead,
         shas: commits.map((c) => c.sha),
         prs: openPRs.map((pr) => pr.prNumber),
+        allPrs: allPRs.map((pr) => `${pr.prNumber}:${pr.state}`),
+        remotes: remotes.map((r) => `${r.name}:${r.url}`),
         headCommitStatus,
       })
     )
@@ -143,9 +158,12 @@ export async function pushSingleWorkspaceGitState(
     status: 'available',
     branch,
     isDirty,
+    diffStat,
     recentCommits: commits,
     hasMoreCommits,
     openPullRequests: openPRs,
+    allPullRequests: allPRs,
+    remotes,
     commitsAhead,
     headCommitStatus,
   });
@@ -154,4 +172,113 @@ export async function pushSingleWorkspaceGitState(
   console.log(
     `[${formatTimestamp()}] 🔀 Git state pushed: ${workingDir} (${branch}${isDirty ? ', dirty' : ', clean'})`
   );
+
+  // Pre-fetch commit details for commits not yet stored (background, non-blocking)
+  prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: unknown) => {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Commit pre-fetch failed for ${workingDir}: ${getErrorMessage(err)}`
+    );
+  });
+}
+
+/**
+ * Eagerly pre-fetches commit details for any commits not yet stored in the backend.
+ * Called after each successful git state push to fill the commit detail cache
+ * so users see instant results when clicking on commits.
+ */
+async function prefetchMissingCommitDetails(
+  ctx: DaemonContext,
+  workingDir: string,
+  commits: GitCommit[]
+): Promise<void> {
+  if (commits.length === 0) return;
+
+  const shas = commits.map((c) => c.sha);
+
+  // Ask backend which SHAs we don't have yet
+  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShasV2, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    shas,
+  });
+
+  if (missingShas.length === 0) return;
+
+  console.log(
+    `[${formatTimestamp()}] 🔍 Pre-fetching ${missingShas.length} commit(s) for ${workingDir}`
+  );
+
+  for (const sha of missingShas) {
+    try {
+      await prefetchSingleCommit(ctx, workingDir, sha, commits);
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Pre-fetch failed for ${sha.slice(0, 7)}: ${getErrorMessage(err)}`
+      );
+    }
+  }
+}
+
+async function prefetchSingleCommit(
+  ctx: DaemonContext,
+  workingDir: string,
+  sha: string,
+  commits: GitCommit[]
+): Promise<void> {
+  const metadata = commits.find((c) => c.sha === sha);
+  const result = await gitReader.getCommitDetail(workingDir, sha);
+
+  if (result.status === 'not_found') {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      sha,
+      status: 'not_found',
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
+  }
+
+  if (result.status === 'error') {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      sha,
+      status: 'error',
+      errorMessage: result.message,
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
+  }
+
+  // available or truncated
+  const diffStat = extractDiffStatFromShowOutput(result.content);
+
+  // Compress diff content for v2 (always compressed)
+  const { gzipSync } = await import('node:zlib');
+  const compressed = gzipSync(Buffer.from(result.content));
+  const diffContentCompressed = compressed.toString('base64');
+
+  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    sha,
+    status: 'available',
+    data: { compression: 'gzip' as const, content: diffContentCompressed },
+    truncated: result.truncated,
+    message: metadata?.message,
+    author: metadata?.author,
+    date: metadata?.date,
+    diffStat,
+  });
+
+  console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
 }
