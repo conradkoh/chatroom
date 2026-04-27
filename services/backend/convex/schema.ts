@@ -2021,5 +2021,7 @@ export default defineSchema({
   chatroom_observation: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     lastObservedAt: v.number(),
-  }).index('by_chatroomId', ['chatroomId']),
+  })
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_lastObservedAt', ['lastObservedAt']),
 });

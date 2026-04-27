@@ -5,8 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 
-// TODO: keep in sync with FRONTEND_OBSERVATION_HEARTBEAT_MS in services/backend/config/reliability.ts
-const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
+import { FRONTEND_OBSERVATION_HEARTBEAT_MS } from '@workspace/backend/config/reliability';
 
 export function useObserveChatroom(chatroomId: string | null | undefined) {
   const recordObservation = useSessionMutation(api.chatrooms.recordChatroomObservation);

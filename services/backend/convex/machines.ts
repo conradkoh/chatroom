@@ -2278,13 +2278,12 @@ export const getObservedChatroomsForMachine = query({
     const now = Date.now();
     const ttlThreshold = now - OBSERVATION_TTL_MS;
 
-    // Get all workspaces on this machine
+    // Get all workspaces on this machine and build a chatroomId → workingDirs map
     const workspaces = await ctx.db
       .query('chatroom_workspaces')
       .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
       .collect();
 
-    // Group by chatroomId and collect workingDirs
     const chatroomWorkingDirsMap = new Map<Id<'chatroom_rooms'>, string[]>();
     for (const ws of workspaces) {
       if (ws.removedAt) continue;
@@ -2293,15 +2292,17 @@ export const getObservedChatroomsForMachine = query({
       chatroomWorkingDirsMap.set(ws.chatroomId, existing);
     }
 
-    // For each chatroom, check if it's observed (within TTL)
+    // Fetch active observations in a single range query (avoids N+1 per chatroom)
+    const activeObservations = await ctx.db
+      .query('chatroom_observation')
+      .withIndex('by_lastObservedAt', (q) => q.gte('lastObservedAt', ttlThreshold))
+      .collect();
+
+    // Intersect with this machine's chatrooms
+    const observedChatroomIds = new Set(activeObservations.map((o) => o.chatroomId));
     const result: Array<{ chatroomId: Id<'chatroom_rooms'>; workingDirs: string[] }> = [];
     for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
-      const observation = await ctx.db
-        .query('chatroom_observation')
-        .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
-        .first();
-
-      if (observation && observation.lastObservedAt >= ttlThreshold) {
+      if (observedChatroomIds.has(chatroomId)) {
         result.push({ chatroomId, workingDirs });
       }
     }
