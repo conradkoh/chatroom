@@ -22,7 +22,8 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
-import { forwardFiltered, isInfoLine, parseModelId } from './pure.js';
+import { forwardFiltered } from './node-streams.js';
+import { isInfoLine, parseModelId } from './pure.js';
 import {
   startSessionEventForwarder,
   type SessionEventForwarderClient,
@@ -41,7 +42,7 @@ const SESSION_ABORT_TIMEOUT_MS = 5_000;
 const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       p,

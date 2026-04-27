@@ -1,8 +1,10 @@
+import { Writable } from 'node:stream';
+
 export interface SessionEventForwarderOptions {
   sessionId: string;
   role: string;
-  target?: NodeJS.WritableStream;
-  errorTarget?: NodeJS.WritableStream;
+  target?: Writable;
+  errorTarget?: Writable;
   now?: () => string;
 }
 
@@ -53,8 +55,8 @@ export function startSessionEventForwarder(
   client: SessionEventForwarderClient,
   options: SessionEventForwarderOptions
 ): SessionEventForwarderHandle {
-  const target = options.target ?? process.stdout;
-  const errorTarget = options.errorTarget ?? process.stderr;
+  const target: Writable = options.target ?? process.stdout;
+  const errorTarget: Writable = options.errorTarget ?? process.stderr;
 
   let cancelled = false;
   let doneResolve: () => void;

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { Writable } from 'node:stream';
 
 import {
   startSessionEventForwarder,
@@ -33,8 +34,8 @@ describe('SessionEventForwarder', () => {
     baseOptions = {
       sessionId: 'sess-1',
       role: 'builder',
-      target: target as unknown as NodeJS.WritableStream,
-      errorTarget: errorTarget as unknown as NodeJS.WritableStream,
+      target: target as unknown as Writable,
+      errorTarget: errorTarget as unknown as Writable,
       now: () => 'fake-ts',
     };
   });

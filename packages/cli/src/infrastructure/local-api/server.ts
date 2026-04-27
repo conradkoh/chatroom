@@ -14,6 +14,7 @@
 
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { NodeError } from '../types/node-error.js';
 
 import { identityRoute } from './routes/identity.js';
 import { openFinderRoute } from './routes/open-finder.js';
@@ -79,7 +80,12 @@ async function normalizeRequest(req: IncomingMessage): Promise<LocalApiRequest> 
 /**
  * Write a {@link LocalApiResponse} to a Node.js ServerResponse.
  */
-function writeResponse(res: ServerResponse, status: number, headers: Record<string, string>, body: string): void {
+function writeResponse(
+  res: ServerResponse,
+  status: number,
+  headers: Record<string, string>,
+  body: string
+): void {
   res.writeHead(status, headers);
   res.end(body);
 }
@@ -147,7 +153,12 @@ export async function startLocalApi(
         localRes.body
       );
     } catch {
-      writeResponse(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ error: 'Internal server error' }));
+      writeResponse(
+        res,
+        500,
+        { 'Content-Type': 'application/json' },
+        JSON.stringify({ error: 'Internal server error' })
+      );
     }
   });
 
@@ -158,7 +169,7 @@ export async function startLocalApi(
       resolve();
     });
 
-    server.on('error', (err: NodeJS.ErrnoException) => {
+    server.on('error', (err: NodeError) => {
       if (err.code === 'EADDRINUSE') {
         console.warn(`[${ts()}] ⚠️  Local API port ${port} already in use — skipping local API`);
       } else {
