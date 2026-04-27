@@ -64,7 +64,7 @@ describe('waitForListeningUrl', () => {
       await expect(promise).resolves.toBe('http://127.0.0.1:5678');
     });
 
-    it.skip('TODO: handle URL line split across chunks', async () => {
+    it('handles URL line split across chunks', async () => {
       const child = makeFakeChild();
       const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
       child.stdout!.emit('data', Buffer.from('opencode server listening on http://127.0.0.'));

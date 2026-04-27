@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 import {
   OpenCodeSdkAgentService,
@@ -27,34 +27,31 @@ const sharedPromptAsyncFn = vi.fn();
 const sharedEventSubscribeFn = vi.fn();
 const sharedAppAgentsFn = vi.fn();
 
+/**
+ * Construct an opencode SDK Agent fixture for tests. The defaults match the
+ * shape returned by `client.app.agents()` while keeping per-test overrides
+ * focused on the fields a given test actually cares about (name, mode, prompt).
+ */
+function makeAgent(
+  name: string,
+  mode: 'subagent' | 'primary' | 'all',
+  prompt?: string
+) {
+  return {
+    name,
+    mode,
+    builtIn: false,
+    permission: { edit: 'allow' as const, bash: {} },
+    tools: {},
+    options: {},
+    ...(prompt !== undefined ? { prompt } : {}),
+  };
+}
+
 const DEFAULT_AGENTS = [
-  {
-    name: 'build',
-    prompt: 'BUILTIN_BUILD_PROMPT',
-    mode: 'primary',
-    builtIn: false,
-    permission: { edit: 'allow', bash: {} },
-    tools: {},
-    options: {},
-  },
-  {
-    name: 'planner',
-    prompt: 'BUILTIN_PLANNER_PROMPT',
-    mode: 'primary',
-    builtIn: false,
-    permission: { edit: 'allow', bash: {} },
-    tools: {},
-    options: {},
-  },
-  {
-    name: 'subagent-helper',
-    prompt: 'SUBAGENT',
-    mode: 'subagent',
-    builtIn: false,
-    permission: { edit: 'allow', bash: {} },
-    tools: {},
-    options: {},
-  },
+  makeAgent('build', 'primary', 'BUILTIN_BUILD_PROMPT'),
+  makeAgent('planner', 'primary', 'BUILTIN_PLANNER_PROMPT'),
+  makeAgent('subagent-helper', 'subagent', 'SUBAGENT'),
 ];
 
 vi.mock('@opencode-ai/sdk', () => ({
@@ -164,8 +161,7 @@ function spawnOptions(
 }
 
 describe('OpenCodeSdkAgentService', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let stderrWriteSpy: any;
+  let stderrWriteSpy: MockInstance<typeof process.stderr.write>;
 
   beforeEach(() => {
     stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -453,18 +449,7 @@ describe('OpenCodeSdkAgentService', () => {
       // Override appAgents so the chosen build agent has no built-in prompt;
       // combined with an empty chatroom systemPrompt the composer returns undefined.
       sharedAppAgentsFn.mockImplementation(() =>
-        Promise.resolve({
-          data: [
-            {
-              name: 'build',
-              mode: 'primary',
-              builtIn: false,
-              permission: { edit: 'allow', bash: {} },
-              tools: {},
-              options: {},
-            },
-          ],
-        })
+        Promise.resolve({ data: [makeAgent('build', 'primary')] })
       );
       const service = new OpenCodeSdkAgentService(deps);
 
@@ -483,18 +468,7 @@ describe('OpenCodeSdkAgentService', () => {
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
       sharedAppAgentsFn.mockImplementation(() =>
-        Promise.resolve({
-          data: [
-            {
-              name: 'build',
-              mode: 'primary',
-              builtIn: false,
-              permission: { edit: 'allow', bash: {} },
-              tools: {},
-              options: {},
-            },
-          ],
-        })
+        Promise.resolve({ data: [makeAgent('build', 'primary')] })
       );
       const service = new OpenCodeSdkAgentService(deps);
 
@@ -515,19 +489,7 @@ describe('OpenCodeSdkAgentService', () => {
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const sdk = stubSdkClient();
       sharedAppAgentsFn.mockImplementation(() =>
-        Promise.resolve({
-          data: [
-            {
-              name: 'general',
-              prompt: 'G',
-              mode: 'primary',
-              builtIn: false,
-              permission: { edit: 'allow', bash: {} },
-              tools: {},
-              options: {},
-            },
-          ],
-        })
+        Promise.resolve({ data: [makeAgent('general', 'primary', 'G')] })
       );
       const service = new OpenCodeSdkAgentService(deps);
 
@@ -553,24 +515,8 @@ describe('OpenCodeSdkAgentService', () => {
       sharedAppAgentsFn.mockImplementation(() =>
         Promise.resolve({
           data: [
-            {
-              name: 'sub',
-              prompt: 'X',
-              mode: 'subagent',
-              builtIn: false,
-              permission: { edit: 'allow', bash: {} },
-              tools: {},
-              options: {},
-            },
-            {
-              name: 'general',
-              prompt: 'G',
-              mode: 'primary',
-              builtIn: false,
-              permission: { edit: 'allow', bash: {} },
-              tools: {},
-              options: {},
-            },
+            makeAgent('sub', 'subagent', 'X'),
+            makeAgent('general', 'primary', 'G'),
           ],
         })
       );
@@ -906,8 +852,9 @@ describe('OpenCodeSdkAgentService', () => {
       stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
 
+      // Reuse the outer stderrWriteSpy installed in beforeEach; spy stdout locally
+      // because no other test in this file needs to inspect stdout writes.
       const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-      const stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
       try {
         const spawnPromise = service.spawn(spawnOptions());
@@ -934,7 +881,6 @@ describe('OpenCodeSdkAgentService', () => {
         expect(allWrites.some((w) => w.includes('something interesting'))).toBe(true);
       } finally {
         stdoutWriteSpy.mockRestore();
-        stderrWriteSpy.mockRestore();
       }
     });
   });
