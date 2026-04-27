@@ -7,6 +7,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
+import type { ConvexClient } from 'convex/browser';
 
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
@@ -16,6 +17,7 @@ import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
+import { startObservedSyncSubscription } from './observed-sync.js';
 import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { discoverModels } from './init.js';
@@ -291,14 +293,17 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       .then(() => {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
-        // Push git state after each successful heartbeat (change-detected, no-op if unchanged)
-        pushGitState(ctx).catch((err: unknown) => {
-          console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`);
-        });
-        // Sync workspace commands (change-detected, no-op if unchanged)
-        pushCommands(ctx).catch((err: unknown) => {
-          console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
-        });
+        // When observedSyncEnabled is true, skip periodic pushes — handled by observed-sync subscription instead
+        if (!ctx.observedSyncEnabled) {
+          pushGitState(ctx).catch((err: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
+            );
+          });
+          pushCommands(ctx).catch((err: unknown) => {
+            console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
+          });
+        }
         // File content requests are now handled by the reactive subscription
         // (file-content-subscription.ts) for near-instant response times.
       })
@@ -326,10 +331,18 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Replaces the heartbeat-based push with request/fulfill pattern.
   let fileTreeSubscriptionHandle: ReturnType<typeof startFileTreeSubscription> | null = null;
 
+  // ── Observed Sync Subscription ─────────────────────────────────────────
+  let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
+    null;
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
-  pushGitState(ctx).catch(() => {});
-  pushCommands(ctx).catch(() => {});
+  if (ctx.observedSyncEnabled) {
+    console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
+  } else {
+    pushGitState(ctx).catch(() => {});
+    pushCommands(ctx).catch(() => {});
+  }
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
@@ -340,9 +353,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     // Stop git request subscription
     if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
 
-    // Stop file content subscription
+    // Stop file tree subscription
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
+    if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
 
     await onDaemonShutdown(ctx);
 
@@ -372,6 +386,13 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // Now that wsClient is ready, start the reactive file tree subscription.
   fileTreeSubscriptionHandle = startFileTreeSubscription(ctx, wsClient);
+
+  // ── Observed Sync Subscription ─────────────────────────────────────────
+  // When observedSyncEnabled is true, start the event-driven observed-sync subscription
+  // to push state only for chatrooms the frontend is actively watching.
+  if (ctx.observedSyncEnabled) {
+    observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
+  }
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);

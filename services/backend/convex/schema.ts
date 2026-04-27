@@ -2012,4 +2012,14 @@ export default defineSchema({
     .index('by_chatroomId', ['chatroomId'])
     .index('by_chatroomId_type', ['chatroomId', 'type'])
     .index('by_sourceCustomizationId', ['sourceCustomizationId']),
+
+  /**
+   * Chatroom observation tracking for event-driven daemon sync.
+   * Frontend sends heartbeats to keep a chatroom "observed"; daemon subscribes
+   * to observed chatrooms to sync only their workspaces.
+   */
+  chatroom_observation: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    lastObservedAt: v.number(),
+  }).index('by_chatroomId', ['chatroomId']),
 });

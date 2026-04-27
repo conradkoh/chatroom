@@ -23,6 +23,7 @@ import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-ag
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { OBSERVATION_TTL_MS } from '../config/reliability';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -2253,5 +2254,58 @@ export const getAgentPreferences = query({
           workingDir: p.workingDir,
         })),
     };
+  },
+});
+
+/**
+ * Returns observed chatrooms for a machine — daemon subscribes to drive selective sync.
+ * Only returns chatrooms where the frontend has sent a heartbeat within OBSERVATION_TTL_MS.
+ */
+export const getObservedChatroomsForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    // Verify machine belongs to user
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    const now = Date.now();
+    const ttlThreshold = now - OBSERVATION_TTL_MS;
+
+    // Get all workspaces on this machine
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    // Group by chatroomId and collect workingDirs
+    const chatroomWorkingDirsMap = new Map<Id<'chatroom_rooms'>, string[]>();
+    for (const ws of workspaces) {
+      if (ws.removedAt) continue;
+      const existing = chatroomWorkingDirsMap.get(ws.chatroomId) ?? [];
+      existing.push(ws.workingDir);
+      chatroomWorkingDirsMap.set(ws.chatroomId, existing);
+    }
+
+    // For each chatroom, check if it's observed (within TTL)
+    const result: Array<{ chatroomId: Id<'chatroom_rooms'>; workingDirs: string[] }> = [];
+    for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
+      const observation = await ctx.db
+        .query('chatroom_observation')
+        .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+
+      if (observation && observation.lastObservedAt >= ttlThreshold) {
+        result.push({ chatroomId, workingDirs });
+      }
+    }
+
+    return result;
   },
 });

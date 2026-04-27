@@ -41,6 +41,7 @@ import { isNetworkError, formatConnectivityError } from '../../../utils/error-fo
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -373,9 +374,7 @@ export async function initDaemon(): Promise<DaemonContext> {
 
       // Log recovery if the backend was previously unreachable.
       if (consecutiveFailures > 0) {
-        console.log(
-          `[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`
-        );
+        console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
         consecutiveFailures = 0;
       }
 
@@ -413,6 +412,7 @@ export async function initDaemon(): Promise<DaemonContext> {
         // so the first refreshModels tick correctly detects "no change" instead
         // of always re-pushing the same set on the first run.
         lastPushedModels: availableModels,
+        observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
       };
 
       registerEventListeners(ctx);

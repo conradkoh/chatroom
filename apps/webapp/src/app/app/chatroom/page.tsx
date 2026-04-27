@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
+import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
 
 export default function ChatroomPage() {
   const searchParams = useSearchParams();
@@ -13,6 +14,8 @@ export default function ChatroomPage() {
   const handleBack = () => {
     router.push('/app');
   };
+
+  useObserveChatroom(chatroomId);
 
   if (!chatroomId) {
     return (
