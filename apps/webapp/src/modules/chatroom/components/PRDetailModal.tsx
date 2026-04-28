@@ -81,8 +81,9 @@ export const PRDetailModal = memo(function PRDetailModal({
   prActionLoading,
 }: PRDetailModalProps) {
   const baseBranch = pr.baseRefName ?? 'master';
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, pr.prNumber);
-  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, pr.prNumber);
+  const prNumber = pr.prNumber!;
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
+  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, prNumber);
   const { state: commitDetailState, request: requestCommitDetail, clear: clearCommitDetail } = useCommitDetail(machineId, workingDir);
 
   // Track which view is active: 'pr' for full PR diff, or a SHA for individual commit
@@ -91,9 +92,9 @@ export const PRDetailModal = memo(function PRDetailModal({
   // Auto-request diff when modal opens
   useEffect(() => {
     if (isOpen && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, pr.prNumber);
+      requestPRDiff(baseBranch, prNumber);
     }
-  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, pr.prNumber]);
+  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, prNumber]);
 
   // Auto-request PR commits when modal opens (on demand = when modal is opened)
   useEffect(() => {
@@ -234,7 +235,7 @@ export const PRDetailModal = memo(function PRDetailModal({
         {onPRAction && pr.state === 'OPEN' && (
           <div className="px-4 py-2 border-b border-chatroom-border">
             <PRActionButtons
-              onAction={(action) => onPRAction(pr.prNumber, action)}
+              onAction={(action) => onPRAction(prNumber, action)}
               loading={prActionLoading}
               onSuccess={onClose}
             />
@@ -244,7 +245,7 @@ export const PRDetailModal = memo(function PRDetailModal({
           <div className="h-full overflow-y-auto">
             <WorkspaceDiffViewer
               state={activeDiffState}
-              onRequest={activeView === 'pr' ? () => requestPRDiff(baseBranch, pr.prNumber) : undefined}
+              onRequest={activeView === 'pr' ? () => requestPRDiff(baseBranch, prNumber) : undefined}
             />
           </div>
         </FixedModalBody>
