@@ -75,6 +75,8 @@ export function startSessionEventForwarder(
         return;
       }
 
+      let toolCallCounter = 0;
+
       for await (const event of stream) {
         if (cancelled) {
           await stream.return?.(undefined);
@@ -103,7 +105,10 @@ export function startSessionEventForwarder(
               target.write(formatLogLine(options, 'text', part.delta) + '\n');
             } else if (part?.type === 'tool' && part.tool) {
               const state = props?.state ?? 'started';
-              target.write(formatLogLine(options, 'tool: ' + part.tool, state) + '\n');
+              toolCallCounter++;
+              target.write(
+                formatLogLine(options, `tool: ${part.tool} #${toolCallCounter}`, state) + '\n'
+              );
             }
             break;
           }

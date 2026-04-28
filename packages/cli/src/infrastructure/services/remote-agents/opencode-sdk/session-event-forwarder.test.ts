@@ -131,7 +131,7 @@ describe('SessionEventForwarder', () => {
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder tool: bash] completed\n');
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder tool: bash #1] completed\n');
   }, 10000);
 
   it('session.idle -> agent_end', async () => {
