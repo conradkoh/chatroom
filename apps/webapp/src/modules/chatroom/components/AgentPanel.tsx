@@ -11,6 +11,7 @@ import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -157,7 +158,7 @@ export const AgentPanel = memo(function AgentPanel({
 
     setIsRefreshing(true);
     try {
-      const result = await requestRefresh({ chatroomId: chatroomId as any });
+      const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
       toast.success(`Capabilities refresh requested (${result.fannedOut} machine(s))`);
       setLastRefreshAt(Date.now());
     } catch (error) {
