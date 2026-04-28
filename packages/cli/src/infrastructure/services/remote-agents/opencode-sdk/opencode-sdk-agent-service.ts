@@ -205,6 +205,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
             ...(composedSystem ? { system: composedSystem } : {}),
             parts: [{ type: 'text', text: prompt }],
             ...(modelParts ? { model: modelParts } : {}),
+            // Disable sub-agent spawning (task), questioning (question), and
+            // external tool delegation (external_directory) for the SDK-based
+            // opencode harness. These tools are not supported in the current
+            // integration and would fail or behave unexpectedly if enabled.
             tools: {
               task: false,
               question: false,
