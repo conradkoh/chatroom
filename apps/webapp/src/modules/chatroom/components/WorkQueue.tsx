@@ -287,6 +287,17 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     }
   }, [categorizedTasks.current, completeTaskById]);
 
+  const handleMarkAllReviewed = useCallback(async () => {
+    try {
+      const result = await completeAllPendingReview({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      });
+      toast.success(`Marked ${result.completed} backlog item(s) as reviewed`);
+    } catch {
+      toast.error('Failed to mark items as reviewed');
+    }
+  }, [completeAllPendingReview, chatroomId]);
+
   if (tasks === undefined) {
     return (
       <div className="flex flex-col min-h-0 overflow-hidden">
@@ -405,16 +416,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                 <span>Pending Review ({pendingReviewBacklogItems.length})</span>
               </div>
               <button
-                onClick={async () => {
-                  try {
-                    const result = await completeAllPendingReview({
-                      chatroomId: chatroomId as any,
-                    });
-                    toast.success(`Marked ${result.completed} backlog item(s) as reviewed`);
-                  } catch {
-                    toast.error('Failed to mark items as reviewed');
-                  }
-                }}
+                onClick={handleMarkAllReviewed}
                 className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
                 title="Mark all as reviewed"
               >
