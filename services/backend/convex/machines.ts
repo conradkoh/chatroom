@@ -256,6 +256,76 @@ export const refreshCapabilities = mutation({
   },
 });
 
+/**
+ * Request a capabilities refresh (model/harness discovery) for all machines
+ * owned by the current user that are linked to the given chatroom.
+ *
+ * Fans out `daemon.refreshCapabilities` events to each matching machine.
+ * Uses a 10-second cooldown per machine (lastCapabilitiesRefreshRequestedAt)
+ * to prevent spam-clicking from queueing redundant refreshes.
+ */
+export const requestCapabilitiesRefresh = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+
+    const now = Date.now();
+    const COOLDOWN_MS = 10 * 1000; // 10 seconds
+
+    // Find all machines owned by the current user that are linked to the chatroom
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .collect();
+
+    // Filter to machines that have workspaces linked to the chatroom
+    const linkedMachines = [];
+    for (const machine of machines) {
+      const workspaces = await ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_machine', (q) => q.eq('machineId', machine.machineId))
+        .filter((q) => q.eq(q.field('chatroomId'), args.chatroomId))
+        .collect();
+
+      if (workspaces.length > 0) {
+        linkedMachines.push(machine);
+      }
+    }
+
+    // Fan out refresh events with cooldown check
+    let fannedOut = 0;
+    for (const machine of linkedMachines) {
+      const lastRefresh = machine.lastCapabilitiesRefreshRequestedAt ?? 0;
+      if (now - lastRefresh < COOLDOWN_MS) {
+        continue; // Cooldown active, skip this machine
+      }
+
+      // Insert daemon.refreshCapabilities event
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'daemon.refreshCapabilities',
+        machineId: machine.machineId,
+        timestamp: now,
+      });
+
+      // Update cooldown timestamp
+      await ctx.db.patch('chatroom_machines', machine._id, {
+        lastCapabilitiesRefreshRequestedAt: now,
+      });
+
+      fannedOut++;
+    }
+
+    return { fannedOut };
+  },
+});
+
 // ============================================================================
 // ============================================================================
 // QUERIES
