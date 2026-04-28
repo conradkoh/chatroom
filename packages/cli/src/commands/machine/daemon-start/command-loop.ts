@@ -39,16 +39,6 @@ type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
-/**
- * Interval for periodic model discovery refresh (10 seconds).
- *
- * The refresh itself is cheap — it only spawns local `which` / `--version`
- * probes per harness. The backend is only called when the discovered model
- * set actually changes (see `refreshModels` for diff logic), so the polling
- * cadence does not translate into network traffic.
- */
-const MODEL_REFRESH_INTERVAL_MS = 10 * 1000;
-
 /** Per-harness diff between two model snapshots. */
 interface ModelDiff {
   /** Models present in `next` but not in `previous`, grouped by harness. */
@@ -267,6 +257,12 @@ async function dispatchCommandEvent(
     if (tracker.commandStopIds.has(eventId)) return;
     tracker.commandStopIds.set(eventId, Date.now());
     await onCommandStop(ctx, event as any);
+  } else if (event.type === 'daemon.refreshCapabilities') {
+    // Session dedup — don't re-process same refresh event twice
+    if (tracker.localActionIds.has(eventId)) return;
+    tracker.localActionIds.set(eventId, Date.now());
+    console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
+    await refreshModels(ctx);
   }
 }
 
@@ -421,17 +417,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       }
     }
   );
-
-  // Periodic model discovery refresh — keeps the model list current
-  // in case new providers are configured while the daemon is running
-  const modelRefreshTimer = setInterval(() => {
-    refreshModels(ctx).catch((err) => {
-      console.warn(`[${formatTimestamp()}] ⚠️  Model refresh error: ${getErrorMessage(err)}`);
-    });
-  }, MODEL_REFRESH_INTERVAL_MS);
-
-  // Unref the timer so it doesn't prevent process exit during shutdown
-  modelRefreshTimer.unref();
 
   // Keep process alive
   return await new Promise(() => {});
