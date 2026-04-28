@@ -45,13 +45,13 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(
     machineId,
     workingDir,
-    activePR.prNumber
+    activePR.prNumber!
   );
 
   // Auto-request PR diff when component mounts or PR number changes
   useEffect(() => {
     if (prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, activePR.prNumber);
+      requestPRDiff(baseBranch, activePR.prNumber!);
     }
   }, [prDiffState.status, requestPRDiff, baseBranch, activePR.prNumber]);
 
@@ -67,12 +67,8 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       {/* PR header */}
       <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-chatroom-text-primary">
-            #{activePR.prNumber}
-          </span>
-          <span className="text-xs text-chatroom-text-secondary truncate">
-            {activePR.title}
-          </span>
+          <span className="text-xs font-bold text-chatroom-text-primary">#{activePR.prNumber}</span>
+          <span className="text-xs text-chatroom-text-secondary truncate">{activePR.title}</span>
           <a
             href={activePR.url}
             target="_blank"
@@ -97,7 +93,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       <div className="flex-1 overflow-y-auto">
         <WorkspaceDiffViewer
           state={prDiffState}
-          onRequest={() => requestPRDiff(baseBranch, activePR.prNumber)}
+          onRequest={() => requestPRDiff(baseBranch, activePR.prNumber!)}
           machineId={machineId}
           workingDir={workingDir}
         />
