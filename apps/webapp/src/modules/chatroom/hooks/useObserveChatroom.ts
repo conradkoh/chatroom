@@ -8,7 +8,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { FRONTEND_OBSERVATION_HEARTBEAT_MS } from '@workspace/backend/config/reliability';
 
 /** Minimum time between refresh calls to avoid noisy heartbeats. */
-const REFRESH_COOLDOWN_MS = 5000;
+export const REFRESH_COOLDOWN_MS = 5000;
 
 export function useObserveChatroom(chatroomId: string | null | undefined) {
   const recordObservation = useSessionMutation(api.chatrooms.recordChatroomObservation);

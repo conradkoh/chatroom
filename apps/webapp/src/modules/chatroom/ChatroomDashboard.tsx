@@ -94,6 +94,7 @@ const ALL_MACHINES = '';
 import { cn } from '@/lib/utils';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { getAppTitle } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -424,7 +425,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Saved Command modal state
   const [savedCommandModalOpen, setSavedCommandModalOpen] = useState(false);
-  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<SavedCommandEditTarget | undefined>(undefined);
+  const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<
+    SavedCommandEditTarget | undefined
+  >(undefined);
 
   const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
     setSavedCommandEditTarget(target);
@@ -568,7 +571,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Send message mutation (used to execute saved commands)
   const sendMessageMutation = useSessionMutation(api.messages.send);
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
-
+  const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
+  const lastRefreshRef = useRef(0);
 
   const handleConfirmedDelete = useCallback(
     async (commandId: string) => {
@@ -584,8 +588,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [deleteSavedCommandMutation]
   );
 
-  const { armedKey: confirmingDeleteCommandId, request: deleteRequest } =
-    useTwoTapConfirm<string>(handleConfirmedDelete, 3000);
+  const { armedKey: confirmingDeleteCommandId, request: deleteRequest } = useTwoTapConfirm<string>(
+    handleConfirmedDelete,
+    3000
+  );
 
   const handleDeleteSavedCommand = useCallback(
     (commandId: string, _name: string) => deleteRequest(commandId),
@@ -1081,6 +1087,25 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [commandRunner]
   );
 
+  const handleRefreshWorkspaceState = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) {
+      toast('Refresh already in progress — please wait a moment');
+      return;
+    }
+    lastRefreshRef.current = now;
+    try {
+      await recordObservationMutation({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        refresh: true,
+      });
+      toast.success('Workspace state refresh requested');
+    } catch (err) {
+      toast.error('Failed to refresh workspace state');
+      console.error('Refresh workspace state failed:', err);
+    }
+  }, [chatroomId, recordObservationMutation]);
+
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
@@ -1122,6 +1147,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     onEditSavedCommand: handleEditSavedCommand,
     onDeleteSavedCommand: handleDeleteSavedCommand,
     confirmingDeleteCommandId,
+    onRefreshWorkspaceState: handleRefreshWorkspaceState,
   });
 
   // Memoize the team entry point
