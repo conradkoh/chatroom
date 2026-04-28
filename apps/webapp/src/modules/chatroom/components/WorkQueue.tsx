@@ -28,6 +28,7 @@ import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import type { Message } from '../types/message';
+import { toast } from 'sonner';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
@@ -137,6 +138,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Mutations
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
+  // TODO: remove once convex codegen catches up
   const completeAllPendingReview = useSessionMutation(
     (api.backlog as any).completeAllPendingReviewBacklogItems
   );
@@ -408,10 +410,9 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                     const result = await completeAllPendingReview({
                       chatroomId: chatroomId as any,
                     });
-                    // Toast or feedback could go here
-                    console.log(`Marked ${result.completed} backlog item(s) as reviewed`);
+                    toast.success(`Marked ${result.completed} backlog item(s) as reviewed`);
                   } catch {
-                    console.error('Failed to mark all as reviewed');
+                    toast.error('Failed to mark items as reviewed');
                   }
                 }}
                 className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
