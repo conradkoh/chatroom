@@ -572,6 +572,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const sendMessageMutation = useSessionMutation(api.messages.send);
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
+  const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
   const lastRefreshRef = useRef(0);
 
   const handleConfirmedDelete = useCallback(
@@ -1099,12 +1100,26 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         refresh: true,
       });
+      // Event-stream git refresh: works when observed-sync is off (default). Without this,
+      // only lastRefreshedAt updates — the daemon ignores that unless observedSyncEnabled.
+      if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
+        await requestGitRefreshMutation({
+          machineId: activeWorkspace.machineId,
+          workingDir: activeWorkspace.workingDir,
+        });
+      }
       toast.success('Workspace state refresh requested');
     } catch (err) {
       toast.error('Failed to refresh workspace state');
       console.error('Refresh workspace state failed:', err);
     }
-  }, [chatroomId, recordObservationMutation]);
+  }, [
+    activeWorkspace?.machineId,
+    activeWorkspace?.workingDir,
+    chatroomId,
+    recordObservationMutation,
+    requestGitRefreshMutation,
+  ]);
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,

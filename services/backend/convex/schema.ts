@@ -1445,6 +1445,9 @@ export default defineSchema({
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
+    // Pipeline mode — 'full' (heartbeat) or 'slim' (observed sync)
+    pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
+
     // Timestamp
     updatedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),

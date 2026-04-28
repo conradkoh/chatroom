@@ -19,6 +19,18 @@ import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
+/**
+ * Remove keys whose value is `undefined` so `db.patch` does not treat them as
+ * field deletions. Slim git pushes omit heavy fields; without this, those
+ * undefined values would strip `recentCommits`, `diffStat`, etc. from the document.
+ * Preserves `null` (valid stored value for some fields).
+ */
+function omitUndefinedRecord<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  ) as T;
+}
+
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -540,6 +552,8 @@ export const upsertWorkspaceGitState = mutation({
     ),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
+    // Pipeline mode — indicates whether this is a full or slim push
+    pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -580,6 +594,7 @@ export const upsertWorkspaceGitState = mutation({
       headCommitStatus: args.headCommitStatus,
       defaultBranchStatus: args.defaultBranchStatus,
       errorMessage: args.errorMessage,
+      pipelineMode: args.pipelineMode,
       updatedAt: now,
     };
 
@@ -591,9 +606,13 @@ export const upsertWorkspaceGitState = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch('chatroom_workspaceGitState', existing._id, data);
+      const patchPayload: Record<string, unknown> = omitUndefinedRecord({ ...data });
+      if (args.status !== 'error') {
+        patchPayload.errorMessage = undefined;
+      }
+      await ctx.db.patch('chatroom_workspaceGitState', existing._id, patchPayload);
     } else {
-      await ctx.db.insert('chatroom_workspaceGitState', data);
+      await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
   },
 });

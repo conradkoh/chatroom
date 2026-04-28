@@ -49,6 +49,8 @@ export function startObservedSyncSubscription(
   const chatroomRefreshState = new Map<string, ChatroomRefreshState>();
   /** Tracks how many observed pushes were skipped due to overlap per workingDir. */
   const skippedPushCount = new Map<string, number>();
+  /** Tracks refresh requests queued while a push was in-flight per workingDir. */
+  const pendingRefresh = new Map<string, boolean>();
 
   /** Set to true by stop() to prevent post-shutdown callbacks from restarting state. */
   let stopped = false;
@@ -120,6 +122,7 @@ export function startObservedSyncSubscription(
       }
       observedWorkingDirs.clear();
       skippedPushCount.clear();
+      pendingRefresh.clear();
       console.log(`[${formatTimestamp()}] 👁️ Observed-sync subscription stopped`);
     },
   };
@@ -178,6 +181,7 @@ export function startObservedSyncSubscription(
             console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
           }
           skippedPushCount.delete(wd);
+          pendingRefresh.delete(wd);
           removedCount++;
         }
       }
@@ -219,6 +223,9 @@ export function startObservedSyncSubscription(
     if (!state) return;
 
     if (state.pushInFlight) {
+      if (reason === 'refresh') {
+        pendingRefresh.set(workingDir, true);
+      }
       const current = skippedPushCount.get(workingDir) ?? 0;
       skippedPushCount.set(workingDir, current + 1);
       console.log(
@@ -236,7 +243,13 @@ export function startObservedSyncSubscription(
       })
       .finally(() => {
         const s = observedWorkingDirs.get(workingDir);
-        if (s) s.pushInFlight = false;
+        if (s) {
+          s.pushInFlight = false;
+          if (pendingRefresh.get(workingDir)) {
+            pendingRefresh.delete(workingDir);
+            schedulePushForWorkingDir(workingDir, 'refresh');
+          }
+        }
       });
   }
 
