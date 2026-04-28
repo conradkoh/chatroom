@@ -11,6 +11,7 @@ import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -147,7 +148,9 @@ export const AgentPanel = memo(function AgentPanel({
   const [lastRefreshAt, setLastRefreshAt] = useState(0);
 
   // Refresh mutation with session awareness
-  const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
+  // Refresh mutation with session awareness
+  // TODO: remove `(api.machines as any)` once convex codegen runs (backend depends on local running backend)
+  const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
 
   // Determine if button should be disabled (cooldown)
   const isInCooldown = Date.now() - lastRefreshAt < 10_000; // 10 second cooldown
@@ -157,7 +160,7 @@ export const AgentPanel = memo(function AgentPanel({
 
     setIsRefreshing(true);
     try {
-      const result = await requestRefresh({ chatroomId: chatroomId as any });
+      const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
       toast.success(`Capabilities refresh requested (${result.fannedOut} machine(s))`);
       setLastRefreshAt(Date.now());
     } catch (error) {
