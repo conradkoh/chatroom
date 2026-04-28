@@ -5,10 +5,13 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 
-/** Minimum time between refresh calls to avoid noisy heartbeats. */
-const REFRESH_COOLDOWN_MS = 5000;
+import { REFRESH_COOLDOWN_MS } from './useObserveChatroom';
 
 /**
+ * Imperative refresh with the same cooldown as {@link useObserveChatroom}'s visibility
+ * refresh. Use that hook on the chatroom page for mount/interval/visibility lifecycle;
+ * use this hook where a component needs to trigger `refresh: true` on demand (e.g. git panel open).
+ *
  * Returns a debounced `refresh` function that explicitly requests an observed-sync
  * refresh for the current chatroom. Call this when the git panel opens or the tab
  * gains focus and an immediate sync is desired.

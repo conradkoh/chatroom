@@ -10,6 +10,10 @@ import { FRONTEND_OBSERVATION_HEARTBEAT_MS } from '@workspace/backend/config/rel
 /** Minimum time between refresh calls to avoid noisy heartbeats. */
 export const REFRESH_COOLDOWN_MS = 5000;
 
+/**
+ * Page-level observation: heartbeat interval, mount + visibility refresh with cooldown.
+ * For imperative refresh from a child (e.g. git panel), use {@link useRefreshObservedChatroom}.
+ */
 export function useObserveChatroom(chatroomId: string | null | undefined) {
   const recordObservation = useSessionMutation(api.chatrooms.recordChatroomObservation);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
