@@ -148,7 +148,8 @@ export const AgentPanel = memo(function AgentPanel({
   const [lastRefreshAt, setLastRefreshAt] = useState(0);
 
   // Refresh mutation with session awareness
-  const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
+  // TODO: remove `(api.machines as any)` once convex codegen catches up
+  const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
 
   // Determine if button should be disabled (cooldown)
   const isInCooldown = Date.now() - lastRefreshAt < 10_000; // 10 second cooldown
