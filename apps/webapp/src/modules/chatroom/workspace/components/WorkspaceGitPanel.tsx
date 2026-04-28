@@ -21,7 +21,6 @@ import {
   useAllPullRequests,
   useRecentCommits,
 } from '../hooks/useWorkspaceGit';
-import { useRefreshObservedChatroom } from '../../hooks/useRefreshObservedChatroom';
 
 import { cn } from '@/lib/utils';
 
@@ -34,6 +33,8 @@ interface WorkspaceGitPanelProps {
   workingDir: string;
   /** Optional chatroomId to display in the sidebar footer. */
   chatroomId?: string;
+  /** From page-level `useObserveChatroom`; triggers observed-sync refresh when the panel mounts. */
+  refreshObservedChatroom?: () => void;
   /** Optional initial tab to open. */
   initialTab?: ActiveTab;
 }
@@ -62,6 +63,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   machineId,
   workingDir,
   chatroomId,
+  refreshObservedChatroom,
   initialTab,
 }: WorkspaceGitPanelProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'prs');
@@ -99,12 +101,12 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     recentCommits.length
   );
   const { refresh, isRefreshing } = useGitRefresh(machineId, workingDir);
-  const { refresh: refreshObserved } = useRefreshObservedChatroom(chatroomId);
 
   // Trigger observed-sync refresh when the git panel mounts
   useEffect(() => {
-    refreshObserved();
-  }, [refreshObserved]);
+    if (!chatroomId || !refreshObservedChatroom) return;
+    refreshObservedChatroom();
+  }, [chatroomId, refreshObservedChatroom]);
 
   useEffect(() => {
     if (activeTab === 'prs' && allPullRequestsState.status === 'idle') {

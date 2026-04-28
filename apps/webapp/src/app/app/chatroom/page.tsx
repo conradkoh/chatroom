@@ -15,7 +15,7 @@ export default function ChatroomPage() {
     router.push('/app');
   };
 
-  useObserveChatroom(chatroomId);
+  const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
 
   if (!chatroomId) {
     return (
@@ -77,7 +77,12 @@ export default function ChatroomPage() {
 
       {/* Main chatroom area */}
       <div className="flex-1 min-w-0">
-        <ChatroomDashboard key={chatroomId} chatroomId={chatroomId} onBack={handleBack} />
+        <ChatroomDashboard
+          key={chatroomId}
+          chatroomId={chatroomId}
+          onBack={handleBack}
+          refreshObservedChatroom={refreshObservedChatroom}
+        />
       </div>
     </div>
   );

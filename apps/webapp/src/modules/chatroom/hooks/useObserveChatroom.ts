@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -11,8 +11,9 @@ import { FRONTEND_OBSERVATION_HEARTBEAT_MS } from '@workspace/backend/config/rel
 export const REFRESH_COOLDOWN_MS = 5000;
 
 /**
- * Page-level observation: heartbeat interval, mount + visibility refresh with cooldown.
- * For imperative refresh from a child (e.g. git panel), use {@link useRefreshObservedChatroom}.
+ * Page-level chatroom observation: interval heartbeat, mount + visibility refresh (with cooldown).
+ * Returns `refresh` for imperative triggers (e.g. git panel open); pass it to children — do not
+ * call this hook twice for the same chatroom.
  */
 export function useObserveChatroom(chatroomId: string | null | undefined) {
   const recordObservation = useSessionMutation(api.chatrooms.recordChatroomObservation);
@@ -20,60 +21,65 @@ export function useObserveChatroom(chatroomId: string | null | undefined) {
   const lastRefreshRef = useRef(0);
   const lastRefreshChatroomIdRef = useRef<string | null>(null);
 
+  const fireHeartbeat = useCallback(async () => {
+    if (!chatroomId) return;
+    if (typeof document === 'undefined') return;
+    if (document.visibilityState !== 'visible') return;
+
+    try {
+      await recordObservation({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      });
+    } catch {
+      // Fire-and-forget: best-effort
+    }
+  }, [chatroomId, recordObservation]);
+
+  const fireRefresh = useCallback(async () => {
+    if (!chatroomId) return;
+    if (typeof document === 'undefined') return;
+    if (document.visibilityState !== 'visible') return;
+
+    const now = Date.now();
+    if (
+      lastRefreshChatroomIdRef.current === chatroomId &&
+      now - lastRefreshRef.current < REFRESH_COOLDOWN_MS
+    ) {
+      return;
+    }
+    lastRefreshRef.current = now;
+    lastRefreshChatroomIdRef.current = chatroomId;
+
+    try {
+      await recordObservation({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        refresh: true,
+      });
+    } catch {
+      // Fire-and-forget: best-effort
+    }
+  }, [chatroomId, recordObservation]);
+
+  const refresh = useCallback(() => {
+    void fireRefresh();
+  }, [fireRefresh]);
+
   useEffect(() => {
     if (!chatroomId) return;
 
-    const fireHeartbeat = async () => {
-      if (typeof document === 'undefined') return;
-      if (document.visibilityState !== 'visible') return;
+    void fireRefresh();
 
-      try {
-        await recordObservation({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        });
-      } catch {
-        // Fire-and-forget: best-effort
-      }
-    };
-
-    const fireRefresh = async () => {
-      if (typeof document === 'undefined') return;
-      if (document.visibilityState !== 'visible') return;
-
-      const now = Date.now();
-      if (
-        lastRefreshChatroomIdRef.current === chatroomId &&
-        now - lastRefreshRef.current < REFRESH_COOLDOWN_MS
-      ) {
-        return;
-      }
-      lastRefreshRef.current = now;
-      lastRefreshChatroomIdRef.current = chatroomId;
-
-      try {
-        await recordObservation({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          refresh: true,
-        });
-      } catch {
-        // Fire-and-forget: best-effort
-      }
-    };
-
-    // Mount: send refresh to trigger immediate sync
-    fireRefresh();
-
-    // Visibility change to visible: send refresh
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fireRefresh();
+        void fireRefresh();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Interval: heartbeat only (keeps TTL alive, no refresh)
-    intervalRef.current = setInterval(fireHeartbeat, FRONTEND_OBSERVATION_HEARTBEAT_MS);
+    intervalRef.current = setInterval(() => {
+      void fireHeartbeat();
+    }, FRONTEND_OBSERVATION_HEARTBEAT_MS);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -82,5 +88,7 @@ export function useObserveChatroom(chatroomId: string | null | undefined) {
         intervalRef.current = null;
       }
     };
-  }, [chatroomId, recordObservation]);
+  }, [chatroomId, fireRefresh, fireHeartbeat]);
+
+  return { refresh };
 }

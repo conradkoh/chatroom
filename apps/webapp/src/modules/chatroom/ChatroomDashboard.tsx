@@ -135,6 +135,8 @@ const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition>
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
+  /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
+  refreshObservedChatroom: () => void;
 }
 
 /** Edit target for the saved command modal */
@@ -390,7 +392,11 @@ function useIsSmallScreen(): boolean | undefined {
   return mounted ? isSmall : undefined;
 }
 
-export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
+export function ChatroomDashboard({
+  chatroomId,
+  onBack,
+  refreshObservedChatroom,
+}: ChatroomDashboardProps) {
   const router = useRouter();
 
   // ─── Scroll controller (shared between MessageFeed and SendForm) ───
@@ -1581,6 +1587,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <WorkspaceBottomBar
               workspaces={chatroomWorkspaces}
               chatroomId={chatroomId}
+              refreshObservedChatroom={refreshObservedChatroom}
               onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
             />
           </div>
