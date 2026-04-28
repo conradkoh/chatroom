@@ -46,7 +46,7 @@ function getDeploymentVersion(deployDir: string): string | null {
   return null;
 }
 
-// Step 1: Find and clean up stuck exports
+// Find and clean up stuck exports
 function cleanupStuckExports(deployDir: string) {
   const dbPath = join(deployDir, 'convex_local_backend.sqlite3');
 
@@ -85,15 +85,30 @@ function cleanupStuckExports(deployDir: string) {
   }
 }
 
-// Step 2: Check if the required backend version is installed locally
-function isVersionInstalled(version: string): boolean {
-  const binaryDir = join(HOME, '.convex/binaries', version);
-  const exists = existsSync(binaryDir);
-  console.log(`  ${version} ${exists ? '✓ installed locally' : '✗ not installed locally'}`);
-  return exists;
+// Run the dev server in upgrade mode — interactive, no version flag
+async function runUpgradeDevServer() {
+  console.log('\nStarting Convex dev server in upgrade mode...');
+  console.log('---');
+
+  const args = ['bunx', 'convex', 'dev', '--local'];
+
+  const proc = spawn(args, {
+    env: {
+      ...process.env,
+      DOCUMENT_RETENTION_DELAY: '1',
+      INDEX_RETENTION_DELAY: '1',
+      RETENTION_DELETE_FREQUENCY: '10',
+    },
+    cwd: import.meta.dir,
+    stdout: 'inherit',
+    stderr: 'inherit',
+    stdin: 'inherit',
+  });
+
+  await proc.exited;
 }
 
-// Step 3: Run the dev server
+// Run the dev server in normal mode — auto-detects version
 async function runDevServer(version: string) {
   const env = {
     ...process.env,
@@ -119,28 +134,57 @@ async function runDevServer(version: string) {
   await proc.exited;
 }
 
-// Main
-console.log('=== Convex Dev Server Script ===\n');
+// --- Main ---
 
-console.log('Step 1: Locating deployment...');
-const deployDir = findDeploymentDir();
-if (!deployDir) {
-  console.error("No chatroom deployment found. Run 'convex dev --local' once first.");
-  process.exit(1);
+const isUpgrade = process.env.UPGRADE === 'true';
+
+if (isUpgrade) {
+  console.log('=== Convex Dev Server Script (Upgrade Mode) ===\n');
+
+  if (!process.stdin.isTTY) {
+    console.error('UPGRADE mode requires an interactive terminal (TTY).');
+    console.error('Run this command directly in a terminal, not through a daemon or CI pipeline.');
+    process.exit(1);
+  }
+
+  console.log('Step 1: Locating deployment...');
+  const deployDir = findDeploymentDir();
+  if (!deployDir) {
+    console.error("No chatroom deployment found. Run 'convex dev --local' once first.");
+    process.exit(1);
+  }
+
+  console.log('\nStep 2: Cleaning up stuck exports...');
+  cleanupStuckExports(deployDir);
+
+  console.log('\nStep 3: Starting dev server interactively (no version pinning)...');
+  await runUpgradeDevServer();
+} else {
+  console.log('=== Convex Dev Server Script ===\n');
+
+  console.log('Step 1: Locating deployment...');
+  const deployDir = findDeploymentDir();
+  if (!deployDir) {
+    console.error("No chatroom deployment found. Run 'convex dev --local' once first.");
+    process.exit(1);
+  }
+
+  console.log('\nStep 2: Cleaning up stuck exports...');
+  cleanupStuckExports(deployDir);
+
+  console.log('\nStep 3: Detecting deployment backend version...');
+  const version = getDeploymentVersion(deployDir);
+  if (!version) {
+    console.error('Could not determine deployment backend version.');
+    process.exit(1);
+  }
+
+  console.log(`\nStep 4: Checking local availability...`);
+  const binaryDir = join(HOME, '.convex/binaries', version);
+  console.log(
+    `  ${version} ${existsSync(binaryDir) ? '✓ installed locally' : '✗ not installed locally'}`
+  );
+
+  console.log('\nStep 5: Starting dev server...');
+  await runDevServer(version);
 }
-
-console.log('\nStep 2: Cleaning up stuck exports...');
-cleanupStuckExports(deployDir);
-
-console.log('\nStep 3: Detecting deployment backend version...');
-const version = getDeploymentVersion(deployDir);
-if (!version) {
-  console.error('Could not determine deployment backend version.');
-  process.exit(1);
-}
-
-console.log(`\nStep 4: Checking local availability...`);
-isVersionInstalled(version);
-
-console.log('\nStep 5: Starting dev server...');
-await runDevServer(version);

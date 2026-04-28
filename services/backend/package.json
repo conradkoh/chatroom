@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "bun ./dev.ts",
-    "dev:old": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev --local --local-backend-version precompiled-2025-05-08-ba60b96",
+    "dev:upgrade": "UPGRADE=true bun ./dev.ts",
     "deploy": "convex deploy",
     "migrate": "convex run migrations:runAll",
     "typecheck": "tsc --build",
