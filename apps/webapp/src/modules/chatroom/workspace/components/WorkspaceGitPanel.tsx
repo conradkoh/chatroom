@@ -18,6 +18,8 @@ import {
   useCommitDetail,
   useLoadMoreCommits,
   useGitRefresh,
+  useAllPullRequests,
+  useRecentCommits,
 } from '../hooks/useWorkspaceGit';
 
 import { cn } from '@/lib/utils';
@@ -31,6 +33,8 @@ interface WorkspaceGitPanelProps {
   workingDir: string;
   /** Optional chatroomId to display in the sidebar footer. */
   chatroomId?: string;
+  /** From page-level `useObserveChatroom`; triggers observed-sync refresh when the panel mounts. */
+  refreshObservedChatroom?: () => void;
   /** Optional initial tab to open. */
   initialTab?: ActiveTab;
 }
@@ -59,6 +63,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   machineId,
   workingDir,
   chatroomId,
+  refreshObservedChatroom,
   initialTab,
 }: WorkspaceGitPanelProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab ?? 'prs');
@@ -79,8 +84,41 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     request: requestCommitDetail,
     clear: clearCommitDetail,
   } = useCommitDetail(machineId, workingDir);
-  const { loading: loadingMore, loadMore } = useLoadMoreCommits(machineId, workingDir);
+  const { state: allPullRequestsState, request: requestAllPullRequests } = useAllPullRequests(
+    machineId,
+    workingDir
+  );
+  const { state: recentCommitsState, request: requestRecentCommits } = useRecentCommits(
+    machineId,
+    workingDir
+  );
+  const recentCommits = recentCommitsState.status === 'available' ? recentCommitsState.commits : [];
+  const hasMoreCommits =
+    recentCommitsState.status === 'available' ? recentCommitsState.hasMoreCommits : false;
+  const { loading: loadingMore, loadMore } = useLoadMoreCommits(
+    machineId,
+    workingDir,
+    recentCommits.length
+  );
   const { refresh, isRefreshing } = useGitRefresh(machineId, workingDir);
+
+  // Trigger observed-sync refresh when the git panel mounts
+  useEffect(() => {
+    if (!chatroomId || !refreshObservedChatroom) return;
+    refreshObservedChatroom();
+  }, [chatroomId, refreshObservedChatroom]);
+
+  useEffect(() => {
+    if (activeTab === 'prs' && allPullRequestsState.status === 'idle') {
+      requestAllPullRequests();
+    }
+  }, [activeTab, allPullRequestsState.status, requestAllPullRequests]);
+
+  useEffect(() => {
+    if (activeTab === 'log' && recentCommitsState.status === 'idle') {
+      requestRecentCommits();
+    }
+  }, [activeTab, recentCommitsState.status, requestRecentCommits]);
 
   // PR action mutation
   const requestPRActionMutation = useSessionMutation(api.workspaces.requestPRAction);
@@ -146,18 +184,14 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
 
   // Auto-select first commit when switching to log tab
   useEffect(() => {
-    if (
-      activeTab === 'log' &&
-      !selectedCommitSha &&
-      gitState.status === 'available' &&
-      gitState.recentCommits.length > 0
-    ) {
-      handleSelectCommit(gitState.recentCommits[0]!.sha);
+    if (activeTab === 'log' && !selectedCommitSha && recentCommits.length > 0) {
+      handleSelectCommit(recentCommits[0]!.sha);
     }
-  }, [activeTab, selectedCommitSha, gitState, handleSelectCommit]);
+  }, [activeTab, selectedCommitSha, recentCommits, handleSelectCommit]);
 
   // All PRs from the repository
-  const allPRs = gitState.status === 'available' ? (gitState.allPullRequests ?? []) : [];
+  const allPRs =
+    allPullRequestsState.status === 'available' ? allPullRequestsState.pullRequests : [];
 
   // Filtered PRs based on current filter
   const filteredPRs = allPRs.filter((pr) => {
@@ -276,7 +310,24 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
               </div>
               {/* PR list */}
               <div className="flex-1 overflow-y-auto">
-                {filteredPRs.length === 0 ? (
+                {allPullRequestsState.status === 'idle' ? (
+                  <div className="flex flex-col items-center justify-center h-32 gap-2 text-center px-3">
+                    <div className="text-[11px] text-chatroom-text-muted">
+                      Pull request history loads on demand
+                    </div>
+                    <button
+                      type="button"
+                      onClick={requestAllPullRequests}
+                      className="text-[11px] text-chatroom-text-secondary hover:text-chatroom-accent transition-colors"
+                    >
+                      Load pull requests
+                    </button>
+                  </div>
+                ) : allPullRequestsState.status === 'loading' ? (
+                  <div className="flex items-center justify-center h-32 text-[11px] text-chatroom-text-muted">
+                    Loading pull requests…
+                  </div>
+                ) : filteredPRs.length === 0 ? (
                   <div className="flex items-center justify-center h-32 text-[11px] text-chatroom-text-muted">
                     No pull requests
                   </div>
@@ -366,11 +417,13 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
               {/* Column 2: Commit list */}
               <div className="w-64 shrink-0 border-r border-chatroom-border overflow-y-auto">
                 <WorkspaceGitLog
-                  commits={gitState.recentCommits}
-                  hasMore={gitState.hasMoreCommits}
+                  commits={recentCommits}
+                  hasMore={hasMoreCommits}
+                  status={recentCommitsState.status}
                   selectedSha={selectedCommitSha}
                   loadingMore={loadingMore}
                   onSelectCommit={handleSelectCommit}
+                  onRequest={requestRecentCommits}
                   onLoadMore={loadMore}
                 />
               </div>

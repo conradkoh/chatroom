@@ -23,6 +23,7 @@ import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-ag
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { OBSERVATION_TTL_MS } from '../config/reliability';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -2253,5 +2254,73 @@ export const getAgentPreferences = query({
           workingDir: p.workingDir,
         })),
     };
+  },
+});
+
+/**
+ * Returns observed chatrooms for a machine — daemon subscribes to drive selective sync.
+ * Only returns chatrooms where the frontend has sent a heartbeat within OBSERVATION_TTL_MS.
+ */
+export const getObservedChatroomsForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    // Verify machine belongs to user
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    const now = Date.now();
+    const ttlThreshold = now - OBSERVATION_TTL_MS;
+
+    // Get all workspaces on this machine and build a chatroomId → workingDirs map
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    const chatroomWorkingDirsMap = new Map<Id<'chatroom_rooms'>, string[]>();
+    for (const ws of workspaces) {
+      if (ws.removedAt) continue;
+      const existing = chatroomWorkingDirsMap.get(ws.chatroomId) ?? [];
+      existing.push(ws.workingDir);
+      chatroomWorkingDirsMap.set(ws.chatroomId, existing);
+    }
+
+    // Fetch active observations in a single range query (avoids N+1 per chatroom)
+    const activeObservations = await ctx.db
+      .query('chatroom_observation')
+      .withIndex('by_lastObservedAt', (q) => q.gte('lastObservedAt', ttlThreshold))
+      .collect();
+
+    // Build a map from chatroomId → observation record for fast lookup
+    const observationMap = new Map<Id<'chatroom_rooms'>, (typeof activeObservations)[number]>();
+    for (const obs of activeObservations) {
+      observationMap.set(obs.chatroomId, obs);
+    }
+
+    // Intersect with this machine's chatrooms
+    const result: Array<{
+      chatroomId: Id<'chatroom_rooms'>;
+      workingDirs: string[];
+      lastRefreshedAt: number | null;
+    }> = [];
+    for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
+      const obs = observationMap.get(chatroomId);
+      if (obs) {
+        result.push({
+          chatroomId,
+          workingDirs,
+          lastRefreshedAt: obs.lastRefreshedAt ?? null,
+        });
+      }
+    }
+
+    return result;
   },
 });
