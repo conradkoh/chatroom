@@ -1096,6 +1096,12 @@ export default defineSchema({
         workingDir: v.string(),
         timestamp: v.number(),
       }),
+      // UI-initiated capabilities refresh request (model/harness discovery)
+      v.object({
+        type: v.literal('daemon.refreshCapabilities'),
+        machineId: v.string(),
+        timestamp: v.number(),
+      }),
       // Daemon response to a daemon.ping event
       v.object({
         type: v.literal('daemon.pong'),
