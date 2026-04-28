@@ -205,6 +205,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
             ...(composedSystem ? { system: composedSystem } : {}),
             parts: [{ type: 'text', text: prompt }],
             ...(modelParts ? { model: modelParts } : {}),
+            tools: {
+              task: false,
+              question: false,
+              external_directory: false,
+            },
           },
         }),
         PROMPT_ASYNC_TIMEOUT_MS,
