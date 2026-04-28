@@ -57,6 +57,8 @@ function cleanupStuckExports(deployDir: string) {
 
   try {
     const db = new Database(dbPath);
+
+    // Find stuck export documents
     const stuckExports = db
       .query(
         `SELECT hex(id) as id_hex, ts, json_extract(json_value, '$.state') as state
@@ -70,10 +72,22 @@ function cleanupStuckExports(deployDir: string) {
       for (const exp of stuckExports) {
         console.log(`  - ${exp.state} (id: ${exp.id_hex}, ts: ${exp.ts})`);
       }
+
+      // Delete the stuck export documents
       db.run(
         `DELETE FROM documents
          WHERE json_extract(json_value, '$.state') IN ('requested', 'in_progress')`
       );
+
+      // Also clean up stale index entries pointing to those documents
+      // (otherwise the backend crashes with "Dangling index reference" on restart)
+      for (const exp of stuckExports) {
+        const result = db.run(`DELETE FROM indexes WHERE hex(document_id) = ?`, [exp.id_hex]);
+        if (result.changes > 0) {
+          console.log(`  Cleaned up ${result.changes} stale index entrie(s) for ${exp.id_hex}`);
+        }
+      }
+
       console.log('Deleted stuck exports');
     } else {
       console.log('No stuck exports found');
@@ -90,11 +104,14 @@ async function runUpgradeDevServer() {
   console.log('\nStarting Convex dev server in upgrade mode...');
   console.log('---');
 
-  const args = ['bunx', 'convex', 'dev', '--local'];
+  // Forward --verbose if passed to this script
+  const passthroughArgs = process.argv.slice(2);
+  const args = ['bunx', 'convex', 'dev', '--local', ...passthroughArgs];
 
   const proc = spawn(args, {
     env: {
       ...process.env,
+      RUST_BACKTRACE: '1',
       DOCUMENT_RETENTION_DELAY: '1',
       INDEX_RETENTION_DELAY: '1',
       RETENTION_DELETE_FREQUENCY: '10',
