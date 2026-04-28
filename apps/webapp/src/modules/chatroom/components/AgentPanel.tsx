@@ -148,7 +148,6 @@ export const AgentPanel = memo(function AgentPanel({
   const [lastRefreshAt, setLastRefreshAt] = useState(0);
 
   // Refresh mutation with session awareness
-  // Refresh mutation with session awareness
   // TODO: remove `(api.machines as any)` once convex codegen runs (backend depends on local running backend)
   const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
 
