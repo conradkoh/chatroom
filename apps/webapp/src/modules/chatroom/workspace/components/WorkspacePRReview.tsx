@@ -42,18 +42,19 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   onPRAction,
   prActionLoading,
 }: WorkspacePRReviewProps) {
+  const prNumber = activePR.prNumber!;
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(
     machineId,
     workingDir,
-    activePR.prNumber
+    prNumber
   );
 
   // Auto-request PR diff when component mounts or PR number changes
   useEffect(() => {
     if (prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, activePR.prNumber);
+      requestPRDiff(baseBranch, prNumber);
     }
-  }, [prDiffState.status, requestPRDiff, baseBranch, activePR.prNumber]);
+  }, [prDiffState.status, requestPRDiff, baseBranch, prNumber]);
 
   const handlePRAction = useCallback(
     async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
@@ -97,7 +98,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       <div className="flex-1 overflow-y-auto">
         <WorkspaceDiffViewer
           state={prDiffState}
-          onRequest={() => requestPRDiff(baseBranch, activePR.prNumber)}
+          onRequest={() => requestPRDiff(baseBranch, prNumber)}
           machineId={machineId}
           workingDir={workingDir}
         />
