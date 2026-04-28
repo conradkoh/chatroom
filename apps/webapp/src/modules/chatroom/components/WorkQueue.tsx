@@ -2,7 +2,15 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Play, ClipboardCheck, MoreHorizontal, XCircle, Clock } from 'lucide-react';
+import {
+  Plus,
+  Play,
+  ClipboardCheck,
+  MoreHorizontal,
+  XCircle,
+  Clock,
+  CheckCheck,
+} from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
@@ -129,6 +137,9 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Mutations
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
+  const completeAllPendingReview = useSessionMutation(
+    (api.backlog as any).completeAllPendingReviewBacklogItems
+  );
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
   const updateTask = useSessionMutation(api.tasks.updateTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
@@ -386,9 +397,28 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         {/* Pending Review - Backlog items awaiting user confirmation */}
         {pendingReviewBacklogItems.length > 0 && (
           <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
-              <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-              <span>Pending Review ({pendingReviewBacklogItems.length})</span>
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
+                <span>Pending Review ({pendingReviewBacklogItems.length})</span>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await completeAllPendingReview({
+                      chatroomId: chatroomId as any,
+                    });
+                    // Toast or feedback could go here
+                    console.log(`Marked ${result.completed} backlog item(s) as reviewed`);
+                  } catch {
+                    console.error('Failed to mark all as reviewed');
+                  }
+                }}
+                className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+                title="Mark all as reviewed"
+              >
+                <CheckCheck size={14} />
+              </button>
             </div>
             {/* Show backlog pending review items */}
             {pendingReviewBacklogItems.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((item) => (
