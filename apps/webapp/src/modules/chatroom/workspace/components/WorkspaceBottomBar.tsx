@@ -67,6 +67,8 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
+  /** From `useObserveChatroom` on the chatroom page; git panel calls this on mount. */
+  refreshObservedChatroom: () => void;
   /** Optional callback to register an imperative open action for the git panel (e.g. command palette) */
   onRegisterOpenGitPanel?: (open: (tab?: string) => void) => void;
 }
@@ -837,6 +839,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
+  refreshObservedChatroom,
   onRegisterOpenGitPanel,
 }: WorkspaceBottomBarProps) {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() =>
@@ -1068,6 +1071,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                 machineId={activeWorkspace.machineId}
                 workingDir={activeWorkspace.workingDir}
                 chatroomId={chatroomId}
+                refreshObservedChatroom={refreshObservedChatroom}
                 initialTab={gitInitialTab as 'prs' | 'diff' | 'log' | 'pr-review' | undefined}
               />
             )}

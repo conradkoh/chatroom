@@ -19,6 +19,18 @@ import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
+/**
+ * Remove keys whose value is `undefined` so `db.patch` does not treat them as
+ * field deletions. Slim git pushes omit heavy fields; without this, those
+ * undefined values would strip `recentCommits`, `diffStat`, etc. from the document.
+ * Preserves `null` (valid stored value for some fields).
+ */
+function omitUndefinedRecord<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  ) as T;
+}
+
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -540,6 +552,8 @@ export const upsertWorkspaceGitState = mutation({
     ),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
+    // Pipeline mode — indicates whether this is a full or slim push
+    pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -580,6 +594,7 @@ export const upsertWorkspaceGitState = mutation({
       headCommitStatus: args.headCommitStatus,
       defaultBranchStatus: args.defaultBranchStatus,
       errorMessage: args.errorMessage,
+      pipelineMode: args.pipelineMode,
       updatedAt: now,
     };
 
@@ -591,9 +606,13 @@ export const upsertWorkspaceGitState = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch('chatroom_workspaceGitState', existing._id, data);
+      const patchPayload: Record<string, unknown> = omitUndefinedRecord({ ...data });
+      if (args.status !== 'error') {
+        patchPayload.errorMessage = undefined;
+      }
+      await ctx.db.patch('chatroom_workspaceGitState', existing._id, patchPayload);
     } else {
-      await ctx.db.insert('chatroom_workspaceGitState', data);
+      await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
   },
 });
@@ -729,10 +748,10 @@ export const upsertCommitDetail = mutation({
 });
 
 /**
- * Appends additional commits to the git state's `recentCommits` array.
+ * Appends additional commits to the on-demand recent commits cache.
  *
  * Called by the daemon after processing a `more_commits` request.
- * Reads the existing state, appends new commits, and updates `hasMoreCommits`.
+ * Reads the existing cache, appends new commits, and updates `hasMoreCommits`.
  */
 export const appendMoreCommits = mutation({
   args: {
@@ -762,22 +781,22 @@ export const appendMoreCommits = mutation({
     });
 
     const existing = await ctx.db
-      .query('chatroom_workspaceGitState')
+      .query('chatroom_workspaceRecentCommits')
       .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
 
     if (!existing) {
-      // Nothing to append to — daemon should upsert git state first
+      // Nothing to append to — daemon should fulfill requestRecentCommits first.
       return;
     }
 
-    const currentCommits = existing.recentCommits ?? [];
+    const currentCommits = existing.commits ?? [];
     const updatedCommits = [...currentCommits, ...args.commits];
 
-    await ctx.db.patch('chatroom_workspaceGitState', existing._id, {
-      recentCommits: updatedCommits,
+    await ctx.db.patch('chatroom_workspaceRecentCommits', existing._id, {
+      commits: updatedCommits,
       hasMoreCommits: args.hasMoreCommits,
       updatedAt: Date.now(),
     });
@@ -1222,6 +1241,301 @@ export const upsertPRCommits = mutation({
         workingDir: args.workingDir,
         prNumber: args.prNumber,
         commits: args.commits,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// ─── All Pull Requests ───────────────────────────────────────────────────────
+
+/**
+ * Returns the cached list of all pull requests for a workspace, or null if not available.
+ *
+ * Called by the frontend after `requestAllPullRequests` to retrieve the result.
+ */
+export const getAllPullRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return null;
+
+    const row = await ctx.db
+      .query('chatroom_workspaceAllPullRequests')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    return row ?? null;
+  },
+});
+
+/**
+ * Requests the daemon to fetch all pull requests for the repository.
+ *
+ * Idempotent: if a pending request already exists, this is a no-op.
+ * The frontend subscribes to `getAllPullRequests` to receive the result.
+ */
+export const requestAllPullRequests = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Idempotency: single point-lookup for pending request.
+    // Uses the by_machine_workingDir_type_status index for no-scan coverage.
+    const existing = await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_workingDir_type_status', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('requestType', 'all_pull_requests')
+          .eq('status', 'pending')
+      )
+      .first();
+
+    if (existing) {
+      return;
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'all_pull_requests',
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Called by the daemon after processing an `all_pull_requests` request.
+ * Upserts the all-pull-requests list for the given workspace.
+ */
+export const upsertAllPullRequests = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    pullRequests: v.array(
+      v.object({
+        prNumber: v.optional(v.number()),
+        number: v.optional(v.number()),
+        title: v.string(),
+        url: v.string(),
+        headRefName: v.string(),
+        baseRefName: v.optional(v.string()),
+        state: v.string(),
+        author: v.optional(v.string()),
+        createdAt: v.optional(v.string()),
+        updatedAt: v.optional(v.string()),
+        mergedAt: v.optional(v.union(v.string(), v.null())),
+        closedAt: v.optional(v.union(v.string(), v.null())),
+        isDraft: v.optional(v.boolean()),
+      })
+    ),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceAllPullRequests')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        pullRequests: args.pullRequests,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceAllPullRequests', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        pullRequests: args.pullRequests,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// ─── Recent Commits ──────────────────────────────────────────────────────────
+
+/**
+ * Returns the cached recent commits for a workspace, or null if not available.
+ *
+ * Called by the frontend after `requestRecentCommits` to retrieve the result.
+ */
+export const getRecentCommits = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      return null;
+    }
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return null;
+
+    const row = await ctx.db
+      .query('chatroom_workspaceRecentCommits')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    return row ?? null;
+  },
+});
+
+/**
+ * Requests the daemon to fetch recent commits for the workspace.
+ *
+ * Idempotent: if a pending request already exists, this is a no-op.
+ * The frontend subscribes to `getRecentCommits` to receive the result.
+ */
+export const requestRecentCommits = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Idempotency: single point-lookup for pending request.
+    // Uses the by_machine_workingDir_type_status index for no-scan coverage.
+    const existing = await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_workingDir_type_status', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('requestType', 'recent_commits')
+          .eq('status', 'pending')
+      )
+      .first();
+
+    if (existing) {
+      return;
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceDiffRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      requestType: 'recent_commits',
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Called by the daemon after processing a `recent_commits` request.
+ * Upserts the recent commits list for the given workspace (replaces, not appends).
+ */
+export const upsertRecentCommits = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+    hasMoreCommits: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new Error('Authentication required');
+    }
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceRecentCommits')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        commits: args.commits,
+        hasMoreCommits: args.hasMoreCommits,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceRecentCommits', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        commits: args.commits,
+        hasMoreCommits: args.hasMoreCommits,
         updatedAt: now,
       });
     }

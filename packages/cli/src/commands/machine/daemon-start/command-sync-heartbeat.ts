@@ -44,7 +44,7 @@ export async function pushCommands(ctx: DaemonContext): Promise<void> {
   }
 }
 
-async function pushSingleWorkspaceCommands(
+export async function pushSingleWorkspaceCommands(
   ctx: DaemonContext,
   workingDir: string
 ): Promise<void> {
@@ -52,9 +52,7 @@ async function pushSingleWorkspaceCommands(
 
   // Change detection: hash the command list to skip unchanged syncs
   const stateKey = `commands:${ctx.machineId}::${workingDir}`;
-  const commandsHash = createHash('md5')
-    .update(JSON.stringify(commands))
-    .digest('hex');
+  const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === commandsHash) {
     return; // No change
@@ -68,7 +66,5 @@ async function pushSingleWorkspaceCommands(
   });
 
   ctx.lastPushedGitState.set(stateKey, commandsHash);
-  console.log(
-    `[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`
-  );
+  console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
 }
