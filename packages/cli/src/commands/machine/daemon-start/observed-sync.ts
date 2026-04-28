@@ -22,7 +22,7 @@ import {
   OBSERVED_SAFETY_POLL_MS,
   OBSERVATION_TTL_MS,
 } from '@workspace/backend/config/reliability.js';
-import { pushSingleWorkspaceGitState } from './git-heartbeat.js';
+import { pushSingleWorkspaceGitSummaryForObserved } from './git-heartbeat.js';
 import { pushSingleWorkspaceCommands } from './command-sync-heartbeat.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -34,6 +34,11 @@ interface ObservedWorkingDirState {
   pushInFlight: boolean;
 }
 
+/** Tracks the last seen lastRefreshedAt per chatroomId to detect refresh signals. */
+interface ChatroomRefreshState {
+  lastRefreshedAt: number | null;
+}
+
 export function startObservedSyncSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -41,6 +46,9 @@ export function startObservedSyncSubscription(
   console.log(`[${formatTimestamp()}] 👁️ Starting observed-sync subscription (reactive)`);
 
   const observedWorkingDirs = new Map<string, ObservedWorkingDirState>();
+  const chatroomRefreshState = new Map<string, ChatroomRefreshState>();
+  /** Tracks how many observed pushes were skipped due to overlap per workingDir. */
+  const skippedPushCount = new Map<string, number>();
 
   /** Set to true by stop() to prevent post-shutdown callbacks from restarting state. */
   let stopped = false;
@@ -99,24 +107,61 @@ export function startObservedSyncSubscription(
       stopped = true;
       unsubscribe();
       clearInterval(reconcileTimer);
-      for (const [_, state] of observedWorkingDirs) {
+      for (const [wd, state] of observedWorkingDirs) {
         clearInterval(state.intervalHandle);
+        const skips = skippedPushCount.get(wd) ?? 0;
+        if (skips > 0) {
+          console.log(
+            `[${formatTimestamp()}] 👁️ Stopped observing ${wd} (skipped ${skips} overlapping pushes)`
+          );
+        } else {
+          console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
+        }
       }
       observedWorkingDirs.clear();
+      skippedPushCount.clear();
       console.log(`[${formatTimestamp()}] 👁️ Observed-sync subscription stopped`);
     },
   };
 
   function handleObservedChange(observed: ObservedChatrooms): void {
     const newWorkingDirs = new Set<string>();
+    const refreshedWorkingDirs = new Set<string>();
 
     for (const chatroom of observed) {
+      const chatroomId = chatroom.chatroomId;
+      const currentRefresh = chatroom.lastRefreshedAt;
+      const previous = chatroomRefreshState.get(chatroomId);
+
+      // Detect explicit refresh: lastRefreshedAt increased since last check
+      const wasRefreshed =
+        currentRefresh !== null &&
+        currentRefresh !== undefined &&
+        (previous === undefined || (previous.lastRefreshedAt ?? 0) < currentRefresh);
+
+      if (wasRefreshed) {
+        chatroomRefreshState.set(chatroomId, { lastRefreshedAt: currentRefresh });
+        for (const wd of chatroom.workingDirs) {
+          refreshedWorkingDirs.add(wd);
+        }
+      }
+
       for (const wd of chatroom.workingDirs) {
         newWorkingDirs.add(wd);
       }
     }
 
+    // Clean up refresh state for no-longer-observed chatrooms
+    for (const [chatroomId] of chatroomRefreshState) {
+      const stillObserved = observed.some((c) => c.chatroomId === chatroomId);
+      if (!stillObserved) {
+        chatroomRefreshState.delete(chatroomId);
+      }
+    }
+
     const currentWorkingDirs = new Set(observedWorkingDirs.keys());
+    let addedCount = 0;
+    let removedCount = 0;
 
     for (const wd of currentWorkingDirs) {
       if (!newWorkingDirs.has(wd)) {
@@ -124,7 +169,16 @@ export function startObservedSyncSubscription(
         if (state) {
           clearInterval(state.intervalHandle);
           observedWorkingDirs.delete(wd);
-          console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
+          const skips = skippedPushCount.get(wd) ?? 0;
+          if (skips > 0) {
+            console.log(
+              `[${formatTimestamp()}] 👁️ Stopped observing ${wd} (skipped ${skips} overlapping pushes)`
+            );
+          } else {
+            console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
+          }
+          skippedPushCount.delete(wd);
+          removedCount++;
         }
       }
     }
@@ -133,28 +187,48 @@ export function startObservedSyncSubscription(
       if (!observedWorkingDirs.has(wd)) {
         observedWorkingDirs.set(wd, {
           intervalHandle: setInterval(() => {
-            schedulePushForWorkingDir(wd);
+            schedulePushForWorkingDir(wd, 'safety-poll');
           }, OBSERVED_SAFETY_POLL_MS),
           pushInFlight: false,
         });
         console.log(`[${formatTimestamp()}] 👁️ Started observing ${wd}`);
-        schedulePushForWorkingDir(wd);
+        schedulePushForWorkingDir(wd, 'safety-poll');
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0 || removedCount > 0) {
+      console.log(`[${formatTimestamp()}] 👁️ Observing ${observedWorkingDirs.size} working dir(s)`);
+    }
+
+    // Schedule immediate push for working dirs that received a refresh signal
+    for (const wd of refreshedWorkingDirs) {
+      if (observedWorkingDirs.has(wd)) {
+        console.log(`[${formatTimestamp()}] 🔄 Refresh triggered for ${wd}`);
+        schedulePushForWorkingDir(wd, 'refresh');
       }
     }
   }
 
-  function schedulePushForWorkingDir(workingDir: string): void {
+  function schedulePushForWorkingDir(
+    workingDir: string,
+    reason: 'safety-poll' | 'refresh' = 'safety-poll'
+  ): void {
     if (stopped) return;
     const state = observedWorkingDirs.get(workingDir);
     if (!state) return;
 
     if (state.pushInFlight) {
-      // A push is already running for this workingDir — skip to prevent overlap
+      const current = skippedPushCount.get(workingDir) ?? 0;
+      skippedPushCount.set(workingDir, current + 1);
+      console.log(
+        `[${formatTimestamp()}] 👁️ Skipping observed push for ${workingDir} (${reason}, in flight)`
+      );
       return;
     }
 
     state.pushInFlight = true;
-    pushForWorkingDir(workingDir)
+    pushForWorkingDir(workingDir, reason)
       .catch((err: unknown) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️ Push failed for ${workingDir}: ${getErrorMessage(err)}`
@@ -166,12 +240,17 @@ export function startObservedSyncSubscription(
       });
   }
 
-  async function pushForWorkingDir(workingDir: string): Promise<void> {
-    await pushSingleWorkspaceGitState(ctx, workingDir).catch((err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
-    });
+  async function pushForWorkingDir(
+    workingDir: string,
+    reason: 'safety-poll' | 'refresh' = 'safety-poll'
+  ): Promise<void> {
+    await pushSingleWorkspaceGitSummaryForObserved(ctx, workingDir, reason).catch(
+      (err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Observed git summary push failed for ${workingDir}: ${getErrorMessage(err)}`
+        );
+      }
+    );
     await pushSingleWorkspaceCommands(ctx, workingDir).catch((err: unknown) => {
       console.warn(
         `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`

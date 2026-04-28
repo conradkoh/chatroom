@@ -2298,12 +2298,26 @@ export const getObservedChatroomsForMachine = query({
       .withIndex('by_lastObservedAt', (q) => q.gte('lastObservedAt', ttlThreshold))
       .collect();
 
+    // Build a map from chatroomId → observation record for fast lookup
+    const observationMap = new Map<Id<'chatroom_rooms'>, (typeof activeObservations)[number]>();
+    for (const obs of activeObservations) {
+      observationMap.set(obs.chatroomId, obs);
+    }
+
     // Intersect with this machine's chatrooms
-    const observedChatroomIds = new Set(activeObservations.map((o) => o.chatroomId));
-    const result: Array<{ chatroomId: Id<'chatroom_rooms'>; workingDirs: string[] }> = [];
+    const result: Array<{
+      chatroomId: Id<'chatroom_rooms'>;
+      workingDirs: string[];
+      lastRefreshedAt: number | null;
+    }> = [];
     for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
-      if (observedChatroomIds.has(chatroomId)) {
-        result.push({ chatroomId, workingDirs });
+      const obs = observationMap.get(chatroomId);
+      if (obs) {
+        result.push({
+          chatroomId,
+          workingDirs,
+          lastRefreshedAt: obs.lastRefreshedAt ?? null,
+        });
       }
     }
 

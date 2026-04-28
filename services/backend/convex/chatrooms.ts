@@ -532,6 +532,8 @@ export const recordChatroomObservation = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
+    /** When true, also updates `lastRefreshedAt` to trigger an immediate daemon sync. */
+    refresh: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
@@ -554,12 +556,19 @@ export const recordChatroomObservation = mutation({
 
     if (existing) {
       // Update existing observation
-      await ctx.db.patch(existing._id, { lastObservedAt: now });
+      const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
+        lastObservedAt: now,
+      };
+      if (args.refresh) {
+        patch.lastRefreshedAt = now;
+      }
+      await ctx.db.patch(existing._id, patch);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {
         chatroomId: args.chatroomId,
         lastObservedAt: now,
+        lastRefreshedAt: args.refresh ? now : undefined,
       });
     }
   },

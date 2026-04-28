@@ -182,6 +182,110 @@ export async function pushSingleWorkspaceGitState(
 }
 
 /**
+ * Push a slim git summary for observed-sync mode.
+ *
+ * Only fetches and pushes the cheap eager fields defined by the Phase 0 contract:
+ * branch, isDirty, openPullRequests, headCommitStatus.
+ *
+ * Does NOT fetch/push: diffStat, recentCommits, hasMoreCommits, remotes,
+ * commitsAhead, allPullRequests, defaultBranch, defaultBranchStatus.
+ * Does NOT pre-fetch commit details.
+ *
+ * Used by the observed-sync subscription instead of the full heartbeat push.
+ */
+export async function pushSingleWorkspaceGitSummaryForObserved(
+  ctx: DaemonContext,
+  workingDir: string,
+  reason: 'safety-poll' | 'refresh' = 'safety-poll'
+): Promise<void> {
+  const stateKey = makeGitStateKey(ctx.machineId, workingDir);
+
+  // Check if it's a git repo first
+  const isRepo = await gitReader.isGitRepo(workingDir);
+  if (!isRepo) {
+    const stateHash = 'not_found';
+    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      status: 'not_found',
+    });
+    ctx.lastPushedGitState.set(stateKey, stateHash);
+    return;
+  }
+
+  // Collect only cheap eager fields
+  const [branchResult, dirtyResult] = await Promise.all([
+    gitReader.getBranch(workingDir),
+    gitReader.isDirty(workingDir),
+  ]);
+
+  // Handle error state from branch (primary indicator)
+  if (branchResult.status === 'error') {
+    const stateHash = `error:${branchResult.message}`;
+    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      status: 'error',
+      errorMessage: branchResult.message,
+    });
+    ctx.lastPushedGitState.set(stateKey, stateHash);
+    return;
+  }
+
+  if (branchResult.status === 'not_found') {
+    return;
+  }
+
+  // Fetch open PRs for the current branch (non-blocking on failure)
+  const openPRs = await gitReader.getOpenPRsForBranch(workingDir, branchResult.branch);
+
+  // Fetch commit status checks for the current branch head (non-blocking on failure)
+  const headCommitStatus = await gitReader.getCommitStatusChecks(workingDir, branchResult.branch);
+
+  const branch = branchResult.branch;
+  const isDirty = dirtyResult;
+
+  // Change detection: hash only the slim summary fields
+  const stateHash = createHash('md5')
+    .update(
+      JSON.stringify({
+        branch,
+        isDirty,
+        prs: openPRs.map((pr) => pr.prNumber),
+        headCommitStatus,
+      })
+    )
+    .digest('hex');
+
+  if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
+    return; // No change — skip push
+  }
+
+  // Push slim summary to backend
+  await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    status: 'available',
+    branch,
+    isDirty,
+    openPullRequests: openPRs,
+    headCommitStatus,
+  });
+
+  ctx.lastPushedGitState.set(stateKey, stateHash);
+  console.log(
+    `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${isDirty ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
+  );
+}
+
+/**
  * Eagerly pre-fetches commit details for any commits not yet stored in the backend.
  * Called after each successful git state push to fill the commit detail cache
  * so users see instant results when clicking on commits.
