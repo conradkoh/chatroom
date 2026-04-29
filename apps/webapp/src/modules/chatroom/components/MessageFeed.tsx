@@ -89,6 +89,8 @@ interface MessageFeedProps {
   scrollToBottom: () => void;
   /** Optional callback to open the event stream from an external trigger (e.g. command palette) */
   onRegisterOpenEventStream?: (open: () => void) => void;
+  /** Machine info for displaying human-readable names in the event stream */
+  machines?: Map<string, { hostname: string; alias?: string }>;
 }
 
 // Message, AttachedTask, AttachedBacklogItem, AttachedMessage imported from ../types/message
@@ -1056,7 +1058,9 @@ const LatestEventTicker = memo(function LatestEventTicker({
         onClick={onClick}
         className="flex items-center gap-1.5 min-w-0 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer px-2 py-1 rounded"
       >
-        <span className="uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">Event Stream</span>
+        <span className="uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+          Event Stream
+        </span>
         <ChevronRight size={10} className="opacity-50 shrink-0" />
       </button>
     );
@@ -1069,7 +1073,9 @@ const LatestEventTicker = memo(function LatestEventTicker({
     >
       {/* Text content group — shrinks and truncates on tight widths. */}
       <span className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-        <span className={`font-bold uppercase tracking-wider whitespace-nowrap shrink-0 ${getEventBadgeTextColor(event.type)}`}>
+        <span
+          className={`font-bold uppercase tracking-wider whitespace-nowrap shrink-0 ${getEventBadgeTextColor(event.type)}`}
+        >
           {formatEventType(event.type)}
         </span>
         {/* Workflow-specific detail (step count, step name, etc.) */}
@@ -1096,6 +1102,7 @@ export const MessageFeed = memo(function MessageFeed({
   isPinned,
   scrollToBottom,
   onRegisterOpenEventStream,
+  machines,
 }: MessageFeedProps) {
   const {
     messages: storeMessages,
@@ -1463,6 +1470,7 @@ export const MessageFeed = memo(function MessageFeed({
         }
         onLoadMore={() => loadMoreEvents(20)}
         hasMore={eventsPaginationStatus === 'CanLoadMore'}
+        machines={machines}
       />
       {/* Queued-messages indicator — sits directly above the status bar so users
           on mobile (and in the desktop messages view) see queued messages without

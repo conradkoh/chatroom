@@ -1,7 +1,7 @@
 'use client';
 
 import { registerEventType } from './registry';
-import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
+import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock, MachineDetailRow } from './shared';
 import type {
   TaskActivatedEvent,
   TaskAcknowledgedEvent,
@@ -27,12 +27,17 @@ function renderTaskActivatedCell(event: TaskActivatedEvent, isSelected: boolean)
 
 function renderTaskActivatedDetails(event: TaskActivatedEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Task Activated" timestamp={event.timestamp} type="task.activated">
+    <EventDetails
+      eventId={event._id}
+      title="Task Activated"
+      timestamp={event.timestamp}
+      type="task.activated"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Status" value={event.taskStatus} />
       <MarkdownDetailBlock label="Content" content={event.taskContent} />
-      {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
+      {event.machineId && <MachineDetailRow machineId={event.machineId} />}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -58,7 +63,12 @@ function renderTaskAcknowledgedCell(
 
 function renderTaskAcknowledgedDetails(event: TaskAcknowledgedEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Task Acknowledged" timestamp={event.timestamp} type="task.acknowledged">
+    <EventDetails
+      eventId={event._id}
+      title="Task Acknowledged"
+      timestamp={event.timestamp}
+      type="task.acknowledged"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
@@ -86,7 +96,12 @@ function renderTaskInProgressCell(
 
 function renderTaskInProgressDetails(event: TaskInProgressEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Task In Progress" timestamp={event.timestamp} type="task.inProgress">
+    <EventDetails
+      eventId={event._id}
+      title="Task In Progress"
+      timestamp={event.timestamp}
+      type="task.inProgress"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
@@ -113,11 +128,16 @@ function renderTaskCompletedCell(event: TaskCompletedEvent, isSelected: boolean)
 
 function renderTaskCompletedDetails(event: TaskCompletedEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Task Completed" timestamp={event.timestamp} type="task.completed">
+    <EventDetails
+      eventId={event._id}
+      title="Task Completed"
+      timestamp={event.timestamp}
+      type="task.completed"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Final Status" value={event.finalStatus} />
-      {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
+      {event.machineId && <MachineDetailRow machineId={event.machineId} />}
       {event.skipAgentStatusUpdate && <DetailRow label="Skip Status Update" value="Yes" />}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>

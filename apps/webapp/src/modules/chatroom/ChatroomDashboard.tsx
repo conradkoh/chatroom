@@ -674,6 +674,15 @@ export function ChatroomDashboard({
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId);
 
+  // Machine name map for event stream display
+  const machineNameMap = useMemo(() => {
+    const map = new Map<string, { hostname: string; alias?: string }>();
+    for (const machine of agentPanelData.connectedMachines) {
+      map.set(machine.machineId, { hostname: machine.hostname, alias: machine.alias });
+    }
+    return map;
+  }, [agentPanelData.connectedMachines]);
+
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
@@ -1502,6 +1511,7 @@ export function ChatroomDashboard({
                         isPinned={isPinned}
                         scrollToBottom={scrollToBottom}
                         onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                        machines={machineNameMap}
                       />
                       <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                         <SendForm
@@ -1525,6 +1535,7 @@ export function ChatroomDashboard({
                       isPinned={isPinned}
                       scrollToBottom={scrollToBottom}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                      machines={machineNameMap}
                     />
                     <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                       <SendForm

@@ -1,7 +1,7 @@
 'use client';
 
 import { registerEventType } from './registry';
-import { EventRow, EventDetails, DetailRow } from './shared';
+import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import type { ConfigRequestRemovalEvent } from '../viewModels/eventStreamViewModel';
 
 // ─── Config Request Removal ───────────────────────────────────────────────────
@@ -31,7 +31,7 @@ function renderConfigRequestRemovalDetails(event: ConfigRequestRemovalEvent): Re
       type="config.requestRemoval"
     >
       <DetailRow label="Role" value={event.role} />
-      <DetailRow label="Machine ID" value={event.machineId} mono />
+      <MachineDetailRow machineId={event.machineId} />
       <DetailRow label="Reason" value={event.reason} />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
