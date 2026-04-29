@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { RefreshCw } from 'lucide-react';
+import { Check, RefreshCw } from 'lucide-react';
 import React, {
   memo,
   useCallback,
@@ -12,8 +12,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-
-const CAPABILITIES_REFRESH_COOLDOWN_MS = 10_000;
 
 /**
  * Per-machine discovery refresh (models / harnesses). Inline status only — no toasts.
@@ -34,11 +32,11 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
   );
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [hint, setHint] = useState<{ tone: 'muted' | 'ok' | 'warn' | 'err'; text: string } | null>(
-    null
-  );
+  const [hint, setHint] = useState<{ tone: 'muted' | 'warn' | 'err'; text: string } | null>(null);
+  const [showSuccessTick, setShowSuccessTick] = useState(false);
   const [, bumpCooldownTick] = useReducer((x: number) => x + 1, 0);
   const hintClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const successTickTimerRef = useRef<number | null>(null);
   const terminalHandledRef = useRef(false);
 
   const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
@@ -73,6 +71,10 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
   useEffect(() => {
     return () => {
       if (hintClearTimerRef.current) clearTimeout(hintClearTimerRef.current);
+      if (successTickTimerRef.current !== null) {
+        window.clearTimeout(successTickTimerRef.current);
+        successTickTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -103,17 +105,28 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
     terminalHandledRef.current = true;
 
     const agg = batchSnapshot.batch.aggregateStatus;
+    setActiveBatchId(null);
+
     if (agg === 'completed') {
-      setHint({ tone: 'ok', text: 'Discovery up to date.' });
-    } else if (agg === 'failed') {
+      if (successTickTimerRef.current !== null) {
+        window.clearTimeout(successTickTimerRef.current);
+      }
+      setShowSuccessTick(true);
+      successTickTimerRef.current = window.setTimeout(() => {
+        setShowSuccessTick(false);
+        successTickTimerRef.current = null;
+      }, 700);
+      return;
+    }
+
+    if (agg === 'failed') {
       const firstErr = batchSnapshot.machines.find((m) => m.errorMessage)?.errorMessage;
       setHint({ tone: 'err', text: firstErr ?? 'Discovery failed.' });
+      clearHintSoon(10000);
     } else {
       setHint({ tone: 'warn', text: 'Finished with errors.' });
+      clearHintSoon(10000);
     }
-    setActiveBatchId(null);
-    setCooldownUntil(Date.now() + CAPABILITIES_REFRESH_COOLDOWN_MS);
-    clearHintSoon(agg === 'completed' ? 5000 : 10000);
   }, [activeBatchId, batchSnapshot, clearHintSoon]);
 
   useEffect(() => {
@@ -135,7 +148,8 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
     daemonConnected &&
     !isInCooldown &&
     !isRequesting &&
-    !batchPending;
+    !batchPending &&
+    !showSuccessTick;
 
   const disabledTitle = !linkedToChatroom
     ? 'This machine has no workspace in this chatroom.'
@@ -143,9 +157,11 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
       ? 'Start the daemon on this machine to refresh discovery.'
       : isInCooldown
         ? `Wait ${cooldownSecondsLeft}s before refreshing again.`
-        : isRequesting || batchPending
-          ? 'Discovery in progress…'
-          : 'Refresh model and harness discovery for this machine';
+        : showSuccessTick
+          ? 'Discovery finished.'
+          : isRequesting || batchPending
+            ? 'Discovery in progress…'
+            : 'Refresh model and harness discovery for this machine';
 
   const handleClick = useCallback(async () => {
     if (!canClick) return;
@@ -181,7 +197,6 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         return;
       }
       setActiveBatchId(result.batchId);
-      setCooldownUntil(Date.now() + CAPABILITIES_REFRESH_COOLDOWN_MS);
     } catch {
       setHint({ tone: 'err', text: 'Request failed.' });
       clearHintSoon(6000);
@@ -191,13 +206,11 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
   }, [canClick, chatroomId, machineId, requestRefresh, clearHintSoon]);
 
   const hintClass =
-    hint?.tone === 'ok'
-      ? 'text-chatroom-status-success'
-      : hint?.tone === 'err'
-        ? 'text-chatroom-status-error'
-        : hint?.tone === 'warn'
-          ? 'text-chatroom-status-warning'
-          : 'text-chatroom-text-muted';
+    hint?.tone === 'err'
+      ? 'text-chatroom-status-error'
+      : hint?.tone === 'warn'
+        ? 'text-chatroom-status-warning'
+        : 'text-chatroom-text-muted';
 
   return (
     <div className="flex flex-col items-end gap-0.5 shrink-0 self-start pt-0.5">
@@ -209,16 +222,27 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
           'touch-manipulation inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-md border transition-colors',
           canClick
             ? 'border-chatroom-accent/50 bg-chatroom-bg-surface text-chatroom-accent shadow-sm hover:bg-chatroom-accent/10 hover:border-chatroom-accent'
-            : 'border-chatroom-border/30 bg-chatroom-bg-tertiary/30 text-chatroom-text-muted/45 cursor-not-allowed',
+            : showSuccessTick
+              ? 'border-chatroom-status-success/35 bg-chatroom-bg-surface text-chatroom-status-success cursor-default'
+              : 'border-chatroom-border/30 bg-chatroom-bg-tertiary/30 text-chatroom-text-muted/45 cursor-not-allowed',
         ].join(' ')}
         title={disabledTitle}
-        aria-label="Refresh model and harness discovery for this machine"
+        aria-label={
+          showSuccessTick
+            ? 'Discovery finished'
+            : 'Refresh model and harness discovery for this machine'
+        }
         aria-disabled={!canClick}
       >
-        <RefreshCw
-          size={14}
-          className={`shrink-0 ${isRequesting || batchPending ? 'animate-spin' : ''}`}
-        />
+        {showSuccessTick ? (
+          <Check size={14} className="shrink-0 text-chatroom-status-success" aria-hidden />
+        ) : (
+          <RefreshCw
+            size={14}
+            className={`shrink-0 ${isRequesting || batchPending ? 'animate-spin' : ''}`}
+            aria-hidden
+          />
+        )}
       </button>
       {hint ? (
         <span
