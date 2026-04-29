@@ -13,6 +13,9 @@ import React, {
   useState,
 } from 'react';
 
+/** Success check visibility — see docs/design/theme.md (industrial / restrained feedback). */
+const SUCCESS_TICK_MS = 1000;
+
 /**
  * Per-machine discovery refresh (models / harnesses). Inline status only — no toasts.
  */
@@ -115,7 +118,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
       successTickTimerRef.current = window.setTimeout(() => {
         setShowSuccessTick(false);
         successTickTimerRef.current = null;
-      }, 700);
+      }, SUCCESS_TICK_MS);
       return;
     }
 
@@ -212,20 +215,27 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         ? 'text-chatroom-status-warning'
         : 'text-chatroom-text-muted';
 
+  /* Industrial control: sharp corners, 2px border, opacity hover (docs/design/theme.md). */
+  const buttonClassName = [
+    'touch-manipulation inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-none border-2 transition-opacity duration-100',
+    canClick &&
+      'border-chatroom-border bg-chatroom-bg-surface text-chatroom-accent hover:opacity-90 active:opacity-80',
+    showSuccessTick &&
+      'border-chatroom-border bg-chatroom-bg-surface text-chatroom-status-success cursor-default',
+    !canClick &&
+      !showSuccessTick &&
+      'border-chatroom-border bg-chatroom-bg-tertiary/40 text-chatroom-text-muted cursor-not-allowed opacity-80',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className="flex flex-col items-end gap-0.5 shrink-0 self-start pt-0.5">
       <button
         type="button"
         onClick={handleClick}
         disabled={!canClick}
-        className={[
-          'touch-manipulation inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-md border transition-colors',
-          canClick
-            ? 'border-chatroom-accent/50 bg-chatroom-bg-surface text-chatroom-accent shadow-sm hover:bg-chatroom-accent/10 hover:border-chatroom-accent'
-            : showSuccessTick
-              ? 'border-chatroom-status-success/35 bg-chatroom-bg-surface text-chatroom-status-success cursor-default'
-              : 'border-chatroom-border/30 bg-chatroom-bg-tertiary/30 text-chatroom-text-muted/45 cursor-not-allowed',
-        ].join(' ')}
+        className={buttonClassName}
         title={disabledTitle}
         aria-label={
           showSuccessTick
@@ -235,10 +245,16 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         aria-disabled={!canClick}
       >
         {showSuccessTick ? (
-          <Check size={14} className="shrink-0 text-chatroom-status-success" aria-hidden />
+          <Check
+            size={14}
+            strokeWidth={2}
+            className="shrink-0 text-chatroom-status-success"
+            aria-hidden
+          />
         ) : (
           <RefreshCw
             size={14}
+            strokeWidth={2}
             className={`shrink-0 ${isRequesting || batchPending ? 'animate-spin' : ''}`}
             aria-hidden
           />
@@ -247,7 +263,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
       {hint ? (
         <span
           aria-live="polite"
-          className={`text-[9px] leading-tight max-w-[min(160px,40vw)] text-right ${hintClass}`}
+          className={`text-[10px] font-mono font-bold leading-tight max-w-[min(160px,40vw)] text-right tracking-wide ${hintClass}`}
         >
           {hint.text}
         </span>
