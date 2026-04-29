@@ -842,6 +842,8 @@ export default defineSchema({
     lastSeenAt: v.number(),
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
+    // Last time the user requested a capabilities refresh for this machine (cooldown)
+    lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
     // machineId is client-generated (UUID). Convex doesn't support unique indexes,
     // so uniqueness is enforced at the application layer in register() mutation.
@@ -1094,6 +1096,12 @@ export default defineSchema({
         type: v.literal('daemon.gitRefresh'),
         machineId: v.string(),
         workingDir: v.string(),
+        timestamp: v.number(),
+      }),
+      // UI-initiated capabilities refresh request (model/harness discovery)
+      v.object({
+        type: v.literal('daemon.refreshCapabilities'),
+        machineId: v.string(),
         timestamp: v.number(),
       }),
       // Daemon response to a daemon.ping event

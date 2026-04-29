@@ -10,6 +10,10 @@ import {
   PlaceholderEventRow,
 } from '../eventTypes';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
+import {
+  EventStreamMachineProvider,
+  type MachineNameEntry,
+} from '../context/EventStreamMachineContext';
 
 import {
   FixedModal,
@@ -31,6 +35,7 @@ interface EventStreamModalProps {
   isLoading?: boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  machines?: Map<string, MachineNameEntry>;
 }
 
 export const EventStreamModal = memo(function EventStreamModal({
@@ -40,6 +45,7 @@ export const EventStreamModal = memo(function EventStreamModal({
   isLoading,
   onLoadMore,
   hasMore,
+  machines,
 }: EventStreamModalProps) {
   // Track selected event for detail view
   const [selectedEvent, setSelectedEvent] = useState<EventStreamEvent | null>(null);
@@ -127,13 +133,10 @@ export const EventStreamModal = memo(function EventStreamModal({
   }, [onLoadMore, events.length]);
 
   // Handle selecting an event – also show detail panel on mobile
-  const handleSelectEvent = useCallback(
-    (event: EventStreamEvent) => {
-      setSelectedEvent(event);
-      setShowMobileDetail(true);
-    },
-    []
-  );
+  const handleSelectEvent = useCallback((event: EventStreamEvent) => {
+    setSelectedEvent(event);
+    setShowMobileDetail(true);
+  }, []);
 
   // Render event row using the registry
   const renderEventRow = (event: EventStreamEvent) => {
@@ -177,83 +180,95 @@ export const EventStreamModal = memo(function EventStreamModal({
       return definition.detailsRenderer(selectedEvent as never);
     }
 
-    return <PlaceholderEventDetails type={selectedEvent.type} timestamp={timestamp} eventId={selectedEvent._id} />;
+    return (
+      <PlaceholderEventDetails
+        type={selectedEvent.type}
+        timestamp={timestamp}
+        eventId={selectedEvent._id}
+      />
+    );
   };
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
-      <FixedModalContent>
-        <FixedModalHeader onClose={onClose}>
-          <FixedModalTitle className="flex items-center gap-2">
-            <Activity size={14} className="text-chatroom-status-info" />
-            Event Stream
-          </FixedModalTitle>
-        </FixedModalHeader>
-        <FixedModalBody
-          className="flex flex-col md:flex-row p-0 overflow-hidden"
-        >
-          {/* Left: Event List */}
-          <div className={`md:w-2/5 border-r border-chatroom-border flex-1 min-h-0 md:flex-none flex flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
-            {/* Section header */}
-            <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-                Latest Events
-              </span>
-            </div>
-            {/* Event list */}
-            <div ref={eventListRef} className="flex-1 overflow-y-auto">
-              {isLoading ? (
-                <div className="flex flex-col gap-2 p-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-3 py-2.5">
-                      <div className="w-2 h-2 bg-chatroom-bg-tertiary animate-pulse" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 w-3/4 rounded bg-chatroom-bg-tertiary animate-pulse" />
-                        <div className="h-2 w-1/2 rounded bg-chatroom-bg-tertiary animate-pulse" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : events.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-chatroom-text-muted">
-                  <span className="text-xs">No events yet</span>
-                </div>
-              ) : (
-                events.map(renderEventRow)
-              )}
-            </div>
-            {/* Load more button */}
-            {hasMore && onLoadMore && (
-              <button
-                onClick={handleLoadMore}
-                className="flex-shrink-0 w-full py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-t border-chatroom-border"
-              >
-                Load more events
-              </button>
-            )}
-          </div>
-          {/* Right: Event Detail */}
-          <div className={`${showMobileDetail ? 'flex' : 'hidden'} md:flex md:flex-1 overflow-hidden w-full min-h-0 flex-col`}>
-            {/* Mobile back button */}
-            <button
-              onClick={() => setShowMobileDetail(false)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border flex-shrink-0 md:hidden"
+    <EventStreamMachineProvider value={machines}>
+      <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
+        <FixedModalContent>
+          <FixedModalHeader onClose={onClose}>
+            <FixedModalTitle className="flex items-center gap-2">
+              <Activity size={14} className="text-chatroom-status-info" />
+              Event Stream
+            </FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody className="flex flex-col md:flex-row p-0 overflow-hidden">
+            {/* Left: Event List */}
+            <div
+              className={`md:w-2/5 border-r border-chatroom-border flex-1 min-h-0 md:flex-none flex flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}
             >
-              <ArrowLeft size={12} />
-              Back to events
-            </button>
-            <div className="flex flex-col h-full w-full overflow-hidden flex-1">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <span className="text-xs text-chatroom-text-muted animate-pulse">Loading events…</span>
-                </div>
-              ) : (
-                renderEventDetails()
+              {/* Section header */}
+              <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                  Latest Events
+                </span>
+              </div>
+              {/* Event list */}
+              <div ref={eventListRef} className="flex-1 overflow-y-auto">
+                {isLoading ? (
+                  <div className="flex flex-col gap-2 p-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="w-2 h-2 bg-chatroom-bg-tertiary animate-pulse" />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-3 w-3/4 rounded bg-chatroom-bg-tertiary animate-pulse" />
+                          <div className="h-2 w-1/2 rounded bg-chatroom-bg-tertiary animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : events.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-32 text-chatroom-text-muted">
+                    <span className="text-xs">No events yet</span>
+                  </div>
+                ) : (
+                  events.map(renderEventRow)
+                )}
+              </div>
+              {/* Load more button */}
+              {hasMore && onLoadMore && (
+                <button
+                  onClick={handleLoadMore}
+                  className="flex-shrink-0 w-full py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-t border-chatroom-border"
+                >
+                  Load more events
+                </button>
               )}
             </div>
-          </div>
-        </FixedModalBody>
-      </FixedModalContent>
-    </FixedModal>
+            {/* Right: Event Detail */}
+            <div
+              className={`${showMobileDetail ? 'flex' : 'hidden'} md:flex md:flex-1 overflow-hidden w-full min-h-0 flex-col`}
+            >
+              {/* Mobile back button */}
+              <button
+                onClick={() => setShowMobileDetail(false)}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-b border-chatroom-border flex-shrink-0 md:hidden"
+              >
+                <ArrowLeft size={12} />
+                Back to events
+              </button>
+              <div className="flex flex-col h-full w-full overflow-hidden flex-1">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-xs text-chatroom-text-muted animate-pulse">
+                      Loading events…
+                    </span>
+                  </div>
+                ) : (
+                  renderEventDetails()
+                )}
+              </div>
+            </div>
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
+    </EventStreamMachineProvider>
   );
 });

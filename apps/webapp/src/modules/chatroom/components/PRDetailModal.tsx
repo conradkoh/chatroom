@@ -26,7 +26,10 @@ interface PRDetailModalProps {
   pr: GitPullRequest;
   machineId: string;
   workingDir: string;
-  onPRAction?: (prNumber: number, action: 'merge_squash' | 'merge_no_squash' | 'close') => Promise<void>;
+  onPRAction?: (
+    prNumber: number,
+    action: 'merge_squash' | 'merge_no_squash' | 'close'
+  ) => Promise<void>;
   prActionLoading?: boolean;
 }
 
@@ -38,7 +41,11 @@ interface CommitListItemProps {
   onClick: () => void;
 }
 
-const CommitListItem = memo(function CommitListItem({ commit, isSelected, onClick }: CommitListItemProps) {
+const CommitListItem = memo(function CommitListItem({
+  commit,
+  isSelected,
+  onClick,
+}: CommitListItemProps) {
   return (
     <button
       type="button"
@@ -81,9 +88,22 @@ export const PRDetailModal = memo(function PRDetailModal({
   prActionLoading,
 }: PRDetailModalProps) {
   const baseBranch = pr.baseRefName ?? 'master';
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, pr.prNumber);
-  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(machineId, workingDir, pr.prNumber);
-  const { state: commitDetailState, request: requestCommitDetail, clear: clearCommitDetail } = useCommitDetail(machineId, workingDir);
+  const prNumber = pr.prNumber!;
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(
+    machineId,
+    workingDir,
+    prNumber
+  );
+  const { state: prCommitsState, request: requestPRCommits } = usePRCommits(
+    machineId,
+    workingDir,
+    prNumber
+  );
+  const {
+    state: commitDetailState,
+    request: requestCommitDetail,
+    clear: clearCommitDetail,
+  } = useCommitDetail(machineId, workingDir);
 
   // Track which view is active: 'pr' for full PR diff, or a SHA for individual commit
   const [activeView, setActiveView] = useState<'pr' | string>('pr');
@@ -91,9 +111,9 @@ export const PRDetailModal = memo(function PRDetailModal({
   // Auto-request diff when modal opens
   useEffect(() => {
     if (isOpen && prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, pr.prNumber);
+      requestPRDiff(baseBranch, prNumber);
     }
-  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, pr.prNumber]);
+  }, [isOpen, prDiffState.status, requestPRDiff, baseBranch, prNumber]);
 
   // Auto-request PR commits when modal opens (on demand = when modal is opened)
   useEffect(() => {
@@ -110,10 +130,13 @@ export const PRDetailModal = memo(function PRDetailModal({
     }
   }, [isOpen, clearCommitDetail]);
 
-  const handleSelectCommit = useCallback((sha: string) => {
-    setActiveView(sha);
-    requestCommitDetail(sha);
-  }, [requestCommitDetail]);
+  const handleSelectCommit = useCallback(
+    (sha: string) => {
+      setActiveView(sha);
+      requestCommitDetail(sha);
+    },
+    [requestCommitDetail]
+  );
 
   const handleSelectFullPR = useCallback(() => {
     setActiveView('pr');
@@ -123,31 +146,32 @@ export const PRDetailModal = memo(function PRDetailModal({
   const badge = prStateBadge(pr.state, pr.isDraft, pr.mergedAt);
 
   // Determine which diff state to show
-  const activeDiffState: FullDiffState = activeView === 'pr'
-    ? prDiffState
-    : (() => {
-        if (commitDetailState.status === 'idle' || commitDetailState.status === 'loading') {
-          return { status: 'loading' as const };
-        }
-        if (commitDetailState.status === 'available') {
-          return {
-            status: 'available' as const,
-            content: commitDetailState.content,
-            truncated: commitDetailState.truncated,
-            diffStat: commitDetailState.diffStat,
-          };
-        }
-        if (commitDetailState.status === 'too_large') {
-          return { status: 'error' as const, message: 'Commit diff is too large to display' };
-        }
-        if (commitDetailState.status === 'not_found') {
-          return { status: 'error' as const, message: 'Commit not found' };
-        }
-        if (commitDetailState.status === 'error') {
-          return { status: 'error' as const, message: commitDetailState.message };
-        }
-        return { status: 'idle' as const };
-      })();
+  const activeDiffState: FullDiffState =
+    activeView === 'pr'
+      ? prDiffState
+      : (() => {
+          if (commitDetailState.status === 'idle' || commitDetailState.status === 'loading') {
+            return { status: 'loading' as const };
+          }
+          if (commitDetailState.status === 'available') {
+            return {
+              status: 'available' as const,
+              content: commitDetailState.content,
+              truncated: commitDetailState.truncated,
+              diffStat: commitDetailState.diffStat,
+            };
+          }
+          if (commitDetailState.status === 'too_large') {
+            return { status: 'error' as const, message: 'Commit diff is too large to display' };
+          }
+          if (commitDetailState.status === 'not_found') {
+            return { status: 'error' as const, message: 'Commit not found' };
+          }
+          if (commitDetailState.status === 'error') {
+            return { status: 'error' as const, message: commitDetailState.message };
+          }
+          return { status: 'idle' as const };
+        })();
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
@@ -186,14 +210,15 @@ export const PRDetailModal = memo(function PRDetailModal({
               No commits found
             </div>
           )}
-          {prCommitsState.status === 'available' && prCommitsState.commits.map((commit) => (
-            <CommitListItem
-              key={commit.sha}
-              commit={commit}
-              isSelected={activeView === commit.sha}
-              onClick={() => handleSelectCommit(commit.sha)}
-            />
-          ))}
+          {prCommitsState.status === 'available' &&
+            prCommitsState.commits.map((commit) => (
+              <CommitListItem
+                key={commit.sha}
+                commit={commit}
+                isSelected={activeView === commit.sha}
+                onClick={() => handleSelectCommit(commit.sha)}
+              />
+            ))}
         </FixedModalBody>
       </FixedModalSidebar>
 
@@ -205,7 +230,9 @@ export const PRDetailModal = memo(function PRDetailModal({
               <span className="text-chatroom-text-muted">#{pr.prNumber}</span>
             </FixedModalTitle>
             <span className="text-sm text-chatroom-text-primary truncate">{pr.title}</span>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border flex-shrink-0 ${badge.cls}`}>
+            <span
+              className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border flex-shrink-0 ${badge.cls}`}
+            >
               {badge.label}
             </span>
             {pr.url && (
@@ -234,7 +261,7 @@ export const PRDetailModal = memo(function PRDetailModal({
         {onPRAction && pr.state === 'OPEN' && (
           <div className="px-4 py-2 border-b border-chatroom-border">
             <PRActionButtons
-              onAction={(action) => onPRAction(pr.prNumber, action)}
+              onAction={(action) => onPRAction(prNumber, action)}
               loading={prActionLoading}
               onSuccess={onClose}
             />
@@ -244,7 +271,9 @@ export const PRDetailModal = memo(function PRDetailModal({
           <div className="h-full overflow-y-auto">
             <WorkspaceDiffViewer
               state={activeDiffState}
-              onRequest={activeView === 'pr' ? () => requestPRDiff(baseBranch, pr.prNumber) : undefined}
+              onRequest={
+                activeView === 'pr' ? () => requestPRDiff(baseBranch, prNumber) : undefined
+              }
             />
           </div>
         </FixedModalBody>
