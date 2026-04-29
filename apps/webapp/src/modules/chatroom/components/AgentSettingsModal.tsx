@@ -17,8 +17,10 @@ import {
   Trash2,
   Database,
   FileText,
+  RefreshCw,
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
+import { toast } from 'sonner';
 
 import { CopyButton } from './CopyButton';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
@@ -789,6 +791,34 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
  * (status, controls, machine, model, restart stats).
  */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+
+  // TODO: remove `(api.machines as any)` once convex codegen catches up
+  const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
+
+  const isInCooldown = Date.now() < cooldownUntil;
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const id = window.setTimeout(() => setCooldownUntil(0), cooldownUntil - Date.now());
+    return () => window.clearTimeout(id);
+  }, [cooldownUntil]);
+
+  const handleRefreshCapabilities = useCallback(async () => {
+    if (isRefreshing || Date.now() < cooldownUntil) return;
+    setIsRefreshing(true);
+    try {
+      const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
+      toast.success(`Capabilities refresh requested (${result.fannedOut} machine(s))`);
+      setCooldownUntil(Date.now() + 10_000);
+    } catch {
+      toast.error('Failed to request capabilities refresh');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [chatroomId, isRefreshing, cooldownUntil, requestRefresh]);
+
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -858,6 +888,33 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
         <p className="text-xs text-chatroom-text-muted">
           {onlineAgents}/{totalAgents} agents online.
         </p>
+      </div>
+
+      <div className="border-t border-chatroom-border/50 pt-4 space-y-3">
+        <p className="text-[11px] sm:text-xs text-chatroom-text-muted leading-relaxed max-w-2xl">
+          If models or harnesses look wrong, refresh discovery on linked machines. Cooldown applies
+          per machine.
+        </p>
+        <button
+          type="button"
+          onClick={handleRefreshCapabilities}
+          disabled={isRefreshing || isInCooldown}
+          className={[
+            'touch-manipulation w-full sm:w-auto sm:shrink-0',
+            'inline-flex min-h-[44px] sm:min-h-0 items-center justify-center gap-2',
+            'rounded-md px-3 py-2.5 sm:py-2',
+            'text-xs font-medium text-chatroom-text-muted',
+            'border border-chatroom-border/40 bg-chatroom-bg-surface/50',
+            'hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/80 hover:border-chatroom-border/60',
+            'active:bg-chatroom-bg-hover',
+            'transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-chatroom-bg-surface/50',
+          ].join(' ')}
+          title="Refresh model and harness discovery on linked daemons"
+          aria-label="Refresh model and harness discovery"
+        >
+          <RefreshCw size={14} className={`shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>Refresh discovery</span>
+        </button>
       </div>
 
       {agentStatusList.length === 0 ? (
