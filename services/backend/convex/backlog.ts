@@ -9,6 +9,7 @@ import { completeBacklogItem as completeBacklogItemUseCase } from '../src/domain
 import { createBacklogItem as createBacklogItemUseCase } from '../src/domain/usecase/backlog/create-backlog-item';
 import { getBacklogItemsByIds as getBacklogItemsByIdsUseCase } from '../src/domain/usecase/backlog/get-backlog-items-by-ids';
 import { listBacklogItems as listBacklogItemsUseCase } from '../src/domain/usecase/backlog/list-backlog-items';
+import { completeAllPendingReviewBacklogItems as completeAllPendingReviewBacklogItemsUseCase } from '../src/domain/usecase/backlog/complete-all-pending-review-backlog-items';
 import { markBacklogItemForReview as markBacklogItemForReviewUseCase } from '../src/domain/usecase/backlog/mark-backlog-item-for-review';
 import { patchBacklogItem as patchBacklogItemUseCase } from '../src/domain/usecase/backlog/patch-backlog-item';
 import { reopenBacklogItem as reopenBacklogItemUseCase } from '../src/domain/usecase/backlog/reopen-backlog-item';
@@ -116,6 +117,19 @@ export const completeBacklogItem = mutation({
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await completeBacklogItemUseCase(ctx, args.itemId);
     return { success: true };
+  },
+});
+
+/** Completes all backlog items that are in pending_user_review status for a chatroom. */
+export const completeAllPendingReviewBacklogItems = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const completed = await completeAllPendingReviewBacklogItemsUseCase(ctx, args.chatroomId);
+    return { completed };
   },
 });
 

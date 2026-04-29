@@ -92,6 +92,8 @@ interface UseCommandPaletteCommandsProps {
   onDeleteSavedCommand?: ((commandId: string, name: string) => void) | null;
   /** The commandId currently awaiting delete confirmation (if any) */
   confirmingDeleteCommandId?: string | null;
+  /** Force the daemon to immediately re-push observed workspace state (git status, recent commits, PRs). */
+  onRefreshWorkspaceState?: (() => void) | null;
 }
 
 /**
@@ -133,6 +135,7 @@ export function useCommandPaletteCommands({
   onEditSavedCommand,
   onDeleteSavedCommand,
   confirmingDeleteCommandId,
+  onRefreshWorkspaceState,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -466,6 +469,18 @@ export function useCommandPaletteCommands({
       });
     }
 
+    // ─── Workspace ──────────────────────────────────────────────
+    if (onRefreshWorkspaceState) {
+      commands.push({
+        id: 'workspace.refreshState',
+        label: 'Refresh Workspace State',
+        icon: <RefreshCw size={14} />,
+        category: 'Actions',
+        keywords: ['refresh', 'reload', 'sync', 'workspace', 'state', 'pull', 'update', 'git'],
+        action: onRefreshWorkspaceState,
+      });
+    }
+
     // ─── Process Manager ────────────────────────────────
     if (onOpenProcessManager) {
       commands.push({
@@ -512,5 +527,6 @@ export function useCommandPaletteCommands({
     onEditSavedCommand,
     onDeleteSavedCommand,
     confirmingDeleteCommandId,
+    onRefreshWorkspaceState,
   ]);
 }

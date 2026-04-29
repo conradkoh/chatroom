@@ -1453,6 +1453,9 @@ export default defineSchema({
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
+    // Pipeline mode — 'full' (heartbeat) or 'slim' (observed sync)
+    pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
+
     // Timestamp
     updatedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
@@ -1483,7 +1486,8 @@ export default defineSchema({
   /**
    * Request queue for on-demand workspace operations.
    * The daemon polls this table for pending requests and fulfills them.
-   * Supports: full diff, commit detail, and load-more commits.
+   * Supports: full diff, commit detail, load-more commits, PR diff, PR commits,
+   * all pull requests, and recent commits.
    */
   chatroom_workspaceDiffRequests: defineTable({
     machineId: v.string(),
@@ -1494,7 +1498,9 @@ export default defineSchema({
       v.literal('more_commits'),
       v.literal('pr_diff'),
       v.literal('pr_action'),
-      v.literal('pr_commits')
+      v.literal('pr_commits'),
+      v.literal('all_pull_requests'),
+      v.literal('recent_commits')
     ),
     // For commit_detail requests
     sha: v.optional(v.string()),
@@ -1519,6 +1525,14 @@ export default defineSchema({
   })
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
+    // Tight index for idempotency checks that only need (machine, workingDir, type, status).
+    // Covers requestAllPullRequests and requestRecentCommits without a filter scan.
+    .index('by_machine_workingDir_type_status', [
+      'machineId',
+      'workingDir',
+      'requestType',
+      'status',
+    ])
     // Tight index for the requestPRDiff idempotency check: a single point-lookup
     // for `(machineId, workingDir, requestType='pr_diff', prNumber, status='pending')`
     // — every equality is index-covered, no scan.
@@ -1577,6 +1591,55 @@ export default defineSchema({
     ),
     updatedAt: v.number(),
   }).index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
+
+  /**
+   * Cached list of all pull requests for a workspace.
+   * Populated by the daemon after an `all_pull_requests` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspaceAllPullRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    pullRequests: v.array(
+      v.object({
+        prNumber: v.optional(v.number()),
+        number: v.optional(v.number()),
+        title: v.string(),
+        url: v.string(),
+        headRefName: v.string(),
+        baseRefName: v.optional(v.string()),
+        state: v.string(),
+        author: v.optional(v.string()),
+        createdAt: v.optional(v.string()),
+        updatedAt: v.optional(v.string()),
+        mergedAt: v.optional(v.union(v.string(), v.null())),
+        closedAt: v.optional(v.union(v.string(), v.null())),
+        isDraft: v.optional(v.boolean()),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Cached recent commits for a workspace.
+   * Populated by the daemon after a `recent_commits` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspaceRecentCommits: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+    hasMoreCommits: v.boolean(),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Per-commit diff content fetched on demand.
@@ -2020,4 +2083,19 @@ export default defineSchema({
     .index('by_chatroomId', ['chatroomId'])
     .index('by_chatroomId_type', ['chatroomId', 'type'])
     .index('by_sourceCustomizationId', ['sourceCustomizationId']),
+
+  /**
+   * Chatroom observation tracking for event-driven daemon sync.
+   * Frontend sends heartbeats to keep a chatroom "observed"; daemon subscribes
+   * to observed chatrooms to sync only their workspaces.
+   * `lastRefreshedAt` is set explicitly by the frontend on focus/git-panel-open
+   * to trigger an immediate sync instead of waiting for the safety poll.
+   */
+  chatroom_observation: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    lastObservedAt: v.number(),
+    lastRefreshedAt: v.optional(v.number()),
+  })
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_lastObservedAt', ['lastObservedAt']),
 });

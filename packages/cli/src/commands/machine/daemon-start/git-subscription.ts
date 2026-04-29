@@ -9,6 +9,8 @@
  *   - `full_diff` → run `getFullDiff()`, push via `upsertFullDiff()`
  *   - `commit_detail` → run `getCommitDetail()` + `getCommitMetadata()`, push via `upsertCommitDetail()`
  *   - `more_commits` → run `getRecentCommits()` with skip offset, push via `appendMoreCommits()`
+ *   - `all_pull_requests` → run `getAllPRs()`, push via `upsertAllPullRequests()`
+ *   - `recent_commits` → run `getRecentCommits()` with offset 0, push via `upsertRecentCommits()`
  *
  * The heartbeat loop (every 30s) is responsible for pushing incremental
  * git state (branch, isDirty, diffStat, recentCommits) when state changes.
@@ -87,9 +89,7 @@ export function startGitRequestSubscription(
     }
   );
 
-  console.log(
-    `[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`
-  );
+  console.log(`[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`);
 
   return {
     stop: () => {
@@ -254,7 +254,9 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
   await pushGitState(ctx).catch((err: unknown) => {
-    console.warn(`[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`);
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
+    );
   });
 }
 
@@ -373,6 +375,46 @@ async function processMoreCommits(ctx: DaemonContext, req: PendingRequest): Prom
   );
 }
 
+/**
+ * Process an `all_pull_requests` request:
+ * Run `gh pr list --state all`, push via `upsertAllPullRequests`.
+ */
+async function processAllPullRequests(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const pullRequests = await gitReader.getAllPRs(req.workingDir);
+
+  await ctx.deps.backend.mutation(api.workspaces.upsertAllPullRequests, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir: req.workingDir,
+    pullRequests,
+  });
+
+  console.log(
+    `[${formatTimestamp()}] 📋 All pull requests pushed: ${req.workingDir} (${pullRequests.length} PRs)`
+  );
+}
+
+/**
+ * Process a `recent_commits` request:
+ * Run `git log` from offset 0, push via `upsertRecentCommits` (replaces existing).
+ */
+async function processRecentCommits(ctx: DaemonContext, req: PendingRequest): Promise<void> {
+  const commits = await gitReader.getRecentCommits(req.workingDir, COMMITS_PER_PAGE, 0);
+  const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
+
+  await ctx.deps.backend.mutation(api.workspaces.upsertRecentCommits, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir: req.workingDir,
+    commits,
+    hasMoreCommits,
+  });
+
+  console.log(
+    `[${formatTimestamp()}] 📜 Recent commits pushed: ${req.workingDir} (${commits.length} commits)`
+  );
+}
+
 // ─── Request Processing ───────────────────────────────────────────────────────
 
 /**
@@ -427,6 +469,12 @@ export async function processRequests(
           break;
         case 'pr_commits':
           await processPRCommits(ctx, req);
+          break;
+        case 'all_pull_requests':
+          await processAllPullRequests(ctx, req);
+          break;
+        case 'recent_commits':
+          await processRecentCommits(ctx, req);
           break;
       }
 
