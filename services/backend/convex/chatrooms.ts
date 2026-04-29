@@ -451,9 +451,7 @@ export const listUnreadStatus = query({
           hasUnread = recentMessages.length > 0;
           if (hasUnread) {
             hasUnreadHandoff = recentMessages.some(
-              (msg) =>
-                msg.type === 'handoff' &&
-                msg.targetRole?.toLowerCase() === 'user'
+              (msg) => msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user'
             );
           }
         }
@@ -527,5 +525,51 @@ export const getPresenceForChatroom = query({
       lastStatus: p.lastStatus ?? null,
       lastDesiredState: p.lastDesiredState ?? null,
     }));
+  },
+});
+
+export const recordChatroomObservation = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    /** When true, also updates `lastRefreshedAt` to trigger an immediate daemon sync. */
+    refresh: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.ok) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError('Chatroom not found');
+    }
+
+    const now = Date.now();
+
+    // Check if observation record exists for this chatroom
+    const existing = await ctx.db
+      .query('chatroom_observation')
+      .withIndex('by_chatroomId', (q) => q.eq('chatroomId', args.chatroomId))
+      .first();
+
+    if (existing) {
+      // Update existing observation
+      const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
+        lastObservedAt: now,
+      };
+      if (args.refresh) {
+        patch.lastRefreshedAt = now;
+      }
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      // Create new observation record
+      await ctx.db.insert('chatroom_observation', {
+        chatroomId: args.chatroomId,
+        lastObservedAt: now,
+        lastRefreshedAt: args.refresh ? now : undefined,
+      });
+    }
   },
 });

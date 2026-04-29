@@ -11,7 +11,14 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
-import type { WorkspaceGitState, FullDiffState, CommitDetailState, PRDiffState } from '../types/git';
+import type {
+  WorkspaceGitState,
+  FullDiffState,
+  CommitDetailState,
+  PRDiffState,
+  GitCommit,
+  GitPullRequest,
+} from '../types/git';
 import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -69,7 +76,9 @@ export function useFullDiff(
           console.error('[useFullDiff] Failed to decompress diff:', err);
           if (!cancelled) setDecompressedContent(null);
         });
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     } else {
       setDecompressedContent(null);
     }
@@ -184,7 +193,9 @@ export function useCommitDetail(
           console.error('[useCommitDetail] Failed to decompress commit detail:', err);
           if (!cancelled) setDecompressedContent(null);
         });
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     } else {
       setDecompressedContent(null);
     }
@@ -281,11 +292,12 @@ export function usePRCommits(
  * Returns a loading flag and a loadMore function for paginating commits.
  *
  * `loadMore()` requests the next page of commits (offset = current length).
- * The daemon appends them to the git state via `appendMoreCommits`.
+ * The daemon appends them to the on-demand recent commits cache via `appendMoreCommits`.
  */
 export function useLoadMoreCommits(
   machineId: string,
-  workingDir: string
+  workingDir: string,
+  commitCount?: number
 ): { loading: boolean; loadMore: () => void } {
   const [loading, setLoading] = useState(false);
   const requestMutation = useSessionMutation(api.workspaces.requestMoreCommits);
@@ -296,15 +308,78 @@ export function useLoadMoreCommits(
   );
 
   const loadMore = useCallback(() => {
-    const currentCount =
-      gitState?.status === 'available' ? (gitState.recentCommits?.length ?? 0) : 0;
+    const offset =
+      commitCount ?? (gitState?.status === 'available' ? (gitState.recentCommits?.length ?? 0) : 0);
     setLoading(true);
-    requestMutation({ machineId, workingDir, offset: currentCount }).finally(() =>
-      setLoading(false)
-    );
-  }, [requestMutation, machineId, workingDir, gitState]);
+    requestMutation({ machineId, workingDir, offset }).finally(() => setLoading(false));
+  }, [requestMutation, machineId, workingDir, gitState, commitCount]);
 
   return { loading, loadMore };
+}
+
+type AllPullRequestsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'available'; pullRequests: GitPullRequest[] };
+
+export function useAllPullRequests(
+  machineId: string,
+  workingDir: string
+): { state: AllPullRequestsState; request: () => void } {
+  const requestMutation = useSessionMutation(api.workspaces.requestAllPullRequests);
+  const requestedRef = useRef(false);
+  const result = useSessionQuery(api.workspaces.getAllPullRequests, { machineId, workingDir });
+
+  const request = useCallback(() => {
+    requestedRef.current = true;
+    requestMutation({ machineId, workingDir });
+  }, [requestMutation, machineId, workingDir]);
+
+  const state: AllPullRequestsState = useMemo(() => {
+    if (!result) {
+      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
+    }
+
+    return {
+      status: 'available',
+      pullRequests: result.pullRequests,
+    };
+  }, [result]);
+
+  return { state, request };
+}
+
+type RecentCommitsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'available'; commits: GitCommit[]; hasMoreCommits: boolean };
+
+export function useRecentCommits(
+  machineId: string,
+  workingDir: string
+): { state: RecentCommitsState; request: () => void } {
+  const requestMutation = useSessionMutation(api.workspaces.requestRecentCommits);
+  const requestedRef = useRef(false);
+  const result = useSessionQuery(api.workspaces.getRecentCommits, { machineId, workingDir });
+
+  const request = useCallback(() => {
+    requestedRef.current = true;
+    requestMutation({ machineId, workingDir });
+  }, [requestMutation, machineId, workingDir]);
+
+  const state: RecentCommitsState = useMemo(() => {
+    if (!result) {
+      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
+    }
+
+    return {
+      status: 'available',
+      commits: result.commits,
+      hasMoreCommits: result.hasMoreCommits,
+    };
+  }, [result]);
+
+  return { state, request };
 }
 
 /**

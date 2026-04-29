@@ -96,6 +96,12 @@ export interface DaemonContext {
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
   /**
+   * Whether observed-sync feature is enabled.
+   * When true, daemon subscribes to observed chatrooms instead of periodic git/command sync.
+   * Toggle requires daemon restart.
+   */
+  observedSyncEnabled?: boolean;
+  /**
    * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
    * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
    * Only push to backend when this hash changes.
