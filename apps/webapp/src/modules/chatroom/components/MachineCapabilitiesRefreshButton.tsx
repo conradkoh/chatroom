@@ -171,6 +171,9 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         } else if (result.reason === 'not_linked') {
           setHint({ tone: 'muted', text: 'This machine is not linked to this chatroom.' });
           clearHintSoon(6000);
+        } else if (result.reason === 'not_owner') {
+          setHint({ tone: 'err', text: 'You do not have access to refresh discovery here.' });
+          clearHintSoon(6000);
         } else {
           setHint({ tone: 'err', text: 'Could not start discovery.' });
           clearHintSoon(6000);
@@ -218,7 +221,10 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         />
       </button>
       {hint ? (
-        <span className={`text-[8px] leading-tight max-w-[min(140px,36vw)] text-right ${hintClass}`}>
+        <span
+          aria-live="polite"
+          className={`text-[9px] leading-tight max-w-[min(160px,40vw)] text-right ${hintClass}`}
+        >
           {hint.text}
         </span>
       ) : null}

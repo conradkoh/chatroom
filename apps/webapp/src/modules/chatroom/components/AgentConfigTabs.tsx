@@ -566,6 +566,8 @@ interface RemoteTabContentProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   chatroomId: string;
+  /** When provided, skips a duplicate workspace registry subscription in this tab. */
+  linkedMachineIds?: ReadonlySet<string>;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -574,6 +576,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   isLoadingMachines,
   daemonStartCommand,
   chatroomId,
+  linkedMachineIds: linkedMachineIdsProp,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -625,14 +628,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
 
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId, {
+    skip: linkedMachineIdsProp !== undefined,
+  });
   const linkedMachineIds = useMemo(() => {
+    if (linkedMachineIdsProp !== undefined) return linkedMachineIdsProp;
     const s = new Set<string>();
     for (const ws of chatroomWorkspaces) {
       if (ws.machineId) s.add(ws.machineId);
     }
     return s;
-  }, [chatroomWorkspaces]);
+  }, [linkedMachineIdsProp, chatroomWorkspaces]);
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);

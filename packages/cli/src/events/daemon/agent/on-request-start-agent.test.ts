@@ -21,6 +21,8 @@ function createMockCtx(overrides?: {
     },
     agentServices: new Map(),
     lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
     deps: {
       agentProcessManager: {
         ensureRunning: vi.fn().mockResolvedValue(ensureRunningResult),

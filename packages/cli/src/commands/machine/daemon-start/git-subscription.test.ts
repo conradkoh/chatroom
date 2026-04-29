@@ -29,6 +29,8 @@ function makeMockContext(): DaemonContext {
     events: {} as DaemonContext['events'],
     agentServices: new Map(),
     lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
     deps: {
       backend: {
         mutation: vi.fn().mockResolvedValue(undefined),

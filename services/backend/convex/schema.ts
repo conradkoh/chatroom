@@ -953,7 +953,7 @@ export default defineSchema({
     userId: v.id('users'),
     createdAt: v.number(),
     expectedMachineCount: v.number(),
-    /** Rows in terminal state (completed / skipped_no_changes / failed). */
+    /** Machine result rows no longer in `pending` (completed / skipped_no_changes / failed). */
     finishedMachineCount: v.number(),
     aggregateStatus: v.union(
       v.literal('pending'),
@@ -962,7 +962,8 @@ export default defineSchema({
       v.literal('failed')
     ),
   })
-    .index('by_chatroom_created', ['chatroomId', 'createdAt']),
+    .index('by_chatroom_created', ['chatroomId', 'createdAt'])
+    .index('by_aggregateStatus_created', ['aggregateStatus', 'createdAt']),
 
   chatroom_capabilities_refresh_machine_results: defineTable({
     batchId: v.id('chatroom_capabilities_refresh_batches'),

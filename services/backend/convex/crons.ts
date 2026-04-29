@@ -47,4 +47,11 @@ crons.interval('cleanup cli auth requests', { hours: 24 }, internal.chatroomClea
 // Chatroom cleanup — completed tasks 60d+ (daily)
 crons.interval('cleanup completed tasks', { hours: 24 }, internal.chatroomCleanup.cleanupCompletedTasks);
 
+// Capabilities refresh — fail batches stuck in pending (48h+, daily)
+crons.interval(
+  'expire stale capabilities refresh batches',
+  { hours: 24 },
+  internal.capabilitiesRefreshCron.expireStalePendingCapabilitiesRefreshBatches
+);
+
 export default crons;

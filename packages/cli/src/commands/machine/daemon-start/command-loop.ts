@@ -29,6 +29,7 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -104,13 +105,13 @@ function formatModelMap(map: Record<string, string[]>): string {
  * changed since the last push.
  *
  * The daemon is the source of truth for "what changed since last sync" — the
- * previously pushed snapshot lives on `ctx.lastPushedModels` and is diffed
- * locally each tick. The backend mutation is only invoked when the diff is
- * non-empty, keeping a 10-second poll cadence cheap.
+ * previously pushed model snapshot lives on `ctx.lastPushedModels` and is diffed
+ * locally each tick, and harness list + versions are compared via a stable
+ * fingerprint. The mutation is only invoked when either snapshot differs.
  *
- * On a successful push, `ctx.lastPushedModels` is updated to the freshly
- * discovered set. On failure, the snapshot is left unchanged so the next
- * tick will retry with the same diff.
+ * On a successful push, `ctx.lastPushedModels` and
+ * `ctx.lastPushedHarnessFingerprint` are updated to the freshly discovered
+ * state. On failure, both snapshots are left unchanged so the next tick retries.
  */
 export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
   if (!ctx.config) {
@@ -124,9 +125,17 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
 
-  const diff = diffModels(ctx.lastPushedModels, models);
-  if (!diff.hasChanges) {
-    // Nothing new since last successful push — skip the Convex mutation.
+  const modelDiff = diffModels(ctx.lastPushedModels, models);
+  const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
+    ctx.config.availableHarnesses,
+    ctx.config.harnessVersions as Record<string, unknown>
+  );
+  const harnessFingerprintChanged =
+    ctx.lastPushedHarnessFingerprint !== null &&
+    nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
+
+  if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
+    // Models and harness metadata match last successful push — skip Convex.
     return { kind: 'skipped_no_changes' };
   }
 
@@ -143,15 +152,16 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
     // Snapshot only after the backend successfully accepts the update — on
     // failure we want the next tick to retry with the same diff.
     ctx.lastPushedModels = models;
+    ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
 
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-    if (Object.keys(diff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(diff.added)}`);
+    if (Object.keys(modelDiff.added).length > 0) {
+      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
     }
-    if (Object.keys(diff.removed).length > 0) {
+    if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
-        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(diff.removed)}`
+        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
       );
     }
     console.log(

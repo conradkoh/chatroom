@@ -266,6 +266,9 @@ export const refreshCapabilities = mutation({
  * Creates a `chatroom_capabilities_refresh_batches` row (expected count 1) plus
  * a per-machine result row so the webapp can subscribe until the daemon reports.
  */
+const CAPABILITIES_REFRESH_ERROR_MESSAGE_MAX = 2000;
+const CAPABILITIES_REFRESH_QUERY_ERROR_PREVIEW_MAX = 500;
+
 export const requestCapabilitiesRefresh = mutation({
   args: {
     ...SessionIdArg,
@@ -278,6 +281,12 @@ export const requestCapabilitiesRefresh = mutation({
       throw new Error('Authentication required');
     }
     const user = auth.user;
+
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: user._id },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'write-access',
+    });
 
     const now = Date.now();
     const COOLDOWN_MS = 10 * 1000; // 10 seconds
@@ -303,10 +312,11 @@ export const requestCapabilitiesRefresh = mutation({
 
     const lastRefresh = machine.lastCapabilitiesRefreshRequestedAt ?? 0;
     if (now - lastRefresh < COOLDOWN_MS) {
+      const rawRemaining = COOLDOWN_MS - (now - lastRefresh);
       return {
         applied: false as const,
         reason: 'cooldown' as const,
-        retryAfterMs: COOLDOWN_MS - (now - lastRefresh),
+        retryAfterMs: Math.max(0, Math.min(COOLDOWN_MS, rawRemaining)),
       };
     }
 
@@ -379,6 +389,9 @@ export const reportCapabilitiesRefreshResult = mutation({
     if (!batch) {
       throw new Error('Refresh batch not found');
     }
+    if (batch.userId !== user._id) {
+      throw new Error('Refresh batch does not belong to the current user');
+    }
 
     const result = await ctx.db
       .query('chatroom_capabilities_refresh_machine_results')
@@ -396,10 +409,14 @@ export const reportCapabilitiesRefreshResult = mutation({
     }
 
     const finishedAt = Date.now();
+    const errorMessage =
+      args.errorMessage !== undefined
+        ? args.errorMessage.slice(0, CAPABILITIES_REFRESH_ERROR_MESSAGE_MAX)
+        : undefined;
     await ctx.db.patch('chatroom_capabilities_refresh_machine_results', result._id, {
       status: args.status,
       finishedAt,
-      errorMessage: args.errorMessage,
+      errorMessage,
     });
 
     const rows = await ctx.db
@@ -468,7 +485,9 @@ export const getCapabilitiesRefreshBatch = query({
         machineId: m.machineId,
         status: m.status,
         finishedAt: m.finishedAt,
-        errorMessage: m.errorMessage,
+        errorMessage: m.errorMessage
+          ? m.errorMessage.slice(0, CAPABILITIES_REFRESH_QUERY_ERROR_PREVIEW_MAX)
+          : undefined,
       })),
     };
   },
