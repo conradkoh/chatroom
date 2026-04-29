@@ -148,7 +148,7 @@ export const AgentPanel = memo(function AgentPanel({
   const [lastRefreshAt, setLastRefreshAt] = useState(0);
 
   // Refresh mutation with session awareness
-  // TODO: remove `(api.machines as any)` once convex codegen runs (backend depends on local running backend)
+  // TODO: remove `(api.machines as any)` once convex codegen catches up
   const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
 
   // Determine if button should be disabled (cooldown)

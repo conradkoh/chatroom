@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
+import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
 
 export default function ChatroomPage() {
   const searchParams = useSearchParams();
@@ -13,6 +14,8 @@ export default function ChatroomPage() {
   const handleBack = () => {
     router.push('/app');
   };
+
+  const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
 
   if (!chatroomId) {
     return (
@@ -74,7 +77,12 @@ export default function ChatroomPage() {
 
       {/* Main chatroom area */}
       <div className="flex-1 min-w-0">
-        <ChatroomDashboard key={chatroomId} chatroomId={chatroomId} onBack={handleBack} />
+        <ChatroomDashboard
+          key={chatroomId}
+          chatroomId={chatroomId}
+          onBack={handleBack}
+          refreshObservedChatroom={refreshObservedChatroom}
+        />
       </div>
     </div>
   );

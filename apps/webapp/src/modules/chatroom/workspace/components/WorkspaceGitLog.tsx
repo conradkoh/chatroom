@@ -13,9 +13,11 @@ import { Button } from '@/components/ui/button';
 interface WorkspaceGitLogProps {
   commits: GitCommit[];
   hasMore: boolean;
+  status?: 'idle' | 'loading' | 'available';
   selectedSha: string | null;
   loadingMore: boolean;
   onSelectCommit: (sha: string) => void;
+  onRequest: () => void;
   onLoadMore: () => void;
 }
 
@@ -65,11 +67,38 @@ const CommitRow = memo(function CommitRow({ commit, isSelected, onSelect }: Comm
 export const WorkspaceGitLog = memo(function WorkspaceGitLog({
   commits,
   hasMore,
+  status = 'available',
   selectedSha,
   loadingMore,
   onSelectCommit,
+  onRequest,
   onLoadMore,
 }: WorkspaceGitLogProps) {
+  if (status === 'idle') {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 gap-2 px-3 text-center">
+        <div className="text-xs text-chatroom-text-muted">Commit history loads on demand</div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRequest}
+          className="text-xs text-chatroom-text-secondary"
+        >
+          Load commits
+        </Button>
+      </div>
+    );
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-32 gap-1.5 text-xs text-chatroom-text-muted">
+        <Loader2 size={12} className="animate-spin" />
+        Loading commits…
+      </div>
+    );
+  }
+
   if (commits.length === 0) {
     return <div className="text-xs text-chatroom-text-muted px-3 py-2">No commits</div>;
   }

@@ -68,12 +68,8 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
       {/* PR header */}
       <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-surface">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-chatroom-text-primary">
-            #{activePR.prNumber}
-          </span>
-          <span className="text-xs text-chatroom-text-secondary truncate">
-            {activePR.title}
-          </span>
+          <span className="text-xs font-bold text-chatroom-text-primary">#{activePR.prNumber}</span>
+          <span className="text-xs text-chatroom-text-secondary truncate">{activePR.title}</span>
           <a
             href={activePR.url}
             target="_blank"

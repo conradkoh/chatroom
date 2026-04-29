@@ -45,6 +45,23 @@ export const DAEMON_HEARTBEAT_TTL_MS = 90_000; // 90s
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
 
+// ─── Observed Chatroom Sync ───────────────────────────────────────────────────
+
+/** How long a chatroom remains marked as "observed" before TTL expires (ms).
+ *  If frontend stops sending heartbeats within this window, daemon stops syncing.
+ *  Set to 60s. */
+export const OBSERVATION_TTL_MS = 60_000;
+
+/** Safety poll interval for observed chatrooms (ms).
+ *  Daemon additionally polls observed chatrooms periodically as a safety net
+ *  in case frontend heartbeat stops unexpectedly. Set to 30s. */
+export const OBSERVED_SAFETY_POLL_MS = 30_000;
+
+/** How often frontend sends a heartbeat while chatroom view is visible (ms).
+ *  Frontend sends this heartbeat to keep chatrooms marked as observed.
+ *  Set to 30s. */
+export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
+
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
 /** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */

@@ -32,7 +32,9 @@ describe('useCommandPaletteCommands', () => {
       'nav-go-to-file',
     ]);
 
-    const newChatroomCommand = navigateCommands.find((command) => command.id === 'nav-new-chatroom');
+    const newChatroomCommand = navigateCommands.find(
+      (command) => command.id === 'nav-new-chatroom'
+    );
     expect(newChatroomCommand).toMatchObject({
       label: 'Chatroom: New Chatroom',
       keywords: ['new', 'create', 'chatroom'],
@@ -165,7 +167,9 @@ describe('useCommandPaletteCommands', () => {
       );
 
       const agentsCommands = result.current.filter((command) => command.category === 'Agents');
-      const startCommand = agentsCommands.find((command) => command.id === 'agents-start-all-remote');
+      const startCommand = agentsCommands.find(
+        (command) => command.id === 'agents-start-all-remote'
+      );
 
       expect(startCommand).toBeDefined();
       expect(startCommand).toMatchObject({
@@ -184,7 +188,9 @@ describe('useCommandPaletteCommands', () => {
         })
       );
 
-      const startCommand = result.current.find((command) => command.id === 'agents-start-all-remote');
+      const startCommand = result.current.find(
+        (command) => command.id === 'agents-start-all-remote'
+      );
       startCommand?.action();
 
       expect(onStartAllRemoteAgents).toHaveBeenCalledTimes(1);
@@ -198,7 +204,43 @@ describe('useCommandPaletteCommands', () => {
         })
       );
 
-      expect(result.current.some((command) => command.id === 'agents-start-all-remote')).toBe(false);
+      expect(result.current.some((command) => command.id === 'agents-start-all-remote')).toBe(
+        false
+      );
+    });
+  });
+
+  describe('Refresh Workspace State command', () => {
+    it('adds Refresh Workspace State command when handler is provided', () => {
+      const onRefreshWorkspaceState = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, onRefreshWorkspaceState })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'workspace.refreshState');
+      expect(cmd).toBeDefined();
+      expect(cmd).toMatchObject({
+        label: 'Refresh Workspace State',
+        keywords: expect.arrayContaining(['refresh', 'workspace', 'sync']),
+      });
+    });
+
+    it('triggers the handler when Refresh Workspace State action is called', () => {
+      const onRefreshWorkspaceState = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({ ...baseProps, onRefreshWorkspaceState })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'workspace.refreshState');
+      cmd?.action();
+      expect(onRefreshWorkspaceState).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits Refresh Workspace State command when handler is not provided', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
+      expect(result.current.some((c) => c.id === 'workspace.refreshState')).toBe(false);
     });
   });
 });
