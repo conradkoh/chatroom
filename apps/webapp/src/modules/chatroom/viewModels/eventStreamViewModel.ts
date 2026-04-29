@@ -26,6 +26,7 @@ export type EventTypeName =
   | 'daemon.ping'
   | 'daemon.pong'
   | 'daemon.gitRefresh'
+  | 'daemon.refreshCapabilities'
   | 'config.requestRemoval'
   | 'workflow.started'
   | 'workflow.stepCompleted'
@@ -212,6 +213,12 @@ export interface DaemonGitRefreshEvent extends EventStreamEventBase {
   workingDir: string;
 }
 
+export interface DaemonRefreshCapabilitiesEvent extends EventStreamEventBase {
+  type: 'daemon.refreshCapabilities';
+  machineId: string;
+  batchId?: string;
+}
+
 // ─── Event Stream Event Union ────────────────────────────────────────────────
 
 /**
@@ -320,6 +327,7 @@ export type EventStreamEvent =
   | DaemonPingEvent
   | DaemonPongEvent
   | DaemonGitRefreshEvent
+  | DaemonRefreshCapabilitiesEvent
   | WorkflowStartedEvent
   | WorkflowStepCompletedEvent
   | WorkflowStepCancelledEvent
@@ -350,6 +358,7 @@ export function formatEventType(type: string): string {
     'daemon.ping': 'Daemon Ping',
     'daemon.pong': 'Daemon Pong',
     'daemon.gitRefresh': 'Git Refresh',
+    'daemon.refreshCapabilities': 'Capabilities Refresh',
     'config.requestRemoval': 'Config Request Removal',
     'workflow.started': 'Workflow Started',
     'workflow.stepCompleted': 'Workflow Step Completed',
@@ -382,6 +391,7 @@ export function getEventBadgeTextColor(type: string): string {
     'daemon.ping': 'text-chatroom-text-muted',
     'daemon.pong': 'text-chatroom-text-muted',
     'daemon.gitRefresh': 'text-chatroom-text-muted',
+    'daemon.refreshCapabilities': 'text-chatroom-text-muted',
     'config.requestRemoval': 'text-chatroom-status-warning',
   };
   return colorMap[type] ?? 'text-chatroom-status-info';

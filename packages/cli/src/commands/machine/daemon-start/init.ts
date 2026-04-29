@@ -10,6 +10,7 @@ import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { api } from '../../../api.js';
 import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
@@ -412,6 +413,10 @@ export async function initDaemon(): Promise<DaemonContext> {
         // so the first refreshModels tick correctly detects "no change" instead
         // of always re-pushing the same set on the first run.
         lastPushedModels: availableModels,
+        lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
+          config.availableHarnesses,
+          config.harnessVersions as Record<string, unknown>
+        ),
         observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
       };
 

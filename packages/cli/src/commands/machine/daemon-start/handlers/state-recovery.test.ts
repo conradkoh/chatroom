@@ -51,6 +51,7 @@ function createMockContext(overrides?: {
     ]),
     lastPushedGitState: new Map(),
     lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
   };
 }
 

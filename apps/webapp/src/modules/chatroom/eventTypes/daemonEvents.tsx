@@ -6,6 +6,7 @@ import type {
   DaemonPingEvent,
   DaemonPongEvent,
   DaemonGitRefreshEvent,
+  DaemonRefreshCapabilitiesEvent,
 } from '../viewModels/eventStreamViewModel';
 
 // ─── Daemon Ping ──────────────────────────────────────────────────────────────
@@ -97,6 +98,40 @@ function renderDaemonGitRefreshDetails(event: DaemonGitRefreshEvent): React.Reac
   );
 }
 
+// ─── Daemon Capabilities Refresh ─────────────────────────────────────────────
+
+function renderDaemonRefreshCapabilitiesCell(
+  event: DaemonRefreshCapabilitiesEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="daemon.refreshCapabilities"
+      badgeText="Discovery"
+      badgeColor="muted"
+      primaryInfo="Daemon"
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderDaemonRefreshCapabilitiesDetails(
+  event: DaemonRefreshCapabilitiesEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Capabilities refresh"
+      timestamp={event.timestamp}
+      type="daemon.refreshCapabilities"
+    >
+      <MachineDetailRow machineId={event.machineId} />
+      {event.batchId ? <DetailRow label="Batch ID" value={event.batchId} mono /> : null}
+    </EventDetails>
+  );
+}
+
 // ─── Register all daemon event types ───────────────────────────────────────────
 
 export function registerDaemonEvents(): void {
@@ -111,5 +146,9 @@ export function registerDaemonEvents(): void {
   registerEventType('daemon.gitRefresh', {
     cellRenderer: renderDaemonGitRefreshCell,
     detailsRenderer: renderDaemonGitRefreshDetails,
+  });
+  registerEventType('daemon.refreshCapabilities', {
+    cellRenderer: renderDaemonRefreshCapabilitiesCell,
+    detailsRenderer: renderDaemonRefreshCapabilitiesDetails,
   });
 }
