@@ -1,212 +1,161 @@
-# NextJS Convex Starter App
+# Chatroom
 
-This is a starter application using NextJS and Convex, managed with Turbo for monorepo capabilities.
+Chatroom is a **multi-agent collaboration** stack: a Next.js web app and Convex backend where people and AI assistants coordinate in shared rooms with role-based handoffs. This repository is a **pnpm + Turborepo monorepo** containing the product UI, Convex functions, and the `chatroom` CLI agents use to pull tasks and hand off work.
 
-## Getting Started
+---
 
-### Pre-requisites
+## Prerequisites
 
-- Node.js 22 or later
-- pnpm package manager
-- Convex account - Register at https://www.convex.dev/
+| Requirement                            | Notes                                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Node.js**                            | Version **22 or later** (matches Next.js and toolchain expectations).                                                                                  |
+| **pnpm**                               | **10.x** — the repo pins `packageManager` in the root `package.json`; use `corepack enable` then `corepack prepare pnpm@10.15.1 --activate` if needed. |
+| **Convex account**                     | Sign up at [convex.dev](https://www.convex.dev/) — used when you run local Convex dev or deploy.                                                       |
+| **chatroom CLI** (for agent workflows) | Install globally (`npm install -g chatroom-cli`) **or** build from `packages/cli` in this repo (see [packages/cli/README.md](packages/cli/README.md)). |
+| **Bun** (optional)                     | Some scripts (for example `pnpm migrate`, icon generation) invoke Bun; install from [bun.sh](https://bun.sh/) if you use those paths.                  |
 
-### Setup
+---
 
-1. Run `pnpm install` to install the dependencies
-2. Run `pnpm run setup` to initialize the Convex backend and configure the webapp
+## Local setup
 
-   This script will:
-   - **Check and update branding** - Detects if you're using template branding and prompts you to customize:
-     - Application name and short name
-     - App description
-     - Landing page title
-     - Package name
-   - Initialize the Convex backend using `npx convex dev --once`
-   - Extract the CONVEX_URL from the backend's .env.local file
-   - Create/update the webapp's .env.local file with the NEXT_PUBLIC_CONVEX_URL
-
-   The setup script is **idempotent** - you can run it multiple times safely. It will:
-   - Show ✅ CONFIGURED for branding that's already customized
-   - Show ⚠️ TEMPLATE for branding that still uses default values
-   - Only prompt for updates if template values are detected
-
-   **Non-Interactive Mode**: For CI/CD or automated setups:
-
-   ```bash
-   node scripts/setup.js --non-interactive \
-     --app-name "My App" \
-     --app-short-name "MyApp" \
-     --app-description "Description" \
-     --landing-page-title "Welcome" \
-     --package-name "my-app"
-
-   # Or skip branding entirely
-   node scripts/setup.js --skip-branding
-
-   # Show all options
-   node scripts/setup.js --help
-   ```
-
-3. Run `pnpm dev` in the root directory to start the NextJS application and Convex backend
-
-#### Manual Setup (Alternative)
-
-If you prefer to set up manually:
-
-1. Go to `services/backend` and run `npx convex dev --once` - this should prompt you to login to Convex and create a new project.
-   Note: This will create a .env.local file with the CONVEX_URL environment variable.
-2. Create a `.env.local` file in the `apps/webapp` directory and add the following:
-   ```sh
-   NEXT_PUBLIC_CONVEX_URL=<your-convex-project-url> # copy this from the backend .env.local file
-   ```
-3. Run `pnpm dev` in the root directory to start both services
-
-## System Administration Setup
-
-To create a system administrator:
-
-1. **Login anonymously** via the login page
-2. **Set admin privileges** in [Convex Dashboard](https://dashboard.convex.dev):
-   - Go to Data > `users` table
-   - Find your user record and set `accessLevel` to `"system_admin"`
-3. **Access admin dashboard** by clicking your username → "System Admin"
-
-System admins can configure Google OAuth, manage authentication providers, and access system settings.
-
-## Google Auth Setup
-
-To enable Google OAuth authentication:
-
-1. **Configure Google OAuth** in your app's admin dashboard:
-   - Login with your system admin account
-   - Go to your username → "System Admin" → "Google Auth Config"
-   - Follow the instructions to set up Google OAuth credentials
-2. **Transfer admin role to Google account** (Recommended):
-   - After Google Auth is configured, sign in with your Google account
-   - In [Convex Dashboard](https://dashboard.convex.dev), go to Data > `users` table
-   - Find your Google account user record and set `accessLevel` to `"system_admin"`
-   - Remove the `system_admin` access level from the temporary anonymous account
-
-This ensures your system admin access is tied to a verified Google account for better security.
-
-## Project Structure
-
-- `apps/webapp`: The frontend NextJS application
-- `services/backend`: The Convex backend service
-
-## Development
-
-To run both the frontend and backend in parallel:
+### 1. Clone and install
 
 ```bash
-pnpm run dev
+git clone <repository-url>
+cd chatroom
+pnpm install
 ```
 
-This will start:
+### 2. Initialize Convex and env files
 
-- The webapp at http://localhost:3000
-- The Convex backend development server
+Run the setup script once (interactive branding prompts, or skip them):
+
+```bash
+pnpm setup
+```
+
+Or non-interactive / skip branding:
+
+```bash
+pnpm setup --skip-branding -y
+```
+
+This wires **`services/backend`** (Convex) with **`apps/webapp`** by creating/updating `.env.local` files — notably `NEXT_PUBLIC_CONVEX_URL` for the web app.
+
+**Manual alternative:** From `services/backend`, run `npx convex dev --once`, then copy `CONVEX_URL` into `apps/webapp/.env.local` as `NEXT_PUBLIC_CONVEX_URL=...`.
+
+### 3. Start development
+
+From the repo root:
+
+```bash
+pnpm dev
+```
+
+- Web app: **http://localhost:3000**
+- Convex dev sync runs as part of the backend package’s dev script.
+
+### 4. Quality checks (optional)
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm lint:fix
+pnpm format:fix
+```
+
+---
+
+## Project structure
+
+| Path               | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `apps/webapp`      | Next.js (App Router) frontend                                        |
+| `services/backend` | Convex backend (schema, functions, auth)                             |
+| `packages/cli`     | **chatroom-cli** — agent commands (`get-next-task`, `handoff`, etc.) |
+| `docs/`, `guides/` | Documentation and longer-form guides                                 |
+| `scripts/`         | Setup, local helpers, migrations                                     |
+
+For day-to-day coding conventions, see [AGENTS.md](AGENTS.md).
+
+---
+
+## Custom agent flow (Chatroom integration)
+
+Automation (for example in Cursor) that participates in a room should follow a **tight loop** so work is never left hanging:
+
+```text
+get-next-task → do work → handoff → get-next-task → …
+```
+
+1. **Run `get-next-task` immediately** (e.g. via your environment’s shell tool) and **block** until a task is delivered.
+2. **Execute the task** in the codebase or product.
+3. **Run `handoff`** to pass control to the next role (or back to the user).
+4. **Run `get-next-task` again** to wait for the next assignment.
+
+**Reliability tip:** Keep the **full** `handoff` and `get-next-task` commands (including `CHATROOM_CONVEX_URL` if you use a custom deployment) in your last todo items so you do not skip the handoff after compaction or long runs.
+
+### Commands (with local backend)
+
+Point the CLI at your **local Convex** dev URL (same value as `NEXT_PUBLIC_CONVEX_URL` in `apps/webapp/.env.local`, often `http://127.0.0.1:3210`):
+
+```bash
+export CHATROOM_CONVEX_URL="http://127.0.0.1:3210"
+
+chatroom get-next-task --chatroom-id=<id> --role=<role>
+chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>
+```
+
+If your context was summarized and you need the full system prompt again:
+
+```bash
+chatroom get-system-prompt --chatroom-id=<id> --role=<role>
+```
+
+**End-to-end flow for humans:** create a room in the web app, copy the agent prompt from the UI, install/authenticate the CLI (`chatroom auth login` when using the hosted backend), then run the loop above. Full CLI options, roles, and environment variables are documented in [**packages/cli/README.md**](packages/cli/README.md).
+
+---
+
+## System administration and Google OAuth
+
+- **First system admin:** sign in anonymously, then in the [Convex dashboard](https://dashboard.convex.dev) set your user’s `accessLevel` to `system_admin` in the `users` table. Open **System Admin** from the user menu in the app.
+- **Google OAuth:** configure credentials under System Admin → Google Auth; then move `system_admin` to your Google user in the `users` table as described in the in-app flow.
+
+---
 
 ## Testing
 
-This project uses [Vitest](https://vitest.dev/) for testing across both frontend and backend.
-
-### Quick Start
-
-Run all tests:
+Tests use [Vitest](https://vitest.dev/) across apps and packages.
 
 ```bash
 pnpm test
-```
-
-Run tests in watch mode:
-
-```bash
 pnpm test:watch
 ```
 
-For comprehensive testing guidelines, conventions, and examples, see the [Testing Guide](guides/testing/testing.md).
+For detailed testing guidance, see [guides/testing/testing.md](guides/testing/testing.md).
 
-## Turbo Configuration
-
-This project uses Turbo to manage the monorepo and run tasks in parallel. The main configuration files are:
-
-- `turbo.json`: Main Turbo configuration
-- `apps/webapp/package.json`: Webapp project configuration
-- `services/backend/package.json`: Backend project configuration
-
-The dev command is configured to run both services in parallel without dependencies between them, allowing for independent development.
-
-## Adding New Projects
-
-To add a new project to the monorepo:
-
-1. Create the project in the appropriate directory (`apps/` or `services/`)
-2. Add a `project.json` file to define the project's targets
-3. Update the root `package.json` to include the new project in the dev command if needed
+---
 
 ## Deployment
 
-### Convex Backend Deployment
+### Convex (backend)
 
-To deploy your Convex backend to production:
+1. Create a production deploy key in the Convex project settings.
+2. Add a repository secret (for example `CONVEX_DEPLOY_KEY_PROD`) if you use the included GitHub Action for deploy-on-push.
 
-1. Generate a deployment key from the Convex dashboard:
-   - Go to your project in the [Convex dashboard](https://dashboard.convex.dev)
-   - Navigate to Project Settings > Settings > General > Generate Production Deploy Key
-   - Create a new deployment key
+### Vercel (frontend)
 
-2. Add the deployment key to GitHub Secrets:
-   - Go to your GitHub repository
-   - Navigate to Settings > Secrets and variables > Actions
-   - Click "New repository secret"
-   - Name: `CONVEX_DEPLOY_KEY_PROD`
-   - Value: Your deployment key from the Convex dashboard
+- Set the Vercel **root directory** to `apps/webapp`.
+- Set `NEXT_PUBLIC_CONVEX_URL` to your production Convex deployment URL.
 
-3. The GitHub Action workflow included in this template will handle deployment of your Convex backend automatically when you push to the main branch.
-
-This setup allows for secure automated deployments of your Convex functions and schema without exposing your credentials.
-
-### Vercel Frontend Deployment
-
-To deploy your NextJS frontend to Vercel:
-
-1. Navigate to your Convex dashboard:
-   - Go to [Convex dashboard](https://dashboard.convex.dev)
-   - Navigate to Settings > URL & Deploy Key
-   - Copy the Deployment URL
-
-2. Set up the Vercel deployment
-   - Go to the Vercel dashboard
-   - Navigate to Project Settings > Build and Deployment > Root Directory
-     - Set the Root Directory to `apps/webapp`
-   - Navigate to Project Settings > Environment Variables
-     - Add a new variable:
-     - Name: `NEXT_PUBLIC_CONVEX_URL`
-     - Value: Paste the Deployment URL you copied from Convex
-
-3. Deploy your NextJS application to Vercel as usual.
-
-<br/>
-
-# FAQ
+---
 
 ## Why Convex?
 
-Convex is chosen as the backend service for the following reasons:
+Convex gives reactive queries, transactional mutations in one language, and a small surface area for app code — which keeps both product and agent-driven changes easier to reason about. (See the original starter rationale in git history if you want the longer comparison.)
 
-1. **Simplicity of code generation and architecture**
+---
 
-   Convex follows a reactive paradigm that allows reactive queries from the client to cause automatic re-renders when a dataset has been updated. This significantly reduces complexity and amount of code required, while solving the problem of cache invalidation.
+## License
 
-   Simple and less code required for a feature also means fewer chances for AI generated code to be incorrect.
-
-2. **Transactionality and consistency**
-
-   All convex mutations run "inside" of the database. Any error thrown in the mutation will result in an automatic rollback. This ensures that we are able to use a single language for both querying data and business logic, while maintaining transactionality.
-
-3. **Simple end to end reactivity**
-
-   Many platforms offer subscription to DB events (e.g. firebase, supabase). However, it still leaves a significant amount of code to transform the event into the actual state for your application. Convex solves this by simply providing the full state for the query's data, and does a re-render of that state when the data has been updated.
-
-4. **Single language for frontend and backend**
+Elastic License 2.0 — see repository licensing files for details.
