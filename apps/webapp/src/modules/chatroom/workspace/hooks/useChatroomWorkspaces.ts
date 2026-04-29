@@ -12,6 +12,8 @@ import type { Workspace } from '../../types/workspace';
 interface UseChatroomWorkspacesOptions {
   /** Optional: agent views to enrich workspaces with agentRoles (matched by workingDir) */
   agentViews?: Array<{ role: string; workingDir?: string }>;
+  /** When true, no workspace registry subscription (workspaces stay empty). */
+  skip?: boolean;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -25,9 +27,12 @@ export function useChatroomWorkspaces(
   chatroomId: string,
   options?: UseChatroomWorkspacesOptions
 ) {
-  const registryResult = useSessionQuery(api.workspaces.listWorkspacesForChatroom, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
+  const registryResult = useSessionQuery(
+    api.workspaces.listWorkspacesForChatroom,
+    options?.skip === true
+      ? 'skip'
+      : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
+  );
 
   const removeWorkspaceMutation = useSessionMutation(api.workspaces.removeWorkspace);
 

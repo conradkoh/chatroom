@@ -1,17 +1,13 @@
 'use client';
 
-import { ChevronRight, Settings, RefreshCw } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
-import { toast } from 'sonner';
 
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -144,30 +140,6 @@ export const AgentPanel = memo(function AgentPanel({
   onOpenAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshAt, setLastRefreshAt] = useState(0);
-
-  // Refresh mutation with session awareness
-  // TODO: remove `(api.machines as any)` once convex codegen catches up
-  const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
-
-  // Determine if button should be disabled (cooldown)
-  const isInCooldown = Date.now() - lastRefreshAt < 10_000; // 10 second cooldown
-
-  const handleRefresh = useCallback(async () => {
-    if (isRefreshing || isInCooldown) return;
-
-    setIsRefreshing(true);
-    try {
-      const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
-      toast.success(`Capabilities refresh requested (${result.fannedOut} machine(s))`);
-      setLastRefreshAt(Date.now());
-    } catch (error) {
-      toast.error('Failed to request capabilities refresh');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [chatroomId, isRefreshing, isInCooldown, requestRefresh]);
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
@@ -224,34 +196,21 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with settings and refresh buttons */}
+      {/* Header with settings button */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        <div className="flex items-center gap-2">
-          {/* Refresh button — requests capabilities refresh */}
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isRefreshing || isInCooldown}
-            className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh capabilities (models & harnesses)"
-            aria-label="Refresh capabilities"
-          >
-            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
-          {/* Settings button — opens settings panel directly */}
-          <button
-            type="button"
-            onClick={onConfigure}
-            className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-            title="Configure agents"
-            aria-label="Configure agents"
-          >
-            <Settings size={14} />
-          </button>
-        </div>
+        {/* Settings button — opens settings panel directly */}
+        <button
+          type="button"
+          onClick={onConfigure}
+          className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          title="Configure agents"
+          aria-label="Configure agents"
+        >
+          <Settings size={14} />
+        </button>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
