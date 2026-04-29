@@ -45,7 +45,48 @@ describe('SessionEventForwarder', () => {
     yield {
       type: 'message.part.updated',
       properties: {
-        part: { type: 'text', sessionID: 'sess-1', delta: 'hello' },
+        delta: 'hello',
+        part: {
+          id: 'p1',
+          type: 'text',
+          sessionID: 'sess-1',
+          messageID: 'm1',
+          text: '',
+        },
+      },
+    };
+  }
+
+  async function* textSnapshotStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          id: 'p1',
+          type: 'text',
+          sessionID: 'sess-1',
+          messageID: 'm1',
+          text: 'full reply',
+        },
+      },
+    };
+  }
+
+  async function* reasoningStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'message.part.updated',
+      properties: {
+        delta: 'step 1',
+        part: {
+          id: 'p2',
+          type: 'reasoning',
+          sessionID: 'sess-1',
+          messageID: 'm1',
+          text: '',
+          time: { start: 0 },
+        },
       },
     };
   }
@@ -55,8 +96,22 @@ describe('SessionEventForwarder', () => {
     yield {
       type: 'message.part.updated',
       properties: {
-        part: { type: 'tool', tool: 'bash', sessionID: 'sess-1' },
-        state: 'completed',
+        part: {
+          id: 'p1',
+          type: 'tool',
+          tool: 'bash',
+          sessionID: 'sess-1',
+          messageID: 'm1',
+          callID: 'c1',
+          state: {
+            status: 'completed',
+            input: {},
+            output: 'ok',
+            title: 'x',
+            metadata: {},
+            time: { start: 0, end: 1 },
+          },
+        },
       },
     };
   }
@@ -101,7 +156,25 @@ describe('SessionEventForwarder', () => {
     yield {
       type: 'message.part.updated',
       properties: {
-        part: { type: 'text', sessionID: 'other-sess', delta: 'hello' },
+        delta: 'hello',
+        part: {
+          id: 'p1',
+          type: 'text',
+          sessionID: 'other-sess',
+          messageID: 'm1',
+          text: '',
+        },
+      },
+    };
+  }
+
+  async function* textDeltaNoSessionIdStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'message.part.updated',
+      properties: {
+        delta: 'no-session-id',
+        part: { id: 'p1', type: 'text', messageID: 'm1', text: '' },
       },
     };
   }
@@ -124,6 +197,26 @@ describe('SessionEventForwarder', () => {
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] hello\n');
   }, 10000);
 
+  it('text snapshots (part.text) forwarded when no delta', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(textSnapshotStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] full reply\n');
+  }, 10000);
+
+  it('reasoning deltas forwarded as thinking]', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(reasoningStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder thinking] step 1\n');
+  }, 10000);
+
   it('tool calls forwarded', async () => {
     vi.useFakeTimers();
     const fakeClient = createMockClient(toolCallStream());
@@ -132,6 +225,16 @@ describe('SessionEventForwarder', () => {
     await handle.done;
     vi.useRealTimers();
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder tool: bash] completed\n');
+  }, 10000);
+
+  it('message.part.updated without sessionID still forwards (single-session forwarder)', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(textDeltaNoSessionIdStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] no-session-id\n');
   }, 10000);
 
   it('session.idle -> agent_end', async () => {
@@ -187,7 +290,7 @@ describe('SessionEventForwarder', () => {
     expect(target.write).not.toHaveBeenCalled();
   }, 10000);
 
-  it('filter: events with no sessionID dropped', async () => {
+  it('filter: non-session events without sessionID dropped', async () => {
     vi.useFakeTimers();
     const fakeClient = createMockClient(noSessionIdStream());
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
@@ -203,7 +306,16 @@ describe('SessionEventForwarder', () => {
     async function* streamingGen(): AsyncGenerator<unknown> {
       yield {
         type: 'message.part.updated',
-        properties: { part: { type: 'text', sessionID: 'sess-1', delta: 'first' } },
+        properties: {
+          delta: 'first',
+          part: {
+            id: 'p1',
+            type: 'text',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            text: '',
+          },
+        },
       };
       yielded = true;
       await new Promise(() => {});
@@ -226,7 +338,7 @@ describe('SessionEventForwarder', () => {
     handle.stop();
     handle.stop();
     vi.useRealTimers();
-    expect(handle.done).resolves.toBeUndefined();
+    await expect(handle.done).resolves.toBeUndefined();
   }, 10000);
 
   it('iteration error -> errorTarget logged, done resolves', async () => {
@@ -234,7 +346,16 @@ describe('SessionEventForwarder', () => {
       await new Promise((r) => setTimeout(r, 10));
       yield {
         type: 'message.part.updated',
-        properties: { part: { type: 'text', sessionID: 'sess-1', delta: 'first' } },
+        properties: {
+          delta: 'first',
+          part: {
+            id: 'p1',
+            type: 'text',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            text: '',
+          },
+        },
       };
       throw new Error('stream exploded');
     }

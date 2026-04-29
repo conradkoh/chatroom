@@ -85,6 +85,7 @@ export function startSessionEventForwarder(
         if (eventSession && eventSession !== options.sessionId) continue;
         if (
           eventSession === undefined &&
+          event.type !== 'message.part.updated' &&
           event.type !== 'session.idle' &&
           event.type !== 'session.compacted' &&
           event.type !== 'session.error' &&
@@ -95,14 +96,46 @@ export function startSessionEventForwarder(
 
         switch (event.type) {
           case 'message.part.updated': {
+            // OpenCode SDK: EventMessagePartUpdated is { part: Part; delta?: string }.
+            // TextPart / ReasoningPart use `text`; streaming deltas live on properties.delta
+            // (see @opencode-ai/sdk types). Do not read part.delta — it is not on Part.
             const props = event.properties as
-              | { part?: { type?: string; tool?: string; delta?: string }; state?: string }
+              | {
+                  part?: {
+                    type?: string;
+                    tool?: string;
+                    text?: string;
+                    sessionID?: string;
+                    state?: { status?: string };
+                  };
+                  delta?: string;
+                  state?: string;
+                }
               | undefined;
             const part = props?.part;
-            if (part?.type === 'text' && part.delta) {
-              target.write(formatLogLine(options, 'text', part.delta) + '\n');
+            if (part?.type === 'text') {
+              const chunk =
+                props?.delta !== undefined && props.delta !== ''
+                  ? props.delta
+                  : part.text;
+              if (chunk) {
+                target.write(formatLogLine(options, 'text', chunk) + '\n');
+              }
+            } else if (part?.type === 'reasoning') {
+              const chunk =
+                props?.delta !== undefined && props.delta !== ''
+                  ? props.delta
+                  : part.text;
+              if (chunk) {
+                target.write(formatLogLine(options, 'thinking', chunk) + '\n');
+              }
             } else if (part?.type === 'tool' && part.tool) {
-              const state = props?.state ?? 'started';
+              const state =
+                typeof props?.state === 'string'
+                  ? props.state
+                  : typeof part.state?.status === 'string'
+                    ? part.state.status
+                    : 'started';
               target.write(formatLogLine(options, 'tool: ' + part.tool, state) + '\n');
             }
             break;
