@@ -19,8 +19,7 @@ import {
   FileText,
   RefreshCw,
 } from 'lucide-react';
-import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
-import { toast } from 'sonner';
+import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo, useReducer } from 'react';
 
 import { CopyButton } from './CopyButton';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
@@ -336,11 +335,223 @@ const TeamConfigContent = memo(function TeamConfigContent({
   );
 });
 
+const CAPABILITIES_REFRESH_COOLDOWN_MS = 10_000;
+
+/**
+ * Per-machine discovery refresh (models / harnesses). Inline status only — no toasts.
+ */
+const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitiesRefreshButton({
+  chatroomId,
+  machineId,
+  daemonConnected,
+  linkedToChatroom,
+}: {
+  chatroomId: string;
+  machineId: string;
+  daemonConnected: boolean;
+  linkedToChatroom: boolean;
+}) {
+  const [activeBatchId, setActiveBatchId] = useState<Id<'chatroom_capabilities_refresh_batches'> | null>(
+    null
+  );
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [hint, setHint] = useState<{ tone: 'muted' | 'ok' | 'warn' | 'err'; text: string } | null>(
+    null
+  );
+  const [, bumpCooldownTick] = useReducer((x: number) => x + 1, 0);
+  const hintClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const terminalHandledRef = useRef(false);
+
+  const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
+  const batchSnapshot = useSessionQuery(
+    api.machines.getCapabilitiesRefreshBatch,
+    activeBatchId ? { batchId: activeBatchId } : 'skip'
+  );
+
+  const batchPending =
+    Boolean(activeBatchId) &&
+    batchSnapshot !== undefined &&
+    batchSnapshot !== null &&
+    batchSnapshot.batch.aggregateStatus === 'pending';
+
+  const isInCooldown = Date.now() < cooldownUntil;
+  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const id = window.setInterval(() => bumpCooldownTick(), 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
+
+  const clearHintSoon = useCallback((ms: number) => {
+    if (hintClearTimerRef.current) clearTimeout(hintClearTimerRef.current);
+    hintClearTimerRef.current = setTimeout(() => {
+      setHint(null);
+      hintClearTimerRef.current = null;
+    }, ms);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hintClearTimerRef.current) clearTimeout(hintClearTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const id = window.setTimeout(() => setCooldownUntil(0), cooldownUntil - Date.now());
+    return () => window.clearTimeout(id);
+  }, [cooldownUntil]);
+
+  useEffect(() => {
+    terminalHandledRef.current = false;
+  }, [activeBatchId]);
+
+  useEffect(() => {
+    if (!activeBatchId) return;
+    if (batchSnapshot === undefined) return;
+    if (batchSnapshot === null) {
+      setHint({ tone: 'err', text: 'Could not load discovery status.' });
+      setActiveBatchId(null);
+      clearHintSoon(8000);
+    }
+  }, [activeBatchId, batchSnapshot, clearHintSoon]);
+
+  useEffect(() => {
+    if (!activeBatchId || batchSnapshot === undefined || batchSnapshot === null) return;
+    if (batchSnapshot.batch.aggregateStatus === 'pending') return;
+    if (terminalHandledRef.current) return;
+    terminalHandledRef.current = true;
+
+    const agg = batchSnapshot.batch.aggregateStatus;
+    if (agg === 'completed') {
+      setHint({ tone: 'ok', text: 'Discovery up to date.' });
+    } else if (agg === 'failed') {
+      const firstErr = batchSnapshot.machines.find((m) => m.errorMessage)?.errorMessage;
+      setHint({ tone: 'err', text: firstErr ?? 'Discovery failed.' });
+    } else {
+      setHint({ tone: 'warn', text: 'Finished with errors.' });
+    }
+    setActiveBatchId(null);
+    setCooldownUntil(Date.now() + CAPABILITIES_REFRESH_COOLDOWN_MS);
+    clearHintSoon(agg === 'completed' ? 5000 : 10000);
+  }, [activeBatchId, batchSnapshot, clearHintSoon]);
+
+  useEffect(() => {
+    if (!activeBatchId) return;
+    if (batchSnapshot === undefined || batchSnapshot === null) return;
+    if (batchSnapshot.batch.aggregateStatus !== 'pending') return;
+
+    const timer = window.setTimeout(() => {
+      setHint({ tone: 'warn', text: 'No response from daemon yet.' });
+      setActiveBatchId(null);
+      clearHintSoon(8000);
+    }, 60_000);
+
+    return () => clearTimeout(timer);
+  }, [activeBatchId, batchSnapshot, clearHintSoon]);
+
+  const canClick =
+    linkedToChatroom &&
+    daemonConnected &&
+    !isInCooldown &&
+    !isRequesting &&
+    !batchPending;
+
+  const disabledTitle = !linkedToChatroom
+    ? 'This machine has no workspace in this chatroom.'
+    : !daemonConnected
+      ? 'Start the daemon on this machine to refresh discovery.'
+      : isInCooldown
+        ? `Wait ${cooldownSecondsLeft}s before refreshing again.`
+        : isRequesting || batchPending
+          ? 'Discovery in progress…'
+          : 'Refresh model and harness discovery for this machine';
+
+  const handleClick = useCallback(async () => {
+    if (!canClick) return;
+    setIsRequesting(true);
+    setHint(null);
+    if (hintClearTimerRef.current) {
+      clearTimeout(hintClearTimerRef.current);
+      hintClearTimerRef.current = null;
+    }
+    try {
+      const result = await requestRefresh({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        machineId,
+      });
+      if (!result.applied) {
+        if (result.reason === 'cooldown') {
+          setCooldownUntil(Date.now() + result.retryAfterMs);
+          setHint({ tone: 'muted', text: `Wait ${Math.ceil(result.retryAfterMs / 1000)}s before refreshing again.` });
+          clearHintSoon(6000);
+        } else if (result.reason === 'not_linked') {
+          setHint({ tone: 'muted', text: 'This machine is not linked to this chatroom.' });
+          clearHintSoon(6000);
+        } else {
+          setHint({ tone: 'err', text: 'Could not start discovery.' });
+          clearHintSoon(6000);
+        }
+        return;
+      }
+      setActiveBatchId(result.batchId);
+      setCooldownUntil(Date.now() + CAPABILITIES_REFRESH_COOLDOWN_MS);
+    } catch {
+      setHint({ tone: 'err', text: 'Request failed.' });
+      clearHintSoon(6000);
+    } finally {
+      setIsRequesting(false);
+    }
+  }, [canClick, chatroomId, machineId, requestRefresh, clearHintSoon]);
+
+  const hintClass =
+    hint?.tone === 'ok'
+      ? 'text-chatroom-status-success'
+      : hint?.tone === 'err'
+        ? 'text-chatroom-status-error'
+        : hint?.tone === 'warn'
+          ? 'text-chatroom-status-warning'
+          : 'text-chatroom-text-muted';
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 shrink-0">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!canClick}
+        className={[
+          'touch-manipulation inline-flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border transition-colors',
+          canClick
+            ? 'border-chatroom-accent/50 bg-chatroom-bg-surface text-chatroom-accent shadow-sm hover:bg-chatroom-accent/10 hover:border-chatroom-accent'
+            : 'border-chatroom-border/30 bg-chatroom-bg-tertiary/30 text-chatroom-text-muted/45 cursor-not-allowed',
+        ].join(' ')}
+        title={disabledTitle}
+        aria-label="Refresh model and harness discovery for this machine"
+        aria-disabled={!canClick}
+      >
+        <RefreshCw
+          size={15}
+          className={`shrink-0 ${isRequesting || batchPending ? 'animate-spin' : ''}`}
+        />
+      </button>
+      {hint ? (
+        <span className={`text-[9px] leading-tight max-w-[min(168px,42vw)] text-right ${hintClass}`}>
+          {hint.text}
+        </span>
+      ) : null}
+    </div>
+  );
+});
+
 /**
  * Individual machine row with inline alias editing
  */
 const MachineRow = memo(function MachineRow({
   machine,
+  chatroomId,
+  linkedToChatroom,
 }: {
   machine: {
     machineId: string;
@@ -351,6 +562,8 @@ const MachineRow = memo(function MachineRow({
     lastSeenAt: number;
     registeredAt: number;
   };
+  chatroomId: string;
+  linkedToChatroom: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [aliasValue, setAliasValue] = useState(machine.alias || '');
@@ -444,8 +657,8 @@ const MachineRow = memo(function MachineRow({
             </button>
           </div>
         ) : (
-          <div className="group flex items-center gap-1.5">
-            <div className="text-xs font-bold text-chatroom-text-primary truncate">
+          <div className="group flex items-center gap-1 min-w-0">
+            <div className="text-xs font-bold text-chatroom-text-primary truncate min-w-0 flex-1">
               {displayName}
             </div>
             <button
@@ -456,6 +669,12 @@ const MachineRow = memo(function MachineRow({
             >
               <Pencil size={10} />
             </button>
+            <MachineCapabilitiesRefreshButton
+              chatroomId={chatroomId}
+              machineId={machine.machineId}
+              daemonConnected={machine.daemonConnected}
+              linkedToChatroom={linkedToChatroom}
+            />
           </div>
         )}
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
@@ -475,9 +694,18 @@ const MachineRow = memo(function MachineRow({
 /**
  * Machine tab — shows connected machines and daemon start command
  */
-const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
+const MachineContent = memo(function MachineContent({ chatroomId }: { chatroomId: string }) {
   const machinesResult = useSessionQuery(api.machines.listMachines, {});
   const machines = machinesResult?.machines;
+  const { workspaces } = useChatroomWorkspaces(chatroomId);
+
+  const linkedMachineIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const ws of workspaces) {
+      if (ws.machineId) s.add(ws.machineId);
+    }
+    return s;
+  }, [workspaces]);
 
   // Daemon start command
   const daemonStartCommand = getDaemonStartCommand();
@@ -509,7 +737,12 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         ) : (
           <div className="space-y-1">
             {machines.map((machine) => (
-              <MachineRow key={machine.machineId} machine={machine} />
+              <MachineRow
+                key={machine.machineId}
+                machine={machine}
+                chatroomId={chatroomId}
+                linkedToChatroom={linkedMachineIds.has(machine.machineId)}
+              />
             ))}
           </div>
         )}
@@ -791,104 +1024,6 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
  * (status, controls, machine, model, restart stats).
  */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [activeBatchId, setActiveBatchId] = useState<Id<'chatroom_capabilities_refresh_batches'> | null>(
-    null
-  );
-  const terminalNotifiedRef = useRef(false);
-
-  const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
-  const batchSnapshot = useSessionQuery(
-    api.machines.getCapabilitiesRefreshBatch,
-    activeBatchId ? { batchId: activeBatchId } : 'skip'
-  );
-
-  const isInCooldown = Date.now() < cooldownUntil;
-  const batchPending =
-    Boolean(activeBatchId) &&
-    batchSnapshot !== undefined &&
-    batchSnapshot !== null &&
-    batchSnapshot.batch.aggregateStatus === 'pending';
-
-  useEffect(() => {
-    terminalNotifiedRef.current = false;
-  }, [activeBatchId]);
-
-  useEffect(() => {
-    if (cooldownUntil <= Date.now()) return;
-    const id = window.setTimeout(() => setCooldownUntil(0), cooldownUntil - Date.now());
-    return () => window.clearTimeout(id);
-  }, [cooldownUntil]);
-
-  useEffect(() => {
-    if (!activeBatchId) return;
-    if (batchSnapshot === undefined) return;
-    if (batchSnapshot === null) {
-      toast.error('Could not load discovery status for this refresh.');
-      setActiveBatchId(null);
-    }
-  }, [activeBatchId, batchSnapshot]);
-
-  useEffect(() => {
-    if (!activeBatchId || batchSnapshot === undefined || batchSnapshot === null) return;
-    if (batchSnapshot.batch.aggregateStatus === 'pending') return;
-    if (terminalNotifiedRef.current) return;
-    terminalNotifiedRef.current = true;
-
-    const agg = batchSnapshot.batch.aggregateStatus;
-    if (agg === 'completed') {
-      toast.success('Discovery finished', {
-        description: 'Models and harnesses are up to date on the machines that ran refresh.',
-      });
-    } else if (agg === 'failed') {
-      const firstErr = batchSnapshot.machines.find((m) => m.errorMessage)?.errorMessage;
-      toast.error('Discovery failed on all machines', {
-        description: firstErr,
-      });
-    } else {
-      toast.warning('Discovery finished with errors', {
-        description: 'Some machines reported a failure.',
-      });
-    }
-    setActiveBatchId(null);
-  }, [activeBatchId, batchSnapshot]);
-
-  useEffect(() => {
-    if (!activeBatchId) return;
-    if (batchSnapshot === undefined || batchSnapshot === null) return;
-    if (batchSnapshot.batch.aggregateStatus !== 'pending') return;
-
-    const timer = window.setTimeout(() => {
-      toast.message('Still waiting…', {
-        description:
-          'One or more machines have not reported yet. They may be offline; try again when daemons are connected.',
-      });
-      setActiveBatchId(null);
-    }, 60_000);
-
-    return () => clearTimeout(timer);
-  }, [activeBatchId, batchSnapshot]);
-
-  const handleRefreshCapabilities = useCallback(async () => {
-    if (isRefreshing || Date.now() < cooldownUntil || batchPending) return;
-    setIsRefreshing(true);
-    try {
-      const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
-      setCooldownUntil(Date.now() + 10_000);
-      if (result.fannedOut === 0) {
-        toast.success('All linked machines are in cooldown. Try again in a few seconds.');
-      } else if (result.batchId) {
-        setActiveBatchId(result.batchId);
-        toast.success(`Discovery started on ${result.fannedOut} machine(s)`);
-      }
-    } catch {
-      toast.error('Failed to request capabilities refresh');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [chatroomId, isRefreshing, cooldownUntil, batchPending, requestRefresh]);
-
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -958,36 +1093,6 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
         <p className="text-xs text-chatroom-text-muted">
           {onlineAgents}/{totalAgents} agents online.
         </p>
-      </div>
-
-      <div className="border-t border-chatroom-border/50 pt-4 space-y-3">
-        <p className="text-[11px] sm:text-xs text-chatroom-text-muted leading-relaxed max-w-2xl">
-          If models or harnesses look wrong, refresh discovery on linked machines. Cooldown applies
-          per machine.
-        </p>
-        <button
-          type="button"
-          onClick={handleRefreshCapabilities}
-          disabled={isRefreshing || isInCooldown || batchPending}
-          className={[
-            'touch-manipulation w-full sm:w-auto sm:shrink-0',
-            'inline-flex min-h-[44px] sm:min-h-0 items-center justify-center gap-2',
-            'rounded-md px-3 py-2.5 sm:py-2',
-            'text-xs font-medium text-chatroom-text-muted',
-            'border border-chatroom-border/40 bg-chatroom-bg-surface/50',
-            'hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/80 hover:border-chatroom-border/60',
-            'active:bg-chatroom-bg-hover',
-            'transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-chatroom-bg-surface/50',
-          ].join(' ')}
-          title="Refresh model and harness discovery on linked daemons"
-          aria-label="Refresh model and harness discovery"
-        >
-          <RefreshCw
-            size={14}
-            className={`shrink-0 ${isRefreshing || batchPending ? 'animate-spin' : ''}`}
-          />
-          <span>Refresh discovery</span>
-        </button>
       </div>
 
       {agentStatusList.length === 0 ? (
