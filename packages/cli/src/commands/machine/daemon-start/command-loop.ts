@@ -40,6 +40,13 @@ type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
+/** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
+export type RefreshModelsOutcome =
+  | { kind: 'noop' }
+  | { kind: 'skipped_no_changes' }
+  | { kind: 'pushed' }
+  | { kind: 'failed'; message: string };
+
 /** Per-harness diff between two model snapshots. */
 interface ModelDiff {
   /** Models present in `next` but not in `previous`, grouped by harness. */
@@ -105,8 +112,10 @@ function formatModelMap(map: Record<string, string[]>): string {
  * discovered set. On failure, the snapshot is left unchanged so the next
  * tick will retry with the same diff.
  */
-export async function refreshModels(ctx: DaemonContext): Promise<void> {
-  if (!ctx.config) return;
+export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
+  if (!ctx.config) {
+    return { kind: 'noop' };
+  }
 
   const models = await discoverModels(ctx.agentServices);
 
@@ -118,7 +127,7 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
   const diff = diffModels(ctx.lastPushedModels, models);
   if (!diff.hasChanges) {
     // Nothing new since last successful push — skip the Convex mutation.
-    return;
+    return { kind: 'skipped_no_changes' };
   }
 
   const totalCount = Object.values(models).flat().length;
@@ -148,18 +157,22 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     console.log(
       `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
     );
+    return { kind: 'pushed' };
   } catch (error) {
-    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${getErrorMessage(error)}`);
+    const message = getErrorMessage(error);
+    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
+    return { kind: 'failed', message };
   }
 }
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
-/** Consolidates the four dedup maps into a single container. */
+/** Consolidates dedup maps into a single container. */
 interface DedupTracker {
   commandIds: Map<string, number>;
   pingIds: Map<string, number>;
   gitRefreshIds: Map<string, number>;
+  capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   commandRunIds: Map<string, number>;
   commandStopIds: Map<string, number>;
@@ -178,6 +191,9 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   }
   for (const [id, ts] of tracker.gitRefreshIds) {
     if (ts < evictBefore) tracker.gitRefreshIds.delete(id);
+  }
+  for (const [id, ts] of tracker.capabilitiesRefreshIds) {
+    if (ts < evictBefore) tracker.capabilitiesRefreshIds.delete(id);
   }
   for (const [id, ts] of tracker.localActionIds) {
     if (ts < evictBefore) tracker.localActionIds.delete(id);
@@ -260,10 +276,44 @@ async function dispatchCommandEvent(
     await onCommandStop(ctx, event as any);
   } else if (event.type === 'daemon.refreshCapabilities') {
     // Session dedup — don't re-process same refresh event twice
-    if (tracker.localActionIds.has(eventId)) return;
-    tracker.localActionIds.set(eventId, Date.now());
+    if (tracker.capabilitiesRefreshIds.has(eventId)) return;
+    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
     console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+
+    const batchId =
+      'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
+    if (!batchId) {
+      return;
+    }
+
+    let status: 'completed' | 'skipped_no_changes' | 'failed';
+    let errorMessage: string | undefined;
+    if (outcome.kind === 'pushed') {
+      status = 'completed';
+    } else if (outcome.kind === 'skipped_no_changes') {
+      status = 'skipped_no_changes';
+    } else if (outcome.kind === 'failed') {
+      status = 'failed';
+      errorMessage = outcome.message;
+    } else {
+      status = 'failed';
+      errorMessage = 'Daemon configuration unavailable';
+    }
+
+    try {
+      await ctx.deps.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
+        sessionId: ctx.sessionId,
+        batchId,
+        machineId: ctx.machineId,
+        status,
+        errorMessage,
+      });
+    } catch (error) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`
+      );
+    }
   }
 }
 
@@ -407,6 +457,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     commandIds: new Map<string, number>(), // agent.requestStart / agent.requestStop
     pingIds: new Map<string, number>(), // daemon.ping
     gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
+    capabilitiesRefreshIds: new Map<string, number>(), // daemon.refreshCapabilities
     localActionIds: new Map<string, number>(), // daemon.localAction
     commandRunIds: new Map<string, number>(), // command.run
     commandStopIds: new Map<string, number>(), // command.stop

@@ -264,6 +264,9 @@ export const refreshCapabilities = mutation({
  * Fans out `daemon.refreshCapabilities` events to each matching machine.
  * Uses a 10-second cooldown per machine (lastCapabilitiesRefreshRequestedAt)
  * to prevent spam-clicking from queueing redundant refreshes.
+ *
+ * Creates a `chatroom_capabilities_refresh_batches` row (plus per-machine result
+ * rows) so the webapp can subscribe until each daemon reports an outcome.
  */
 export const requestCapabilitiesRefresh = mutation({
   args: {
@@ -300,22 +303,41 @@ export const requestCapabilitiesRefresh = mutation({
       }
     }
 
-    // Fan out refresh events with cooldown check
-    let fannedOut = 0;
-    for (const machine of linkedMachines) {
+    const targets = linkedMachines.filter((machine) => {
       const lastRefresh = machine.lastCapabilitiesRefreshRequestedAt ?? 0;
-      if (now - lastRefresh < COOLDOWN_MS) {
-        continue; // Cooldown active, skip this machine
-      }
+      return now - lastRefresh >= COOLDOWN_MS;
+    });
 
-      // Insert daemon.refreshCapabilities event
+    if (targets.length === 0) {
+      return { fannedOut: 0 as number, batchId: null };
+    }
+
+    const batchId = await ctx.db.insert('chatroom_capabilities_refresh_batches', {
+      chatroomId: args.chatroomId,
+      userId: user._id,
+      createdAt: now,
+      expectedMachineCount: targets.length,
+      finishedMachineCount: 0,
+      aggregateStatus: 'pending',
+    });
+
+    let fannedOut = 0;
+    for (const machine of targets) {
+      await ctx.db.insert('chatroom_capabilities_refresh_machine_results', {
+        batchId,
+        chatroomId: args.chatroomId,
+        machineId: machine.machineId,
+        status: 'pending',
+        createdAt: now,
+      });
+
       await ctx.db.insert('chatroom_eventStream', {
         type: 'daemon.refreshCapabilities',
         machineId: machine.machineId,
         timestamp: now,
+        batchId,
       });
 
-      // Update cooldown timestamp
       await ctx.db.patch('chatroom_machines', machine._id, {
         lastCapabilitiesRefreshRequestedAt: now,
       });
@@ -323,7 +345,139 @@ export const requestCapabilitiesRefresh = mutation({
       fannedOut++;
     }
 
-    return { fannedOut };
+    return { fannedOut, batchId };
+  },
+});
+
+const capabilitiesRefreshTerminalStatusValidator = v.union(
+  v.literal('completed'),
+  v.literal('skipped_no_changes'),
+  v.literal('failed')
+);
+
+/**
+ * Called by the CLI daemon after handling `daemon.refreshCapabilities` so the
+ * webapp can observe per-machine outcomes. Idempotent if already terminal.
+ */
+export const reportCapabilitiesRefreshResult = mutation({
+  args: {
+    ...SessionIdArg,
+    batchId: v.id('chatroom_capabilities_refresh_batches'),
+    machineId: v.string(),
+    status: capabilitiesRefreshTerminalStatusValidator,
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== user._id) {
+      throw new Error('Machine not found or not owned by the current user');
+    }
+
+    const batch = await ctx.db.get('chatroom_capabilities_refresh_batches', args.batchId);
+    if (!batch) {
+      throw new Error('Refresh batch not found');
+    }
+
+    const result = await ctx.db
+      .query('chatroom_capabilities_refresh_machine_results')
+      .withIndex('by_batchId_machineId', (q) =>
+        q.eq('batchId', args.batchId).eq('machineId', args.machineId)
+      )
+      .unique();
+
+    if (!result) {
+      throw new Error('No refresh result row for this machine in the batch');
+    }
+
+    if (result.status !== 'pending') {
+      return { ok: true as const, duplicate: true as const };
+    }
+
+    const finishedAt = Date.now();
+    await ctx.db.patch('chatroom_capabilities_refresh_machine_results', result._id, {
+      status: args.status,
+      finishedAt,
+      errorMessage: args.errorMessage,
+    });
+
+    const rows = await ctx.db
+      .query('chatroom_capabilities_refresh_machine_results')
+      .withIndex('by_batchId', (q) => q.eq('batchId', args.batchId))
+      .collect();
+
+    const finishedCount = rows.filter((r) => r.status !== 'pending').length;
+    const allTerminal = finishedCount === batch.expectedMachineCount;
+
+    if (!allTerminal) {
+      await ctx.db.patch('chatroom_capabilities_refresh_batches', args.batchId, {
+        finishedMachineCount: finishedCount,
+      });
+      return { ok: true as const, duplicate: false as const };
+    }
+
+    const failedCount = rows.filter((r) => r.status === 'failed').length;
+    const aggregateStatus =
+      failedCount === 0 ? 'completed' : failedCount === rows.length ? 'failed' : 'partial';
+
+    await ctx.db.patch('chatroom_capabilities_refresh_batches', args.batchId, {
+      finishedMachineCount: finishedCount,
+      aggregateStatus,
+    });
+
+    return { ok: true as const, duplicate: false as const };
+  },
+});
+
+/** Batch + per-machine rows for the capabilities refresh UI. */
+export const getCapabilitiesRefreshBatch = query({
+  args: {
+    ...SessionIdArg,
+    batchId: v.id('chatroom_capabilities_refresh_batches'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const batch = await ctx.db.get('chatroom_capabilities_refresh_batches', args.batchId);
+    if (!batch) return null;
+
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(batch.chatroomId) },
+      permission: 'read-access',
+    });
+    if (!accessResult.ok) return null;
+
+    const machines = await ctx.db
+      .query('chatroom_capabilities_refresh_machine_results')
+      .withIndex('by_batchId', (q) => q.eq('batchId', args.batchId))
+      .collect();
+
+    return {
+      batch: {
+        _id: batch._id,
+        chatroomId: batch.chatroomId,
+        createdAt: batch.createdAt,
+        expectedMachineCount: batch.expectedMachineCount,
+        finishedMachineCount: batch.finishedMachineCount,
+        aggregateStatus: batch.aggregateStatus,
+      },
+      machines: machines.map((m) => ({
+        machineId: m.machineId,
+        status: m.status,
+        finishedAt: m.finishedAt,
+        errorMessage: m.errorMessage,
+      })),
+    };
   },
 });
 
@@ -580,6 +734,16 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    const CAPABILITIES_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
+    const capabilitiesRefreshEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'daemon.refreshCapabilities')
+      )
+      .filter((q) => q.gt(q.field('timestamp'), now - CAPABILITIES_REFRESH_TTL_MS))
+      .order('asc')
+      .collect();
+
     // 5b. Local action events (open-vscode, open-finder, etc.)
     // Time-filtered to avoid replaying stale actions on daemon restart.
     const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
@@ -619,6 +783,7 @@ export const getCommandEvents = query({
       ...stopEvents,
       ...pingEvents,
       ...gitRefreshEvents,
+      ...capabilitiesRefreshEvents,
       ...localActionEvents,
       ...commandRunEvents,
       ...commandStopEvents,

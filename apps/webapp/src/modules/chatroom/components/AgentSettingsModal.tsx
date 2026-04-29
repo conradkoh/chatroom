@@ -793,11 +793,27 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [activeBatchId, setActiveBatchId] = useState<Id<'chatroom_capabilities_refresh_batches'> | null>(
+    null
+  );
+  const terminalNotifiedRef = useRef(false);
 
-  // TODO: remove `(api.machines as any)` once convex codegen catches up
-  const requestRefresh = useSessionMutation((api.machines as any).requestCapabilitiesRefresh);
+  const requestRefresh = useSessionMutation(api.machines.requestCapabilitiesRefresh);
+  const batchSnapshot = useSessionQuery(
+    api.machines.getCapabilitiesRefreshBatch,
+    activeBatchId ? { batchId: activeBatchId } : 'skip'
+  );
 
   const isInCooldown = Date.now() < cooldownUntil;
+  const batchPending =
+    Boolean(activeBatchId) &&
+    batchSnapshot !== undefined &&
+    batchSnapshot !== null &&
+    batchSnapshot.batch.aggregateStatus === 'pending';
+
+  useEffect(() => {
+    terminalNotifiedRef.current = false;
+  }, [activeBatchId]);
 
   useEffect(() => {
     if (cooldownUntil <= Date.now()) return;
@@ -805,19 +821,73 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     return () => window.clearTimeout(id);
   }, [cooldownUntil]);
 
+  useEffect(() => {
+    if (!activeBatchId) return;
+    if (batchSnapshot === undefined) return;
+    if (batchSnapshot === null) {
+      toast.error('Could not load discovery status for this refresh.');
+      setActiveBatchId(null);
+    }
+  }, [activeBatchId, batchSnapshot]);
+
+  useEffect(() => {
+    if (!activeBatchId || batchSnapshot === undefined || batchSnapshot === null) return;
+    if (batchSnapshot.batch.aggregateStatus === 'pending') return;
+    if (terminalNotifiedRef.current) return;
+    terminalNotifiedRef.current = true;
+
+    const agg = batchSnapshot.batch.aggregateStatus;
+    if (agg === 'completed') {
+      toast.success('Discovery finished', {
+        description: 'Models and harnesses are up to date on the machines that ran refresh.',
+      });
+    } else if (agg === 'failed') {
+      const firstErr = batchSnapshot.machines.find((m) => m.errorMessage)?.errorMessage;
+      toast.error('Discovery failed on all machines', {
+        description: firstErr,
+      });
+    } else {
+      toast.warning('Discovery finished with errors', {
+        description: 'Some machines reported a failure.',
+      });
+    }
+    setActiveBatchId(null);
+  }, [activeBatchId, batchSnapshot]);
+
+  useEffect(() => {
+    if (!activeBatchId) return;
+    if (batchSnapshot === undefined || batchSnapshot === null) return;
+    if (batchSnapshot.batch.aggregateStatus !== 'pending') return;
+
+    const timer = window.setTimeout(() => {
+      toast.message('Still waiting…', {
+        description:
+          'One or more machines have not reported yet. They may be offline; try again when daemons are connected.',
+      });
+      setActiveBatchId(null);
+    }, 60_000);
+
+    return () => clearTimeout(timer);
+  }, [activeBatchId, batchSnapshot]);
+
   const handleRefreshCapabilities = useCallback(async () => {
-    if (isRefreshing || Date.now() < cooldownUntil) return;
+    if (isRefreshing || Date.now() < cooldownUntil || batchPending) return;
     setIsRefreshing(true);
     try {
       const result = await requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
-      toast.success(`Capabilities refresh requested (${result.fannedOut} machine(s))`);
       setCooldownUntil(Date.now() + 10_000);
+      if (result.fannedOut === 0) {
+        toast.success('All linked machines are in cooldown. Try again in a few seconds.');
+      } else if (result.batchId) {
+        setActiveBatchId(result.batchId);
+        toast.success(`Discovery started on ${result.fannedOut} machine(s)`);
+      }
     } catch {
       toast.error('Failed to request capabilities refresh');
     } finally {
       setIsRefreshing(false);
     }
-  }, [chatroomId, isRefreshing, cooldownUntil, requestRefresh]);
+  }, [chatroomId, isRefreshing, cooldownUntil, batchPending, requestRefresh]);
 
   const {
     agents: agentRoleViews,
@@ -898,7 +968,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
         <button
           type="button"
           onClick={handleRefreshCapabilities}
-          disabled={isRefreshing || isInCooldown}
+          disabled={isRefreshing || isInCooldown || batchPending}
           className={[
             'touch-manipulation w-full sm:w-auto sm:shrink-0',
             'inline-flex min-h-[44px] sm:min-h-0 items-center justify-center gap-2',
@@ -912,7 +982,10 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
           title="Refresh model and harness discovery on linked daemons"
           aria-label="Refresh model and harness discovery"
         >
-          <RefreshCw size={14} className={`shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            size={14}
+            className={`shrink-0 ${isRefreshing || batchPending ? 'animate-spin' : ''}`}
+          />
           <span>Refresh discovery</span>
         </button>
       </div>

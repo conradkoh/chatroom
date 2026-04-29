@@ -143,7 +143,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: true, models: ['github-copilot/claude-sonnet-4.5'] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -162,7 +163,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: false, models: [] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -183,7 +185,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: true, models: ['github-copilot/gpt-4o'] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     const call = vi.mocked(ctx.deps.backend.mutation).mock.calls[0][1] as any;
     // opencode failed — discoverModels() stores [] to distinguish "installed but
@@ -198,9 +201,10 @@ describe('refreshModels', () => {
     ]);
     ctx.config = null;
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'noop' });
   });
 
   it('warns but does not throw when mutation fails', async () => {
@@ -210,7 +214,10 @@ describe('refreshModels', () => {
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(refreshModels(ctx)).resolves.toBeUndefined();
+    await expect(refreshModels(ctx)).resolves.toEqual({
+      kind: 'failed',
+      message: 'network error',
+    });
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Model refresh failed'));
   });
 
@@ -227,9 +234,10 @@ describe('refreshModels', () => {
       pi: ['github-copilot/claude-sonnet-4.5'],
     };
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'skipped_no_changes' });
   });
 
   it('treats reordered model lists as unchanged (set comparison, not array)', async () => {
@@ -238,9 +246,10 @@ describe('refreshModels', () => {
     ]);
     ctx.lastPushedModels = { opencode: ['model-a', 'model-b'] };
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'skipped_no_changes' });
   });
 
   it('logs newly detected models and pushes when models are added', async () => {
@@ -317,10 +326,11 @@ describe('refreshModels', () => {
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     // Snapshot must NOT be advanced — otherwise the addition would be lost
     // and the next tick would compare the new set against itself and skip.
     expect(ctx.lastPushedModels).toBe(previous);
+    expect(outcome).toEqual({ kind: 'failed', message: 'network error' });
   });
 });
