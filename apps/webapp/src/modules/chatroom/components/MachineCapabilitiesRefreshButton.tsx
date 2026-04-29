@@ -17,7 +17,8 @@ import React, {
 const SUCCESS_TICK_MS = 1000;
 
 /**
- * Per-machine discovery refresh (models / harnesses). Inline status only — no toasts.
+ * Re-fetch harness + model discovery for the selected machine (daemon push).
+ * Inline status only — no toasts.
  */
 export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitiesRefreshButton({
   chatroomId,
@@ -161,10 +162,10 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
       : isInCooldown
         ? `Wait ${cooldownSecondsLeft}s before refreshing again.`
         : showSuccessTick
-          ? 'Discovery finished.'
+          ? 'Harness and model discovery finished.'
           : isRequesting || batchPending
-            ? 'Discovery in progress…'
-            : 'Refresh model and harness discovery for this machine';
+            ? 'Refreshing harnesses and models…'
+            : 'Refresh harness and model list from this machine';
 
   const handleClick = useCallback(async () => {
     if (!canClick) return;
@@ -230,7 +231,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
     .join(' ');
 
   return (
-    <div className="flex flex-col items-end gap-0.5 shrink-0 self-start pt-0.5">
+    <div className="flex flex-col items-end justify-center gap-0.5 shrink-0 self-stretch">
       <button
         type="button"
         onClick={handleClick}
@@ -239,8 +240,8 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         title={disabledTitle}
         aria-label={
           showSuccessTick
-            ? 'Discovery finished'
-            : 'Refresh model and harness discovery for this machine'
+            ? 'Harness and model discovery finished'
+            : 'Refresh harness and model list from this machine'
         }
         aria-disabled={!canClick}
       >
