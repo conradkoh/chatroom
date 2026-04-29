@@ -14,6 +14,7 @@ export interface AgentControlsSectionProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
+  chatroomId: string;
   role: string;
   prompt: string;
   /** Which tab to show initially. Defaults to 'remote'. */
@@ -29,6 +30,7 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
+  chatroomId,
   role,
   prompt,
   initialTab = 'remote',
@@ -69,6 +71,7 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             connectedMachines={connectedMachines}
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
+            chatroomId={chatroomId}
           />
         ) : (
           <CustomTabContent role={role} prompt={prompt} />

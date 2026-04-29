@@ -17,7 +17,9 @@ import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from '
 
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
+import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
@@ -563,6 +565,7 @@ interface RemoteTabContentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
+  chatroomId: string;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -570,6 +573,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
+  chatroomId,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -620,6 +624,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   }, [displayMachineId, connectedMachines]);
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
+
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+  const linkedMachineIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const ws of chatroomWorkspaces) {
+      if (ws.machineId) s.add(ws.machineId);
+    }
+    return s;
+  }, [chatroomWorkspaces]);
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -696,70 +709,83 @@ export const RemoteTabContent = memo(function RemoteTabContent({
       ) : (
         <>
           {/* Row 1: Machine + Harness */}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              {isAgentRunning ? (
-                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                  {displayMachineId
-                    ? (() => {
-                        const m = connectedMachines.find((m) => m.machineId === displayMachineId);
-                        return m ? getMachineDisplayName(m) : displayMachineId;
-                      })()
-                    : 'Machine...'}
-                </div>
-              ) : (
-                <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      disabled={isBusy}
-                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                      title="Select Machine"
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0 flex items-stretch gap-1">
+              <div className="min-w-0 flex-1">
+                {isAgentRunning ? (
+                  <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                    {displayMachineId
+                      ? (() => {
+                          const m = connectedMachines.find((m) => m.machineId === displayMachineId);
+                          return m ? getMachineDisplayName(m) : displayMachineId;
+                        })()
+                      : 'Machine...'}
+                  </div>
+                ) : (
+                  <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        disabled={isBusy}
+                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                        title="Select Machine"
+                      >
+                        <span className="truncate">
+                          {displayMachineId
+                            ? (() => {
+                                const m = connectedMachines.find(
+                                  (m) => m.machineId === displayMachineId
+                                );
+                                return m ? getMachineDisplayName(m) : displayMachineId;
+                              })()
+                            : 'Machine...'}
+                        </span>
+                        <ChevronDown
+                          size={10}
+                          className="ml-1 flex-shrink-0 text-chatroom-text-muted"
+                        />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                      style={{ width: 'var(--radix-popover-trigger-width)' }}
                     >
-                      <span className="truncate">
-                        {displayMachineId
-                          ? (() => {
-                              const m = connectedMachines.find(
-                                (m) => m.machineId === displayMachineId
-                              );
-                              return m ? getMachineDisplayName(m) : displayMachineId;
-                            })()
-                          : 'Machine...'}
-                      </span>
-                      <ChevronDown
-                        size={10}
-                        className="ml-1 flex-shrink-0 text-chatroom-text-muted"
-                      />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                  >
-                    <Command className="bg-chatroom-bg-tertiary rounded-none">
-                      <CommandList>
-                        <CommandGroup>
-                          {connectedMachines.map((machine) => (
-                            <CommandItem
-                              key={machine.machineId}
-                              value={getMachineDisplayName(machine)}
-                              onSelect={() => {
-                                handleMachineChange(machine.machineId);
-                                setMachinePopoverOpen(false);
-                              }}
-                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                            >
-                              <span className="truncate">{getMachineDisplayName(machine)}</span>
-                              {displayMachineId === machine.machineId && (
-                                <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
+                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                        <CommandList>
+                          <CommandGroup>
+                            {connectedMachines.map((machine) => (
+                              <CommandItem
+                                key={machine.machineId}
+                                value={getMachineDisplayName(machine)}
+                                onSelect={() => {
+                                  handleMachineChange(machine.machineId);
+                                  setMachinePopoverOpen(false);
+                                }}
+                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                              >
+                                <span className="truncate">{getMachineDisplayName(machine)}</span>
+                                {displayMachineId === machine.machineId && (
+                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+              {displayMachineId ? (
+                <MachineCapabilitiesRefreshButton
+                  chatroomId={chatroomId}
+                  machineId={displayMachineId}
+                  daemonConnected={
+                    connectedMachines.find((m) => m.machineId === displayMachineId)
+                      ?.daemonConnected ?? false
+                  }
+                  linkedToChatroom={linkedMachineIds.has(displayMachineId)}
+                />
+              ) : null}
             </div>
             <div className="flex-1 min-w-0">
               {isAgentRunning ? (

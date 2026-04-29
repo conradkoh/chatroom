@@ -153,6 +153,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           connectedMachines={connectedMachines}
           isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
+          chatroomId={chatroomId}
           role={role}
           prompt={prompt}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
