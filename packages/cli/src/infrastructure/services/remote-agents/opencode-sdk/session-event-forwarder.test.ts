@@ -476,4 +476,171 @@ describe('SessionEventForwarder', () => {
       '[fake-ts] role:builder file] src/foo.ts (modified)\n'
     );
   }, 10000);
+
+  it('deduplicates repeated tool events with the same callID and status', async () => {
+    vi.useFakeTimers();
+    async function* duplicateRunningStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      for (let i = 0; i < 3; i++) {
+        yield {
+          type: 'message.part.updated',
+          properties: {
+            state: 'running',
+            part: {
+              id: 'p1',
+              type: 'tool',
+              tool: 'bash',
+              sessionID: 'sess-1',
+              messageID: 'm1',
+              callID: 'call-dedup',
+              state: { status: 'running', input: { command: 'ls' } },
+            },
+          },
+        };
+      }
+    }
+    const fakeClient = createMockClient(duplicateRunningStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('tool: bash'));
+    expect(toolLines).toHaveLength(1);
+  }, 10000);
+
+  it('logs both running and completed status transitions for the same callID', async () => {
+    vi.useFakeTimers();
+    async function* runningThenCompletedStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          state: 'running',
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'call-transition',
+            state: { status: 'running', input: { command: 'ls' } },
+          },
+        },
+      };
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          state: 'completed',
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'call-transition',
+            state: {
+              status: 'completed',
+              input: { command: 'ls' },
+              time: { start: 0, end: 300 },
+            },
+          },
+        },
+      };
+    }
+    const fakeClient = createMockClient(runningThenCompletedStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('tool: bash'));
+    expect(toolLines).toHaveLength(2);
+  }, 10000);
+
+  it('cleans up terminal state so a new running event after completed is logged', async () => {
+    vi.useFakeTimers();
+    async function* completedThenRunningAgainStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          state: 'completed',
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'call-cleanup',
+            state: {
+              status: 'completed',
+              input: { command: 'ls' },
+              time: { start: 0, end: 300 },
+            },
+          },
+        },
+      };
+      // Simulate new "running" after terminal state cleaned up map entry
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          state: 'running',
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'call-cleanup',
+            state: { status: 'running', input: { command: 'pwd' } },
+          },
+        },
+      };
+    }
+    const fakeClient = createMockClient(completedThenRunningAgainStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('tool: bash'));
+    expect(toolLines).toHaveLength(2);
+  }, 10000);
+
+  it('logs events for different callIDs independently', async () => {
+    vi.useFakeTimers();
+    async function* parallelCallsStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      for (const callID of ['call-A', 'call-B']) {
+        yield {
+          type: 'message.part.updated',
+          properties: {
+            state: 'running',
+            part: {
+              id: 'p1',
+              type: 'tool',
+              tool: 'bash',
+              sessionID: 'sess-1',
+              messageID: 'm1',
+              callID,
+              state: { status: 'running', input: { command: 'ls' } },
+            },
+          },
+        };
+      }
+    }
+    const fakeClient = createMockClient(parallelCallsStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('tool: bash'));
+    expect(toolLines).toHaveLength(2);
+  }, 10000);
 });
