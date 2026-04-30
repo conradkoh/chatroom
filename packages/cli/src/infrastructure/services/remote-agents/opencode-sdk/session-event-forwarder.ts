@@ -11,6 +11,12 @@ export interface SessionEventForwarderOptions {
 export interface SessionEventForwarderHandle {
   stop(): void;
   done: Promise<void>;
+  /**
+   * Register a callback to be invoked when the session goes idle (session.idle event).
+   * This signals that the agent has finished its turn and is waiting for input.
+   * The AgentProcessManager uses this to terminate the process after a completed turn.
+   */
+  onAgentEnd: (cb: () => void) => void;
 }
 
 export interface OpenCodeEvent {
@@ -60,6 +66,12 @@ export function startSessionEventForwarder(
 
   let cancelled = false;
   let doneResolve: () => void;
+
+  // Deduplication: track last logged status to avoid duplicate status lines
+  let lastStatus: string | undefined;
+
+  // Callbacks registered via onAgentEnd()
+  const agentEndCallbacks: (() => void)[] = [];
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
@@ -115,17 +127,13 @@ export function startSessionEventForwarder(
             const part = props?.part;
             if (part?.type === 'text') {
               const chunk =
-                props?.delta !== undefined && props.delta !== ''
-                  ? props.delta
-                  : part.text;
+                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
                 target.write(formatLogLine(options, 'text', chunk) + '\n');
               }
             } else if (part?.type === 'reasoning') {
               const chunk =
-                props?.delta !== undefined && props.delta !== ''
-                  ? props.delta
-                  : part.text;
+                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
                 target.write(formatLogLine(options, 'thinking', chunk) + '\n');
               }
@@ -147,6 +155,7 @@ export function startSessionEventForwarder(
           }
           case 'session.idle': {
             target.write(formatLogLine(options, 'agent_end') + '\n');
+            for (const cb of agentEndCallbacks) cb();
             break;
           }
           case 'session.compacted': {
@@ -155,7 +164,11 @@ export function startSessionEventForwarder(
           }
           case 'session.status': {
             const props = event.properties as { status?: { type?: string } } | undefined;
-            target.write(formatLogLine(options, 'status', props?.status?.type) + '\n');
+            const currentStatus = props?.status?.type;
+            if (currentStatus !== lastStatus) {
+              lastStatus = currentStatus;
+              target.write(formatLogLine(options, 'status', currentStatus) + '\n');
+            }
             break;
           }
           case 'session.error': {
@@ -188,5 +201,8 @@ export function startSessionEventForwarder(
       cancelled = true;
     },
     done: donePromise,
+    onAgentEnd: (cb: () => void) => {
+      agentEndCallbacks.push(cb);
+    },
   };
 }
