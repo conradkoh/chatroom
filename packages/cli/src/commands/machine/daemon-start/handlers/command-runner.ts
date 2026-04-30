@@ -43,11 +43,7 @@ const MAX_BUFFER_SIZE = 100 * 1024;
 /**
  * Report a run as failed to the backend. Used when validation fails before spawn.
  */
-async function reportRunFailed(
-  ctx: DaemonContext,
-  runId: any,
-  reason: string
-): Promise<void> {
+async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): Promise<void> {
   try {
     await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
       sessionId: ctx.sessionId as SessionId,
@@ -66,10 +62,7 @@ async function reportRunFailed(
  * Flush buffered output to the backend.
  * Resets the buffer after a successful flush.
  */
-async function flushOutput(
-  ctx: DaemonContext,
-  tracked: RunningProcess
-): Promise<void> {
+async function flushOutput(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
   if (tracked.outputBuffer.length === 0) return;
 
   const content = tracked.outputBuffer;
@@ -96,11 +89,7 @@ async function flushOutput(
 /**
  * Append data to the output buffer. If buffer exceeds max size, force a flush.
  */
-function appendToBuffer(
-  ctx: DaemonContext,
-  tracked: RunningProcess,
-  data: string
-): void {
+function appendToBuffer(ctx: DaemonContext, tracked: RunningProcess, data: string): void {
   tracked.outputBuffer += data;
 
   if (tracked.outputBuffer.length >= MAX_BUFFER_SIZE) {
@@ -136,14 +125,18 @@ export async function onCommandRun(
 
   // Security: Validate working directory exists and is an absolute path
   if (!workingDir.startsWith('/')) {
-    console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`);
+    console.error(
+      `[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`
+    );
     await reportRunFailed(ctx, runId, 'Working directory is not an absolute path');
     return;
   }
   try {
     await access(workingDir);
   } catch {
-    console.error(`[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`);
+    console.error(
+      `[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`
+    );
     await reportRunFailed(ctx, runId, 'Working directory not found');
     return;
   }
@@ -229,9 +222,7 @@ export async function onCommandRun(
 
   // Handle spawn error
   child.on('error', async (err) => {
-    console.error(
-      `[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`
-    );
+    console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
 
     clearInterval(tracked.flushTimer);
     runningProcesses.delete(runIdStr);
@@ -254,10 +245,7 @@ export async function onCommandRun(
 /**
  * Handle a command.stop event: kill the running process.
  */
-export async function onCommandStop(
-  ctx: DaemonContext,
-  event: { runId: any }
-): Promise<void> {
+export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
   const runIdStr = event.runId.toString();
   const tracked = runningProcesses.get(runIdStr);
 
@@ -297,7 +285,10 @@ export async function onCommandStop(
   }
 
   setTimeout(() => {
-    if (tracked.process.killed) return;
+    // Check whether the process already exited (runningProcesses entry removed by exit handler)
+    // rather than relying on tracked.process.killed, which is only set when kill() is called
+    // on the ChildProcess object directly — not when process.kill(-pid, ...) is used.
+    if (!runningProcesses.has(runIdStr)) return;
     console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${runIdStr}`);
     if (pid) {
       try {
