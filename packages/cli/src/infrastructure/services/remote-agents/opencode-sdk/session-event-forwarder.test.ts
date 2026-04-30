@@ -224,7 +224,9 @@ describe('SessionEventForwarder', () => {
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder tool: bash] completed\n');
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder tool: bash] completed (0.0s)\n'
+    );
   }, 10000);
 
   it('message.part.updated without sessionID still forwards (single-session forwarder)', async () => {
@@ -267,7 +269,11 @@ describe('SessionEventForwarder', () => {
     expect(errorTarget.write).toHaveBeenCalledWith(
       '[fake-ts] role:builder error] UnknownError: oops\n'
     );
-    expect(target.write).not.toHaveBeenCalled();
+    // session start is logged to target before the error event
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder session] Started] role: builder\n'
+    );
+    expect(target.write).toHaveBeenCalledTimes(1);
   }, 10000);
 
   it('file.edited forwarded', async () => {
