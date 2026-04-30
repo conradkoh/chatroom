@@ -389,3 +389,55 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     }
   }, FORCE_KILL_DELAY_MS);
 }
+
+/**
+ * Kill all currently running command processes during daemon shutdown.
+ *
+ * Flushes buffered output, sends SIGTERM to each process group, waits 3 seconds
+ * for graceful exit, then force-kills any survivors with SIGKILL.
+ * No-op if no commands are running.
+ */
+export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
+  if (runningProcesses.size === 0) return;
+
+  console.log(`[${formatTimestamp()}] Shutting down ${runningProcesses.size} running command(s)...`);
+
+  for (const [, tracked] of runningProcesses) {
+    clearInterval(tracked.flushTimer);
+    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
+
+    // Best-effort flush — don't block shutdown
+    await flushOutput(ctx, tracked).catch(() => {});
+
+    // SIGTERM the process group so all child processes are terminated
+    const pid = tracked.process.pid;
+    if (pid) {
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        tracked.process.kill('SIGTERM');
+      }
+    } else {
+      tracked.process.kill('SIGTERM');
+    }
+  }
+
+  // Grace period — give processes time to exit cleanly before force-killing
+  await new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, 3_000);
+    t.unref?.();
+  });
+
+  // Force-kill any survivors
+  for (const [, tracked] of runningProcesses) {
+    const pid = tracked.process.pid;
+    if (pid) {
+      try { process.kill(-pid, 'SIGKILL'); } catch { /* already dead */ }
+    } else {
+      try { tracked.process.kill('SIGKILL'); } catch { /* already dead */ }
+    }
+  }
+
+  runningProcesses.clear();
+  console.log(`[${formatTimestamp()}] All commands stopped`);
+}
