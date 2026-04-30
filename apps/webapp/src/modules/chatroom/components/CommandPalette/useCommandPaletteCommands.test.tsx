@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
 describe('useCommandPaletteCommands', () => {
@@ -210,8 +211,8 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
-  describe('Refresh Workspace State command', () => {
-    it('adds Refresh Workspace State command when handler is provided', () => {
+  describe('Chatroom: Refresh Workspace State command', () => {
+    it('adds command when handler is provided', () => {
       const onRefreshWorkspaceState = vi.fn();
 
       const { result } = renderHook(() =>
@@ -221,12 +222,17 @@ describe('useCommandPaletteCommands', () => {
       const cmd = result.current.find((c) => c.id === 'workspace.refreshState');
       expect(cmd).toBeDefined();
       expect(cmd).toMatchObject({
-        label: 'Refresh Workspace State',
+        label: 'Chatroom: Refresh Workspace State',
         keywords: expect.arrayContaining(['refresh', 'workspace', 'sync']),
       });
+      expect(cmd?.keywords).toBeDefined();
+      expect(cmd?.keywords?.some((k) => k.toLowerCase() === 'pull')).toBe(false);
+      expect(
+        fuzzyFilter('Chatroom: Refresh Workspace State', 'pull', cmd?.keywords)
+      ).toBe(0);
     });
 
-    it('triggers the handler when Refresh Workspace State action is called', () => {
+    it('triggers the handler when the action is called', () => {
       const onRefreshWorkspaceState = vi.fn();
 
       const { result } = renderHook(() =>
@@ -238,7 +244,7 @@ describe('useCommandPaletteCommands', () => {
       expect(onRefreshWorkspaceState).toHaveBeenCalledTimes(1);
     });
 
-    it('omits Refresh Workspace State command when handler is not provided', () => {
+    it('omits command when handler is not provided', () => {
       const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
       expect(result.current.some((c) => c.id === 'workspace.refreshState')).toBe(false);
     });

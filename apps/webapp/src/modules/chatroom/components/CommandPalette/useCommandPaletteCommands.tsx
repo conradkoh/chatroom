@@ -473,10 +473,11 @@ export function useCommandPaletteCommands({
     if (onRefreshWorkspaceState) {
       commands.push({
         id: 'workspace.refreshState',
-        label: 'Refresh Workspace State',
+        label: 'Chatroom: Refresh Workspace State',
         icon: <RefreshCw size={14} />,
         category: 'Actions',
-        keywords: ['refresh', 'reload', 'sync', 'workspace', 'state', 'pull', 'update', 'git'],
+        // Omit "pull" / "git pull" — this command re-pushes observed state from the daemon, not VCS pull.
+        keywords: ['refresh', 'reload', 'sync', 'workspace', 'state', 'update', 'git', 'observed', 'daemon'],
         action: onRefreshWorkspaceState,
       });
     }

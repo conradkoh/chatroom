@@ -342,10 +342,7 @@ export function useAllPullRequests(
 
     return {
       status: 'available',
-      pullRequests: result.pullRequests.map((pr) => ({
-        ...pr,
-        prNumber: pr.prNumber ?? pr.number ?? 0,
-      })),
+      pullRequests: result.pullRequests,
     };
   }, [result]);
 

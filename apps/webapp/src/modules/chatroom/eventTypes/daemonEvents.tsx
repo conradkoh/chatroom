@@ -1,11 +1,12 @@
 'use client';
 
 import { registerEventType } from './registry';
-import { EventRow, EventDetails, DetailRow } from './shared';
+import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import type {
   DaemonPingEvent,
   DaemonPongEvent,
   DaemonGitRefreshEvent,
+  DaemonRefreshCapabilitiesEvent,
 } from '../viewModels/eventStreamViewModel';
 
 // ─── Daemon Ping ──────────────────────────────────────────────────────────────
@@ -25,8 +26,13 @@ function renderDaemonPingCell(event: DaemonPingEvent, isSelected: boolean): Reac
 
 function renderDaemonPingDetails(event: DaemonPingEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Daemon Ping" timestamp={event.timestamp} type="daemon.ping">
-      <DetailRow label="Machine ID" value={event.machineId} mono />
+    <EventDetails
+      eventId={event._id}
+      title="Daemon Ping"
+      timestamp={event.timestamp}
+      type="daemon.ping"
+    >
+      <MachineDetailRow machineId={event.machineId} />
     </EventDetails>
   );
 }
@@ -48,8 +54,13 @@ function renderDaemonPongCell(event: DaemonPongEvent, isSelected: boolean): Reac
 
 function renderDaemonPongDetails(event: DaemonPongEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Daemon Pong" timestamp={event.timestamp} type="daemon.pong">
-      <DetailRow label="Machine ID" value={event.machineId} mono />
+    <EventDetails
+      eventId={event._id}
+      title="Daemon Pong"
+      timestamp={event.timestamp}
+      type="daemon.pong"
+    >
+      <MachineDetailRow machineId={event.machineId} />
       <DetailRow label="Ping Event ID" value={event.pingEventId} mono />
     </EventDetails>
   );
@@ -75,9 +86,48 @@ function renderDaemonGitRefreshCell(
 
 function renderDaemonGitRefreshDetails(event: DaemonGitRefreshEvent): React.ReactNode {
   return (
-    <EventDetails eventId={event._id} title="Git Refresh" timestamp={event.timestamp} type="daemon.gitRefresh">
-      <DetailRow label="Machine ID" value={event.machineId} mono />
+    <EventDetails
+      eventId={event._id}
+      title="Git Refresh"
+      timestamp={event.timestamp}
+      type="daemon.gitRefresh"
+    >
+      <MachineDetailRow machineId={event.machineId} />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Daemon Capabilities Refresh ─────────────────────────────────────────────
+
+function renderDaemonRefreshCapabilitiesCell(
+  event: DaemonRefreshCapabilitiesEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="daemon.refreshCapabilities"
+      badgeText="Discovery"
+      badgeColor="muted"
+      primaryInfo="Daemon"
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderDaemonRefreshCapabilitiesDetails(
+  event: DaemonRefreshCapabilitiesEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Capabilities refresh"
+      timestamp={event.timestamp}
+      type="daemon.refreshCapabilities"
+    >
+      <MachineDetailRow machineId={event.machineId} />
+      {event.batchId ? <DetailRow label="Batch ID" value={event.batchId} mono /> : null}
     </EventDetails>
   );
 }
@@ -96,5 +146,9 @@ export function registerDaemonEvents(): void {
   registerEventType('daemon.gitRefresh', {
     cellRenderer: renderDaemonGitRefreshCell,
     detailsRenderer: renderDaemonGitRefreshDetails,
+  });
+  registerEventType('daemon.refreshCapabilities', {
+    cellRenderer: renderDaemonRefreshCapabilitiesCell,
+    detailsRenderer: renderDaemonRefreshCapabilitiesDetails,
   });
 }

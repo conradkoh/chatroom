@@ -9,6 +9,33 @@ import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
 import { RemoteTabContent, useAgentControls, type AgentPreference } from './AgentConfigTabs';
 
+vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
+  useChatroomWorkspaces: () => ({
+    workspaces: [
+      {
+        machineId: 'a',
+        workingDir: '/wa',
+        id: 'a::/wa',
+        hostname: '',
+        machineAlias: undefined,
+        agentRoles: [],
+        _registryId: 'r1',
+      },
+      {
+        machineId: 'b',
+        workingDir: '/wb',
+        id: 'b::/wb',
+        hostname: '',
+        machineAlias: undefined,
+        agentRoles: [],
+        _registryId: 'r2',
+      },
+    ],
+    isLoading: false,
+    removeWorkspace: vi.fn(),
+  }),
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: () => undefined,
@@ -19,6 +46,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machines: {
       getMachineModelFilters: 'machines:getMachineModelFilters',
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
+      requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
+      getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
     },
   },
 }));
@@ -65,6 +94,7 @@ function RehomeHarness({
       connectedMachines={machines}
       isLoadingMachines={false}
       daemonStartCommand="chatroom daemon"
+      chatroomId="jd7testchatroom0000000000000001"
     />
   );
 }

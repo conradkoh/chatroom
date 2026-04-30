@@ -17,6 +17,8 @@ import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusL
 
 import { getDaemonStartCommand } from '@/lib/environment';
 
+import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
+
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
 
@@ -96,6 +98,15 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigMachineId: agentRoleView?.machineId,
   });
 
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+  const linkedMachineIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const ws of chatroomWorkspaces) {
+      if (ws.machineId) s.add(ws.machineId);
+    }
+    return s;
+  }, [chatroomWorkspaces]);
+
   const daemonStartCommand = getDaemonStartCommand();
 
   // Resolve status label and variant using the shared utility.
@@ -153,8 +164,10 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           connectedMachines={connectedMachines}
           isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
+          chatroomId={chatroomId}
           role={role}
           prompt={prompt}
+          linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
         />
 

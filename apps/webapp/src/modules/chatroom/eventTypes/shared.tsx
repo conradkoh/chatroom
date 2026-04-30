@@ -7,6 +7,17 @@ import remarkGfm from 'remark-gfm';
 
 import { fullMarkdownComponents, inlineEventProseClassNames } from '../components/markdown-utils';
 import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
+import { useEventStreamMachine } from '../context/EventStreamMachineContext';
+import { getMachineDisplayName } from '../types/machine';
+
+// ─── Machine Detail Row ──────────────────────────────────────────────────────
+
+export function MachineDetailRow({ machineId }: { machineId: string }): React.ReactNode {
+  const machine = useEventStreamMachine(machineId);
+  const displayName = machine ? getMachineDisplayName(machine) : undefined;
+  const value = displayName ? `${machineId} (${displayName})` : machineId;
+  return <DetailRow label="Machine ID" value={value} mono />;
+}
 
 // ─── Badge Color Types ────────────────────────────────────────────────────────
 

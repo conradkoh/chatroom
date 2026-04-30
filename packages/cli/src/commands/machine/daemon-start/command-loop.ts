@@ -29,6 +29,7 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -40,15 +41,12 @@ type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
-/**
- * Interval for periodic model discovery refresh (10 seconds).
- *
- * The refresh itself is cheap — it only spawns local `which` / `--version`
- * probes per harness. The backend is only called when the discovered model
- * set actually changes (see `refreshModels` for diff logic), so the polling
- * cadence does not translate into network traffic.
- */
-const MODEL_REFRESH_INTERVAL_MS = 10 * 1000;
+/** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
+export type RefreshModelsOutcome =
+  | { kind: 'noop' }
+  | { kind: 'skipped_no_changes' }
+  | { kind: 'pushed' }
+  | { kind: 'failed'; message: string };
 
 /** Per-harness diff between two model snapshots. */
 interface ModelDiff {
@@ -107,16 +105,18 @@ function formatModelMap(map: Record<string, string[]>): string {
  * changed since the last push.
  *
  * The daemon is the source of truth for "what changed since last sync" — the
- * previously pushed snapshot lives on `ctx.lastPushedModels` and is diffed
- * locally each tick. The backend mutation is only invoked when the diff is
- * non-empty, keeping a 10-second poll cadence cheap.
+ * previously pushed model snapshot lives on `ctx.lastPushedModels` and is diffed
+ * locally each tick, and harness list + versions are compared via a stable
+ * fingerprint. The mutation is only invoked when either snapshot differs.
  *
- * On a successful push, `ctx.lastPushedModels` is updated to the freshly
- * discovered set. On failure, the snapshot is left unchanged so the next
- * tick will retry with the same diff.
+ * On a successful push, `ctx.lastPushedModels` and
+ * `ctx.lastPushedHarnessFingerprint` are updated to the freshly discovered
+ * state. On failure, both snapshots are left unchanged so the next tick retries.
  */
-export async function refreshModels(ctx: DaemonContext): Promise<void> {
-  if (!ctx.config) return;
+export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
+  if (!ctx.config) {
+    return { kind: 'noop' };
+  }
 
   const models = await discoverModels(ctx.agentServices);
 
@@ -125,10 +125,18 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
 
-  const diff = diffModels(ctx.lastPushedModels, models);
-  if (!diff.hasChanges) {
-    // Nothing new since last successful push — skip the Convex mutation.
-    return;
+  const modelDiff = diffModels(ctx.lastPushedModels, models);
+  const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
+    ctx.config.availableHarnesses,
+    ctx.config.harnessVersions as Record<string, unknown>
+  );
+  const harnessFingerprintChanged =
+    ctx.lastPushedHarnessFingerprint !== null &&
+    nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
+
+  if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
+    // Models and harness metadata match last successful push — skip Convex.
+    return { kind: 'skipped_no_changes' };
   }
 
   const totalCount = Object.values(models).flat().length;
@@ -144,32 +152,37 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     // Snapshot only after the backend successfully accepts the update — on
     // failure we want the next tick to retry with the same diff.
     ctx.lastPushedModels = models;
+    ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
 
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-    if (Object.keys(diff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(diff.added)}`);
+    if (Object.keys(modelDiff.added).length > 0) {
+      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
     }
-    if (Object.keys(diff.removed).length > 0) {
+    if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
-        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(diff.removed)}`
+        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
       );
     }
     console.log(
       `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
     );
+    return { kind: 'pushed' };
   } catch (error) {
-    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${getErrorMessage(error)}`);
+    const message = getErrorMessage(error);
+    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
+    return { kind: 'failed', message };
   }
 }
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
-/** Consolidates the four dedup maps into a single container. */
+/** Consolidates dedup maps into a single container. */
 interface DedupTracker {
   commandIds: Map<string, number>;
   pingIds: Map<string, number>;
   gitRefreshIds: Map<string, number>;
+  capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   commandRunIds: Map<string, number>;
   commandStopIds: Map<string, number>;
@@ -188,6 +201,9 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   }
   for (const [id, ts] of tracker.gitRefreshIds) {
     if (ts < evictBefore) tracker.gitRefreshIds.delete(id);
+  }
+  for (const [id, ts] of tracker.capabilitiesRefreshIds) {
+    if (ts < evictBefore) tracker.capabilitiesRefreshIds.delete(id);
   }
   for (const [id, ts] of tracker.localActionIds) {
     if (ts < evictBefore) tracker.localActionIds.delete(id);
@@ -268,6 +284,46 @@ async function dispatchCommandEvent(
     if (tracker.commandStopIds.has(eventId)) return;
     tracker.commandStopIds.set(eventId, Date.now());
     await onCommandStop(ctx, event as any);
+  } else if (event.type === 'daemon.refreshCapabilities') {
+    // Session dedup — don't re-process same refresh event twice
+    if (tracker.capabilitiesRefreshIds.has(eventId)) return;
+    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
+    console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
+    const outcome = await refreshModels(ctx);
+
+    const batchId =
+      'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
+    if (!batchId) {
+      return;
+    }
+
+    let status: 'completed' | 'skipped_no_changes' | 'failed';
+    let errorMessage: string | undefined;
+    if (outcome.kind === 'pushed') {
+      status = 'completed';
+    } else if (outcome.kind === 'skipped_no_changes') {
+      status = 'skipped_no_changes';
+    } else if (outcome.kind === 'failed') {
+      status = 'failed';
+      errorMessage = outcome.message;
+    } else {
+      status = 'failed';
+      errorMessage = 'Daemon configuration unavailable';
+    }
+
+    try {
+      await ctx.deps.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
+        sessionId: ctx.sessionId,
+        batchId,
+        machineId: ctx.machineId,
+        status,
+        errorMessage,
+      });
+    } catch (error) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`
+      );
+    }
   }
 }
 
@@ -411,6 +467,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     commandIds: new Map<string, number>(), // agent.requestStart / agent.requestStop
     pingIds: new Map<string, number>(), // daemon.ping
     gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
+    capabilitiesRefreshIds: new Map<string, number>(), // daemon.refreshCapabilities
     localActionIds: new Map<string, number>(), // daemon.localAction
     commandRunIds: new Map<string, number>(), // command.run
     commandStopIds: new Map<string, number>(), // command.stop
@@ -441,17 +498,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       }
     }
   );
-
-  // Periodic model discovery refresh — keeps the model list current
-  // in case new providers are configured while the daemon is running
-  const modelRefreshTimer = setInterval(() => {
-    refreshModels(ctx).catch((err) => {
-      console.warn(`[${formatTimestamp()}] ⚠️  Model refresh error: ${getErrorMessage(err)}`);
-    });
-  }, MODEL_REFRESH_INTERVAL_MS);
-
-  // Unref the timer so it doesn't prevent process exit during shutdown
-  modelRefreshTimer.unref();
 
   // Keep process alive
   return await new Promise(() => {});

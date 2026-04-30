@@ -12,6 +12,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
 import type { DaemonContext, AgentHarness } from './types.js';
@@ -134,6 +135,7 @@ describe('refreshModels', () => {
       // first refreshModels() call will detect everything as new and push.
       // Tests that exercise the diff/no-diff paths override this explicitly.
       lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
     };
   }
 
@@ -143,7 +145,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: true, models: ['github-copilot/claude-sonnet-4.5'] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -162,7 +165,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: false, models: [] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -183,7 +187,8 @@ describe('refreshModels', () => {
       { harness: 'pi', isInstalled: true, models: ['github-copilot/gpt-4o'] },
     ]);
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
+    expect(outcome).toMatchObject({ kind: 'pushed' });
 
     const call = vi.mocked(ctx.deps.backend.mutation).mock.calls[0][1] as any;
     // opencode failed — discoverModels() stores [] to distinguish "installed but
@@ -198,9 +203,10 @@ describe('refreshModels', () => {
     ]);
     ctx.config = null;
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'noop' });
   });
 
   it('warns but does not throw when mutation fails', async () => {
@@ -210,7 +216,10 @@ describe('refreshModels', () => {
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(refreshModels(ctx)).resolves.toBeUndefined();
+    await expect(refreshModels(ctx)).resolves.toEqual({
+      kind: 'failed',
+      message: 'network error',
+    });
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Model refresh failed'));
   });
 
@@ -226,10 +235,12 @@ describe('refreshModels', () => {
       opencode: ['opencode/model-a', 'opencode/model-b'],
       pi: ['github-copilot/claude-sonnet-4.5'],
     };
+    ctx.lastPushedHarnessFingerprint = harnessCapabilitiesFingerprint(['opencode', 'pi'], {});
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'skipped_no_changes' });
   });
 
   it('treats reordered model lists as unchanged (set comparison, not array)', async () => {
@@ -237,10 +248,32 @@ describe('refreshModels', () => {
       { harness: 'opencode', isInstalled: true, models: ['model-b', 'model-a'] },
     ]);
     ctx.lastPushedModels = { opencode: ['model-a', 'model-b'] };
+    ctx.lastPushedHarnessFingerprint = harnessCapabilitiesFingerprint(['opencode', 'pi'], {});
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: 'skipped_no_changes' });
+  });
+
+  it('pushes when harness metadata changes even if models are unchanged', async () => {
+    const ctx = createContextWithServices([
+      { harness: 'opencode', isInstalled: true, models: ['opencode/model-a'] },
+      { harness: 'pi', isInstalled: true, models: ['github-copilot/gpt-4o'] },
+    ]);
+    ctx.lastPushedModels = {
+      opencode: ['opencode/model-a'],
+      pi: ['github-copilot/gpt-4o'],
+    };
+    ctx.lastPushedHarnessFingerprint = harnessCapabilitiesFingerprint(['opencode'], {});
+
+    const outcome = await refreshModels(ctx);
+
+    expect(outcome).toMatchObject({ kind: 'pushed' });
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+    expect(ctx.lastPushedHarnessFingerprint).toBe(
+      harnessCapabilitiesFingerprint(['opencode', 'pi'], {})
+    );
   });
 
   it('logs newly detected models and pushes when models are added', async () => {
@@ -306,6 +339,9 @@ describe('refreshModels', () => {
     expect(ctx.lastPushedModels).toEqual({
       opencode: ['opencode/model-a', 'opencode/model-b'],
     });
+    expect(ctx.lastPushedHarnessFingerprint).toBe(
+      harnessCapabilitiesFingerprint(['opencode', 'pi'], {})
+    );
   });
 
   it('leaves the snapshot unchanged when the backend mutation fails (next tick will retry)', async () => {
@@ -314,13 +350,17 @@ describe('refreshModels', () => {
     ]);
     const previous = { opencode: ['opencode/model-a'] };
     ctx.lastPushedModels = previous;
+    const prevFp = harnessCapabilitiesFingerprint(['opencode', 'pi'], {});
+    ctx.lastPushedHarnessFingerprint = prevFp;
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('network error'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await refreshModels(ctx);
+    const outcome = await refreshModels(ctx);
 
     // Snapshot must NOT be advanced — otherwise the addition would be lost
     // and the next tick would compare the new set against itself and skip.
     expect(ctx.lastPushedModels).toBe(previous);
+    expect(ctx.lastPushedHarnessFingerprint).toBe(prevFp);
+    expect(outcome).toEqual({ kind: 'failed', message: 'network error' });
   });
 });

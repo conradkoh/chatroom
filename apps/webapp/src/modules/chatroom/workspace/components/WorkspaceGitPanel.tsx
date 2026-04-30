@@ -131,7 +131,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
         await requestPRActionMutation({
           machineId,
           workingDir,
-          prNumber: activePR.prNumber,
+          prNumber: activePR.prNumber!,
           prAction: action,
         });
       } catch (err) {

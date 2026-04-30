@@ -842,6 +842,8 @@ export default defineSchema({
     lastSeenAt: v.number(),
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
+    // Last time the user requested a capabilities refresh for this machine (cooldown)
+    lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
     // machineId is client-generated (UUID). Convex doesn't support unique indexes,
     // so uniqueness is enforced at the application layer in register() mutation.
@@ -941,6 +943,44 @@ export default defineSchema({
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
     .index('by_machineId', ['machineId']),
+
+  /**
+   * One row per user-initiated "refresh capabilities" wave from the webapp.
+   * Per-machine outcomes live in `chatroom_capabilities_refresh_machine_results`.
+   */
+  chatroom_capabilities_refresh_batches: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    createdAt: v.number(),
+    expectedMachineCount: v.number(),
+    /** Machine result rows no longer in `pending` (completed / skipped_no_changes / failed). */
+    finishedMachineCount: v.number(),
+    aggregateStatus: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('partial'),
+      v.literal('failed')
+    ),
+  })
+    .index('by_chatroom_created', ['chatroomId', 'createdAt'])
+    .index('by_aggregateStatus_created', ['aggregateStatus', 'createdAt']),
+
+  chatroom_capabilities_refresh_machine_results: defineTable({
+    batchId: v.id('chatroom_capabilities_refresh_batches'),
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('skipped_no_changes'),
+      v.literal('failed')
+    ),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_batchId', ['batchId'])
+    .index('by_batchId_machineId', ['batchId', 'machineId']),
 
   // ============================================================================
   // EVENT STREAM TABLE
@@ -1095,6 +1135,14 @@ export default defineSchema({
         machineId: v.string(),
         workingDir: v.string(),
         timestamp: v.number(),
+      }),
+      // UI-initiated capabilities refresh request (model/harness discovery)
+      v.object({
+        type: v.literal('daemon.refreshCapabilities'),
+        machineId: v.string(),
+        timestamp: v.number(),
+        /** Present for new requests — daemons report outcomes against this batch. */
+        batchId: v.optional(v.id('chatroom_capabilities_refresh_batches')),
       }),
       // Daemon response to a daemon.ping event
       v.object({
