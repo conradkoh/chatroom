@@ -283,6 +283,9 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onAgentEnd: (cb) => {
+        forwarder?.onAgentEnd(cb);
+      },
     };
   }
 }
