@@ -60,6 +60,8 @@ export function startSessionEventForwarder(
 
   let cancelled = false;
   let doneResolve: () => void;
+  let sessionStarted = false;
+  const seenToolStates = new Map<string, string>();
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
@@ -94,6 +96,11 @@ export function startSessionEventForwarder(
         )
           continue;
 
+        if (!sessionStarted) {
+          sessionStarted = true;
+          target.write(formatLogLine(options, 'session] Started', `role: ${options.role}`) + '\n');
+        }
+
         switch (event.type) {
           case 'message.part.updated': {
             // OpenCode SDK: EventMessagePartUpdated is { part: Part; delta?: string }.
@@ -106,7 +113,11 @@ export function startSessionEventForwarder(
                     tool?: string;
                     text?: string;
                     sessionID?: string;
-                    state?: { status?: string };
+                    state?: {
+                      status?: string;
+                      input?: unknown;
+                      time?: { start?: number; end?: number };
+                    };
                   };
                   delta?: string;
                   state?: string;
@@ -115,17 +126,13 @@ export function startSessionEventForwarder(
             const part = props?.part;
             if (part?.type === 'text') {
               const chunk =
-                props?.delta !== undefined && props.delta !== ''
-                  ? props.delta
-                  : part.text;
+                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
                 target.write(formatLogLine(options, 'text', chunk) + '\n');
               }
             } else if (part?.type === 'reasoning') {
               const chunk =
-                props?.delta !== undefined && props.delta !== ''
-                  ? props.delta
-                  : part.text;
+                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
                 target.write(formatLogLine(options, 'thinking', chunk) + '\n');
               }
@@ -136,13 +143,55 @@ export function startSessionEventForwarder(
                   : typeof part.state?.status === 'string'
                     ? part.state.status
                     : 'started';
-              target.write(formatLogLine(options, 'tool: ' + part.tool, state) + '\n');
+
+              function appendInput(base: string, input: unknown, tool: string): string {
+                if (
+                  !input ||
+                  (typeof input === 'object' && Object.keys(input as object).length === 0)
+                ) {
+                  return base;
+                }
+                const inp = input as Record<string, unknown>;
+                if (tool === 'bash' && typeof inp.command === 'string') {
+                  return `${base}: ${inp.command}`;
+                }
+                const inputStr = typeof inp === 'string' ? inp : JSON.stringify(inp);
+                return `${base}: ${inputStr}`;
+              }
+
+              let payload = state;
+              if (part.state?.input) {
+                payload = appendInput(payload, part.state.input, part.tool);
+              }
+
+              if (
+                state === 'completed' &&
+                part.state?.time?.start !== undefined &&
+                part.state?.time?.end !== undefined
+              ) {
+                const duration = ((part.state.time.end - part.state.time.start) / 1000).toFixed(1);
+                payload = appendInput(`${state} (${duration}s)`, part.state.input, part.tool);
+              }
+
+              const callID = (part as { callID?: string }).callID ?? 'unknown';
+              const seenKey = `${callID}:${state}`;
+              if (!seenToolStates.has(seenKey)) {
+                seenToolStates.set(seenKey, payload);
+                target.write(formatLogLine(options, 'tool: ' + part.tool, payload) + '\n');
+              }
+              if (state === 'completed' || state === 'error') {
+                seenToolStates.delete(seenKey);
+              }
             }
             break;
           }
           case 'file.edited': {
-            const props = event.properties as { file?: string } | undefined;
-            target.write(formatLogLine(options, 'file', props?.file) + '\n');
+            const props = event.properties as
+              | { file?: string; action?: string; kind?: string }
+              | undefined;
+            const kind = props?.action ?? props?.kind;
+            const filePayload = kind ? `${props?.file} (${kind})` : props?.file;
+            target.write(formatLogLine(options, 'file', filePayload) + '\n');
             break;
           }
           case 'session.idle': {
@@ -160,13 +209,23 @@ export function startSessionEventForwarder(
           }
           case 'session.error': {
             const props = event.properties as
-              | { error?: { name?: string; data?: { message?: string } } }
+              | {
+                  error?: { name?: string; data?: { message?: string } };
+                  tool?: string;
+                  command?: string;
+                }
               | undefined;
             const err = props?.error;
             const errMsg = err?.name
               ? `${err.name}${err?.data?.message ? ': ' + err.data.message : ''}`
               : String(err ?? 'unknown');
-            errorTarget.write(formatLogLine(options, 'error', errMsg) + '\n');
+            let payload = errMsg;
+            if (props?.tool) {
+              payload += ` [tool: ${props.tool}]`;
+            } else if (props?.command) {
+              payload += ` [command: ${props.command}]`;
+            }
+            errorTarget.write(formatLogLine(options, 'error', payload) + '\n');
             break;
           }
           default:
