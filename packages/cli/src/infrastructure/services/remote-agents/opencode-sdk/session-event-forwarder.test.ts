@@ -376,4 +376,104 @@ describe('SessionEventForwarder', () => {
       '[fake-ts] role:builder error] stream exploded\n'
     );
   }, 10000);
+
+  it('tool call with bash command input included in log line', async () => {
+    async function* toolCallWithInputStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'c1',
+            state: {
+              status: 'running',
+              input: { command: 'git status' },
+              time: { start: 1000 },
+            },
+          },
+        },
+      };
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(toolCallWithInputStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder tool: bash] running: git status\n'
+    );
+  }, 10000);
+
+  it('tool call with duration shown on completion', async () => {
+    async function* toolCallWithDurationStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id: 'p1',
+            type: 'tool',
+            tool: 'bash',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            callID: 'c1',
+            state: {
+              status: 'completed',
+              input: { command: 'git status' },
+              output: 'ok',
+              time: { start: 0, end: 1000 },
+            },
+          },
+        },
+      };
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(toolCallWithDurationStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder tool: bash] completed (1.0s): git status\n'
+    );
+  }, 10000);
+
+  it('session start log emitted before first event', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(textDeltaStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const calls = (target.write as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+    expect(calls[0]).toBe('[fake-ts] role:builder session] Started] role: builder\n');
+  }, 10000);
+
+  it('file.edited with action kind included in log line', async () => {
+    async function* fileEditedWithKindStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'file.edited',
+        properties: { file: 'src/foo.ts', action: 'modified' },
+      };
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(fileEditedWithKindStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder file] src/foo.ts (modified)\n'
+    );
+  }, 10000);
 });
