@@ -61,6 +61,7 @@ export function startSessionEventForwarder(
   let cancelled = false;
   let doneResolve: () => void;
   let sessionStarted = false;
+  const seenToolStates = new Map<string, string>();
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
@@ -172,7 +173,15 @@ export function startSessionEventForwarder(
                 payload = appendInput(`${state} (${duration}s)`, part.state.input, part.tool);
               }
 
-              target.write(formatLogLine(options, 'tool: ' + part.tool, payload) + '\n');
+              const callID = (part as { callID?: string }).callID ?? 'unknown';
+              const seenKey = `${callID}:${state}`;
+              if (!seenToolStates.has(seenKey)) {
+                seenToolStates.set(seenKey, payload);
+                target.write(formatLogLine(options, 'tool: ' + part.tool, payload) + '\n');
+              }
+              if (state === 'completed' || state === 'error') {
+                seenToolStates.delete(seenKey);
+              }
             }
             break;
           }
