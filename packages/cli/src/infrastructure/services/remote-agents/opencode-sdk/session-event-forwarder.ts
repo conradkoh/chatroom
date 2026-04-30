@@ -75,6 +75,12 @@ export function startSessionEventForwarder(
   // Callbacks registered via onAgentEnd()
   const agentEndCallbacks: (() => void)[] = [];
 
+  // Deduplication: track last logged status to avoid duplicate status lines
+  let lastStatus: string | undefined;
+
+  // Callbacks registered via onAgentEnd()
+  const agentEndCallbacks: (() => void)[] = [];
+
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
   });
