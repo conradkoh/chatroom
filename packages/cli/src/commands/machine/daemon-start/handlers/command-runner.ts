@@ -23,12 +23,28 @@ interface RunningProcess {
   outputBuffer: string;
   chunkIndex: number;
   flushTimer: ReturnType<typeof setInterval>;
+  timeoutTimer: ReturnType<typeof setTimeout> | null;
 }
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
 /** Map of runId → RunningProcess for active processes. */
 const runningProcesses = new Map<string, RunningProcess>();
+
+/** Map of runId → timestamp for stops that arrived before the process was spawned.
+ *  Used to prevent zombie processes when command.stop arrives before command.run. */
+const pendingStops = new Map<string, number>();
+
+/** How long to keep pending stop entries before eviction (ms). */
+const PENDING_STOP_TTL_MS = 60_000;
+
+/** Evict pending stop entries older than PENDING_STOP_TTL_MS. Called periodically from the command loop. */
+export function evictStalePendingStops(): void {
+  const evictBefore = Date.now() - PENDING_STOP_TTL_MS;
+  for (const [runId, ts] of pendingStops) {
+    if (ts < evictBefore) pendingStops.delete(runId);
+  }
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -37,6 +53,12 @@ const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
 
 /** Maximum buffer size before forcing a flush (100KB). */
 const MAX_BUFFER_SIZE = 100 * 1024;
+
+/** Default timeout for command processes (30 minutes). After this, the process is killed. */
+const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
+
+/** Delay before force-killing a timed-out or stopped process after SIGTERM (ms). */
+const FORCE_KILL_DELAY_MS = 5_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -121,6 +143,26 @@ export async function onCommandRun(
     return;
   }
 
+  // Check for a pending stop that arrived before this run event.
+  // If a stop was already received, skip spawning — the run is already marked
+  // as 'stopped' in the backend, and spawning would create a zombie process.
+  if (pendingStops.has(runIdStr)) {
+    pendingStops.delete(runIdStr);
+    console.log(`[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`);
+    // Backend should already be in 'stopped' state from onCommandStop, but ensure it
+    try {
+      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: ctx.sessionId as SessionId,
+        machineId: ctx.machineId,
+        runId,
+        status: 'stopped' as any,
+      });
+    } catch (err) {
+      console.warn(`[${formatTimestamp()}] ⚠️ Failed to update status to stopped for pending-stop skip: ${getErrorMessage(err)}`);
+    }
+    return;
+  }
+
   console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
 
   // Security: Validate working directory exists and is an absolute path
@@ -149,6 +191,37 @@ export async function onCommandRun(
     detached: true, // Creates a new process group
   });
 
+  // Start a watchdog timer that kills the process if it runs too long
+  const timeoutTimer = setTimeout(() => {
+    console.log(`[${formatTimestamp()}] ⏰ Command timed out after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes: ${commandName} (runId: ${runIdStr})`);
+    // Kill the process group (negative PID) to ensure all child processes are terminated
+    const pid = child.pid;
+    if (pid) {
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        child.kill('SIGTERM');
+      }
+    } else {
+      child.kill('SIGTERM');
+    }
+    // Force-kill after delay if still alive
+    setTimeout(() => {
+      if (!runningProcesses.has(runIdStr)) return;
+      console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
+      if (pid) {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {
+          child.kill('SIGKILL');
+        }
+      } else {
+        child.kill('SIGKILL');
+      }
+    }, FORCE_KILL_DELAY_MS);
+  }, DEFAULT_COMMAND_TIMEOUT_MS);
+  timeoutTimer.unref?.();
+
   const tracked: RunningProcess = {
     process: child,
     runId: runIdStr,
@@ -157,6 +230,7 @@ export async function onCommandRun(
     flushTimer: setInterval(() => {
       flushOutput(ctx, tracked).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
+    timeoutTimer,
   };
 
   // Unref the timer so it doesn't keep the process alive
@@ -198,8 +272,9 @@ export async function onCommandRun(
     // Flush remaining output
     await flushOutput(ctx, tracked).catch(() => {});
 
-    // Clean up
+    // Clean up timers and state
     clearInterval(tracked.flushTimer);
+    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
     runningProcesses.delete(runIdStr);
 
     // Determine final status
@@ -225,6 +300,7 @@ export async function onCommandRun(
     console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
 
     clearInterval(tracked.flushTimer);
+    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
     runningProcesses.delete(runIdStr);
 
     try {
@@ -251,8 +327,14 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
 
   if (!tracked) {
     console.log(`[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr}`);
-    // Process not tracked locally (e.g., daemon restarted). Update status to 'stopped'
-    // so the UI doesn't show it as running forever.
+
+    // Register a pending stop so onCommandRun can skip spawning if the run event
+    // hasn't been processed yet (stop-before-run race condition).
+    pendingStops.set(runIdStr, Date.now());
+    console.log(`[${formatTimestamp()}] 📝 Registered pending stop for run: ${runIdStr}`);
+
+    // Update status to 'stopped' in the backend so the UI doesn't show it as running.
+    // This also handles the case where the daemon restarted and lost track of the process.
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -270,6 +352,12 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
   }
 
   console.log(`[${formatTimestamp()}] 🛑 Stopping command run: ${runIdStr}`);
+
+  // Clear the timeout watchdog since we're explicitly stopping
+  if (tracked.timeoutTimer) {
+    clearTimeout(tracked.timeoutTimer);
+    tracked.timeoutTimer = null;
+  }
 
   // Kill the entire process group (negative PID) to ensure all child processes are terminated
   const pid = tracked.process.pid;
@@ -299,5 +387,5 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     } else {
       tracked.process.kill('SIGKILL');
     }
-  }, 5_000);
+  }, FORCE_KILL_DELAY_MS);
 }

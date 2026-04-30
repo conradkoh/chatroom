@@ -18,7 +18,7 @@ import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { handlePing } from './handlers/ping.js';
-import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
 import { discoverModels } from './init.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -214,11 +214,17 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   for (const [id, ts] of tracker.commandStopIds) {
     if (ts < evictBefore) tracker.commandStopIds.delete(id);
   }
+
+  // Evict stale pending stops from command-runner (stop-before-run race handling)
+  evictStalePendingStops();
 }
 
 /**
  * Dispatch a single command event to the appropriate handler.
  * Handles deduplication and error boundaries per event.
+ *
+ * NOTE: Event IDs are registered AFTER handler completion so that failed handlers
+ * can be retried on the next subscription update, rather than being permanently skipped.
  */
 async function dispatchCommandEvent(
   ctx: DaemonContext,
@@ -233,17 +239,16 @@ async function dispatchCommandEvent(
   if (event.type === 'agent.requestStart') {
     // Deadline-filtered — use commandIds for session dedup
     if (tracker.commandIds.has(eventId)) return;
-    tracker.commandIds.set(eventId, Date.now());
     await onRequestStartAgent(ctx, event);
+    tracker.commandIds.set(eventId, Date.now());
   } else if (event.type === 'agent.requestStop') {
     // Deadline-filtered — use commandIds for session dedup
     if (tracker.commandIds.has(eventId)) return;
-    tracker.commandIds.set(eventId, Date.now());
     await onRequestStopAgent(ctx, event);
+    tracker.commandIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.ping') {
     // Session dedup — prevents re-ponging the same ping twice in one daemon run
     if (tracker.pingIds.has(eventId)) return;
-    tracker.pingIds.set(eventId, Date.now());
 
     // Respond to ping with a pong via mutation
     handlePing();
@@ -252,10 +257,10 @@ async function dispatchCommandEvent(
       machineId: ctx.machineId,
       pingEventId: event._id,
     });
+    tracker.pingIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.gitRefresh') {
     // Session dedup — don't re-process same refresh event twice in one daemon run
     if (tracker.gitRefreshIds.has(eventId)) return;
-    tracker.gitRefreshIds.set(eventId, Date.now());
 
     // Clear in-memory state hash to bypass change detection on next push
     const stateKey = makeGitStateKey(ctx.machineId, event.workingDir);
@@ -264,32 +269,33 @@ async function dispatchCommandEvent(
     // Push git state immediately (non-blocking from caller perspective)
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${event.workingDir}`);
     await pushGitState(ctx);
+    tracker.gitRefreshIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.localAction') {
     // Session dedup — don't re-process same local action event twice in one daemon run
     if (tracker.localActionIds.has(eventId)) return;
-    tracker.localActionIds.set(eventId, Date.now());
 
     console.log(`[${formatTimestamp()}] 🖥️  Local action: ${event.action} → ${event.workingDir}`);
     const result = await executeLocalAction(event.action, event.workingDir);
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     }
+    tracker.localActionIds.set(eventId, Date.now());
   } else if (eventType === 'command.run') {
     // Session dedup — don't re-process same command run event twice
     if (tracker.commandRunIds.has(eventId)) return;
-    tracker.commandRunIds.set(eventId, Date.now());
     await onCommandRun(ctx, event as any);
+    tracker.commandRunIds.set(eventId, Date.now());
   } else if (eventType === 'command.stop') {
     // Session dedup — don't re-process same command stop event twice
     if (tracker.commandStopIds.has(eventId)) return;
-    tracker.commandStopIds.set(eventId, Date.now());
     await onCommandStop(ctx, event as any);
+    tracker.commandStopIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.refreshCapabilities') {
     // Session dedup — don't re-process same refresh event twice
     if (tracker.capabilitiesRefreshIds.has(eventId)) return;
-    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
     console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
     const outcome = await refreshModels(ctx);
+    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
 
     const batchId =
       'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
