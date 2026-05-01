@@ -58,8 +58,11 @@ const MAX_BUFFER_SIZE = 100 * 1024;
 /** Default timeout for command processes (30 minutes). After this, the process is killed. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
 
-/** Delay before force-killing a timed-out process after SIGTERM in the watchdog (ms). */
-const WATCHDOG_FORCE_KILL_DELAY_MS = 5_000;
+/**
+ * How long to wait after SIGTERM before force-killing with SIGKILL (ms).
+ * Applies to both explicit stops (command.stop event) and the 30-min watchdog.
+ */
+const SIGTERM_GRACE_PERIOD_MS = 5_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -225,7 +228,7 @@ export async function onCommandRun(
       } else {
         child.kill('SIGKILL');
       }
-    }, WATCHDOG_FORCE_KILL_DELAY_MS);
+    }, SIGTERM_GRACE_PERIOD_MS);
   }, DEFAULT_COMMAND_TIMEOUT_MS);
   timeoutTimer.unref?.();
 
@@ -324,9 +327,6 @@ export async function onCommandRun(
     }
   });
 }
-
-/** How long to wait for graceful SIGTERM exit before force-killing (ms). */
-const SIGTERM_GRACE_PERIOD_MS = 10_000;
 
 /**
  * Send a signal to a process group (negative PID), falling back to the child directly.
