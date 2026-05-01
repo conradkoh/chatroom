@@ -1,6 +1,7 @@
 import { api } from '../../api.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
+import { shutdownAllCommands } from '../../commands/machine/daemon-start/handlers/command-runner.js';
 
 /**
  * Handle daemon shutdown: stop all agents and update daemon status.
@@ -9,6 +10,9 @@ import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
  * Uses AgentProcessManager to stop all active agents gracefully.
  */
 export async function onDaemonShutdown(ctx: DaemonContext): Promise<void> {
+  // Kill all running command processes before stopping agents
+  await shutdownAllCommands(ctx);
+
   const activeAgents = ctx.deps.agentProcessManager.listActive();
 
   if (activeAgents.length > 0) {

@@ -363,3 +363,44 @@ export const getRunOutput = query({
     return { chunks, run };
   },
 });
+
+/**
+ * Clear all pending/running command runs for a machine on daemon startup.
+ *
+ * Called during daemon recovery so that any runs left in 'pending' or 'running'
+ * state from before the restart are immediately marked as 'stopped'. This
+ * prevents the UI from showing stale "running" indicators after a daemon crash
+ * or restart.
+ *
+ * Bypasses updateRunStatus state-machine validation intentionally — startup
+ * cleanup needs to force-stop regardless of prior state.
+ */
+export const clearStaleCommandRuns = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+
+    // Query all runs for this machine using the machineId prefix of the
+    // by_machine_workingDir index, then filter by status in code.
+    const allRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    const now = Date.now();
+    let clearedCount = 0;
+
+    for (const run of allRuns) {
+      if (run.status === 'pending' || run.status === 'running') {
+        await ctx.db.patch(run._id, { status: 'stopped', completedAt: now });
+        clearedCount++;
+      }
+    }
+
+    return { clearedCount };
+  },
+});

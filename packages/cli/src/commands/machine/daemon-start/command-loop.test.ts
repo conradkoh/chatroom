@@ -13,11 +13,49 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { refreshModels } from './command-loop.js';
+import { dispatchCommandEvent, refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
 import type { DaemonContext, AgentHarness } from './types.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+
+// ---------------------------------------------------------------------------
+// Module mocks for dispatchCommandEvent tests
+// ---------------------------------------------------------------------------
+
+vi.mock('../../../events/daemon/agent/on-request-start-agent.js', () => ({
+  onRequestStartAgent: vi.fn(),
+}));
+
+vi.mock('../../../events/daemon/agent/on-request-stop-agent.js', () => ({
+  onRequestStopAgent: vi.fn(),
+}));
+
+vi.mock('./handlers/ping.js', () => ({
+  handlePing: vi.fn(),
+}));
+
+vi.mock('./handlers/command-runner.js', () => ({
+  onCommandRun: vi.fn(),
+  onCommandStop: vi.fn(),
+  evictStalePendingStops: vi.fn(),
+}));
+
+vi.mock('./git-heartbeat.js', () => ({
+  pushGitState: vi.fn(),
+  pushSingleWorkspaceGitSummaryForObserved: vi.fn(),
+}));
+
+vi.mock('../../../infrastructure/local-actions/index.js', () => ({
+  executeLocalAction: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { handlePing } from './handlers/ping.js';
+import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import { pushGitState } from './git-heartbeat.js';
+import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -362,5 +400,312 @@ describe('refreshModels', () => {
     expect(ctx.lastPushedModels).toBe(previous);
     expect(ctx.lastPushedHarnessFingerprint).toBe(prevFp);
     expect(outcome).toEqual({ kind: 'failed', message: 'network error' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dispatchCommandEvent — dedup-after-handler invariant tests
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal DedupTracker fixture with all maps empty.
+ * Matches the DedupTracker interface in command-loop.ts (structural typing).
+ */
+function createDedupTracker() {
+  return {
+    commandIds: new Map<string, number>(),
+    pingIds: new Map<string, number>(),
+    gitRefreshIds: new Map<string, number>(),
+    capabilitiesRefreshIds: new Map<string, number>(),
+    localActionIds: new Map<string, number>(),
+    commandRunIds: new Map<string, number>(),
+    commandStopIds: new Map<string, number>(),
+  };
+}
+
+/**
+ * Minimal DaemonContext sufficient for the dispatcher.
+ * The handlers themselves are mocked, so we only need sessionId/machineId
+ * and a backend stub (for daemon.ping's ackPing call and daemon.gitRefresh).
+ */
+function createDispatchCtx(): DaemonContext {
+  const deps: DaemonDeps = {
+    backend: {
+      mutation: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+    },
+    processes: { kill: vi.fn() },
+    fs: { stat: vi.fn() as any },
+    machine: {
+      clearAgentPid: vi.fn(),
+      persistAgentPid: vi.fn(),
+      listAgentEntries: vi.fn().mockReturnValue([]),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
+    },
+    clock: {
+      now: vi.fn().mockReturnValue(Date.now()),
+      delay: vi.fn().mockResolvedValue(undefined),
+    },
+    spawning: {
+      shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+      recordSpawn: vi.fn(),
+      recordExit: vi.fn(),
+      getConcurrentCount: vi.fn().mockReturnValue(0),
+    },
+    agentProcessManager: {
+      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
+      stop: vi.fn().mockResolvedValue({ success: true }),
+      handleExit: vi.fn(),
+      recover: vi.fn().mockResolvedValue(undefined),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+    } as any,
+  };
+
+  return {
+    client: {} as any,
+    sessionId: 'test-session',
+    machineId: 'test-machine',
+    config: null, // null causes refreshModels to return noop without spawning
+    deps,
+    events: new DaemonEventBus(),
+    agentServices: new Map(),
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
+  };
+}
+
+/** Build a minimal fake event with the given type and id. */
+function makeEvent(type: string, id: string, extra?: Record<string, unknown>) {
+  return { _id: id as any, type, ...extra } as any;
+}
+
+describe('dispatchCommandEvent', () => {
+  let ctx: DaemonContext;
+  let tracker: ReturnType<typeof createDedupTracker>;
+
+  beforeEach(() => {
+    ctx = createDispatchCtx();
+    tracker = createDedupTracker();
+    // Reset all handler mocks between tests
+    vi.mocked(onRequestStartAgent).mockReset();
+    vi.mocked(onRequestStopAgent).mockReset();
+    vi.mocked(handlePing).mockReset();
+    vi.mocked(onCommandRun).mockReset();
+    vi.mocked(onCommandStop).mockReset();
+    vi.mocked(pushGitState).mockReset();
+    vi.mocked(executeLocalAction).mockReset();
+  });
+
+  // ── agent.requestStart ──────────────────────────────────────────────────
+
+  it('agent.requestStart: sets dedup ID after successful handler', async () => {
+    vi.mocked(onRequestStartAgent).mockResolvedValue(undefined);
+    const event = makeEvent('agent.requestStart', 'evt-start-ok', {
+      chatroomId: 'room-1',
+      role: 'builder',
+      agentHarness: 'pi',
+      model: 'gpt-4',
+      workingDir: '/tmp',
+      reason: 'user.start',
+      deadline: Date.now() + 60_000,
+    });
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.commandIds.has('evt-start-ok')).toBe(true);
+  });
+
+  it('agent.requestStart: does NOT set dedup ID when handler throws (enables retry)', async () => {
+    vi.mocked(onRequestStartAgent).mockRejectedValue(new Error('transient'));
+    const event = makeEvent('agent.requestStart', 'evt-start-fail');
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('transient');
+
+    expect(tracker.commandIds.has('evt-start-fail')).toBe(false);
+  });
+
+  // ── agent.requestStop ───────────────────────────────────────────────────
+
+  it('agent.requestStop: sets dedup ID after successful handler', async () => {
+    vi.mocked(onRequestStopAgent).mockResolvedValue(undefined);
+    const event = makeEvent('agent.requestStop', 'evt-stop-ok');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.commandIds.has('evt-stop-ok')).toBe(true);
+  });
+
+  it('agent.requestStop: does NOT set dedup ID when handler throws (enables retry)', async () => {
+    vi.mocked(onRequestStopAgent).mockRejectedValue(new Error('transient'));
+    const event = makeEvent('agent.requestStop', 'evt-stop-fail');
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('transient');
+
+    expect(tracker.commandIds.has('evt-stop-fail')).toBe(false);
+  });
+
+  // ── daemon.ping ─────────────────────────────────────────────────────────
+
+  it('daemon.ping: sets dedup ID after successful handler', async () => {
+    vi.mocked(handlePing).mockReturnValue({ result: 'pong', failed: false });
+    (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    const event = makeEvent('daemon.ping', 'evt-ping-ok');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.pingIds.has('evt-ping-ok')).toBe(true);
+  });
+
+  it('daemon.ping: does NOT set dedup ID when ackPing mutation throws (enables retry)', async () => {
+    vi.mocked(handlePing).mockReturnValue({ result: 'pong', failed: false });
+    (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('backend down')
+    );
+    const event = makeEvent('daemon.ping', 'evt-ping-fail');
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('backend down');
+
+    expect(tracker.pingIds.has('evt-ping-fail')).toBe(false);
+  });
+
+  // ── daemon.gitRefresh ────────────────────────────────────────────────────
+
+  it('daemon.gitRefresh: sets dedup ID after successful handler', async () => {
+    vi.mocked(pushGitState).mockResolvedValue(undefined);
+    const event = makeEvent('daemon.gitRefresh', 'evt-git-ok', { workingDir: '/tmp' });
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.gitRefreshIds.has('evt-git-ok')).toBe(true);
+  });
+
+  it('daemon.gitRefresh: does NOT set dedup ID when pushGitState throws (enables retry)', async () => {
+    vi.mocked(pushGitState).mockRejectedValue(new Error('git error'));
+    const event = makeEvent('daemon.gitRefresh', 'evt-git-fail', { workingDir: '/tmp' });
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('git error');
+
+    expect(tracker.gitRefreshIds.has('evt-git-fail')).toBe(false);
+  });
+
+  // ── daemon.localAction ──────────────────────────────────────────────────
+
+  it('daemon.localAction: sets dedup ID after successful handler', async () => {
+    vi.mocked(executeLocalAction).mockResolvedValue({ success: true });
+    const event = makeEvent('daemon.localAction', 'evt-local-ok', {
+      action: 'open_vscode',
+      workingDir: '/tmp',
+    });
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.localActionIds.has('evt-local-ok')).toBe(true);
+  });
+
+  it('daemon.localAction: does NOT set dedup ID when handler throws (enables retry)', async () => {
+    vi.mocked(executeLocalAction).mockRejectedValue(new Error('exec error'));
+    const event = makeEvent('daemon.localAction', 'evt-local-fail', {
+      action: 'open_vscode',
+      workingDir: '/tmp',
+    });
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('exec error');
+
+    expect(tracker.localActionIds.has('evt-local-fail')).toBe(false);
+  });
+
+  // ── command.run (dedup-BEFORE-handler — non-idempotent spawn) ───────────
+
+  it('command.run: sets dedup ID BEFORE handler so retry cannot spawn a duplicate', async () => {
+    vi.mocked(onCommandRun).mockResolvedValue(undefined);
+    const event = makeEvent('command.run', 'evt-run-ok');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.commandRunIds.has('evt-run-ok')).toBe(true);
+  });
+
+  it('command.run: dedup ID IS set even when handler throws (prevents duplicate spawn on retry)', async () => {
+    vi.mocked(onCommandRun).mockRejectedValue(new Error('spawn failed'));
+    const event = makeEvent('command.run', 'evt-run-fail');
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('spawn failed');
+
+    // Unlike other handlers, command.run registers dedup BEFORE the handler
+    // so a throw does NOT clear the dedup ID — the event will NOT be retried.
+    expect(tracker.commandRunIds.has('evt-run-fail')).toBe(true);
+  });
+
+  // ── command.stop ─────────────────────────────────────────────────────────
+
+  it('command.stop: sets dedup ID after successful handler', async () => {
+    vi.mocked(onCommandStop).mockResolvedValue(undefined);
+    const event = makeEvent('command.stop', 'evt-cmdstop-ok');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.commandStopIds.has('evt-cmdstop-ok')).toBe(true);
+  });
+
+  it('command.stop: does NOT set dedup ID when handler throws (enables retry)', async () => {
+    vi.mocked(onCommandStop).mockRejectedValue(new Error('stop error'));
+    const event = makeEvent('command.stop', 'evt-cmdstop-fail');
+
+    await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('stop error');
+
+    expect(tracker.commandStopIds.has('evt-cmdstop-fail')).toBe(false);
+  });
+
+  // ── daemon.refreshCapabilities ───────────────────────────────────────────
+
+  it('daemon.refreshCapabilities: sets dedup ID after call (handler suppresses errors internally)', async () => {
+    // ctx.config is null → refreshModels returns {kind:'noop'} without any backend call.
+    // The handler catches all internal errors, so the dedup ID is always set.
+    const event = makeEvent('daemon.refreshCapabilities', 'evt-caps-ok');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(tracker.capabilitiesRefreshIds.has('evt-caps-ok')).toBe(true);
+  });
+
+  it('daemon.refreshCapabilities: dedup ID IS set even when refreshModels returns "failed" (handler never throws)', async () => {
+    // When ctx.config is valid but backend throws, refreshModels catches it and
+    // returns {kind:'failed'}. The handler still sets the dedup ID.
+    ctx.config = {
+      machineId: 'test-machine',
+      hostname: 'test-host',
+      os: 'darwin',
+      registeredAt: '2026-01-01T00:00:00Z',
+      lastSyncedAt: '2026-01-01T00:00:00Z',
+      availableHarnesses: [],
+      harnessVersions: {},
+    };
+    ctx.agentServices = new Map(); // empty → no models discovered
+    ctx.lastPushedModels = null; // force a push attempt
+    (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('backend error')
+    );
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const event = makeEvent('daemon.refreshCapabilities', 'evt-caps-fail');
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    // Handler caught the error internally; dedup ID is set
+    expect(tracker.capabilitiesRefreshIds.has('evt-caps-fail')).toBe(true);
+  });
+
+  // ── Dedup short-circuit ─────────────────────────────────────────────────
+
+  it('does not call handler when event ID is already in the dedup map', async () => {
+    vi.mocked(onRequestStartAgent).mockResolvedValue(undefined);
+    const event = makeEvent('agent.requestStart', 'already-seen');
+    tracker.commandIds.set('already-seen', Date.now());
+
+    await dispatchCommandEvent(ctx, event, tracker);
+
+    expect(onRequestStartAgent).not.toHaveBeenCalled();
   });
 });
