@@ -58,8 +58,11 @@ const MAX_BUFFER_SIZE = 100 * 1024;
 /** Default timeout for command processes (30 minutes). After this, the process is killed. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
 
-/** Delay before force-killing a timed-out or stopped process after SIGTERM (ms). */
-const FORCE_KILL_DELAY_MS = 5_000;
+/**
+ * How long to wait after SIGTERM before force-killing with SIGKILL (ms).
+ * Applies to both explicit stops (command.stop event) and the 30-min watchdog.
+ */
+const SIGTERM_GRACE_PERIOD_MS = 5_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -149,7 +152,9 @@ export async function onCommandRun(
   // as 'stopped' in the backend, and spawning would create a zombie process.
   if (pendingStops.has(runIdStr)) {
     pendingStops.delete(runIdStr);
-    console.log(`[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`);
+    console.log(
+      `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
+    );
     // Backend should already be in 'stopped' state from onCommandStop, but ensure it
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
@@ -159,7 +164,9 @@ export async function onCommandRun(
         status: 'stopped' as any,
       });
     } catch (err) {
-      console.warn(`[${formatTimestamp()}] ⚠️ Failed to update status to stopped for pending-stop skip: ${getErrorMessage(err)}`);
+      console.warn(
+        `[${formatTimestamp()}] ⚠️ Failed to update status to stopped for pending-stop skip: ${getErrorMessage(err)}`
+      );
     }
     return;
   }
@@ -194,7 +201,9 @@ export async function onCommandRun(
 
   // Start a watchdog timer that kills the process if it runs too long
   const timeoutTimer = setTimeout(() => {
-    console.log(`[${formatTimestamp()}] ⏰ Command timed out after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes: ${commandName} (runId: ${runIdStr})`);
+    console.log(
+      `[${formatTimestamp()}] ⏰ Command timed out after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes: ${commandName} (runId: ${runIdStr})`
+    );
     // Kill the process group (negative PID) to ensure all child processes are terminated
     const pid = child.pid;
     if (pid) {
@@ -219,7 +228,7 @@ export async function onCommandRun(
       } else {
         child.kill('SIGKILL');
       }
-    }, FORCE_KILL_DELAY_MS);
+    }, SIGTERM_GRACE_PERIOD_MS);
   }, DEFAULT_COMMAND_TIMEOUT_MS);
   timeoutTimer.unref?.();
 
@@ -320,25 +329,69 @@ export async function onCommandRun(
 }
 
 /**
+ * Send a signal to a process group (negative PID), falling back to the child directly.
+ */
+function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
+  const pid = child.pid;
+  if (pid) {
+    try {
+      process.kill(-pid, signal);
+      return;
+    } catch {
+      // Process group may already be dead; fall through to direct kill
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // Already dead
+  }
+}
+
+/**
+ * Wait up to `ms` milliseconds for the process to exit (i.e. be removed from runningProcesses).
+ * Resolves true if the process exited within the timeout, false otherwise.
+ */
+function waitForExit(runIdStr: string, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const interval = 100;
+    let elapsed = 0;
+    const timer = setInterval(() => {
+      if (!runningProcesses.has(runIdStr)) {
+        clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= ms) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, interval);
+  });
+}
+
+/**
  * Handle a command.stop event: kill the running process.
+ *
+ * Stop logic:
+ * 1. Check if a tracked process exists for this runId.
+ * 2. If not, register a pending stop and mark the backend record as stopped.
+ * 3. If yes, send SIGTERM and wait up to 10s for the process to exit.
+ * 4. If still running after 10s, send SIGKILL.
+ * 5. If still running after SIGKILL, log a stop failure.
+ * 6. In all cases, mark the backend record as stopped.
  */
 export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
   const runIdStr = event.runId.toString();
   const tracked = runningProcesses.get(runIdStr);
 
+  // Step 1 & 2: No tracked process — register pending stop and mark backend stopped.
   if (!tracked) {
-    console.log(`[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr}`);
-
-    // Register a pending stop so onCommandRun can skip spawning if the run event
-    // hasn't been processed yet (stop-before-run race condition).
+    console.log(
+      `[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr} — marking as stopped`
+    );
     pendingStops.set(runIdStr, Date.now());
-    console.log(`[${formatTimestamp()}] 📝 Registered pending stop for run: ${runIdStr}`);
-
-    // Update status to 'stopped' in the backend so the UI doesn't show it as running.
-    // This also handles the case where the daemon restarted and lost track of the process.
-    // Re-throw on failure so dispatchCommandEvent skips registering the dedup ID and
-    // retries on the next subscription update (dedup-after-handler retry semantics).
-    // pendingStops.set() above runs before this call, so a retry is safe and idempotent.
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -346,10 +399,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
         runId: event.runId,
         status: 'stopped' as any,
       });
-      console.log(`[${formatTimestamp()}] 📝 Marked orphaned run as stopped: ${runIdStr}`);
     } catch (err) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to mark orphaned run as stopped (will retry): ${getErrorMessage(err)}`
+        `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped (will retry): ${getErrorMessage(err)}`
       );
       throw err;
     }
@@ -364,35 +416,39 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     tracked.timeoutTimer = null;
   }
 
-  // Kill the entire process group (negative PID) to ensure all child processes are terminated
-  const pid = tracked.process.pid;
-  if (pid) {
-    try {
-      process.kill(-pid, 'SIGTERM');
-    } catch {
-      // Process group may already be dead
-      tracked.process.kill('SIGTERM');
+  // Step 3: Send SIGTERM and wait up to 10s for graceful exit.
+  killProcess(tracked.process, 'SIGTERM');
+  const exitedAfterSigterm = await waitForExit(runIdStr, SIGTERM_GRACE_PERIOD_MS);
+
+  if (!exitedAfterSigterm) {
+    // Step 4: Still running — send SIGKILL.
+    console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${runIdStr}`);
+    killProcess(tracked.process, 'SIGKILL');
+
+    // Give SIGKILL a moment to take effect (kernel-level, should be near-instant)
+    const exitedAfterSigkill = await waitForExit(runIdStr, 1_000);
+
+    if (!exitedAfterSigkill) {
+      // Step 5: Still alive after SIGKILL — log failure.
+      console.error(
+        `[${formatTimestamp()}] ❌ Failed to stop process for run: ${runIdStr} — process did not exit after SIGKILL`
+      );
     }
-  } else {
-    tracked.process.kill('SIGTERM');
   }
 
-  setTimeout(() => {
-    // Check whether the process already exited (runningProcesses entry removed by exit handler)
-    // rather than relying on tracked.process.killed, which is only set when kill() is called
-    // on the ChildProcess object directly — not when process.kill(-pid, ...) is used.
-    if (!runningProcesses.has(runIdStr)) return;
-    console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${runIdStr}`);
-    if (pid) {
-      try {
-        process.kill(-pid, 'SIGKILL');
-      } catch {
-        tracked.process.kill('SIGKILL');
-      }
-    } else {
-      tracked.process.kill('SIGKILL');
-    }
-  }, FORCE_KILL_DELAY_MS);
+  // Step 6: Always mark the backend record as stopped.
+  try {
+    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: ctx.sessionId as SessionId,
+      machineId: ctx.machineId,
+      runId: event.runId,
+      status: 'stopped' as any,
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
+    );
+  }
 }
 
 /**
@@ -405,7 +461,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
 export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
   if (runningProcesses.size === 0) return;
 
-  console.log(`[${formatTimestamp()}] Shutting down ${runningProcesses.size} running command(s)...`);
+  console.log(
+    `[${formatTimestamp()}] Shutting down ${runningProcesses.size} running command(s)...`
+  );
 
   for (const [, tracked] of runningProcesses) {
     clearInterval(tracked.flushTimer);
@@ -437,9 +495,17 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
   for (const [, tracked] of runningProcesses) {
     const pid = tracked.process.pid;
     if (pid) {
-      try { process.kill(-pid, 'SIGKILL'); } catch { /* already dead */ }
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch {
+        /* already dead */
+      }
     } else {
-      try { tracked.process.kill('SIGKILL'); } catch { /* already dead */ }
+      try {
+        tracked.process.kill('SIGKILL');
+      } catch {
+        /* already dead */
+      }
     }
   }
 
