@@ -263,6 +263,21 @@ describe('pending-stop race (stop-before-run)', () => {
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(runningProcesses.has('run-normal')).toBe(true);
   });
+
+  it('throws when backend mutation fails so dispatchCommandEvent can retry', async () => {
+    // When the backend mutation for the orphan-stop path throws, onCommandStop re-throws
+    // so that dispatchCommandEvent (dedup-after-handler) skips registering the dedup ID
+    // and retries on the next subscription update.
+    vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('Convex disconnect'));
+
+    await expect(
+      onCommandStop(ctx, { runId: 'run-orphan-fail' as any })
+    ).rejects.toThrow('Convex disconnect');
+
+    // Pending stop must still be registered (set before the mutation throw)
+    // so the next onCommandRun for this runId is skipped (stop-before-run safety).
+    expect(pendingStops.has('run-orphan-fail')).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

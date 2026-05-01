@@ -336,6 +336,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
 
     // Update status to 'stopped' in the backend so the UI doesn't show it as running.
     // This also handles the case where the daemon restarted and lost track of the process.
+    // Re-throw on failure so dispatchCommandEvent skips registering the dedup ID and
+    // retries on the next subscription update (dedup-after-handler retry semantics).
+    // pendingStops.set() above runs before this call, so a retry is safe and idempotent.
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -346,8 +349,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
       console.log(`[${formatTimestamp()}] 📝 Marked orphaned run as stopped: ${runIdStr}`);
     } catch (err) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to mark orphaned run as stopped: ${getErrorMessage(err)}`
+        `[${formatTimestamp()}] ⚠️ Failed to mark orphaned run as stopped (will retry): ${getErrorMessage(err)}`
       );
+      throw err;
     }
     return;
   }
