@@ -243,7 +243,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
  *   command.stop               — killing an already-dead process is harmless; retry-safe
  *   daemon.refreshCapabilities — model refresh is idempotent; retry-safe
  */
-async function dispatchCommandEvent(
+export async function dispatchCommandEvent(
   ctx: DaemonContext,
   event: CommandEvent,
   tracker: DedupTracker

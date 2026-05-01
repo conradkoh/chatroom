@@ -28,12 +28,13 @@ interface RunningProcess {
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
-/** Map of runId → RunningProcess for active processes. */
-const runningProcesses = new Map<string, RunningProcess>();
+// @internal — exported for tests only
+export const runningProcesses = new Map<string, RunningProcess>();
 
 /** Map of runId → timestamp for stops that arrived before the process was spawned.
  *  Used to prevent zombie processes when command.stop arrives before command.run. */
-const pendingStops = new Map<string, number>();
+// @internal — exported for tests only
+export const pendingStops = new Map<string, number>();
 
 /** How long to keep pending stop entries before eviction (ms). */
 const PENDING_STOP_TTL_MS = 60_000;
