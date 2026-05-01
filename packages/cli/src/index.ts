@@ -1156,6 +1156,44 @@ opencodeCommand
     await installTool({ checkExisting: !options.force });
   });
 
+// ─── Worker commands ──────────────────────────────────────────────────────────
+
+const workerCommand = program
+  .command('worker')
+  .description('Spawn or resume a direct-harness worker (gated by directHarnessWorkers feature flag)');
+
+workerCommand
+  .command('spawn')
+  .description('Spawn a new worker for a chatroom using a direct harness')
+  .requiredOption('--chatroom-id <id>', 'Target chatroom Convex Id')
+  .requiredOption('--role <role>', 'Role label for the worker')
+  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
+  .option('--cwd <path>', 'Working directory for the harness process')
+  .action(async (options: { chatroomId: string; role: string; harness: string; cwd?: string }) => {
+    const { workerSpawn } = await import('./commands/worker/index.js');
+    await workerSpawn({
+      chatroomId: options.chatroomId,
+      role: options.role,
+      harness: options.harness,
+      cwd: options.cwd,
+    });
+  });
+
+workerCommand
+  .command('resume')
+  .description('Resume an existing worker by reattaching to its harness session')
+  .requiredOption('--worker-id <id>', 'Backend worker Id')
+  .requiredOption('--harness-session-id <id>', 'Harness session Id')
+  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
+  .action(async (options: { workerId: string; harnessSessionId: string; harness: string }) => {
+    const { workerResume } = await import('./commands/worker/index.js');
+    await workerResume({
+      workerId: options.workerId,
+      harnessSessionId: options.harnessSessionId,
+      harness: options.harness,
+    });
+  });
+
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.
