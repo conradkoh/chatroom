@@ -1,0 +1,114 @@
+/**
+ * DirectHarnessSession implementation for the opencode-sdk harness.
+ *
+ * Wraps an opencode SDK client session, providing send/onEvent/close
+ * as specified by the DirectHarnessSession domain interface.
+ */
+
+import type {
+  DirectHarnessSession,
+  DirectHarnessSessionEvent,
+  HarnessSessionId,
+} from '../../../domain/direct-harness/index.js';
+
+/** Minimal SDK client surface needed by the session. */
+export interface OpencodeSdkSessionClient {
+  session: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    promptAsync(args: any): Promise<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    abort(args: any): Promise<any>;
+  };
+  event: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    subscribe(args?: any): Promise<{ stream: AsyncGenerator<{ type: string; properties?: Record<string, unknown> }> }>;
+  };
+}
+
+/**
+ * Manages a single opencode-sdk session lifecycle.
+ * Created by `createOpencodeSdkHarness().spawn()` or `.resume()`.
+ */
+export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
+  private closed = false;
+  private readonly listeners = new Set<(e: DirectHarnessSessionEvent) => void>();
+
+  constructor(
+    public readonly harnessSessionId: HarnessSessionId,
+    private readonly client: OpencodeSdkSessionClient,
+    /** Abort the ongoing event subscription loop. */
+    private readonly stopEventStream: () => void,
+    /** Kill the child process on close (undefined for resumed sessions). */
+    private readonly killProcess?: () => void,
+  ) {}
+
+  // ── DirectHarnessSession ─────────────────────────────────────────────────
+
+  async send(input: string): Promise<void> {
+    if (this.closed) throw new Error('Session is closed');
+    await this.client.session.promptAsync({
+      path: { id: this.harnessSessionId as string },
+      body: { parts: [{ type: 'text', text: input }] },
+    });
+  }
+
+  onEvent(listener: (e: DirectHarnessSessionEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+
+    this.stopEventStream();
+
+    try {
+      await this.client.session.abort({ path: { id: this.harnessSessionId as string } });
+    } catch {
+      // Ignore abort failures — process may already be dead
+    }
+
+    this.killProcess?.();
+  }
+
+  // ── Internal ─────────────────────────────────────────────────────────────
+
+  /** Emit an SDK event to all registered onEvent listeners. */
+  _emit(type: string, properties: Record<string, unknown> | undefined, timestamp: number): void {
+    const event: DirectHarnessSessionEvent = { type, payload: properties ?? {}, timestamp };
+    for (const listener of this.listeners) {
+      listener(event);
+    }
+  }
+}
+
+/**
+ * Subscribe to the SDK event stream and forward events to the session.
+ * Returns a stop() function. The loop runs until stopped or the stream ends.
+ */
+export function subscribeToSessionEvents(
+  client: OpencodeSdkSessionClient,
+  session: OpencodeSdkDirectHarnessSession,
+  now: () => number = Date.now,
+): () => void {
+  let stopped = false;
+
+  (async () => {
+    try {
+      const { stream } = await client.event.subscribe();
+      for await (const event of stream) {
+        if (stopped) break;
+        session._emit(event.type, event.properties, now());
+      }
+    } catch {
+      // Ignore errors — stream ended or was aborted
+    }
+  })();
+
+  return () => {
+    stopped = true;
+  };
+}
