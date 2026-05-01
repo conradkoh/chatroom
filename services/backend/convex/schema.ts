@@ -2138,4 +2138,42 @@ export default defineSchema({
   })
     .index('by_chatroomId', ['chatroomId'])
     .index('by_lastObservedAt', ['lastObservedAt']),
+
+  // ─── direct-harness workers (feature flag: directHarnessWorkers) ───────────
+
+  /**
+   * Tracks a single harness worker process associated with a chatroom.
+   * WorkerId is the Convex-issued _id.
+   */
+  chatroom_workers: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    harnessName: v.string(),
+    harnessSessionId: v.optional(v.string()),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('spawning'),
+      v.literal('running'),
+      v.literal('stopped'),
+      v.literal('failed')
+    ),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_harnessSession', ['harnessSessionId'])
+    .index('by_chatroom_status', ['chatroomId', 'status']),
+
+  /**
+   * Buffered output chunks produced by a harness worker process.
+   * seq is monotonically increasing per worker.
+   */
+  chatroom_workerMessages: defineTable({
+    workerId: v.id('chatroom_workers'),
+    seq: v.number(),
+    content: v.string(),
+    timestamp: v.number(),
+  })
+    .index('by_worker_seq', ['workerId', 'seq'])
+    .index('by_worker', ['workerId']),
 });
