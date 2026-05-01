@@ -11,7 +11,12 @@ import type {
   HarnessSessionId,
 } from '../../../domain/direct-harness/index.js';
 
-/** Minimal SDK client surface needed by the session. */
+/**
+ * Minimal client surface needed by the session.
+ * Structurally compatible with the OpencodeClient from @opencode-ai/sdk.
+ * Using a minimal interface (like SessionEventForwarderClient does) so
+ * tests can inject plain mocks without satisfying the full SDK type.
+ */
 export interface OpencodeSdkSessionClient {
   session: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,6 +93,7 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
 /**
  * Subscribe to the SDK event stream and forward events to the session.
  * Returns a stop() function. The loop runs until stopped or the stream ends.
+ * The subscription is started asynchronously in the background.
  */
 export function subscribeToSessionEvents(
   client: OpencodeSdkSessionClient,
@@ -96,7 +102,7 @@ export function subscribeToSessionEvents(
 ): () => void {
   let stopped = false;
 
-  (async () => {
+  void (async () => {
     try {
       const { stream } = await client.event.subscribe();
       for await (const event of stream) {

@@ -2,22 +2,17 @@
  * opencode-sdk DirectHarness adapter.
  *
  * Implements DirectHarnessSpawner by composing against the existing
- * opencode-sdk utility functions without modifying the existing
- * OpenCodeSdkAgentService. The adapter handles process lifecycle,
- * session creation, and event subscription independently.
+ * opencode-sdk utility functions without modifying OpenCodeSdkAgentService.
  *
  * Key design choices:
  * - spawn() starts the server and creates a session WITHOUT sending any
- *   initial prompt (unlike OpenCodeSdkAgentService which sends the first
- *   prompt atomically). Callers use send() for messages.
- * - resume() reconnects to a previously spawned session using the
- *   in-memory metadata store (populated on spawn).
- * - Events are forwarded via a raw client.event.subscribe() loop without
- *   going through SessionEventForwarder (avoids double-subscription).
- *
- * Limitation: resume() is in-memory only — sessions survive hot reconnects
- * within the same daemon run but are lost on daemon restart. File-based
- * persistence can be added in a follow-up commit.
+ *   initial prompt. Callers use send() for messages.
+ * - Sessions are persisted via FileSessionMetadataStore so resume() works
+ *   across daemon restarts (same as OpenCodeSdkAgentService does for pids).
+ * - Events are forwarded via raw client.event.subscribe() loop to avoid
+ *   double-subscribing to the same stream as SessionEventForwarder.
+ * - close() on a spawned session removes the store entry; resume() sessions
+ *   leave it intact so the original spawner can still manage the process.
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
@@ -31,19 +26,18 @@ import type {
 } from '../../../domain/direct-harness/index.js';
 
 import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
+import {
+  FileSessionMetadataStore,
+  type SessionMetadataStore,
+} from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 import {
   OpencodeSdkDirectHarnessSession,
   subscribeToSessionEvents,
+  type OpencodeSdkSessionClient,
 } from './session.js';
 
-// ─── Internal session metadata ────────────────────────────────────────────────
-
-interface HarnessSessionEntry {
-  harnessSessionId: HarnessSessionId;
-  baseUrl: string;
-  pid: number;
-}
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 /** Options for creating the opencode-sdk harness spawner. */
 export interface CreateOpencodeSdkHarnessOptions {
@@ -53,16 +47,32 @@ export interface CreateOpencodeSdkHarnessOptions {
   readonly spawnFn?: typeof nodeSpawn;
   /** Override Date.now (for tests). */
   readonly nowFn?: () => number;
+  /**
+   * Session persistence store.
+   * Defaults to FileSessionMetadataStore so sessions survive daemon restarts.
+   * Inject InMemorySessionMetadataStore in tests.
+   */
+  readonly sessionStore?: SessionMetadataStore;
+}
+
+/** Fields required in SpawnOptions.config for opencode-sdk sessions. */
+interface OpencodeSdkSpawnConfig {
+  chatroomId: string;
+  role: string;
+  machineId: string;
 }
 
 const OPENCODE_COMMAND = 'opencode';
 const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 
+// ─── Factory ─────────────────────────────────────────────────────────────────
+
 /**
  * Creates a DirectHarnessSpawner for the opencode SDK harness.
  *
  * Returns a plain object — no class required at the spawner boundary.
- * Each returned spawner maintains its own in-memory session registry.
+ * The spawner uses the injected (or default) SessionMetadataStore for
+ * cross-restart session resumption.
  */
 export function createOpencodeSdkHarness(
   options: CreateOpencodeSdkHarnessOptions = {}
@@ -71,24 +81,31 @@ export function createOpencodeSdkHarness(
     startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
     spawnFn = nodeSpawn,
     nowFn = Date.now,
+    sessionStore = new FileSessionMetadataStore(),
   } = options;
-
-  // In-memory registry of active sessions keyed by harnessSessionId string
-  const sessions = new Map<string, HarnessSessionEntry>();
 
   return {
     harnessName: 'opencode-sdk',
 
-    async spawn(_spawnOptions: SpawnOptions): Promise<DirectHarnessSession> {
-      const cwd = _spawnOptions.cwd ?? process.cwd();
+    async spawn(spawnOptions: SpawnOptions): Promise<DirectHarnessSession> {
+      // ── Validate required config fields ──────────────────────────────────
+      const config = (spawnOptions.config ?? {}) as Partial<OpencodeSdkSpawnConfig>;
+      if (!config.chatroomId || !config.role || !config.machineId) {
+        throw new Error(
+          'opencode-sdk spawn() requires chatroomId, role, and machineId in SpawnOptions.config'
+        );
+      }
+      const { chatroomId, role, machineId } = config as OpencodeSdkSpawnConfig;
+
+      const cwd = spawnOptions.cwd ?? process.cwd();
       const env = {
         ...process.env,
-        ...(_spawnOptions.env ?? {}),
+        ...(spawnOptions.env ?? {}),
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
       };
 
-      // 1. Start the opencode serve process
+      // ── 1. Start the opencode serve process ──────────────────────────────
       const childProcess = spawnFn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
         cwd,
         env,
@@ -103,72 +120,82 @@ export function createOpencodeSdkHarness(
 
       const pid = childProcess.pid;
 
-      // 2. Wait for the server to start listening
+      // ── 2. Wait for the server to start listening ─────────────────────────
       const baseUrl = await waitForListeningUrl(childProcess, {
         timeoutMs: startupTimeoutMs,
-      }).catch((err) => {
+      }).catch((err: unknown) => {
         childProcess.kill();
         throw err;
       });
 
-      // 3. Create the SDK client and a new bare session (no initial prompt)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = createOpencodeClient({ baseUrl }) as any;
+      // ── 3. Create the SDK client and a new bare session (no prompt sent) ─
+      const sdkClient = createOpencodeClient({ baseUrl });
 
       let sdkSessionId: string;
       try {
-        const result = await client.session.create({ body: {} });
-        if (!result.data?.id) throw new Error('Failed to create session: missing id');
-        sdkSessionId = result.data.id;
+        const result = await sdkClient.session.create({ body: {} });
+        const sessionId = result.data?.id;
+        if (!sessionId) throw new Error('Failed to create session: missing id');
+        sdkSessionId = sessionId;
       } catch (err) {
         childProcess.kill();
         throw err;
       }
 
+      // sdkClient satisfies OpencodeSdkSessionClient structurally
+      const client: OpencodeSdkSessionClient = sdkClient;
+
       const harnessSessionId = sdkSessionId as HarnessSessionId;
 
-      // 4. Store session entry so resume() can find the baseUrl
-      sessions.set(sdkSessionId, { harnessSessionId, baseUrl, pid });
+      // ── 4. Persist session for resume() across daemon restarts ────────────
+      sessionStore.upsert({
+        sessionId: sdkSessionId,
+        machineId,
+        chatroomId,
+        role,
+        pid,
+        createdAt: new Date(nowFn()).toISOString(),
+        baseUrl,
+      });
 
-      // 5. Build the session with a lazy stopEventStream closure so we can
-      //    inject the actual stop function after the subscription starts
-      let stopEventStream: () => void = () => {};
-
-      const session = new OpencodeSdkDirectHarnessSession(
-        harnessSessionId,
-        client,
-        () => stopEventStream(), // proxy — calls the real stop function when set
-        () => {
-          sessions.delete(sdkSessionId);
-          childProcess.kill();
-        },
-      );
-
-      // 6. Start the event subscription and capture the stop function
-      stopEventStream = subscribeToSessionEvents(client, session, nowFn);
-
-      return session;
-    },
-
-    async resume(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
-      const entry = sessions.get(harnessSessionId as string);
-      if (!entry) {
-        throw new Error(
-          `Cannot resume harnessSessionId=${harnessSessionId}: not found in registry. ` +
-          `Resume is supported within the same daemon run only (in-memory registry).`
-        );
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = createOpencodeClient({ baseUrl: entry.baseUrl }) as any;
-
+      // ── 5. Build the session with a lazy stopEventStream closure ──────────
       let stopEventStream: () => void = () => {};
 
       const session = new OpencodeSdkDirectHarnessSession(
         harnessSessionId,
         client,
         () => stopEventStream(),
-        undefined, // don't kill process on resume — spawner manages process lifecycle
+        () => {
+          sessionStore.remove(sdkSessionId);
+          childProcess.kill();
+        },
+      );
+
+      // ── 6. Start event subscription in the background ─────────────────────
+      stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+
+      return session;
+    },
+
+    async resume(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
+      const meta = sessionStore.get(harnessSessionId as string);
+      if (!meta) {
+        throw new Error(
+          `Cannot resume harnessSessionId=${harnessSessionId}: not found in session store. ` +
+          `Ensure the harness was spawned with this instance or the store file is accessible.`
+        );
+      }
+
+      const client: OpencodeSdkSessionClient = createOpencodeClient({ baseUrl: meta.baseUrl });
+
+      let stopEventStream: () => void = () => {};
+
+      // Resumed sessions do NOT own the process — no killProcess callback
+      const session = new OpencodeSdkDirectHarnessSession(
+        harnessSessionId,
+        client,
+        () => stopEventStream(),
+        undefined,
       );
 
       stopEventStream = subscribeToSessionEvents(client, session, nowFn);

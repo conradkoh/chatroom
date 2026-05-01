@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   OpencodeSdkDirectHarnessSession,
   subscribeToSessionEvents,
+  type OpencodeSdkSessionClient,
 } from './session.js';
 import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
 
@@ -18,23 +19,20 @@ function createMockClient() {
     })(),
   });
 
-  return {
-    client: {
-      session: { promptAsync: promptAsyncFn, abort: abortFn },
-      event: { subscribe: subscribeFn },
-    },
-    promptAsyncFn,
-    abortFn,
-    subscribeFn,
+  const client: OpencodeSdkSessionClient = {
+    session: { promptAsync: promptAsyncFn, abort: abortFn },
+    event: { subscribe: subscribeFn },
   };
+
+  return { client, promptAsyncFn, abortFn, subscribeFn };
 }
 
 function createSession(
-  clientOverrides?: Partial<ReturnType<typeof createMockClient>['client']>,
+  overrideClient?: Partial<OpencodeSdkSessionClient>,
   killProcess?: () => void
 ) {
   const { client } = createMockClient();
-  const mergedClient = { ...client, ...clientOverrides };
+  const mergedClient: OpencodeSdkSessionClient = { ...client, ...overrideClient };
   const stopFn = vi.fn();
   const session = new OpencodeSdkDirectHarnessSession(
     HARNESS_SESSION_ID,
@@ -42,7 +40,7 @@ function createSession(
     stopFn,
     killProcess,
   );
-  return { session, stopFn };
+  return { session, stopFn, client: mergedClient };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -55,8 +53,9 @@ describe('OpencodeSdkDirectHarnessSession', () => {
 
   it('send() calls client.session.promptAsync with the input', async () => {
     const promptAsyncFn = vi.fn().mockResolvedValue(undefined);
-    const { client } = createMockClient();
-    const { session } = createSession({ session: { ...client.session, promptAsync: promptAsyncFn } });
+    const { session } = createSession({
+      session: { promptAsync: promptAsyncFn, abort: vi.fn() },
+    });
 
     await session.send('hello world');
 
@@ -97,8 +96,9 @@ describe('OpencodeSdkDirectHarnessSession', () => {
 
   it('close() calls stopEventStream and abort', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
-    const { client } = createMockClient();
-    const { session, stopFn } = createSession({ session: { ...client.session, abort: abortFn } });
+    const { session, stopFn } = createSession({
+      session: { promptAsync: vi.fn(), abort: abortFn },
+    });
 
     await session.close();
 
@@ -108,8 +108,9 @@ describe('OpencodeSdkDirectHarnessSession', () => {
 
   it('close() is idempotent — second call is a no-op', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
-    const { client } = createMockClient();
-    const { session } = createSession({ session: { ...client.session, abort: abortFn } });
+    const { session } = createSession({
+      session: { promptAsync: vi.fn(), abort: abortFn },
+    });
 
     await session.close();
     await session.close();
@@ -132,13 +133,13 @@ describe('subscribeToSessionEvents', () => {
     const { session } = createSession();
     session.onEvent((e) => received.push(e));
 
-    // Provide a stream that yields one event
     subscribeFn.mockResolvedValue({
       stream: (async function* () {
         yield { type: 'tool_use', properties: { tool: 'bash' } };
       })(),
     });
 
+    // Re-create session pointing at mocked client
     const stop = subscribeToSessionEvents(client, session, () => 999);
 
     // Wait for the async generator to complete
@@ -168,12 +169,10 @@ describe('subscribeToSessionEvents', () => {
     const stop = subscribeToSessionEvents(client, session, Date.now);
     await new Promise((r) => setTimeout(r, 10));
 
-    // Stop before second event
     stop();
     yieldSecond();
     await new Promise((r) => setTimeout(r, 10));
 
-    // Only first event delivered
     expect(received.map((e: any) => e.type)).toEqual(['first']);
   });
 });
