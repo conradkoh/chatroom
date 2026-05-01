@@ -6,7 +6,10 @@
  * retry + warning behavior.
  */
 
-import type { MessageStreamChunk, MessageStreamTransport } from '../../../../domain/direct-harness/message-stream/index.js';
+import type {
+  MessageStreamChunk,
+  MessageStreamTransport,
+} from '../../../../domain/direct-harness/message-stream/index.js';
 import type { WorkerId } from '../../../../domain/direct-harness/harness-worker.js';
 import { api } from '../../../../api.js';
 
@@ -37,10 +40,9 @@ export class ConvexMessageStreamTransport implements MessageStreamTransport {
   async persist(workerId: WorkerId, chunks: readonly MessageStreamChunk[]): Promise<void> {
     if (chunks.length === 0) return;
 
-    // Access via string key — required for Convex modules in subdirectories.
-    // The runtime anyApi Proxy handles this correctly; cast silences the type checker.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appendMessages = (api as any)['chatroom/workers/mutations'].appendMessages;
+    // Typed access to the nested module — Convex generates dotted paths
+    // for files in subdirectories (mirrors api.integrations.telegram.actions etc).
+    const appendMessages = api.chatroom.workers.mutations.appendMessages;
 
     await this.options.backend.mutation(appendMessages, {
       sessionId: this.options.sessionId,
