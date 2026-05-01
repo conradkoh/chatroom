@@ -223,8 +223,25 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
  * Dispatch a single command event to the appropriate handler.
  * Handles deduplication and error boundaries per event.
  *
- * NOTE: Event IDs are registered AFTER handler completion so that failed handlers
- * can be retried on the next subscription update, rather than being permanently skipped.
+ * DEDUP SEMANTICS (dedup-after-handler for most event types):
+ * Event IDs are registered AFTER handler completion so that failed handlers
+ * can be retried on the next subscription update, rather than being permanently
+ * skipped when a transient error occurs (e.g. a backend mutation fails).
+ *
+ * Trade-off: a handler that throws on every invocation will be retried on every
+ * subscription update until the event ages out of the deadline/TTL filter.
+ * There is no retry-count cap or backoff — callers must ensure handlers are
+ * either idempotent, or only throw on transient/recoverable failures.
+ *
+ * Per-handler retry-safety analysis:
+ *   agent.requestStart         — ensureRunning() is idempotent; retry-safe
+ *   agent.requestStop          — stopping an already-stopped agent is harmless; retry-safe
+ *   daemon.ping                — ackPing is idempotent; ponging twice is harmless; retry-safe
+ *   daemon.gitRefresh          — state-hash clear + push is idempotent; retry-safe
+ *   daemon.localAction         — executeLocalAction never throws (returns error obj); retry-safe
+ *   command.run                — spawns a process; NOT retry-safe → dedup ID registered BEFORE handler
+ *   command.stop               — killing an already-dead process is harmless; retry-safe
+ *   daemon.refreshCapabilities — model refresh is idempotent; retry-safe
  */
 async function dispatchCommandEvent(
   ctx: DaemonContext,
@@ -281,10 +298,16 @@ async function dispatchCommandEvent(
     }
     tracker.localActionIds.set(eventId, Date.now());
   } else if (eventType === 'command.run') {
-    // Session dedup — don't re-process same command run event twice
+    // command.run spawns an OS process — NOT idempotent.
+    // Register the dedup ID BEFORE the handler so that a retry on the next
+    // subscription update cannot spawn a duplicate process. The double-spawn
+    // guard inside onCommandRun provides a secondary safety net for the case
+    // where the process is still alive in runningProcesses, but it cannot
+    // protect against re-spawn after a fast process exit. Dedup-before-handler
+    // is the correct primary defence here.
     if (tracker.commandRunIds.has(eventId)) return;
-    await onCommandRun(ctx, event as any);
     tracker.commandRunIds.set(eventId, Date.now());
+    await onCommandRun(ctx, event as any);
   } else if (eventType === 'command.stop') {
     // Session dedup — don't re-process same command stop event twice
     if (tracker.commandStopIds.has(eventId)) return;
