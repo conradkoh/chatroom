@@ -317,6 +317,21 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   } catch (e) {
     console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
   }
+
+  // Clear any pending/running command runs left from before the restart.
+  // Since the daemon just started, no command processes are running — any run
+  // in 'pending' or 'running' state is stale and must be marked as 'stopped'.
+  try {
+    const runResult = await ctx.deps.backend.mutation(api.commands.clearStaleCommandRuns, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    if (runResult.clearedCount > 0) {
+      console.log(`   🧹 Cleared ${runResult.clearedCount} stale command run(s) from backend`);
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Failed to clear stale command runs: ${getErrorMessage(e)}`);
+  }
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
