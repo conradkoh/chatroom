@@ -5,16 +5,20 @@
  * - One running harness process per workspaceId (identified by Convex Id)
  * - Per-workspace promise cache guards against concurrent spawn racing
  * - Failed processes are evicted so the next caller triggers a fresh spawn
+ * - Calls `onHarnessBooted` callback (if set) after each successful new spawn
  * - v1 process lifecycle: processes are torn down on daemon shutdown only
  *   (no per-session cleanup). The registry's `killAll()` is called on shutdown.
  */
 
-import type { DirectHarnessSpawner } from '../../domain/direct-harness/index.js';
+import type { DirectHarnessSpawner, PublishedAgent } from '../../domain/direct-harness/index.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-/** Factory that starts a harness process for a given cwd and returns a spawner. */
+/** Factory that starts a harness process for a given cwd and returns a HarnessProcess. */
 export type HarnessProcessFactory = (workspaceId: string, cwd: string) => Promise<HarnessProcess>;
+
+/** Callback fired after a new harness process boots. Fire-and-forget — errors are swallowed. */
+export type OnHarnessBooted = (process: HarnessProcess) => Promise<void>;
 
 /**
  * A running harness process associated with a workspace.
@@ -30,6 +34,11 @@ export interface HarnessProcess {
   isAlive(): boolean;
   /** Tear down the harness process. Idempotent. */
   kill(): Promise<void>;
+  /**
+   * Fetch the published agent list from the running harness.
+   * Returns an empty array if the harness does not support agent listing.
+   */
+  listAgents(): Promise<readonly PublishedAgent[]>;
 }
 
 // ─── Registry ──────────────────────────────────────────────────────────────
@@ -45,8 +54,18 @@ export class HarnessProcessRegistry {
   private readonly processes = new Map<string, HarnessProcess>();
   /** In-flight entries — workspaceId → Promise during the spawn phase. */
   private readonly pending = new Map<string, Promise<HarnessProcess>>();
+  /** Optional callback fired after each new process boots. */
+  private onBooted?: OnHarnessBooted;
 
   constructor(private readonly factory: HarnessProcessFactory) {}
+
+  /**
+   * Register a callback to fire after each new harness process boots.
+   * Errors from the callback are swallowed — it is fire-and-forget.
+   */
+  setOnHarnessBooted(callback: OnHarnessBooted): void {
+    this.onBooted = callback;
+  }
 
   /**
    * Return the existing healthy process for the workspace, or spawn a new one.
@@ -74,6 +93,14 @@ export class HarnessProcessRegistry {
       (process) => {
         this.pending.delete(workspaceId);
         this.processes.set(workspaceId, process);
+
+        // Fire-and-forget onBooted callback
+        if (this.onBooted) {
+          void this.onBooted(process).catch(() => {
+            // Swallow — capability publishing is best-effort
+          });
+        }
+
         return process;
       },
       (err) => {

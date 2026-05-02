@@ -27,6 +27,7 @@ import type {
 } from '../../../domain/direct-harness/index.js';
 
 import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import type { PublishedAgent } from '../../../domain/direct-harness/index.js';
 import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
 import {
   FileSessionMetadataStore,
@@ -296,6 +297,27 @@ export async function createOpencodeSdkHarnessProcess(
     isAlive: () => processHandle.isAlive(),
     async kill(): Promise<void> {
       await processHandle.kill();
+    },
+    async listAgents(): Promise<readonly PublishedAgent[]> {
+      try {
+        // Call client.app.agents() on the running process
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (processHandle.client as any).app?.agents?.();
+        const sdkAgents: Array<{
+          name: string;
+          mode: 'subagent' | 'primary' | 'all';
+          model?: { providerID: string; modelID: string };
+          description?: string;
+        }> = response?.data ?? [];
+        return sdkAgents.map((a): PublishedAgent => ({
+          name: a.name,
+          mode: a.mode,
+          ...(a.model ? { model: a.model } : {}),
+          ...(a.description ? { description: a.description } : {}),
+        }));
+      } catch {
+        return [];
+      }
     },
   };
 }

@@ -18,6 +18,7 @@ import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
+import type * as chatroom_directHarness_capabilities from "../chatroom/directHarness/capabilities.js";
 import type * as chatroom_directHarness_helpers from "../chatroom/directHarness/helpers.js";
 import type * as chatroom_directHarness_index from "../chatroom/directHarness/index.js";
 import type * as chatroom_directHarness_messages from "../chatroom/directHarness/messages.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   "auth/google": typeof auth_google;
   backlog: typeof backlog;
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
+  "chatroom/directHarness/capabilities": typeof chatroom_directHarness_capabilities;
   "chatroom/directHarness/helpers": typeof chatroom_directHarness_helpers;
   "chatroom/directHarness/index": typeof chatroom_directHarness_index;
   "chatroom/directHarness/messages": typeof chatroom_directHarness_messages;

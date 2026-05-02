@@ -60,10 +60,11 @@ function createMockSpawner(session: DirectHarnessSession): DirectHarnessSpawner 
 function createMockRegistry(session: DirectHarnessSession): HarnessProcessRegistry {
   const spawner = createMockSpawner(session);
   return {
-    getOrSpawn: vi.fn().mockResolvedValue({ workspaceId: 'ws-1', spawner, isAlive: () => true, kill: vi.fn() }),
+    getOrSpawn: vi.fn().mockResolvedValue({ workspaceId: 'ws-1', spawner, isAlive: () => true, kill: vi.fn(), listAgents: vi.fn().mockResolvedValue([]) }),
     invalidate: vi.fn(),
     killAll: vi.fn(),
     size: 0,
+    setOnHarnessBooted: vi.fn(),
   } as any;
 }
 

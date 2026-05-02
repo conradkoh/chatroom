@@ -38,3 +38,11 @@ export type {
   MessageStreamSink,
   MessageStreamSinkWarning,
 } from './message-stream/index.js';
+
+export type {
+  PublishedAgent,
+  WorkspaceCapabilities,
+  MachineCapabilities,
+} from './machine-capabilities.js';
+
+export type { CapabilitiesPublisher } from './capabilities-publisher.js';

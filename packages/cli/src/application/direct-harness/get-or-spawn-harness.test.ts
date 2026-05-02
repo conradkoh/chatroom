@@ -20,6 +20,7 @@ function createMockProcess(workspaceId: string, alive = true): HarnessProcess {
     spawner: createMockSpawner(),
     isAlive: () => isAlive,
     kill: vi.fn().mockImplementation(async () => { isAlive = false; }),
+    listAgents: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -149,3 +150,35 @@ describe('HarnessProcessRegistry', () => {
     expect(registry.size).toBe(2);
   });
 });
+
+  it('calls onHarnessBooted callback after a new process boots', async () => {
+    const { registry, factory } = createRegistry();
+    const onBooted = vi.fn().mockResolvedValue(undefined);
+    registry.setOnHarnessBooted(onBooted);
+
+    const process = await registry.getOrSpawn('workspace-1', '/tmp/ws1');
+
+    expect(onBooted).toHaveBeenCalledOnce();
+    expect(onBooted).toHaveBeenCalledWith(process);
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call onHarnessBooted when returning existing process', async () => {
+    const { registry } = createRegistry();
+    const onBooted = vi.fn().mockResolvedValue(undefined);
+    registry.setOnHarnessBooted(onBooted);
+
+    await registry.getOrSpawn('workspace-1', '/tmp/ws1');
+    await registry.getOrSpawn('workspace-1', '/tmp/ws1'); // second call — reuses
+
+    expect(onBooted).toHaveBeenCalledOnce(); // only once (first spawn)
+  });
+
+  it('swallows errors from onHarnessBooted — does not propagate to caller', async () => {
+    const { registry } = createRegistry();
+    const onBooted = vi.fn().mockRejectedValue(new Error('publish failed'));
+    registry.setOnHarnessBooted(onBooted);
+
+    // Should not throw even though onBooted fails
+    await expect(registry.getOrSpawn('workspace-1', '/tmp/ws1')).resolves.toBeDefined();
+  });

@@ -298,3 +298,112 @@ describe('listSessionsByWorkspace', () => {
     expect(sessions[0]!.createdAt).toBeLessThanOrEqual(sessions[1]!.createdAt);
   });
 });
+
+// ─── publishMachineCapabilities + getMachineRegistry ─────────────────────────
+
+describe('publishMachineCapabilities', () => {
+  test('upserts a machine registry entry', async () => {
+    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('pub-success');
+
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [
+        {
+          workspaceId: workspaceId as string,
+          cwd: TEST_CWD,
+          name: TEST_CWD,
+          agents: [{ name: 'build', mode: 'primary' as const }],
+        },
+      ],
+    });
+
+    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(registries).toHaveLength(1);
+    expect(registries[0]?.machineId).toBe(machineId);
+    expect(registries[0]?.workspaces).toHaveLength(1);
+    expect(registries[0]?.workspaces[0]?.agents).toHaveLength(1);
+    expect(registries[0]?.workspaces[0]?.agents[0]?.name).toBe('build');
+  });
+
+  test('second publish replaces the previous entry (upsert semantics)', async () => {
+    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('pub-upsert');
+
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+    });
+
+    // Second publish with agents
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [
+        {
+          workspaceId: workspaceId as string,
+          cwd: TEST_CWD,
+          name: TEST_CWD,
+          agents: [
+            { name: 'build', mode: 'primary' as const },
+            { name: 'debug', mode: 'subagent' as const },
+          ],
+        },
+      ],
+    });
+
+    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(registries).toHaveLength(1);
+    expect(registries[0]?.workspaces[0]?.agents).toHaveLength(2);
+  });
+
+  test('throws when feature flag is off', async () => {
+    featureFlags.directHarnessWorkers = false;
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pub-flag-off');
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+        sessionId,
+        machineId,
+        workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+      })
+    ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
+  });
+});
+
+describe('getMachineRegistry', () => {
+  test('filters by chatroom — only machines with workspaces in the chatroom are returned', async () => {
+    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('registry-filter');
+
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+    });
+
+    // Query from a different chatroom — should return empty
+    const otherChatroomId = await createPairTeamChatroom(sessionId);
+    const otherRegistries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
+      sessionId,
+      chatroomId: otherChatroomId,
+    });
+
+    expect(otherRegistries).toHaveLength(0);
+
+    // Query from the correct chatroom — should return 1
+    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(registries).toHaveLength(1);
+  });
+});

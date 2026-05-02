@@ -29,6 +29,7 @@ function createDeps(overrides: Partial<SessionOpenDeps> = {}): SessionOpenDeps &
       getOrSpawn: vi.fn(),
       invalidate: vi.fn(),
       killAll: vi.fn(),
+      setOnHarnessBooted: vi.fn(),
       size: 0,
     } as any,
     chunkExtractor: () => null,

@@ -2182,4 +2182,34 @@ export default defineSchema({
   })
     .index('by_session_seq', ['harnessSessionRowId', 'seq'])
     .index('by_session', ['harnessSessionRowId']),
+
+  /**
+   * Per-machine capability snapshot: registered workspaces + per-workspace
+   * agent list from the running harness. Published by the daemon on startup
+   * and on harness boot. Upsert semantics (one row per machineId).
+   */
+  chatroom_machineRegistry: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    workspaces: v.array(
+      v.object({
+        workspaceId: v.string(),
+        cwd: v.string(),
+        name: v.string(),
+        agents: v.array(
+          v.object({
+            name: v.string(),
+            mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+            model: v.optional(
+              v.object({
+                providerID: v.string(),
+                modelID: v.string(),
+              })
+            ),
+            description: v.optional(v.string()),
+          })
+        ),
+      })
+    ),
+  }).index('by_machineId', ['machineId']),
 });

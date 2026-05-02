@@ -15,3 +15,5 @@ export {
 } from './sessions.js';
 
 export { appendMessages, streamSessionMessages } from './messages.js';
+
+export { publishMachineCapabilities, getMachineRegistry } from './capabilities.js';
