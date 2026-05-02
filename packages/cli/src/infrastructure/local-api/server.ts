@@ -14,13 +14,13 @@
 
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { NodeError } from '../types/node-error.js';
 
+import { LocalApiRouter } from './router.js';
+import type { NodeError } from '../types/node-error.js';
 import { identityRoute } from './routes/identity.js';
 import { openFinderRoute } from './routes/open-finder.js';
 import { openGitHubDesktopRoute } from './routes/open-github-desktop.js';
 import { openVSCodeRoute } from './routes/open-vscode.js';
-import { LocalApiRouter } from './router.js';
 import type { DaemonContext, LocalApiRequest } from './types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

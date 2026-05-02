@@ -12,11 +12,11 @@
 
 'use client';
 
+import type { LocalActionType } from '@workspace/backend/config/localActions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-import type { LocalActionType } from '@workspace/backend/config/localActions';
 export type { LocalActionType };
 
 // Extended type that includes additional git actions

@@ -199,15 +199,15 @@ describe('Queue Notice Sync — getTaskCounts accuracy', () => {
     });
 
     // Verify: 1 pending, 2 queued
-    let counts = await getTaskCounts(sessionId, chatroomId);
+    const counts = await getTaskCounts(sessionId, chatroomId);
     expect(counts.pending).toBeGreaterThanOrEqual(1);
     expect(counts.queued).toBe(2);
 
     // Verify actual queue matches materialized
-    let actualCount = await getActualQueueCount(chatroomId);
+    const actualCount = await getActualQueueCount(chatroomId);
     expect(actualCount).toBe(2);
 
-    let materializedSize = await getMaterializedQueueSize(chatroomId);
+    const materializedSize = await getMaterializedQueueSize(chatroomId);
     expect(materializedSize).toBe(2);
   });
 });

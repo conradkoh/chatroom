@@ -5,15 +5,16 @@
 
 'use client';
 
-import { memo } from 'react';
 import { Check, XCircle, Clock, MinusCircle } from 'lucide-react';
+import { memo } from 'react';
+
+import type { CommitStatusSummary } from '../types/git';
 
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import type { CommitStatusSummary } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

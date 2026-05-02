@@ -5,11 +5,11 @@
  * mutation to upsert the machine capability snapshot.
  */
 
+import { api } from '../../api.js';
 import type {
   CapabilitiesPublisher,
   MachineCapabilities,
 } from '../../domain/direct-harness/index.js';
-import { api } from '../../api.js';
 
 /** Minimal backend interface required by the publisher. */
 export interface CapabilitiesTransportBackend {

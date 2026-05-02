@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { resumeSession } from './resume-session.js';
 import type { ResumeSessionDeps, ResumeSessionOptions } from './resume-session.js';
 import type {

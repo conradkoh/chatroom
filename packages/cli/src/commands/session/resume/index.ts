@@ -6,8 +6,8 @@ import { resumeSession } from '../../../application/direct-harness/resume-sessio
 import type { ResumeSessionDeps } from '../../../application/direct-harness/resume-session.js';
 import { getSessionId } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../../infrastructure/convex/client.js';
-import { createOpencodeSdkResumer } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
+import { createOpencodeSdkResumer } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

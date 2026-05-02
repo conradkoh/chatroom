@@ -18,18 +18,19 @@
  */
 
 import { exec } from 'child_process';
-import type { ConvexClient } from 'convex/browser';
-import type { FunctionReturnType } from 'convex/server';
 import { gzipSync } from 'node:zlib';
 import { promisify } from 'util';
 
+import type { ConvexClient } from 'convex/browser';
+import type { FunctionReturnType } from 'convex/server';
+
+import { pushGitState } from './git-heartbeat.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { pushGitState } from './git-heartbeat.js';
 
 /** Handle returned by `startGitRequestSubscription` to stop the subscription. */
 export interface GitSubscriptionHandle {

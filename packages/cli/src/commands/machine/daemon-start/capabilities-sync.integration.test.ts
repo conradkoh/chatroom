@@ -10,15 +10,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
+
 import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import type { WorkspaceMeta } from './capabilities-sync.js';
+import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
 import type {
   MachineCapabilities,
   WorkspaceCapabilities,
 } from '../../../domain/direct-harness/index.js';
-import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
 
 // ─── Fakes ───────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ class FakeCapabilitiesPublisher implements CapabilitiesPublisher {
 /** Creates a HarnessProcess mock with configurable agents. */
 function createMockProcess(
   workspaceId: string,
-  agents: Array<{ name: string; mode: string }>
+  agents: { name: string; mode: string }[]
 ): HarnessProcess {
   return {
     workspaceId,

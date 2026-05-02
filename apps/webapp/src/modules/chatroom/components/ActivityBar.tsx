@@ -4,6 +4,7 @@ import { Files, MessageCircle, MessagesSquare } from 'lucide-react';
 import { memo } from 'react';
 
 import { useCommandDialog } from '../context/CommandDialogContext';
+
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

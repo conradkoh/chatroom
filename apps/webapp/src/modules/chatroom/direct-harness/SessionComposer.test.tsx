@@ -1,14 +1,14 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { SessionComposer } from './SessionComposer';
+
 const mockSubmit = vi.fn();
 const mockUseSubmitPrompt = vi.fn();
 
 vi.mock('./hooks/useSubmitPrompt', () => ({
   useSubmitPrompt: (...args: unknown[]) => mockUseSubmitPrompt(...args),
 }));
-
-import { SessionComposer } from './SessionComposer';
 
 const SESSION_ROW_ID = 'sr1' as never;
 

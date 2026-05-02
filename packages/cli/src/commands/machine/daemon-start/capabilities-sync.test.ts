@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import type { WorkspaceMeta } from './capabilities-sync.js';
 import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';

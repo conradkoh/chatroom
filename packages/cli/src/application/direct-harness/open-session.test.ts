@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import type { HarnessProcessRegistry } from './get-or-spawn-harness.js';
 import { openSession } from './open-session.js';
 import type { OpenSessionDeps, OpenSessionOptions } from './open-session.js';
 import type {
@@ -6,7 +8,6 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
 } from '../../domain/direct-harness/index.js';
-import type { HarnessProcessRegistry } from './get-or-spawn-harness.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 

@@ -4,8 +4,9 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle, Terminal } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+
 import type { CommandRun, OutputChunk } from './ProcessManager';
 
 interface OutputPanelProps {

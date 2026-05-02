@@ -11,9 +11,9 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
+import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { featureFlags } from '../../config/featureFlags';
 import { t } from '../../test.setup';
 import {
   createTestSession,

@@ -6,12 +6,12 @@
  * retry + warning behavior.
  */
 
+import { api } from '../../../../api.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
 import type {
   MessageStreamChunk,
   MessageStreamTransport,
 } from '../../../../domain/direct-harness/message-stream/index.js';
-import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
-import { api } from '../../../../api.js';
 
 /** Minimal backend interface — matches BackendOps and DaemonContext.deps.backend. */
 export interface ConvexMessageStreamTransportBackend {

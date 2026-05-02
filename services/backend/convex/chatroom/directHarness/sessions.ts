@@ -13,10 +13,10 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from '../../_generated/server.js';
-import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js';
+import { mutation, query } from '../../_generated/server.js';
+import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
+import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
 
 // ─── openSession ─────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ export const openSession = mutation({
       });
     }
 
-    const workspace = await ctx.db.get(args.workspaceId);
+    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
     if (!workspace) {
       throw new ConvexError({
         code: 'NOT_FOUND',
@@ -138,7 +138,7 @@ export const associateHarnessSessionId = mutation({
       });
     }
 
-    await ctx.db.patch(args.harnessSessionRowId, {
+    await ctx.db.patch("chatroom_harnessSessions", args.harnessSessionRowId, {
       harnessSessionId: args.harnessSessionId,
       status: 'active',
       lastActiveAt: Date.now(),
@@ -169,7 +169,7 @@ export const closeSession = mutation({
       return;
     }
 
-    await ctx.db.patch(args.harnessSessionRowId, {
+    await ctx.db.patch("chatroom_harnessSessions", args.harnessSessionRowId, {
       status: 'closed',
       lastActiveAt: Date.now(),
     });
@@ -211,7 +211,7 @@ export const updateSessionConfig = mutation({
 
     // Validate agent against machine registry if provided
     if (args.config.agent !== undefined) {
-      const workspace = await ctx.db.get(harnessSession.workspaceId);
+      const workspace = await ctx.db.get("chatroom_workspaces", harnessSession.workspaceId);
       if (workspace) {
         const registryEntry = await ctx.db
           .query('chatroom_machineRegistry')
@@ -253,7 +253,7 @@ export const updateSessionConfig = mutation({
       ...(args.config.tools !== undefined ? { tools: args.config.tools } : {}),
     };
 
-    await ctx.db.patch(args.harnessSessionRowId, {
+    await ctx.db.patch("chatroom_harnessSessions", args.harnessSessionRowId, {
       lastUsedConfig: updatedConfig,
       lastActiveAt: Date.now(),
     });
@@ -360,7 +360,7 @@ export const listSessionsByWorkspace = query({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
     // Verify the workspace exists and the caller has access via chatroom membership
-    const workspace = await ctx.db.get(args.workspaceId);
+    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
     if (!workspace) {
       throw new ConvexError({
         code: 'NOT_FOUND',

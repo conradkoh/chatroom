@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Send } from 'lucide-react';
+import { useState } from 'react';
+
+import { useSubmitPrompt } from './hooks/useSubmitPrompt';
+import type { SessionStatus } from './StatusDot';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import type { SessionStatus } from './StatusDot';
-import { useSubmitPrompt } from './hooks/useSubmitPrompt';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

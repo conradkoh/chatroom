@@ -1,13 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { SessionMessageStream } from './SessionMessageStream';
+
 const mockUseSessionQuery = vi.fn();
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
 }));
-
-import { SessionMessageStream } from './SessionMessageStream';
 
 const SESSION_ROW_ID = 'sr1' as never;
 

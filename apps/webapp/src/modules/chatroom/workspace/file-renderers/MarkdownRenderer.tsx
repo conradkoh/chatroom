@@ -1,9 +1,9 @@
 'use client';
 
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
 import { memo } from 'react';
+import Markdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 // Stable plugin array — avoids creating a new reference each render
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];

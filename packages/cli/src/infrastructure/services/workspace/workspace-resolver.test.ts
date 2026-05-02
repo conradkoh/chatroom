@@ -2,10 +2,11 @@
  * Workspace Resolver — Tests
  */
 
-import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { resolveSubWorkspaces } from './workspace-resolver.js';
 

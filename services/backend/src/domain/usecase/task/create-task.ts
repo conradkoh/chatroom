@@ -18,10 +18,10 @@
  * instead of a backend ensure-agent handler.
  */
 
+import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
-import { adjustTaskCount } from './task-counts';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;

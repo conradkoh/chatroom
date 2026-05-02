@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+
 import { IntervalFlushStrategy } from './interval-strategy.js';
 import type { FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
 

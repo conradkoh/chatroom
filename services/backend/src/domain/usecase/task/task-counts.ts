@@ -50,7 +50,7 @@ async function getOrCreateCounts(ctx: MutationCtx, chatroomId: Id<'chatroom_room
     ...DEFAULT_COUNTS,
   });
 
-  return (await ctx.db.get(id))!;
+  return (await ctx.db.get("chatroom_taskCounts", id))!;
 }
 
 /**
@@ -69,7 +69,7 @@ export async function adjustTaskCount(
 ): Promise<void> {
   const counts = await getOrCreateCounts(ctx, chatroomId);
   const newValue = Math.max(0, counts[field] + delta);
-  await ctx.db.patch(counts._id, { [field]: newValue });
+  await ctx.db.patch("chatroom_taskCounts", counts._id, { [field]: newValue });
 }
 
 /**

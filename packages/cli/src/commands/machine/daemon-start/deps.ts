@@ -18,9 +18,9 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
+import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { SpawnOptions } from '../../../infrastructure/services/harness-spawning/harness-spawning-service.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
-import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 

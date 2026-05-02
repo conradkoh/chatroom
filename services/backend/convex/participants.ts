@@ -10,9 +10,9 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 

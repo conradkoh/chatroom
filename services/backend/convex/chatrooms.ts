@@ -562,7 +562,7 @@ export const recordChatroomObservation = mutation({
       if (args.refresh) {
         patch.lastRefreshedAt = now;
       }
-      await ctx.db.patch(existing._id, patch);
+      await ctx.db.patch("chatroom_observation", existing._id, patch);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {

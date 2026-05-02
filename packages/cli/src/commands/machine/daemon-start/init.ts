@@ -4,20 +4,23 @@
 
 import { stat } from 'node:fs/promises';
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import { api } from '../../../api.js';
-import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import { startLocalApi } from '../../../infrastructure/local-api/index.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -28,23 +31,20 @@ import {
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
-import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
-import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 

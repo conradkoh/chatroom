@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { SendForm } from './SendForm';
+
 // ── Mocks (must be before imports that use them) ─────────────────────────────
 
 // Mock ContentEditableInput as a simple textarea for testing purposes.
@@ -52,10 +56,6 @@ vi.mock('./ContentEditableInput', () => {
 
   return { ContentEditableInput };
 });
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { SendForm } from './SendForm';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 

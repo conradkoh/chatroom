@@ -8,11 +8,11 @@
 
 import type { RegisterAgentDeps } from './deps.js';
 import { api } from '../../api.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 

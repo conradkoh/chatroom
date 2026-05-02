@@ -9,21 +9,22 @@
 
 import { access } from 'node:fs/promises';
 
-import {
-  escapeShellArg,
-  isCliAvailable,
-  execFireAndForget,
-} from '../local-api/routes/shared-utils.js';
+import type { LocalActionType } from '@workspace/backend/config/localActions.js';
 
 import {
   discardFile as gitDiscardFile,
   discardAllChanges as gitDiscardAll,
   gitPull,
 } from '../git/index.js';
+import {
+  escapeShellArg,
+  isCliAvailable,
+  execFireAndForget,
+} from '../local-api/routes/shared-utils.js';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-import type { LocalActionType } from '@workspace/backend/config/localActions.js';
 
 /** Re-export from the canonical backend config definition. */
 export type { LocalActionType };

@@ -1,13 +1,16 @@
 'use client';
 
-import { memo } from 'react';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { memo } from 'react';
+
+
 import { StatusDot } from './StatusDot';
-import { cn } from '@/lib/utils';
 import { relativeTime } from './utils';
+
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { SessionDetail } from './SessionDetail';
+
 const mockUseSessionQuery = vi.fn();
 const mockUseSessionMutation = vi.fn(() => vi.fn().mockResolvedValue({}));
 
@@ -8,8 +10,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
   useSessionMutation: (...args: unknown[]) => mockUseSessionMutation(...(args as [])),
 }));
-
-import { SessionDetail } from './SessionDetail';
 
 const SESSION_ROW_ID = 'sr1' as never;
 

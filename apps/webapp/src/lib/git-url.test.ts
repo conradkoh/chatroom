@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { toRepoHttpsUrl } from './git-url';
 
 describe('toRepoHttpsUrl', () => {

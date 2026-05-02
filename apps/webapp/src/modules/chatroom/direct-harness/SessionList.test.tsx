@@ -1,13 +1,13 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { SessionList } from './SessionList';
+
 const mockUseSessionQuery = vi.fn();
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
 }));
-
-import { SessionList } from './SessionList';
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ function makeSession(
   agent: string,
   lastActiveAt: number,
   createdAt: number,
-  status: string = 'active'
+  status = 'active'
 ) {
   return {
     _id: id as never,

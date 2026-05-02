@@ -10,14 +10,14 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { str } from './utils/types';
-import { validateSession } from './auth/cliSessionAuth';
 import { checkAccess, requireAccess } from './auth/accessCheck';
+import { validateSession } from './auth/cliSessionAuth';
+import { str } from './utils/types';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
+import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
-import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
-import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
 /**
  * Remove keys whose value is `undefined` so `db.patch` does not treat them as
@@ -94,7 +94,7 @@ export const removeWorkspace = mutation({
     if (!session.ok) throw new Error('Authentication required');
 
     // Look up the workspace to verify access
-    const workspace = await ctx.db.get(args.workspaceId);
+    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
     if (!workspace) throw new Error('Workspace not found');
 
     // Verify the user has write-access to the machine this workspace belongs to
@@ -177,7 +177,7 @@ export const getWorkspaceById = query({
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return null;
 
-    const workspace = await ctx.db.get(args.workspaceId);
+    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
     if (!workspace) return null;
 
     const hasAccess = await checkAccess(ctx, {
@@ -1259,7 +1259,7 @@ export const upsertPRCommits = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("chatroom_workspacePRCommits", existing._id, {
         commits: args.commits,
         updatedAt: now,
       });
@@ -1410,7 +1410,7 @@ export const upsertAllPullRequests = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("chatroom_workspaceAllPullRequests", existing._id, {
         pullRequests: args.pullRequests,
         updatedAt: now,
       });
@@ -1553,7 +1553,7 @@ export const upsertRecentCommits = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("chatroom_workspaceRecentCommits", existing._id, {
         commits: args.commits,
         hasMoreCommits: args.hasMoreCommits,
         updatedAt: now,
@@ -1630,7 +1630,7 @@ export const upsertFullDiffV2 = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, row);
+      await ctx.db.patch("chatroom_workspaceFullDiffV2", existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFullDiffV2', row);
     }
@@ -1757,7 +1757,7 @@ export const upsertCommitDetailV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch(existing._id, row);
+      await ctx.db.patch("chatroom_workspaceCommitDetailV2", existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceCommitDetailV2', row);
     }
@@ -1870,7 +1870,7 @@ export const purgeFullDiffV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (diffV2) await ctx.db.delete(diffV2._id);
+    if (diffV2) await ctx.db.delete("chatroom_workspaceFullDiffV2", diffV2._id);
 
     // Delete v1 full diff
     const diffV1 = await ctx.db
@@ -1879,7 +1879,7 @@ export const purgeFullDiffV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (diffV1) await ctx.db.delete(diffV1._id);
+    if (diffV1) await ctx.db.delete("chatroom_workspaceFullDiff", diffV1._id);
   },
 });
 
@@ -1913,7 +1913,7 @@ export const purgeCommitDetailV2 = mutation({
         )
       )
       .collect();
-    for (const d of detailsV2) await ctx.db.delete(d._id);
+    for (const d of detailsV2) await ctx.db.delete("chatroom_workspaceCommitDetailV2", d._id);
 
     // Delete v1 commit details
     const detailsV1 = await ctx.db
@@ -1925,6 +1925,6 @@ export const purgeCommitDetailV2 = mutation({
         )
       )
       .collect();
-    for (const d of detailsV1) await ctx.db.delete(d._id);
+    for (const d of detailsV1) await ctx.db.delete("chatroom_workspaceCommitDetail", d._id);
   },
 });

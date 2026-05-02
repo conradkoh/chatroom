@@ -8,28 +8,26 @@
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
+
 import { createOpencodeClient } from '@opencode-ai/sdk';
-
-import type {
-  DirectHarnessSpawner,
-  DirectHarnessSession,
-  OpenSessionOptions,
-  HarnessSessionId,
-} from '../../../domain/direct-harness/index.js';
-
-import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/index.js';
-import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
-import {
-  FileSessionMetadataStore,
-  type SessionMetadataStore,
-} from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 import {
   OpencodeSdkDirectHarnessSession,
   subscribeToSessionEvents,
   type OpencodeSdkSessionClient,
 } from './session.js';
+import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import type {
+  DirectHarnessSpawner,
+  DirectHarnessSession,
+  OpenSessionOptions,
+  HarnessSessionId,
+ PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/index.js';
+import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
+import {
+  FileSessionMetadataStore,
+  type SessionMetadataStore,
+} from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

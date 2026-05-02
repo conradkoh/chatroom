@@ -55,9 +55,9 @@ export class CopilotStreamReader {
   private agentEnded = false;
 
   // Callbacks that are not used in plain text mode but defined for interface compatibility
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   private readonly toolCallCallbacks: ToolCallCallback[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   private readonly toolResultCallbacks: ToolResultCallback[] = [];
 
   constructor(stream: Readable) {
@@ -79,7 +79,7 @@ export class CopilotStreamReader {
    * Tool call callback — NOT available in plain text mode.
    * Kept for interface compatibility with other readers.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   onToolCall(_cb: ToolCallCallback): void {
     // Not available in plain text mode
   }
@@ -88,7 +88,7 @@ export class CopilotStreamReader {
    * Tool result callback — NOT available in plain text mode.
    * Kept for interface compatibility with other readers.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   onToolResult(_cb: ToolResultCallback): void {
     // Not available in plain text mode
   }

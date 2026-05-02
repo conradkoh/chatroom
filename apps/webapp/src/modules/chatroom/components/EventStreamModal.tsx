@@ -4,16 +4,16 @@ import { Activity, ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
+  EventStreamMachineProvider,
+  type MachineNameEntry,
+} from '../context/EventStreamMachineContext';
+import {
   getEventTypeDefinition,
   initializeEventTypes,
   PlaceholderEventDetails,
   PlaceholderEventRow,
 } from '../eventTypes';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
-import {
-  EventStreamMachineProvider,
-  type MachineNameEntry,
-} from '../context/EventStreamMachineContext';
 
 import {
   FixedModal,

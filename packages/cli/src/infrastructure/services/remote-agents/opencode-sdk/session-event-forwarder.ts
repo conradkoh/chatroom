@@ -1,4 +1,4 @@
-import { Writable } from 'node:stream';
+import type { Writable } from 'node:stream';
 
 export interface SessionEventForwarderOptions {
   sessionId: string;

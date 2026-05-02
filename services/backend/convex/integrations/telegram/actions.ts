@@ -8,8 +8,9 @@
 
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { action } from '../../_generated/server';
+
 import { internal } from '../../_generated/api';
+import { action } from '../../_generated/server';
 
 /**
  * Validate a Telegram bot token (authenticated).

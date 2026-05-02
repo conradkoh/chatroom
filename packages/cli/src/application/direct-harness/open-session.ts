@@ -9,21 +9,21 @@
  *   5. Wire session events → BufferedMessageStreamSink → ConvexMessageStreamTransport
  */
 
+
+
+import type { HarnessProcessRegistry } from './get-or-spawn-harness.js';
+import { buildSessionHandle, createDefaultFlushStrategy, wireEventSink } from './internal.js';
+import type { SessionHandle } from './internal.js';
+import { api } from '../../api.js';
 import type {
   DirectHarnessSessionEvent,
   FlushStrategy,
   HarnessSessionRowId,
 } from '../../domain/direct-harness/index.js';
-
 import {
   BufferedMessageStreamSink,
   ConvexMessageStreamTransport,
 } from '../../infrastructure/services/direct-harness/message-stream/index.js';
-
-import { api } from '../../api.js';
-import type { HarnessProcessRegistry } from './get-or-spawn-harness.js';
-import { buildSessionHandle, createDefaultFlushStrategy, wireEventSink } from './internal.js';
-import type { SessionHandle } from './internal.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-
-import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
 import { RemoteTabContent, useAgentControls, type AgentPreference } from './AgentConfigTabs';
+import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
+
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({

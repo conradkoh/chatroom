@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { TokenCountFlushStrategy } from './token-count-strategy.js';
 import type { FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
 

@@ -24,7 +24,7 @@ export interface PublishedAgent {
 export interface PublishedProvider {
   readonly providerID: string;
   readonly name: string;
-  readonly models: ReadonlyArray<{ readonly modelID: string; readonly name: string }>;
+  readonly models: readonly { readonly modelID: string; readonly name: string }[];
 }
 
 /**

@@ -1,6 +1,8 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { useSubmitPrompt } from './useSubmitPrompt';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockSubmitPromptMutation = vi.fn();
@@ -22,8 +24,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
   },
 }));
-
-import { useSubmitPrompt } from './useSubmitPrompt';
 
 const SESSION_ROW_ID = 'sr1' as never;
 

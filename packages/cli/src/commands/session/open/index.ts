@@ -4,13 +4,13 @@
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
+import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { openSession } from '../../../application/direct-harness/open-session.js';
 import type { OpenSessionDeps } from '../../../application/direct-harness/open-session.js';
-import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { getSessionId } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../../infrastructure/convex/client.js';
-import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
+import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

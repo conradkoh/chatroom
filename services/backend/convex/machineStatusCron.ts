@@ -30,7 +30,7 @@ export const transitionOfflineMachines = internalMutation({
 
       if (isExpired) {
         // Status is "online" (we queried by_status), so this is a real transition
-        await ctx.db.patch(machineStatus._id, {
+        await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
           status: 'offline',
           lastTransitionAt: now,
         });

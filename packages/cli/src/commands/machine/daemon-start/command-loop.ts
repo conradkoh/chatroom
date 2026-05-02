@@ -2,41 +2,41 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import {
   AGENT_REQUEST_DEADLINE_MS,
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
+import { pushCommands } from './command-sync-heartbeat.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
+import { startFileTreeSubscription } from './file-tree-subscription.js';
+import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
+import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
-import { pushCommands } from './command-sync-heartbeat.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
+import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
+import { handlePing } from './handlers/ping.js';
+import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
-import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
-import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
-import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
-import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { handlePing } from './handlers/ping.js';
-import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
-import { discoverModels } from './init.js';
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { api } from '../../../api.js';
+import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 

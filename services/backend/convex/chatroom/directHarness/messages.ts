@@ -10,8 +10,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from '../../_generated/server.js';
 import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js';
+import { mutation, query } from '../../_generated/server.js';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ export const appendMessages = mutation({
 
     // Update session's lastActiveAt if any messages were inserted
     if (inserted > 0) {
-      await ctx.db.patch(args.harnessSessionRowId, { lastActiveAt: Date.now() });
+      await ctx.db.patch("chatroom_harnessSessions", args.harnessSessionRowId, { lastActiveAt: Date.now() });
     }
 
     return { inserted, skipped };

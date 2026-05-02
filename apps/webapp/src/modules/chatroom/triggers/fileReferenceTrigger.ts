@@ -1,5 +1,6 @@
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import type { TriggerDefinition } from '../hooks/useTriggerAutocomplete';
+
 import { fuzzyMatch } from '@/lib/fuzzyMatch';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3

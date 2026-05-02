@@ -1,14 +1,14 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { memo, useEffect, useState } from 'react';
 
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { SessionList } from './SessionList';
+import { NewSessionForm } from './NewSessionForm';
 import { SessionDetail } from './SessionDetail';
-import { NewSessionButton } from './NewSessionButton';
+import { SessionList } from './SessionList';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 interface DirectHarnessViewProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -18,10 +18,12 @@ export const DirectHarnessView = memo(function DirectHarnessView({
   chatroomId,
 }: DirectHarnessViewProps) {
   const workspaces = useSessionQuery(api.workspaces.listWorkspacesForChatroom, { chatroomId });
-  const [selectedWorkspaceId, setSelectedWorkspaceId] =
-    useState<Id<'chatroom_workspaces'> | null>(null);
-  const [selectedSessionId, setSelectedSessionId] =
-    useState<Id<'chatroom_harnessSessions'> | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<Id<'chatroom_workspaces'> | null>(
+    null
+  );
+  const [selectedSessionId, setSelectedSessionId] = useState<Id<'chatroom_harnessSessions'> | null>(
+    null
+  );
 
   // Auto-select first workspace once they load (and only if nothing selected yet)
   useEffect(() => {
@@ -63,9 +65,8 @@ export const DirectHarnessView = memo(function DirectHarnessView({
               onSelect={setSelectedSessionId}
             />
             <div className="shrink-0 border-t border-border p-2">
-              <NewSessionButton
+              <NewSessionForm
                 workspaceId={selectedWorkspaceId}
-                chatroomId={chatroomId}
                 onSessionCreated={setSelectedSessionId}
               />
             </div>

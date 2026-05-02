@@ -15,23 +15,23 @@
  * if the subscription fires again before the previous orchestration completes.
  */
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexClient } from 'convex/browser';
 
+import type { DaemonContext } from './types.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
-import {
-  BufferedMessageStreamSink,
-  ConvexMessageStreamTransport,
-} from '../../../infrastructure/services/direct-harness/message-stream/index.js';
 import {
   createDefaultFlushStrategy,
   wireEventSink,
 } from '../../../application/direct-harness/internal.js';
 import type { HarnessSessionRowId } from '../../../domain/direct-harness/index.js';
-import type { DaemonContext } from './types.js';
+import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
+import {
+  BufferedMessageStreamSink,
+  ConvexMessageStreamTransport,
+} from '../../../infrastructure/services/direct-harness/message-stream/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Handle returned by `startPendingHarnessSessionSubscription` to stop the subscription. */

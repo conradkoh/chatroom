@@ -38,7 +38,7 @@ function isBinaryFile(path: string): boolean {
  * Poll for pending file content requests and fulfill them.
  */
 export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<void> {
-  let requests: Array<{ _id: string; workingDir: string; filePath: string }>;
+  let requests: { _id: string; workingDir: string; filePath: string }[];
   try {
     requests = await ctx.deps.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
       sessionId: ctx.sessionId,

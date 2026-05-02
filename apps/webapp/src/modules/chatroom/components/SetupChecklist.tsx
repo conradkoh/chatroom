@@ -1,9 +1,9 @@
 'use client';
 
-import { Rocket, Check } from 'lucide-react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { Rocket, Check } from 'lucide-react';
 import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';

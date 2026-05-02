@@ -5,21 +5,19 @@
  * or re-associating the session. The harness process is assumed to still be alive.
  */
 
+import { buildSessionHandle, createDefaultFlushStrategy, wireEventSink } from './internal.js';
+import type { OpenSessionBackend, SessionHandle } from './open-session.js';
 import type {
   DirectHarnessSessionEvent,
   FlushStrategy,
   HarnessSessionId,
   HarnessSessionRowId,
-} from '../../domain/direct-harness/index.js';
-
+ DirectHarnessSpawner } from '../../domain/direct-harness/index.js';
 import {
   BufferedMessageStreamSink,
   ConvexMessageStreamTransport,
 } from '../../infrastructure/services/direct-harness/message-stream/index.js';
 
-import type { DirectHarnessSpawner } from '../../domain/direct-harness/index.js';
-import { buildSessionHandle, createDefaultFlushStrategy, wireEventSink } from './internal.js';
-import type { OpenSessionBackend, SessionHandle } from './open-session.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -9,10 +9,10 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { transitionAgentStatus } from './transition-agent-status';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

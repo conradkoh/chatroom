@@ -11,6 +11,10 @@
 
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 
+// ─── Test Helpers ─────────────────────────────────────────────────────────────
+
+import type { LocalApiRequest } from './types.js';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockExec = vi.fn();
@@ -26,10 +30,6 @@ vi.mock('node:fs/promises', () => ({
 
 // Import after mocks are set up
 const { openVSCodeRoute } = await import('./routes/open-vscode.js');
-
-// ─── Test Helpers ─────────────────────────────────────────────────────────────
-
-import type { LocalApiRequest } from './types.js';
 
 function makeReq(body?: object): LocalApiRequest {
   return {

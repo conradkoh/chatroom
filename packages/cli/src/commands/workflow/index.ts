@@ -4,9 +4,9 @@
 
 import type { WorkflowDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ export function parseSections(
   const regex = new RegExp(`(${markerPattern})`, 'g');
 
   // Find all marker positions
-  const markers: Array<{ section: string; index: number; matchStart: number }> = [];
+  const markers: { section: string; index: number; matchStart: number }[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(input)) !== null) {
     const sectionName = match[1]!.replace(/^---/, '').replace(/---$/, '');
@@ -204,12 +204,12 @@ export async function createWorkflow(
 
   // Parse JSON from stdin
   let stepsData: {
-    steps: Array<{
+    steps: {
       stepKey: string;
       description: string;
       dependsOn: string[];
       order: number;
-    }>;
+    }[];
   };
 
   try {

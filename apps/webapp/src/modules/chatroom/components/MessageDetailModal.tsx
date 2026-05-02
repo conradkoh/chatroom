@@ -16,7 +16,6 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
-
 import type { Message } from '../types/message';
 
 interface MessageDetailModalProps {

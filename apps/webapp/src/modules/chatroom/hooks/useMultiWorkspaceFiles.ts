@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 
-import type { Workspace } from '../types/workspace';
-import type { FileEntry } from '../components/FileSelector/useFileSelector';
-import { useFileTree } from '../workspace/hooks/useFileTree';
 import { useFileEntries } from './useFileEntries';
+import type { FileEntry } from '../components/FileSelector/useFileSelector';
+import type { Workspace } from '../types/workspace';
+import { useFileTree } from '../workspace/hooks/useFileTree';
+
 import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
   // up to 20 deps. Instead we serialize the identity-significant fields
   // (machineId + workingDir) into a single string. The array is capped at 10
   // items so serialization cost is negligible.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const slots = useMemo(
     () => prepareSlots(workspaces),
     [

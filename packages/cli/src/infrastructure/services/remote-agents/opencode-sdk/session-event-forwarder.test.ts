@@ -1,5 +1,6 @@
+import type { Writable } from 'node:stream';
+
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { Writable } from 'node:stream';
 
 import {
   startSessionEventForwarder,

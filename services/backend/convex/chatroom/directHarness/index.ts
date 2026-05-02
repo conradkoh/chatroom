@@ -16,7 +16,11 @@ export {
 
 export { appendMessages, streamSessionMessages } from './messages.js';
 
-export { publishMachineCapabilities, getMachineRegistry } from './capabilities.js';
+export {
+  publishMachineCapabilities,
+  getMachineRegistry,
+  listForWorkspace,
+} from './capabilities.js';
 
 export {
   submitPrompt,

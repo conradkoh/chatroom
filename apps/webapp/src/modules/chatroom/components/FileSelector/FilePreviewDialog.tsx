@@ -3,13 +3,14 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
-import { isMarkdownFile, isCsvFile, getDefaultViewMode, type FileViewMode, MarkdownRenderer, CsvTableRenderer } from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { useFileContent } from '../../workspace/hooks/useFileContent';
 
-import { FileTypeIcon } from './fileIcons';
+
 import { isBinaryFile } from './binaryDetection';
+import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
+import { isMarkdownFile, isCsvFile, getDefaultViewMode, type FileViewMode, MarkdownRenderer, CsvTableRenderer } from '../../workspace/file-renderers';
+import { useFileContent } from '../../workspace/hooks/useFileContent';
 
 import {
   FixedModal,

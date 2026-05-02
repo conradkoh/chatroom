@@ -9,8 +9,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 
@@ -81,7 +81,7 @@ async function getAllSteps(ctx: QueryCtx | MutationCtx, workflowId: Id<'chatroom
  * Validate DAG: check for cycles and dangling dependsOn references.
  * Uses Kahn's algorithm (topological sort) for cycle detection.
  */
-function validateDag(steps: Array<{ stepKey: string; dependsOn: string[] }>): void {
+function validateDag(steps: { stepKey: string; dependsOn: string[] }[]): void {
   const stepKeys = new Set(steps.map((s) => s.stepKey));
 
   // Check for duplicate step keys
@@ -181,7 +181,7 @@ async function advanceWorkflow(
   }
 
   // Emit workflow.stepStarted events for promoted steps
-  const workflow = await ctx.db.get(workflowId);
+  const workflow = await ctx.db.get("chatroom_workflows", workflowId);
   if (workflow) {
     for (const step of steps) {
       if (step.status !== 'pending') continue;
@@ -738,7 +738,7 @@ export const getWorkflowDetail = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const workflow = await ctx.db.get(args.workflowId);
+    const workflow = await ctx.db.get("chatroom_workflows", args.workflowId);
     if (!workflow || workflow.chatroomId !== args.chatroomId) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Workflow not found' });
     }

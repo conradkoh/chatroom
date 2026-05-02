@@ -1,8 +1,9 @@
 'use client';
 
-import { memo } from 'react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { WorkspaceForChatroomView } from '@workspace/backend/src/domain/usecase/workspace/list-workspaces-for-chatroom';
+import { memo } from 'react';
+
 import {
   Select,
   SelectContent,

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { sessionResume } from './index.js';
 import type { SessionResumeDeps } from './index.js';
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { sessionOpen } from './index.js';
 import type { SessionOpenDeps } from './index.js';
 

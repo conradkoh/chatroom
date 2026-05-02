@@ -3,6 +3,14 @@
 import { ExternalLink, GitCommit, Loader2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
 
+
+import { PRActionButtons } from '../workspace/components/PRActionButtons';
+import { WorkspaceDiffViewer } from '../workspace/components/WorkspaceDiffViewer';
+import { usePRDiff, usePRCommits, useCommitDetail } from '../workspace/hooks/useWorkspaceGit';
+import type { PRCommitEntry } from '../workspace/hooks/useWorkspaceGit';
+import type { GitPullRequest, FullDiffState } from '../workspace/types/git';
+import { prStateBadge } from '../workspace/utils/pr-helpers';
+
 import {
   FixedModal,
   FixedModalContent,
@@ -11,14 +19,6 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-
-import { WorkspaceDiffViewer } from '../workspace/components/WorkspaceDiffViewer';
-import { PRActionButtons } from '../workspace/components/PRActionButtons';
-import { usePRDiff, usePRCommits, useCommitDetail } from '../workspace/hooks/useWorkspaceGit';
-import type { PRCommitEntry } from '../workspace/hooks/useWorkspaceGit';
-import type { GitPullRequest, FullDiffState } from '../workspace/types/git';
-
-import { prStateBadge } from '../workspace/utils/pr-helpers';
 
 interface PRDetailModalProps {
   isOpen: boolean;

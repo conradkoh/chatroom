@@ -15,8 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { dispatchCommandEvent, refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
+import { pushGitState } from './git-heartbeat.js';
+import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import { handlePing } from './handlers/ping.js';
 import type { DaemonContext, AgentHarness } from './types.js';
+import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 
 // ---------------------------------------------------------------------------
@@ -49,13 +55,6 @@ vi.mock('./git-heartbeat.js', () => ({
 vi.mock('../../../infrastructure/local-actions/index.js', () => ({
   executeLocalAction: vi.fn().mockResolvedValue({ success: true }),
 }));
-
-import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { handlePing } from './handlers/ping.js';
-import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
-import { pushGitState } from './git-heartbeat.js';
-import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 
 // ---------------------------------------------------------------------------
 // Mocks

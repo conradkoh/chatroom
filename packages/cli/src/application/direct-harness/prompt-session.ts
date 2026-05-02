@@ -11,10 +11,11 @@
  *   3. completePendingPrompt(done) on success, completePendingPrompt(error) on failure
  */
 
-import type { Id } from '../../api.js';
-import { api } from '../../api.js';
 import type { FunctionReference, OptionalRestArgs } from 'convex/server';
 import type { SessionId } from 'convex-helpers/server/sessions';
+
+import type { Id } from '../../api.js';
+import { api } from '../../api.js';
 import type {
   HarnessSessionId,
   PromptInput,

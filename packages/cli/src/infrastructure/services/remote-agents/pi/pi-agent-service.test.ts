@@ -1,8 +1,8 @@
 import { EventEmitter, Readable } from 'node:stream';
-import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import { PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {

@@ -8,9 +8,9 @@ import type {
   DirectHarnessSessionEvent,
   FlushStrategy,
 } from '../../domain/direct-harness/index.js';
-
+import type {
+  BufferedMessageStreamSink} from '../../infrastructure/services/direct-harness/message-stream/index.js';
 import {
-  BufferedMessageStreamSink,
   CompositeFlushStrategy,
   IntervalFlushStrategy,
   SentenceFlushStrategy,

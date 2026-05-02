@@ -15,8 +15,8 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { checkAccess, requireAccess } from './auth/accessCheck';
+import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ export const syncCommands = mutation({
       .collect();
 
     for (const cmd of existing) {
-      await ctx.db.delete(cmd._id);
+      await ctx.db.delete("chatroom_runnableCommands", cmd._id);
     }
 
     // Insert new commands
@@ -185,7 +185,7 @@ export const stopCommand = mutation({
       permission: 'write-access',
     });
 
-    const run = await ctx.db.get(args.runId);
+    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
     if (run.machineId !== args.machineId)
       throw new ConvexError({
@@ -238,7 +238,7 @@ export const updateRunStatus = mutation({
         message: 'Not authorized for this machine',
       });
 
-    const run = await ctx.db.get(args.runId);
+    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
     if (run.machineId !== args.machineId)
       throw new ConvexError({
@@ -271,7 +271,7 @@ export const updateRunStatus = mutation({
       update.completedAt = Date.now();
     }
 
-    await ctx.db.patch(args.runId, update);
+    await ctx.db.patch("chatroom_commandRuns", args.runId, update);
   },
 });
 
@@ -396,7 +396,7 @@ export const getRunOutput = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return { chunks: [], run: null };
 
-    const run = await ctx.db.get(args.runId);
+    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
     if (!run) return { chunks: [], run: null };
 
     // Verify the caller has access to this machine through chatroom membership
@@ -454,7 +454,7 @@ export const clearStaleCommandRuns = mutation({
 
     for (const run of allRuns) {
       if (run.status === 'pending' || run.status === 'running') {
-        await ctx.db.patch(run._id, { status: 'stopped', completedAt: now });
+        await ctx.db.patch("chatroom_commandRuns", run._id, { status: 'stopped', completedAt: now });
         clearedCount++;
       }
     }

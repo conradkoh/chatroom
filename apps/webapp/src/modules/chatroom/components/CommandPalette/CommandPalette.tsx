@@ -3,6 +3,14 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
+import { CommandOutputPanel } from './CommandOutputPanel';
+import type { CommandItem } from './types';
+import {
+  COMMAND_DIALOG_CONTENT_CLASSES,
+  COMMAND_DIALOG_SPLIT_CONTENT_CLASSES,
+  COMMAND_GROUP_HEADING_CLASSES,
+} from '../shared/commandDialogStyles';
+
 import {
   Command,
   CommandEmpty,
@@ -14,17 +22,10 @@ import {
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
-
-import {
-  COMMAND_DIALOG_CONTENT_CLASSES,
-  COMMAND_DIALOG_SPLIT_CONTENT_CLASSES,
-  COMMAND_GROUP_HEADING_CLASSES,
-} from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { InlineCommandState } from '@/modules/chatroom/hooks/useInlineCommandOutput';
-import type { CommandItem } from './types';
-import { CommandOutputPanel } from './CommandOutputPanel';
+
 
 interface CommandPaletteProps {
   commands: CommandItem[];

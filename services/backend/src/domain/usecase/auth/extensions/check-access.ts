@@ -47,7 +47,7 @@ export interface CheckAccessDeps {
   getChatroom: (id: string) => Promise<{ id: string; ownerId: string } | null>;
   getWorkspacesForMachine: (
     machineId: string
-  ) => Promise<Array<{ chatroomId: string; machineId: string }>>;
+  ) => Promise<{ chatroomId: string; machineId: string }[]>;
 }
 
 // ─── Core Logic ─────────────────────────────────────────────────────────────

@@ -310,7 +310,7 @@ describe('exportBacklog', () => {
 
 describe('importBacklog', () => {
   const makeExportFile = (
-    items: Array<{ content: string; createdBy?: string; createdAt?: number }>,
+    items: { content: string; createdBy?: string; createdAt?: number }[],
     overrides?: Partial<BacklogExportFile>
   ): BacklogExportFile => ({
     exportedAt: Date.now(),

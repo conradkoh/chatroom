@@ -9,8 +9,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from '../../_generated/server.js';
 import { requireDirectHarnessWorkers } from './helpers.js';
+import { mutation, query } from '../../_generated/server.js';
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 
 // ─── Validators ───────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ export const publishMachineCapabilities = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("chatroom_machineRegistry", existing._id, {
         lastSeenAt: now,
         workspaces: args.workspaces,
       });

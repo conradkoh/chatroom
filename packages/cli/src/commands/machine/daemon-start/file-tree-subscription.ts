@@ -80,7 +80,7 @@ export function startFileTreeSubscription(
  */
 async function fulfillFileTreeRequests(
   ctx: DaemonContext,
-  requests: Array<{ _id: string; workingDir: string }>
+  requests: { _id: string; workingDir: string }[]
 ): Promise<void> {
   for (const request of requests) {
     try {

@@ -14,10 +14,10 @@ import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow } from './AgentStatusRow';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
+import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 import { getDaemonStartCommand } from '@/lib/environment';
 
-import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';

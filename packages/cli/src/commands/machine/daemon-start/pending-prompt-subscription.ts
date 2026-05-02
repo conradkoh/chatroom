@@ -13,15 +13,15 @@
  * daemon boot fast and avoids surprise costs.
  */
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexClient } from 'convex/browser';
 
+import type { DaemonContext } from './types.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
-import { promptSession } from '../../../application/direct-harness/prompt-session.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import { promptSession } from '../../../application/direct-harness/prompt-session.js';
 import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
-import type { DaemonContext } from './types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Handle returned by `startPendingPromptSubscription` to stop the subscription. */
@@ -110,7 +110,7 @@ async function executeClaimedTask(
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
     taskType: 'prompt' | 'resume';
-    parts: Array<{ type: 'text'; text: string }>;
+    parts: { type: 'text'; text: string }[];
     override: {
       agent: string;
       model?: { providerID: string; modelID: string };
@@ -233,7 +233,7 @@ async function executePromptTask(
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
-    parts: Array<{ type: 'text'; text: string }>;
+    parts: { type: 'text'; text: string }[];
     override: {
       agent: string;
       model?: { providerID: string; modelID: string };

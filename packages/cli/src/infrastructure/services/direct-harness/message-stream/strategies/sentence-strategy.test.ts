@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { SentenceFlushStrategy } from './sentence-strategy.js';
 import type { FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
 

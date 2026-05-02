@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { createOpencodeSdkResumer, resumeSessionFromStore } from './index.js';
+import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
+import { InMemorySessionMetadataStore } from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
+
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
 const mockSubscribeFn = vi.fn().mockResolvedValue({
@@ -25,10 +29,6 @@ vi.mock('@opencode-ai/sdk', () => ({
 vi.mock('../../services/remote-agents/opencode-sdk/parse-listening-url.js', () => ({
   waitForListeningUrl: vi.fn().mockResolvedValue('http://localhost:12345'),
 }));
-
-import { createOpencodeSdkResumer, resumeSessionFromStore } from './index.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
-import { InMemorySessionMetadataStore } from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

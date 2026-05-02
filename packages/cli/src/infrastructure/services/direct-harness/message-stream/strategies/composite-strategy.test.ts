@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+
 import { CompositeFlushStrategy } from './composite-strategy.js';
 import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
 

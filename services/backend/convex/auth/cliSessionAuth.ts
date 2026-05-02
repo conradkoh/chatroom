@@ -9,8 +9,8 @@ import {
   type CheckSessionDeps,
 } from '../../src/domain/usecase/auth/extensions/validate-session';
 import type { Doc, Id } from '../_generated/dataModel';
-import { str } from '../utils/types';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { str } from '../utils/types';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 

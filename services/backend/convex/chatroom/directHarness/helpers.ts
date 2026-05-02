@@ -43,7 +43,7 @@ export async function getSessionWithAccess(
   sessionId: string,
   harnessSessionRowId: Id<'chatroom_harnessSessions'>
 ): Promise<SessionAccess> {
-  const harnessSession = await ctx.db.get(harnessSessionRowId);
+  const harnessSession = await ctx.db.get("chatroom_harnessSessions", harnessSessionRowId);
   if (!harnessSession) {
     throw new ConvexError({
       code: 'NOT_FOUND',
@@ -51,7 +51,7 @@ export async function getSessionWithAccess(
     });
   }
 
-  const workspace = await ctx.db.get(harnessSession.workspaceId);
+  const workspace = await ctx.db.get("chatroom_workspaces", harnessSession.workspaceId);
   if (!workspace) {
     throw new ConvexError({
       code: 'NOT_FOUND',

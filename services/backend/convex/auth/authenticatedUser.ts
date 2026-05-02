@@ -1,9 +1,10 @@
 /** Centralized authentication helper for resolving the current user from a session. */
 
 import { ConvexError } from 'convex/values';
+
+import { validateSession } from './cliSessionAuth';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { validateSession } from './cliSessionAuth';
 
 /** Discriminated union for authentication results. */
 export type AuthResult =
@@ -28,7 +29,7 @@ export async function getAuthenticatedUser(
   if (!result.ok) {
     return { ok: false, reason: result.reason };
   }
-  const user = await ctx.db.get(result.userId);
+  const user = await ctx.db.get("users", result.userId);
   if (!user) {
     return { ok: false, reason: 'User not found' };
   }

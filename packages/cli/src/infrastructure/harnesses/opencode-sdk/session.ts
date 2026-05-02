@@ -28,7 +28,7 @@ export interface OpencodeSdkSessionClient {
     abort(args: any): Promise<any>;
   };
   event: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     subscribe(
       args?: any
     ): Promise<{ stream: AsyncGenerator<{ type: string; properties?: Record<string, unknown> }> }>;
@@ -36,23 +36,23 @@ export interface OpencodeSdkSessionClient {
   app: {
     /** Returns the list of agents configured in this opencode server instance. */
     agents(): Promise<{
-      data?: Array<{
+      data?: {
         name: string;
         mode: 'subagent' | 'primary' | 'all';
         model?: { providerID: string; modelID: string };
         description?: string;
-      }>;
+      }[];
     }>;
   };
   config: {
     /** Returns providers and their models from the opencode server's active config. */
     providers(): Promise<{
       data?: {
-        providers: Array<{
+        providers: {
           id: string;
           name: string;
           models: Record<string, { id: string; name: string }>;
-        }>;
+        }[];
       };
     }>;
   };
