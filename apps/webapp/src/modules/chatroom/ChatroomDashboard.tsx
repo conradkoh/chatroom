@@ -33,6 +33,7 @@ import { SavedCommandModal } from './components/SavedCommandModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { WorkQueue } from './components/WorkQueue';
+import { DirectHarnessPanel } from './direct-harness/DirectHarnessPanel';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import {
   CommandPalette,
@@ -1593,6 +1594,7 @@ export function ChatroomDashboard({
                   lifecycle={lifecycle}
                   onRegisterActions={handleRegisterWorkQueueActions}
                 />
+                <DirectHarnessPanel chatroomId={chatroomId} />
               </div>
             </div>
             <WorkspaceBottomBar
