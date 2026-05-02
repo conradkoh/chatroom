@@ -17,6 +17,9 @@ import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
+import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
+import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
 import { discoverModels } from './init.js';
@@ -419,6 +422,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
 
+  // ── Pending Prompt Subscription ─────────────────────────────────────
+  // Direct-harness prompt queue. Gated by directHarnessWorkers flag.
+  let pendingPromptSubscriptionHandle: ReturnType<typeof startPendingPromptSubscription> | null = null;
+  // Registry lives here so it shares the daemon process lifetime.
+  const harnessRegistry = new HarnessProcessRegistry(async (workspaceId, cwd) =>
+    createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
+  );
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   if (ctx.observedSyncEnabled) {
@@ -441,6 +452,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
+    if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
+    await harnessRegistry.killAll();
 
     await onDaemonShutdown(ctx);
 
@@ -477,6 +490,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   if (ctx.observedSyncEnabled) {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
   }
+
+  // ── Pending Prompt Subscription ─────────────────────────────────────
+  pendingPromptSubscriptionHandle = startPendingPromptSubscription(ctx, wsClient, harnessRegistry);
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);

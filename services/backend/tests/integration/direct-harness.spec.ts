@@ -407,3 +407,226 @@ describe('getMachineRegistry', () => {
     expect(registries).toHaveLength(1);
   });
 });
+
+// ─── submitPrompt + claimNextPendingPrompt + completePendingPrompt ────────────
+
+describe('submitPrompt', () => {
+  test('inserts a pending prompt row and returns promptId', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('submit-success');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    const result = await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'hello' }],
+    });
+
+    expect(result.promptId).toBeDefined();
+  });
+
+  test('throws when session is closed', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('submit-closed');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.sessions.closeSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+        sessionId,
+        harnessSessionRowId,
+        parts: [{ type: 'text' as const, text: 'too late' }],
+      })
+    ).rejects.toThrow();
+  });
+});
+
+describe('claimNextPendingPrompt', () => {
+  test('returns null when no pending prompts exist', async () => {
+    const { sessionId, machineId } = await setupWorkspaceForSession('claim-empty');
+
+    const result = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  test('claims the oldest pending prompt atomically', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('claim-atomic');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'first' }],
+    });
+    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'second' }],
+    });
+
+    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+
+    expect(claimed).not.toBeNull();
+    expect(claimed?.status).toBe('processing');
+    // The claimed prompt is now processing — claiming again should get the second one
+    const claimed2 = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed2).not.toBeNull();
+
+    // Claiming again should return null (no more pending)
+    const claimed3 = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed3).toBeNull();
+  });
+});
+
+describe('completePendingPrompt', () => {
+  test('updates status to done', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('complete-done');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'hello' }],
+    });
+
+    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed).not.toBeNull();
+
+    await t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId,
+      machineId,
+      promptId: claimed!._id,
+      status: 'done',
+    });
+
+    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    expect(queue[0]?.status).toBe('done');
+  });
+
+  test('updates status to error with message', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('complete-error');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'oops' }],
+    });
+
+    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+
+    await t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId,
+      machineId,
+      promptId: claimed!._id,
+      status: 'error',
+      errorMessage: 'connection reset',
+    });
+
+    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    expect(queue[0]?.status).toBe('error');
+    expect(queue[0]?.errorMessage).toBe('connection reset');
+  });
+});
+
+describe('updateSessionAgentWithValidation', () => {
+  test('updates agent when registry has no agent list (harness not booted yet)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent-no-registry');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
+
+    // No machine registry published — should accept any agent name
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+        sessionId,
+        harnessSessionRowId,
+        agent: 'planner',
+      })
+    ).resolves.toBeDefined();
+
+    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    expect(session?.agent).toBe('planner');
+  });
+
+  test('rejects unknown agent when registry has an agent list', async () => {
+    const { sessionId, workspaceId, chatroomId, machineId } = await setupWorkspaceForSession('update-agent-reject');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
+
+    // Publish registry with known agents
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [
+        {
+          workspaceId: workspaceId as string,
+          cwd: TEST_CWD,
+          name: TEST_CWD,
+          agents: [{ name: 'build', mode: 'primary' as const }],
+        },
+      ],
+    });
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+        sessionId,
+        harnessSessionRowId,
+        agent: 'nonexistent-agent',
+      })
+    ).rejects.toThrow('Unknown agent');
+  });
+
+  test('accepts known agent from registry', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('update-agent-accept');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
+
+    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      sessionId,
+      machineId,
+      workspaces: [
+        {
+          workspaceId: workspaceId as string,
+          cwd: TEST_CWD,
+          name: TEST_CWD,
+          agents: [{ name: 'build', mode: 'primary' as const }],
+        },
+      ],
+    });
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+        sessionId,
+        harnessSessionRowId,
+        agent: 'build',
+      })
+    ).resolves.toBeDefined();
+  });
+});

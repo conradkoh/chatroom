@@ -22,6 +22,7 @@ import type * as chatroom_directHarness_capabilities from "../chatroom/directHar
 import type * as chatroom_directHarness_helpers from "../chatroom/directHarness/helpers.js";
 import type * as chatroom_directHarness_index from "../chatroom/directHarness/index.js";
 import type * as chatroom_directHarness_messages from "../chatroom/directHarness/messages.js";
+import type * as chatroom_directHarness_prompts from "../chatroom/directHarness/prompts.js";
 import type * as chatroom_directHarness_sessions from "../chatroom/directHarness/sessions.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
 import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
@@ -94,6 +95,7 @@ declare const fullApi: ApiFromModules<{
   "chatroom/directHarness/helpers": typeof chatroom_directHarness_helpers;
   "chatroom/directHarness/index": typeof chatroom_directHarness_index;
   "chatroom/directHarness/messages": typeof chatroom_directHarness_messages;
+  "chatroom/directHarness/prompts": typeof chatroom_directHarness_prompts;
   "chatroom/directHarness/sessions": typeof chatroom_directHarness_sessions;
   chatroomCleanup: typeof chatroomCleanup;
   chatroomSkillCustomizations: typeof chatroomSkillCustomizations;

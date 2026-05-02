@@ -17,3 +17,12 @@ export {
 export { appendMessages, streamSessionMessages } from './messages.js';
 
 export { publishMachineCapabilities, getMachineRegistry } from './capabilities.js';
+
+export {
+  submitPrompt,
+  updateSessionAgentWithValidation,
+  claimNextPendingPrompt,
+  completePendingPrompt,
+  getPendingPromptsForMachine,
+  getSessionPromptQueue,
+} from './prompts.js';

@@ -2212,4 +2212,28 @@ export default defineSchema({
       })
     ),
   }).index('by_machineId', ['machineId']),
+
+  /**
+   * Queued prompts to be executed by the daemon against a harness session.
+   * Status: pending → processing → done | error
+   */
+  chatroom_pendingPrompts: defineTable({
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    /** Denormalized for efficient daemon polling. */
+    machineId: v.string(),
+    workspaceId: v.id('chatroom_workspaces'),
+    parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    errorMessage: v.optional(v.string()),
+    requestedBy: v.string(),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_session', ['harnessSessionRowId']),
 });
