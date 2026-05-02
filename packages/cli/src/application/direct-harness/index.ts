@@ -2,13 +2,11 @@
  * Barrel re-export for the application/direct-harness module.
  */
 
-export { spawnWorker } from './spawn-worker.js';
-export type {
-  SpawnWorkerDeps,
-  SpawnWorkerOptions,
-  SpawnWorkerBackend,
-  WorkerHandle,
-} from './spawn-worker.js';
+export { openSession } from './open-session.js';
+export type { OpenSessionDeps, OpenSessionOptions, OpenSessionBackend, SessionHandle } from './open-session.js';
 
-export { resumeWorker } from './resume-worker.js';
-export type { ResumeWorkerDeps, ResumeWorkerOptions } from './resume-worker.js';
+export { resumeSession } from './resume-session.js';
+export type { ResumeSessionDeps, ResumeSessionOptions } from './resume-session.js';
+
+export { HarnessProcessRegistry } from './get-or-spawn-harness.js';
+export type { HarnessProcess, HarnessProcessFactory } from './get-or-spawn-harness.js';

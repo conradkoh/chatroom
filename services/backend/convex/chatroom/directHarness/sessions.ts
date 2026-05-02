@@ -2,8 +2,7 @@
  * HarnessSession mutations and queries for the direct-harness feature.
  *
  * Sessions are associated with existing chatroom_workspaces entries (the daemon
- * registers workspaces separately). openSession looks up the workspace by
- * chatroomId + machineId + cwd.
+ * registers workspaces separately via the daemon workspace registry).
  *
  * All functions require:
  *  1. directHarnessWorkers feature flag enabled
@@ -21,51 +20,34 @@ import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js'
 // ─── openSession ─────────────────────────────────────────────────────────────
 
 /**
- * Open a new harness session for a chatroom on a specific machine.
+ * Open a new harness session in the given workspace.
  *
- * Looks up the existing chatroom_workspaces entry for the given
- * chatroomId + machineId + cwd combination. The daemon must have already
- * registered the workspace before calling this mutation.
+ * The workspace must already be registered by the daemon before calling
+ * this mutation. Access is verified via the workspace's chatroomId.
  *
  * Returns { harnessSessionRowId } — the backend-issued session row ID.
  */
 export const openSession = mutation({
   args: {
     ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    machineId: v.string(),
-    /** Working directory — maps to chatroom_workspaces.workingDir. */
-    cwd: v.string(),
+    workspaceId: v.id('chatroom_workspaces'),
     harnessName: v.string(),
     /** The agent role opening this session (e.g. 'builder', 'planner'). */
     agent: v.string(),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Look up the workspace registered for this chatroomId + machineId + cwd
-    const workspace = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_chatroom_machine_workingDir', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.cwd)
-      )
-      .filter((q) => q.eq(q.field('removedAt'), undefined))
-      .first();
-
+    const workspace = await ctx.db.get(args.workspaceId);
     if (!workspace) {
-      throw new ConvexError(
-        `No active workspace found for chatroomId=${args.chatroomId} machineId=${args.machineId} cwd=${args.cwd}. ` +
-          `The daemon must register the workspace before opening a session.`
-      );
+      throw new ConvexError({ code: 'NOT_FOUND', message: `Workspace ${args.workspaceId} not found` });
     }
+
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
 
     const now = Date.now();
     const harnessSessionRowId = await ctx.db.insert('chatroom_harnessSessions', {
-      workspaceId: workspace._id,
+      workspaceId: args.workspaceId,
       harnessName: args.harnessName,
       harnessSessionId: undefined,
       agent: args.agent,

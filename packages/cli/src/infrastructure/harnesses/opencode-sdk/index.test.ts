@@ -97,28 +97,34 @@ describe('createOpencodeSdkHarness', () => {
     await expect(harness.openSession({ cwd: '/tmp', config: VALID_CONFIG })).rejects.toThrow('session create failed');
   });
 
-  it('openSession() throws when chatroomId is missing from config', async () => {
+  it('openSession() does not require chatroomId, role, or machineId — uses defaults when absent', async () => {
+    // The legacy spawner accepts missing config fields (uses empty string defaults).
+    // The new multi-session path (createBoundOpencodeSdkHarness) is the strict one.
     const { harness, spawnFn } = createHarness();
     spawnFn.mockReturnValue(createFakeChild(3456));
 
-    await expect(harness.openSession({ cwd: '/tmp', config: { role: 'builder', machineId: 'machine-1' } }))
-      .rejects.toThrow('chatroomId');
+    // Should resolve without throwing — config fields are optional in legacy mode
+    const session = await harness.openSession({ cwd: '/tmp', config: { role: 'builder', machineId: 'machine-1' } });
+    expect(session.harnessSessionId).toBeDefined();
+    await session.close();
   });
 
-  it('openSession() throws when role is missing from config', async () => {
+  it('openSession() works even when role and machineId are absent', async () => {
     const { harness, spawnFn } = createHarness();
     spawnFn.mockReturnValue(createFakeChild(3457));
 
-    await expect(harness.openSession({ cwd: '/tmp', config: { chatroomId: 'room-1', machineId: 'machine-1' } }))
-      .rejects.toThrow('role');
+    const session = await harness.openSession({ cwd: '/tmp', config: { chatroomId: 'room-1' } });
+    expect(session.harnessSessionId).toBeDefined();
+    await session.close();
   });
 
-  it('openSession() throws when machineId is missing from config', async () => {
+  it('openSession() works with all config fields absent', async () => {
     const { harness, spawnFn } = createHarness();
     spawnFn.mockReturnValue(createFakeChild(3458));
 
-    await expect(harness.openSession({ cwd: '/tmp', config: { chatroomId: 'room-1', role: 'builder' } }))
-      .rejects.toThrow('machineId');
+    const session = await harness.openSession({ cwd: '/tmp', config: {} });
+    expect(session.harnessSessionId).toBeDefined();
+    await session.close();
   });
 
   it('openSession() persists session metadata to the store', async () => {

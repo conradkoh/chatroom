@@ -1,5 +1,5 @@
 /**
- * Shared internal helpers for the direct-harness application orchestrators.
+ * Shared internal helpers for the direct-harness application use cases.
  * Not exported from the public barrel — for internal use only.
  */
 
@@ -16,7 +16,22 @@ import {
   SentenceFlushStrategy,
 } from '../../infrastructure/services/direct-harness/message-stream/index.js';
 
-import type { WorkerHandle } from './spawn-worker.js';
+// ─── Session handle ───────────────────────────────────────────────────────────
+
+/** A live harness session with its message sink. */
+export interface SessionHandle {
+  /** Backend-issued session row identifier (harnessSessionRowId). */
+  readonly harnessSessionRowId: string;
+  /** Harness-issued session identifier (opencode-issued). */
+  readonly harnessSessionId: string;
+  /** The live harness session — use prompt() to forward messages. */
+  readonly session: DirectHarnessSession;
+  /**
+   * Flush any pending message chunks and close the harness session.
+   * Idempotent — safe to call multiple times.
+   */
+  close(): Promise<void>;
+}
 
 // ─── Default flush strategy ───────────────────────────────────────────────────
 
@@ -48,20 +63,20 @@ export function wireEventSink(
   });
 }
 
-// ─── WorkerHandle builder ─────────────────────────────────────────────────────
+// ─── Session handle builder ───────────────────────────────────────────────────
 
-/** Build a WorkerHandle with idempotent close(). */
-export function buildWorkerHandle(
-  workerId: string,
+/** Build a SessionHandle with idempotent close(). */
+export function buildSessionHandle(
+  harnessSessionRowId: string,
   harnessSessionId: string,
   session: DirectHarnessSession,
   sink: BufferedMessageStreamSink,
   unsubscribeEvents: () => void
-): WorkerHandle {
+): SessionHandle {
   let closed = false;
 
   return {
-    workerId,
+    harnessSessionRowId,
     harnessSessionId,
     session,
     async close() {

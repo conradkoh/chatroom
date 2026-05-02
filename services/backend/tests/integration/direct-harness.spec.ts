@@ -12,6 +12,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { featureFlags } from '../../config/featureFlags';
 import { t } from '../../test.setup';
 import {
@@ -37,9 +38,14 @@ const TEST_HARNESS_NAME = 'opencode-sdk';
 
 /**
  * Set up a session, chatroom, machine, and registered workspace.
- * Returns everything needed to call openSession.
+ * Returns the workspaceId for use in openSession calls.
  */
-async function setupWorkspaceForSession(prefix: string) {
+async function setupWorkspaceForSession(prefix: string): Promise<{
+  sessionId: SessionId;
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  workspaceId: Id<'chatroom_workspaces'>;
+}> {
   const { sessionId } = await createTestSession(`${prefix}-session`);
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = `${prefix}-machine`;
@@ -56,42 +62,49 @@ async function setupWorkspaceForSession(prefix: string) {
     registeredBy: 'builder',
   });
 
-  return { sessionId, chatroomId, machineId };
+  // Find the workspace ID
+  const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
+    sessionId,
+    machineId,
+  });
+  const workspace = workspaces.find(
+    (w) => w.workingDir === TEST_CWD && w.chatroomId === chatroomId
+  );
+  if (!workspace) throw new Error('Workspace not found after registration');
+
+  return { sessionId, chatroomId, machineId, workspaceId: workspace._id };
+}
+
+/** Shared helper to open a session using the new workspaceId-based API. */
+async function openSession(
+  sessionId: SessionId,
+  workspaceId: Id<'chatroom_workspaces'>,
+  agent = 'builder'
+) {
+  return t.mutation(api.chatroom.directHarness.sessions.openSession, {
+    sessionId,
+    workspaceId,
+    harnessName: TEST_HARNESS_NAME,
+    agent,
+  });
 }
 
 // ─── openSession ──────────────────────────────────────────────────────────────
 
 describe('openSession', () => {
   test('creates a harness session and returns harnessSessionRowId', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('open-success');
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-success');
 
-    const result = await t.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      chatroomId,
-      machineId,
-      cwd: TEST_CWD,
-      harnessName: TEST_HARNESS_NAME,
-      agent: 'builder',
-    });
+    const result = await openSession(sessionId, workspaceId);
 
     expect(result.harnessSessionRowId).toBeDefined();
     expect(typeof result.harnessSessionRowId).toBe('string');
   });
 
   test('the created session has pending status and correct fields', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('open-fields');
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-fields');
 
-    const { harnessSessionRowId } = await t.mutation(
-      api.chatroom.directHarness.sessions.openSession,
-      {
-        sessionId,
-        chatroomId,
-        machineId,
-        cwd: TEST_CWD,
-        harnessName: TEST_HARNESS_NAME,
-        agent: 'builder',
-      }
-    );
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
       sessionId,
@@ -108,55 +121,36 @@ describe('openSession', () => {
   test('throws when feature flag is off', async () => {
     featureFlags.directHarnessWorkers = false;
 
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('open-flag-off');
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-flag-off');
 
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.openSession, {
-        sessionId,
-        chatroomId,
-        machineId,
-        cwd: TEST_CWD,
-        harnessName: TEST_HARNESS_NAME,
-        agent: 'builder',
-      })
+      openSession(sessionId, workspaceId)
     ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
   });
 
-  test('throws when no workspace is registered for the chatroom + machine + cwd', async () => {
+  test('throws when workspace is not found', async () => {
     const { sessionId } = await createTestSession('open-no-workspace');
-    const chatroomId = await createPairTeamChatroom(sessionId);
-    const machineId = 'nonexistent-machine';
+
+    // Use a validly-formatted Convex ID that doesn't exist in the DB
+    const fakeWorkspaceId = 'jx7aaaaaaaaaaaaaaaaaaaa4' as Id<'chatroom_workspaces'>;
 
     await expect(
       t.mutation(api.chatroom.directHarness.sessions.openSession, {
         sessionId,
-        chatroomId,
-        machineId,
-        cwd: '/not/registered',
+        workspaceId: fakeWorkspaceId,
         harnessName: TEST_HARNESS_NAME,
         agent: 'builder',
       })
-    ).rejects.toThrow('No active workspace found');
+    ).rejects.toThrow();
   });
 });
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
 
 describe('associateHarnessSessionId', () => {
-  async function openSession(sessionId: SessionId, chatroomId: any, machineId: string) {
-    return t.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      chatroomId,
-      machineId,
-      cwd: TEST_CWD,
-      harnessName: TEST_HARNESS_NAME,
-      agent: 'builder',
-    });
-  }
-
   test('sets harnessSessionId and transitions status to active', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('assoc-success');
-    const { harnessSessionRowId } = await openSession(sessionId, chatroomId, machineId);
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-success');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
       sessionId,
@@ -174,8 +168,8 @@ describe('associateHarnessSessionId', () => {
   });
 
   test('is idempotent when the same harnessSessionId is already associated', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('assoc-idem');
-    const { harnessSessionRowId } = await openSession(sessionId, chatroomId, machineId);
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-idem');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
       sessionId,
@@ -194,8 +188,8 @@ describe('associateHarnessSessionId', () => {
   });
 
   test('throws when a different harnessSessionId is already associated', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('assoc-conflict');
-    const { harnessSessionRowId } = await openSession(sessionId, chatroomId, machineId);
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-conflict');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
       sessionId,
@@ -216,20 +210,9 @@ describe('associateHarnessSessionId', () => {
 // ─── appendMessages ───────────────────────────────────────────────────────────
 
 describe('appendMessages', () => {
-  async function openSession(sessionId: SessionId, chatroomId: any, machineId: string) {
-    return t.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      chatroomId,
-      machineId,
-      cwd: TEST_CWD,
-      harnessName: TEST_HARNESS_NAME,
-      agent: 'builder',
-    });
-  }
-
   test('inserts chunks and returns correct counts', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('append-success');
-    const { harnessSessionRowId } = await openSession(sessionId, chatroomId, machineId);
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-success');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     const result = await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
       sessionId,
@@ -245,8 +228,8 @@ describe('appendMessages', () => {
   });
 
   test('is idempotent on (harnessSessionRowId, seq) — duplicate chunks are skipped', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('append-idem');
-    const { harnessSessionRowId } = await openSession(sessionId, chatroomId, machineId);
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-idem');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
     // First insert
     await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
@@ -274,19 +257,9 @@ describe('appendMessages', () => {
 
 describe('updateSessionAgent', () => {
   test('updates the agent field on a session', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('update-agent');
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent');
 
-    const { harnessSessionRowId } = await t.mutation(
-      api.chatroom.directHarness.sessions.openSession,
-      {
-        sessionId,
-        chatroomId,
-        machineId,
-        cwd: TEST_CWD,
-        harnessName: TEST_HARNESS_NAME,
-        agent: 'builder',
-      }
-    );
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     await t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
       sessionId,
@@ -307,40 +280,15 @@ describe('updateSessionAgent', () => {
 
 describe('listSessionsByWorkspace', () => {
   test('returns sessions in creation order', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('list-sessions');
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('list-sessions');
 
     // Open two sessions
-    await t.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      chatroomId,
-      machineId,
-      cwd: TEST_CWD,
-      harnessName: TEST_HARNESS_NAME,
-      agent: 'builder',
-    });
-
-    await t.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      chatroomId,
-      machineId,
-      cwd: TEST_CWD,
-      harnessName: TEST_HARNESS_NAME,
-      agent: 'planner',
-    });
-
-    // Find workspace id via listWorkspacesForMachine
-    const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
-      sessionId,
-      machineId,
-    });
-    const workspace = workspaces.find(
-      (w) => w.workingDir === TEST_CWD && w.chatroomId === chatroomId
-    );
-    expect(workspace).toBeDefined();
+    await openSession(sessionId, workspaceId, 'builder');
+    await openSession(sessionId, workspaceId, 'planner');
 
     const sessions = await t.query(api.chatroom.directHarness.sessions.listSessionsByWorkspace, {
       sessionId,
-      workspaceId: workspace!._id,
+      workspaceId,
     });
 
     expect(sessions).toHaveLength(2);

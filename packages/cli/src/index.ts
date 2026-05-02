@@ -1156,44 +1156,73 @@ opencodeCommand
     await installTool({ checkExisting: !options.force });
   });
 
-// ─── Worker commands ──────────────────────────────────────────────────────────
+// ─── Workspace commands ──────────────────────────────────────────────────
 
-const workerCommand = program
-  .command('worker')
-  .description('Spawn or resume a direct-harness worker (gated by directHarnessWorkers feature flag)');
+const workspaceCommand = program
+  .command('workspace')
+  .description('Manage workspaces (machine + working-directory pairs) for direct-harness sessions');
 
-workerCommand
-  .command('spawn')
-  .description('Spawn a new worker for a chatroom using a direct harness')
+workspaceCommand
+  .command('create')
+  .description('Register a new workspace for a chatroom on a machine')
   .requiredOption('--chatroom-id <id>', 'Target chatroom Convex Id')
-  .requiredOption('--role <role>', 'Role label for the worker')
-  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
-  .option('--cwd <path>', 'Working directory for the harness process')
-  .action(async (options: { chatroomId: string; role: string; harness: string; cwd?: string }) => {
-    const { workerSpawn } = await import('./commands/worker/index.js');
-    await workerSpawn({
+  .requiredOption('--machine-id <id>', 'Machine Id')
+  .requiredOption('--cwd <path>', 'Working directory on the machine')
+  .requiredOption('--name <name>', 'Human-readable workspace label')
+  .action(async (options: { chatroomId: string; machineId: string; cwd: string; name: string }) => {
+    const { workspaceCreate } = await import('./commands/workspace/index.js');
+    await workspaceCreate({
       chatroomId: options.chatroomId,
-      role: options.role,
-      harness: options.harness,
+      machineId: options.machineId,
       cwd: options.cwd,
+      name: options.name,
     });
   });
 
-workerCommand
-  .command('resume')
-  .description('Resume an existing worker by reattaching to its harness session')
-  .requiredOption('--worker-id <id>', 'Backend worker Id')
-  .requiredOption('--harness-session-id <id>', 'Harness session Id')
+workspaceCommand
+  .command('list')
+  .description('List registered workspaces for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Target chatroom Convex Id')
+  .action(async (options: { chatroomId: string }) => {
+    const { workspaceList } = await import('./commands/workspace/index.js');
+    await workspaceList({ chatroomId: options.chatroomId });
+  });
+
+// ─── Session commands ────────────────────────────────────────────────────
+
+const sessionCommand = program
+  .command('session')
+  .description('Open or resume direct-harness sessions (gated by directHarnessWorkers feature flag)');
+
+sessionCommand
+  .command('open')
+  .description('Open a new harness session in a registered workspace')
+  .requiredOption('--workspace-id <id>', 'Workspace Convex Id (from: workspace list)')
+  .requiredOption('--agent <role>', 'Agent role opening this session (e.g. builder, planner)')
   .option('--harness <name>', 'Harness to use', 'opencode-sdk')
-  .action(async (options: { workerId: string; harnessSessionId: string; harness: string }) => {
-    const { workerResume } = await import('./commands/worker/index.js');
-    await workerResume({
-      workerId: options.workerId,
+  .action(async (options: { workspaceId: string; agent: string; harness: string }) => {
+    const { sessionOpen } = await import('./commands/session/index.js');
+    await sessionOpen({
+      workspaceId: options.workspaceId,
+      agent: options.agent,
+      harness: options.harness,
+    });
+  });
+
+sessionCommand
+  .command('resume')
+  .description('Resume an existing harness session by reattaching to it')
+  .requiredOption('--harness-session-row-id <id>', 'Backend session row Id')
+  .requiredOption('--harness-session-id <id>', 'Harness-issued session Id')
+  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
+  .action(async (options: { harnessSessionRowId: string; harnessSessionId: string; harness: string }) => {
+    const { sessionResume } = await import('./commands/session/index.js');
+    await sessionResume({
+      harnessSessionRowId: options.harnessSessionRowId,
       harnessSessionId: options.harnessSessionId,
       harness: options.harness,
     });
   });
-
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.

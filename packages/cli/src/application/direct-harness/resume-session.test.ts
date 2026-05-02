@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resumeWorker } from './resume-worker.js';
-import type { ResumeWorkerDeps, ResumeWorkerOptions } from './resume-worker.js';
+import { resumeSession } from './resume-session.js';
+import type { ResumeSessionDeps, ResumeSessionOptions } from './resume-session.js';
 import type {
   DirectHarnessSpawner,
   DirectHarnessSession,
@@ -48,7 +48,7 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
   };
 }
 
-function createMockHarness(session: DirectHarnessSession): DirectHarnessSpawner {
+function createMockSpawner(session: DirectHarnessSession): DirectHarnessSpawner {
   return {
     harnessName: 'test-harness',
     openSession: vi.fn().mockResolvedValue(session),
@@ -56,21 +56,21 @@ function createMockHarness(session: DirectHarnessSession): DirectHarnessSpawner 
   };
 }
 
-function createDeps(sessionOverride?: DirectHarnessSession): ResumeWorkerDeps & {
+function createDeps(sessionOverride?: DirectHarnessSession): ResumeSessionDeps & {
   mutationFn: ReturnType<typeof vi.fn>;
   session: ReturnType<typeof createMockSession>;
-  harness: DirectHarnessSpawner;
+  spawner: DirectHarnessSpawner;
 } {
   const session = sessionOverride ?? createMockSession();
   const mutationFn = vi.fn().mockResolvedValue(undefined);
-  const harness = createMockHarness(session);
+  const spawner = createMockSpawner(session);
   const chunkExtractor = (e: DirectHarnessSessionEvent) =>
     e.type === 'message' ? String((e.payload as any)?.content ?? '') : null;
 
   return {
     backend: { mutation: mutationFn },
     sessionId: 'test-session',
-    harness,
+    spawner,
     chunkExtractor,
     nowFn: () => 0,
     mutationFn,
@@ -78,47 +78,47 @@ function createDeps(sessionOverride?: DirectHarnessSession): ResumeWorkerDeps & 
   };
 }
 
-const VALID_OPTIONS: ResumeWorkerOptions = {
-  workerId: 'existing-worker-id',
-  harnessSessionId: 'existing-harness-session',
+const VALID_OPTIONS: ResumeSessionOptions = {
+  harnessSessionRowId: 'existing-session-row-id',
+  harnessSessionId: 'existing-harness-session-id',
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('resumeWorker', () => {
+describe('resumeSession', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('calls harness.resumeSession with the supplied harnessSessionId', async () => {
+  it('calls spawner.resumeSession with the supplied harnessSessionId', async () => {
     const deps = createDeps();
-    await resumeWorker(deps, VALID_OPTIONS);
-    expect(deps.harness.resumeSession).toHaveBeenCalledWith('existing-harness-session');
+    await resumeSession(deps, VALID_OPTIONS);
+    expect(deps.spawner.resumeSession).toHaveBeenCalledWith('existing-harness-session-id');
   });
 
-  it('does NOT call createWorker or associateHarnessSession', async () => {
+  it('does NOT make any backend mutations', async () => {
     const deps = createDeps();
-    await resumeWorker(deps, VALID_OPTIONS);
+    await resumeSession(deps, VALID_OPTIONS);
     expect(deps.mutationFn).not.toHaveBeenCalled();
   });
 
-  it('returns workerId matching the supplied id', async () => {
+  it('returns a SessionHandle with the supplied harnessSessionRowId', async () => {
     const deps = createDeps();
-    const handle = await resumeWorker(deps, VALID_OPTIONS);
-    expect(handle.workerId).toBe('existing-worker-id');
+    const handle = await resumeSession(deps, VALID_OPTIONS);
+    expect(handle.harnessSessionRowId).toBe('existing-session-row-id');
   });
 
-  it('returns harnessSessionId matching the supplied id', async () => {
+  it('returns a SessionHandle with the supplied harnessSessionId', async () => {
     const deps = createDeps();
-    const handle = await resumeWorker(deps, VALID_OPTIONS);
-    expect(handle.harnessSessionId).toBe('existing-harness-session');
+    const handle = await resumeSession(deps, VALID_OPTIONS);
+    expect(handle.harnessSessionId).toBe('existing-harness-session-id');
   });
 
-  it('events flow through chunkExtractor when received from the resumed session', async () => {
+  it('events flow through chunkExtractor', async () => {
     const session = createMockSession();
     const deps = createDeps(session);
     const chunkExtractorSpy = vi.fn(() => 'hello');
-    const handle = await resumeWorker({ ...deps, chunkExtractor: chunkExtractorSpy }, VALID_OPTIONS);
+    const handle = await resumeSession({ ...deps, chunkExtractor: chunkExtractorSpy }, VALID_OPTIONS);
 
     session._triggerEvent({ type: 'message', payload: { content: 'hi' }, timestamp: 0 });
 
@@ -128,29 +128,29 @@ describe('resumeWorker', () => {
 
   it('close() flushes the sink and closes the session', async () => {
     const deps = createDeps();
-    const handle = await resumeWorker(deps, VALID_OPTIONS);
+    const handle = await resumeSession(deps, VALID_OPTIONS);
     await handle.close();
     expect(deps.session.close).toHaveBeenCalled();
   });
 
   it('close() is idempotent', async () => {
     const deps = createDeps();
-    const handle = await resumeWorker(deps, VALID_OPTIONS);
+    const handle = await resumeSession(deps, VALID_OPTIONS);
     await handle.close();
     await handle.close();
     expect(deps.session.close).toHaveBeenCalledTimes(1);
   });
 
-  it('propagates errors from harness.resumeSession without creating a transport', async () => {
-    const harness: DirectHarnessSpawner = {
+  it('propagates errors from spawner.resumeSession without creating a transport', async () => {
+    const spawner: DirectHarnessSpawner = {
       harnessName: 'test',
       openSession: vi.fn(),
       resumeSession: vi.fn().mockRejectedValue(new Error('session not found')),
     };
     const mutationFn = vi.fn();
 
-    await expect(resumeWorker(
-      { backend: { mutation: mutationFn }, sessionId: 's', harness, chunkExtractor: () => null, nowFn: () => 0 },
+    await expect(resumeSession(
+      { backend: { mutation: mutationFn }, sessionId: 's', spawner, chunkExtractor: () => null, nowFn: () => 0 },
       VALID_OPTIONS
     )).rejects.toThrow('session not found');
 

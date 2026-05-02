@@ -163,6 +163,34 @@ export const listWorkspacesForChatroom = query({
  * Called by the frontend to display branch, diff stats, and recent commits.
  * Returns `{ status: 'loading' }` when no data has been pushed by the daemon yet.
  */
+/**
+ * Fetch a single workspace by its document ID.
+ * Returns null if the workspace does not exist or the caller does not have access.
+ * Requires the caller to have write-access to the workspace's chatroom.
+ */
+export const getWorkspaceById = query({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) return null;
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) return null;
+
+    const hasAccess = await checkAccess(ctx, {
+      accessor: { type: 'user', id: session.userId },
+      resource: { type: 'chatroom', id: str(workspace.chatroomId) },
+      permission: 'write-access',
+    });
+    if (!hasAccess) return null;
+
+    return workspace;
+  },
+});
+
 export const getWorkspaceGitState = query({
   args: {
     ...SessionIdArg,

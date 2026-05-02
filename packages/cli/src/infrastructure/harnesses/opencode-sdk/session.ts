@@ -21,6 +21,8 @@ import type {
 export interface OpencodeSdkSessionClient {
   session: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    create(args: any): Promise<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     promptAsync(args: any): Promise<any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     abort(args: any): Promise<any>;

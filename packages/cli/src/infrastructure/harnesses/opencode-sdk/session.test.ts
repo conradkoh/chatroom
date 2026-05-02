@@ -20,7 +20,7 @@ function createMockClient() {
   });
 
   const client: OpencodeSdkSessionClient = {
-    session: { promptAsync: promptAsyncFn, abort: abortFn },
+    session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: promptAsyncFn, abort: abortFn },
     event: { subscribe: subscribeFn },
   };
 
@@ -54,7 +54,7 @@ describe('OpencodeSdkDirectHarnessSession', () => {
   it('prompt() calls client.session.promptAsync with the input', async () => {
     const promptAsyncFn = vi.fn().mockResolvedValue(undefined);
     const { session } = createSession({
-      session: { promptAsync: promptAsyncFn, abort: vi.fn() },
+      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: promptAsyncFn, abort: vi.fn() },
     });
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hello world' }] });
@@ -97,7 +97,7 @@ describe('OpencodeSdkDirectHarnessSession', () => {
   it('close() calls stopEventStream and abort', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
     const { session, stopFn } = createSession({
-      session: { promptAsync: vi.fn(), abort: abortFn },
+      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: vi.fn(), abort: abortFn },
     });
 
     await session.close();
@@ -109,7 +109,7 @@ describe('OpencodeSdkDirectHarnessSession', () => {
   it('close() is idempotent — second call is a no-op', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
     const { session } = createSession({
-      session: { promptAsync: vi.fn(), abort: abortFn },
+      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: vi.fn(), abort: abortFn },
     });
 
     await session.close();
