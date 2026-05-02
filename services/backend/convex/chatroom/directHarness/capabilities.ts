@@ -88,7 +88,7 @@ export const publishMachineCapabilities = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch("chatroom_machineRegistry", existing._id, {
+      await ctx.db.patch('chatroom_machineRegistry', existing._id, {
         lastSeenAt: now,
         workspaces: args.workspaces,
       });
@@ -209,6 +209,154 @@ export const listForWorkspace = query({
         models: Array.from(p.models.values()),
       })),
     }));
+  },
+});
+
+// ─── requestRefresh ───────────────────────────────────────────────────────────
+
+/**
+ * Request a capability refresh for a workspace.
+ *
+ * Idempotent: if a pending refresh for the same workspace already exists,
+ * returns its ID instead of creating a new one.
+ *
+ * Auth: requires a valid session (same pattern as other direct-harness mutations).
+ */
+export const requestRefresh = mutation({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    // Idempotency check: if a pending refresh already exists for this workspace, return its ID
+    const existing = await ctx.db
+      .query('chatroom_pendingDaemonTasks')
+      .withIndex('by_status_workspaceId', (q) =>
+        q.eq('status', 'pending').eq('workspaceId', args.workspaceId)
+      )
+      .first();
+
+    if (existing) {
+      return { taskId: existing._id };
+    }
+
+    const now = Date.now();
+    const taskId = await ctx.db.insert('chatroom_pendingDaemonTasks', {
+      workspaceId: args.workspaceId,
+      taskType: 'refreshCapabilities',
+      createdAt: now,
+      status: 'pending',
+    });
+
+    return { taskId };
+  },
+});
+
+// ─── getPendingRefreshTasksForMachine ─────────────────────────────────────────
+
+/**
+ * Query all pending refresh tasks for workspaces belonging to a machine.
+ * Used by the daemon to subscribe to refresh requests.
+ */
+export const getPendingRefreshTasksForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return [];
+
+    // Get all workspaces for this machine
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
+      .filter((q) => q.eq(q.field('removedAt'), undefined))
+      .collect();
+
+    if (workspaces.length === 0) return [];
+
+    const workspaceIdSet = new Set(workspaces.map((w) => w._id as string));
+
+    // Get all pending tasks (by machineId-specific or general pending tasks)
+    // For machine-targeted tasks
+    const machineSpecificTasks = await ctx.db
+      .query('chatroom_pendingDaemonTasks')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .collect();
+
+    // For workspace-level tasks (no machineId — any machine can handle)
+    // We need to collect all pending tasks and filter by workspaceId
+    // Unfortunately, without a full table scan, we can't efficiently get "no machineId + workspaceId in set"
+    // So we collect all pending tasks for each workspace ID
+    const allPendingTasksForWorkspaces: typeof machineSpecificTasks = [];
+    for (const ws of workspaces) {
+      const tasks = await ctx.db
+        .query('chatroom_pendingDaemonTasks')
+        .withIndex('by_status_workspaceId', (q) =>
+          q.eq('status', 'pending').eq('workspaceId', ws._id)
+        )
+        .filter((q) => q.eq(q.field('machineId'), undefined))
+        .collect();
+      allPendingTasksForWorkspaces.push(...tasks);
+    }
+
+    // Merge and dedupe by _id
+    const seen = new Set<string>();
+    const result = [];
+    for (const task of [...machineSpecificTasks, ...allPendingTasksForWorkspaces]) {
+      if (!seen.has(task._id)) {
+        seen.add(task._id);
+        if (workspaceIdSet.has(task.workspaceId as string)) {
+          result.push(task);
+        }
+      }
+    }
+
+    return result;
+  },
+});
+
+// ─── completeRefreshTask ──────────────────────────────────────────────────────
+
+/**
+ * Mark a pending daemon task as done or failed.
+ * Called by the daemon after executing the task.
+ */
+export const completeRefreshTask = mutation({
+  args: {
+    ...SessionIdArg,
+    taskId: v.id('chatroom_pendingDaemonTasks'),
+    status: v.union(v.literal('done'), v.literal('failed')),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
+      throw new Error('Authentication required');
+    }
+
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return; // Already completed or doesn't exist — idempotent
+
+    await ctx.db.patch(args.taskId, {
+      status: args.status,
+      completedAt: Date.now(),
+      ...(args.errorMessage ? { errorMessage: args.errorMessage } : {}),
+    });
   },
 });
 

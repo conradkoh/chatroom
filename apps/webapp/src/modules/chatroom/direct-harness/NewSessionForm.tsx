@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface NewSessionFormProps {
@@ -72,6 +74,8 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
     workspaceId,
   });
   const openSession = useSessionMutation(api.chatroom.directHarness.sessions.openSession);
+
+  const { refresh, isRefreshing } = useRefreshCapabilities();
 
   // Show loading banner 500ms after open if harnesses still empty
   useEffect(() => {
@@ -133,8 +137,8 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
 
   // TODO(refresh-capabilities): wire up requestRefresh mutation here
   const handleRefresh = useCallback(() => {
-    // no-op: requestRefresh will be wired in step `refresh-capabilities`
-  }, []);
+    refresh(workspaceId);
+  }, [refresh, workspaceId]);
 
   const resetForm = () => {
     setSelectedHarness('');
@@ -209,9 +213,10 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
               variant="ghost"
               className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent/50"
               onClick={handleRefresh}
+              disabled={isRefreshing}
               title="Refresh capabilities"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
             </Button>
           </div>
         </DialogHeader>

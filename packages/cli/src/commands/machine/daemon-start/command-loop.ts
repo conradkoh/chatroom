@@ -26,6 +26,7 @@ import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
+import { startPendingRefreshTaskSubscription } from './pending-refresh-task-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
@@ -437,6 +438,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let pendingHarnessSessionSubscriptionHandle: ReturnType<
     typeof startPendingHarnessSessionSubscription
   > | null = null;
+  // ── Pending Refresh Task Subscription ────────────────────────────────
+  // Subscribes to pending capability refresh tasks for this machine's workspaces.
+  let pendingRefreshTaskSubscriptionHandle: ReturnType<
+    typeof startPendingRefreshTaskSubscription
+  > | null = null;
   // Registry lives here so it shares the daemon process lifetime.
   const harnessRegistry = new HarnessProcessRegistry(async (workspaceId, cwd) =>
     createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
@@ -533,6 +539,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
+    if (pendingRefreshTaskSubscriptionHandle) pendingRefreshTaskSubscriptionHandle.stop();
     await harnessRegistry.killAll();
 
     await onDaemonShutdown(ctx);
@@ -577,6 +584,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Pending Harness Session Subscription ─────────────────────────────
   // Subscribes to pending harness sessions created by the webapp UI.
   pendingHarnessSessionSubscriptionHandle = startPendingHarnessSessionSubscription(
+    ctx,
+    wsClient,
+    harnessRegistry
+  );
+
+  // ── Pending Refresh Task Subscription ────────────────────────────────
+  // Subscribes to pending capability refresh tasks for this machine's workspaces.
+  pendingRefreshTaskSubscriptionHandle = startPendingRefreshTaskSubscription(
     ctx,
     wsClient,
     harnessRegistry

@@ -892,3 +892,59 @@ describe('listPendingSessionsForMachine', () => {
     expect(pending).toEqual([]);
   });
 });
+
+// ─── requestRefresh idempotency ───────────────────────────────────────────────
+
+describe('capabilities.requestRefresh idempotency', () => {
+  test('second call for same workspace returns the same task ID as first', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('rr-idem');
+
+    const first = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
+      sessionId,
+      workspaceId,
+    });
+
+    const second = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
+      sessionId,
+      workspaceId,
+    });
+
+    // Both calls should return the same taskId (idempotent insert)
+    expect(second.taskId).toBe(first.taskId);
+  });
+
+  test('creates a new task after the first is completed', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('rr-new-after-done');
+
+    const first = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
+      sessionId,
+      workspaceId,
+    });
+
+    // Mark the first task done
+    await t.mutation(api.chatroom.directHarness.capabilities.completeRefreshTask, {
+      sessionId,
+      taskId: first.taskId,
+      status: 'done',
+    });
+
+    // A new refresh should create a fresh task
+    const third = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
+      sessionId,
+      workspaceId,
+    });
+
+    expect(third.taskId).not.toBe(first.taskId);
+  });
+
+  test('returns [] and throws on unauthenticated requestRefresh', async () => {
+    const { workspaceId } = await setupWorkspaceForSession('rr-unauth');
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
+        sessionId: 'invalid-session' as SessionId,
+        workspaceId,
+      })
+    ).rejects.toThrow();
+  });
+});

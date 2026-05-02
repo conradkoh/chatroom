@@ -2233,6 +2233,33 @@ export default defineSchema({
   }).index('by_machineId', ['machineId']),
 
   /**
+   * Pending daemon tasks for operations that the daemon must execute on behalf of
+   * the webapp. Currently supports 'refreshCapabilities' — asking a daemon to
+   * re-discover and re-publish its workspace capabilities.
+   *
+   * Index on (status, workspaceId) for efficient daemon polling.
+   */
+  chatroom_pendingDaemonTasks: defineTable({
+    /** When set, only the daemon on this machine should act; else any daemon for the workspace. */
+    machineId: v.optional(v.string()),
+    /** The workspace this task is targeted at. */
+    workspaceId: v.id('chatroom_workspaces'),
+    /** The kind of task to perform. */
+    taskType: v.union(v.literal('refreshCapabilities')),
+    createdAt: v.number(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('inProgress'),
+      v.literal('done'),
+      v.literal('failed')
+    ),
+    completedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_status_workspaceId', ['status', 'workspaceId'])
+    .index('by_machineId_status', ['machineId', 'status']),
+
+  /**
    * Queued prompts to be executed by the daemon against a harness session.
    * Status: pending → processing → done | error
    */

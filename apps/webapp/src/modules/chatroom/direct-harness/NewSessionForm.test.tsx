@@ -8,6 +8,7 @@ import { NewSessionForm } from './NewSessionForm';
 const mockUseSessionQuery = vi.fn();
 const mockUseSessionMutation = vi.fn();
 const mockOpenSession = vi.fn();
+const mockRequestRefresh = vi.fn();
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
@@ -20,6 +21,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       directHarness: {
         capabilities: {
           listForWorkspace: 'mock:listForWorkspace',
+          requestRefresh: 'mock:requestRefresh',
         },
         sessions: { openSession: 'mock:openSession' },
       },
@@ -62,7 +64,11 @@ describe('NewSessionForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOpenSession.mockResolvedValue({ harnessSessionRowId: 'sess1' });
-    mockUseSessionMutation.mockReturnValue(mockOpenSession);
+    mockRequestRefresh.mockResolvedValue({ taskId: 'task-1' });
+    mockUseSessionMutation.mockImplementation((key: string) => {
+      if (key === 'mock:requestRefresh') return mockRequestRefresh;
+      return mockOpenSession;
+    });
   });
 
   it('renders trigger button even when capabilities query returns undefined', () => {
@@ -170,5 +176,15 @@ describe('NewSessionForm', () => {
 
     const submitBtn = screen.getByRole('button', { name: /create & send/i });
     expect(submitBtn).toBeDisabled();
+  });
+
+  it('auto-fires a refresh when the dialog opens', async () => {
+    mockUseSessionQuery.mockReturnValue([SAMPLE_HARNESS]);
+    render(<NewSessionForm workspaceId={WORKSPACE_ID} onSessionCreated={vi.fn()} />);
+    await openForm();
+
+    await waitFor(() => {
+      expect(mockRequestRefresh).toHaveBeenCalledWith({ workspaceId: WORKSPACE_ID });
+    });
   });
 });

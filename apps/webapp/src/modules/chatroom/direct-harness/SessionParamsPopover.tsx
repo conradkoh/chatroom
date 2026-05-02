@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, RefreshCw, Settings2 } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 
+import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export function SessionParamsPopover({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { refresh, isRefreshing } = useRefreshCapabilities();
 
   const harnesses = useSessionQuery(api.chatroom.directHarness.capabilities.listForWorkspace, {
     workspaceId,
@@ -150,6 +152,21 @@ export function SessionParamsPopover({
         className="w-72 p-3 bg-card border-border text-foreground space-y-3"
         align="start"
       >
+        {/* Header row with refresh button */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Session settings</span>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            onClick={() => refresh(workspaceId)}
+            disabled={isRefreshing}
+            title="Refresh capabilities"
+          >
+            <RefreshCw size={11} className={isRefreshing ? 'animate-spin' : ''} />
+          </Button>
+        </div>
+
         {/* Agent */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Agent</Label>
