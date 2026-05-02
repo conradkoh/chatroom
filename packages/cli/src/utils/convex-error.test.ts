@@ -32,6 +32,26 @@ describe('getErrorMessage', () => {
       const error = new ConvexError({ code: 'FORBIDDEN', message: 'Access denied' });
       expect(getErrorMessage(error)).toBe('Access denied');
     });
+
+    it('appends offending fields when data.fields is present', () => {
+      const error = new ConvexError({
+        code: 'BACKLOG_MISSING_REQUIRED_FIELD',
+        message: 'Missing required fields',
+        fields: ['content', 'priority'],
+      });
+      expect(getErrorMessage(error)).toBe(
+        'Missing required fields\n  offending fields: content, priority'
+      );
+    });
+
+    it('does not append fields when fields array is empty', () => {
+      const error = new ConvexError({
+        code: 'BACKLOG_MISSING_REQUIRED_FIELD',
+        message: 'Missing required fields',
+        fields: [],
+      });
+      expect(getErrorMessage(error)).toBe('Missing required fields');
+    });
   });
 
   describe('ConvexError with object data containing code only', () => {
@@ -62,6 +82,21 @@ describe('getErrorMessage', () => {
     it('returns message from TypeError', () => {
       const error = new TypeError('Cannot read property x of undefined');
       expect(getErrorMessage(error)).toBe('Cannot read property x of undefined');
+    });
+
+    it('appends diagnostic hint when message contains Server Error', () => {
+      const error = new Error('[Request ID: abc123] Server Error');
+      const result = getErrorMessage(error);
+      expect(result).toContain('Server Error');
+      expect(result).toContain('hint:');
+      expect(result).toContain('arg-validator rejection');
+      expect(result).toContain('version mismatch');
+    });
+
+    it('does not append hint for regular errors without Server Error', () => {
+      const error = new Error('Not found');
+      expect(getErrorMessage(error)).toBe('Not found');
+      expect(getErrorMessage(error)).not.toContain('hint:');
     });
   });
 

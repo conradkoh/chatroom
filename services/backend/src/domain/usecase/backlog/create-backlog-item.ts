@@ -26,7 +26,7 @@ export async function createBacklogItem(
   args: CreateBacklogItemArgs
 ): Promise<CreateBacklogItemResult> {
   if (!args.content.trim()) {
-    throw new ConvexError('Content cannot be empty');
+    throw new ConvexError({ code: 'CONTENT_EMPTY', message: 'Content cannot be empty' });
   }
 
   const now = Date.now();

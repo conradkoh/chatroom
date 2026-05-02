@@ -745,6 +745,7 @@ export async function updateBacklog(
   try {
     await d.backend.mutation(api.backlog.updateBacklogItem, {
       sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       content: options.content.trim(),
     });

@@ -144,7 +144,7 @@ export const getContext = query({
   handler: async (ctx, args) => {
     const context = await ctx.db.get('chatroom_contexts', args.contextId);
     if (!context) {
-      throw new ConvexError('Context not found');
+      throw new ConvexError({ code: 'CONTEXT_NOT_FOUND', message: 'Context not found' });
     }
 
     // Validate access to the chatroom this context belongs to

@@ -221,7 +221,7 @@ export const updateTeam = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     if (args.teamRoles.length === 0) {
-      throw new ConvexError('Team must have at least one role');
+      throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'Team must have at least one role' });
     }
 
     if (args.teamEntryPoint && !args.teamRoles.includes(args.teamEntryPoint)) {
@@ -543,7 +543,7 @@ export const recordChatroomObservation = mutation({
 
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     if (!chatroom) {
-      throw new ConvexError('Chatroom not found');
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
     }
 
     const now = Date.now();

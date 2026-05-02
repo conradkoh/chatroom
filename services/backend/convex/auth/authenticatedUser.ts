@@ -48,7 +48,7 @@ export async function requireAuthenticatedUser(
 ): Promise<AuthenticatedResult> {
   const auth = await getAuthenticatedUser(ctx, sessionId);
   if (!auth.ok) {
-    throw new ConvexError('Not authenticated');
+    throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Not authenticated' });
   }
   return auth;
 }
