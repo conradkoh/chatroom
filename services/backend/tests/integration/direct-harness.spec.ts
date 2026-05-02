@@ -779,3 +779,77 @@ describe('resumeSession', () => {
     expect(result.promptId).toBeDefined();
   });
 });
+
+// ─── listPendingSessionsForMachine ───────────────────────────────────────────
+
+describe('listPendingSessionsForMachine', () => {
+  test('returns pending sessions for the machine', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('lpsfm-basic');
+
+    // Insert a pending session row
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    const pending = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      {
+        sessionId,
+        machineId,
+      }
+    );
+
+    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(true);
+  });
+
+  test('does NOT return a session once associateHarnessSessionId is called', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('lpsfm-assoc');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    // Associate the session → harnessSessionId is now set + status is 'active'
+    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
+      sessionId,
+      harnessSessionRowId,
+      harnessSessionId: 'harness-abc',
+    });
+
+    const pending = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      {
+        sessionId,
+        machineId,
+      }
+    );
+
+    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(false);
+  });
+
+  test('does NOT return sessions for a different machine', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('lpsfm-other');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    // Query with a different machineId
+    const pending = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      {
+        sessionId,
+        machineId: 'other-machine-does-not-exist',
+      }
+    );
+
+    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(false);
+  });
+
+  test('returns [] on auth failure', async () => {
+    const { machineId } = await setupWorkspaceForSession('lpsfm-auth');
+
+    // Use an invalid session ID
+    const pending = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      {
+        sessionId: 'invalid-session' as SessionId,
+        machineId,
+      }
+    );
+
+    expect(pending).toEqual([]);
+  });
+});

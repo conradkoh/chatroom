@@ -18,6 +18,7 @@ import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
+import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
 import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
@@ -163,7 +164,9 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
     if (Object.keys(modelDiff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
+      console.log(
+        `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
+      );
     }
     if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
@@ -326,8 +329,7 @@ export async function dispatchCommandEvent(
     const outcome = await refreshModels(ctx);
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
 
-    const batchId =
-      'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
+    const batchId = 'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
     if (!batchId) {
       return;
     }
@@ -427,7 +429,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── Pending Prompt Subscription ─────────────────────────────────────
   // Direct-harness prompt queue. Gated by directHarnessWorkers flag.
-  let pendingPromptSubscriptionHandle: ReturnType<typeof startPendingPromptSubscription> | null = null;
+  let pendingPromptSubscriptionHandle: ReturnType<typeof startPendingPromptSubscription> | null =
+    null;
+  // ── Pending Harness Session Subscription ─────────────────────────────
+  // Subscribes to pending harness sessions opened from the webapp UI.
+  // When a row appears, orchestrates harness boot + session association.
+  let pendingHarnessSessionSubscriptionHandle: ReturnType<
+    typeof startPendingHarnessSessionSubscription
+  > | null = null;
   // Registry lives here so it shares the daemon process lifetime.
   const harnessRegistry = new HarnessProcessRegistry(async (workspaceId, cwd) =>
     createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
@@ -448,10 +457,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         const agents = await harnessProcess.listAgents();
         capabilitiesCache.setAgents(harnessProcess.workspaceId, [...agents]);
 
-        const workspaces = await ctx.deps.backend.query(
-          api.workspaces.listWorkspacesForMachine,
-          { sessionId: ctx.sessionId, machineId: ctx.machineId }
-        );
+        const workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+        });
 
         const workspaceMetas = workspaces.map((ws: { _id: string; workingDir: string }) => ({
           workspaceId: ws._id as string,
@@ -463,7 +472,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
           capabilitiesPublisher,
           capabilitiesCache,
           ctx.machineId,
-          workspaceMetas,
+          workspaceMetas
         );
 
         console.log(
@@ -503,6 +512,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
+    if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     await harnessRegistry.killAll();
 
     await onDaemonShutdown(ctx);
@@ -543,6 +553,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── Pending Prompt Subscription ─────────────────────────────────────
   pendingPromptSubscriptionHandle = startPendingPromptSubscription(ctx, wsClient, harnessRegistry);
+
+  // ── Pending Harness Session Subscription ─────────────────────────────
+  // Subscribes to pending harness sessions created by the webapp UI.
+  pendingHarnessSessionSubscriptionHandle = startPendingHarnessSessionSubscription(
+    ctx,
+    wsClient,
+    harnessRegistry
+  );
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);

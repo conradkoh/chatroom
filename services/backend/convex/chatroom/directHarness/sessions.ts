@@ -15,6 +15,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from '../../_generated/server.js';
 import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
+import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js';
 
 // ─── openSession ─────────────────────────────────────────────────────────────
@@ -40,7 +41,10 @@ export const openSession = mutation({
 
     const workspace = await ctx.db.get(args.workspaceId);
     if (!workspace) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: `Workspace ${args.workspaceId} not found` });
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Workspace ${args.workspaceId} not found`,
+      });
     }
 
     const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
@@ -90,10 +94,7 @@ export const associateHarnessSessionId = mutation({
     }
 
     // Conflict: different session already associated
-    if (
-      harnessSession.harnessSessionId !== undefined &&
-      harnessSession.harnessSessionId !== null
-    ) {
+    if (harnessSession.harnessSessionId !== undefined && harnessSession.harnessSessionId !== null) {
       throw new ConvexError(
         `HarnessSession ${args.harnessSessionRowId} already has a different harnessSessionId: ${harnessSession.harnessSessionId}`
       );
@@ -220,6 +221,61 @@ export const getSession = query({
   },
 });
 
+// ─── listPendingSessionsForMachine ───────────────────────────────────────────
+
+/**
+ * Query pending harness sessions for a machine (for daemon subscription).
+ *
+ * Returns all `chatroom_harnessSessions` rows where:
+ * - `status === 'pending'`
+ * - `harnessSessionId` is not yet set (not yet associated with a spawned process)
+ * - The session's workspace belongs to the given machine
+ *
+ * Used by the daemon to detect new sessions opened from the webapp UI and
+ * automatically orchestrate harness boot + session association.
+ *
+ * Returns [] on auth failure (same pattern as getPendingPromptsForMachine).
+ */
+export const listPendingSessionsForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return [];
+
+    // Look up all workspaces for this machine owned by the authenticated user
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    if (workspaces.length === 0) return [];
+
+    const workspaceIds = new Set(workspaces.map((w) => w._id));
+
+    // Gather pending sessions for each workspace in parallel
+    const sessionGroups = await Promise.all(
+      [...workspaceIds].map((workspaceId) =>
+        ctx.db
+          .query('chatroom_harnessSessions')
+          .withIndex('by_workspace_status', (q) =>
+            q.eq('workspaceId', workspaceId).eq('status', 'pending')
+          )
+          .collect()
+      )
+    );
+
+    // Flatten and filter to sessions that are not yet associated with a harness process
+    return sessionGroups
+      .flat()
+      .filter((s) => s.harnessSessionId === undefined || s.harnessSessionId === null);
+  },
+});
+
 // ─── listSessionsByWorkspace ──────────────────────────────────────────────────
 
 /**
@@ -246,7 +302,10 @@ export const listSessionsByWorkspace = query({
     // Verify the workspace exists and the caller has access via chatroom membership
     const workspace = await ctx.db.get(args.workspaceId);
     if (!workspace) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: `Workspace ${args.workspaceId} not found` });
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Workspace ${args.workspaceId} not found`,
+      });
     }
     await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
 
