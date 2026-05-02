@@ -43,11 +43,23 @@ describe('SessionDetail', () => {
   });
 
   it('renders agent name when session is loaded', () => {
-    // First call: getSession; second call: streamSessionMessages (return [])
+    // First call: getSession; second call: streamSessionMessages (return []); third call: listForWorkspace (harnesses)
     mockUseSessionQuery
       .mockReturnValueOnce(makeSession({ lastUsedConfig: { agent: 'planner' } }))
+      .mockReturnValueOnce([])
       .mockReturnValueOnce([]);
     render(<SessionDetail sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('planner')).toBeInTheDocument();
+    // The popover trigger shows the agent name
+    expect(screen.getByRole('button', { name: /planner/i })).toBeInTheDocument();
+  });
+
+  it('renders the params popover trigger when session is loaded', () => {
+    mockUseSessionQuery
+      .mockReturnValueOnce(makeSession({ lastUsedConfig: { agent: 'builder' } }))
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([]);
+    render(<SessionDetail sessionRowId={SESSION_ROW_ID} />);
+    // Gear-icon button with agent name is the popover trigger
+    expect(screen.getByRole('button', { name: /builder/i })).toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import { SessionComposer } from './SessionComposer';
 import { SessionMessageStream } from './SessionMessageStream';
+import { SessionParamsPopover } from './SessionParamsPopover';
 import { StatusDot } from './StatusDot';
 import { relativeTime } from './utils';
 
@@ -44,12 +45,15 @@ export function SessionDetail({ sessionRowId }: SessionDetailProps) {
       <div className="shrink-0 border-b border-border p-3">
         <div className="flex items-center gap-2">
           <StatusDot status={session.status} />
-          <span className="text-sm font-semibold text-foreground">
-            {session.lastUsedConfig.agent}
-          </span>
           <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5">
             {session.harnessName}
           </span>
+          <SessionParamsPopover
+            harnessSessionRowId={session._id}
+            workspaceId={session.workspaceId}
+            harnessName={session.harnessName}
+            lastUsedConfig={session.lastUsedConfig}
+          />
         </div>
         <div className="text-xs text-muted-foreground mt-1">
           Started {relativeTime(session.createdAt)} · Last active{' '}
