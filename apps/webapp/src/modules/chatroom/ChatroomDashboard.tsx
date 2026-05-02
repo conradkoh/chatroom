@@ -100,6 +100,7 @@ import { openExternalUrl } from '@/lib/navigation';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import { DirectHarnessView } from './direct-harness-v2/DirectHarnessView';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
@@ -1547,6 +1548,10 @@ export function ChatroomDashboard({
                         onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>
+                  </div>
+                ) : activeView === 'direct-harness' ? (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
