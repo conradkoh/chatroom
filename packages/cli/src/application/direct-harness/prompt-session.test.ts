@@ -24,7 +24,7 @@ vi.mock('../../api.js', () => ({
 
 function createMockSession(agent = 'builder', harnessSessionId = 'harness-session-abc') {
   return {
-    agent,
+    lastUsedConfig: { agent },
     harnessSessionId,
     status: 'active',
     harnessSessionRowId: 'row-123',
@@ -63,6 +63,7 @@ const VALID_OPTIONS: PromptSessionOptions = {
   harnessSessionRowId: 'row-123',
   promptId: 'prompt-456',
   parts: [{ type: 'text' as const, text: 'hello' }],
+  override: { agent: 'builder' },
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -75,33 +76,56 @@ describe('promptSession', () => {
   it('reads session fresh from the backend on each call', async () => {
     const deps = createDeps();
     await promptSession(deps, VALID_OPTIONS);
-    expect(deps.queryFn).toHaveBeenCalledWith('mock-getSession', expect.objectContaining({
-      harnessSessionRowId: 'row-123',
-    }));
+    expect(deps.queryFn).toHaveBeenCalledWith(
+      'mock-getSession',
+      expect.objectContaining({
+        harnessSessionRowId: 'row-123',
+      })
+    );
   });
 
-  it('calls harness.prompt with the current agent (from fresh session read)', async () => {
+  it('calls harness.prompt with override.agent (not from session lastUsedConfig)', async () => {
     const deps = createDeps();
-    // Session has agent 'builder'
-    await promptSession(deps, VALID_OPTIONS);
+    // Session has agent 'builder' in lastUsedConfig, but override says 'planner'
+    const options: PromptSessionOptions = {
+      ...VALID_OPTIONS,
+      override: { agent: 'planner' },
+    };
+    await promptSession(deps, options);
     expect(deps.promptFn).toHaveBeenCalledWith(
       'harness-session-abc' as HarnessSessionId,
-      expect.objectContaining({ agent: 'builder', parts: VALID_OPTIONS.parts })
+      expect.objectContaining({ agent: 'planner', parts: options.parts })
     );
   });
 
-  it('uses updated agent after updateSessionAgent (mid-switch test)', async () => {
+  it('passes model, system, tools from override to harness.prompt', async () => {
     const deps = createDeps();
-    // Simulate agent switch: first call returns 'builder', second returns 'planner'
-    deps.queryFn
-      .mockResolvedValueOnce(createMockSession('planner', 'harness-session-abc'));
-
-    await promptSession(deps, VALID_OPTIONS);
-
+    const override = {
+      agent: 'builder',
+      model: { providerID: 'anthropic', modelID: 'claude-3-5-sonnet' },
+      system: 'You are a helpful assistant',
+      tools: { bash: true, editor: false },
+    };
+    await promptSession(deps, { ...VALID_OPTIONS, override });
     expect(deps.promptFn).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ agent: 'planner' })
+      expect.objectContaining({
+        agent: 'builder',
+        model: { providerID: 'anthropic', modelID: 'claude-3-5-sonnet' },
+        system: 'You are a helpful assistant',
+        tools: { bash: true, editor: false },
+      })
     );
+  });
+
+  it('throws and does NOT call harness.prompt when override.agent is empty', async () => {
+    const deps = createDeps();
+    const options: PromptSessionOptions = {
+      ...VALID_OPTIONS,
+      override: { agent: '' },
+    };
+    await expect(promptSession(deps, options)).rejects.toThrow(/override\.agent is required/);
+    expect(deps.promptFn).not.toHaveBeenCalled();
   });
 
   it('marks prompt as done on success', async () => {
@@ -110,7 +134,9 @@ describe('promptSession', () => {
 
     const callOrder = deps.mutationFn.mock.calls.map((c: any[]) => c[0]);
     expect(callOrder).toContain('mock-completePendingPrompt');
-    const completeCall = deps.mutationFn.mock.calls.find((c: any[]) => c[0] === 'mock-completePendingPrompt');
+    const completeCall = deps.mutationFn.mock.calls.find(
+      (c: any[]) => c[0] === 'mock-completePendingPrompt'
+    );
     expect(completeCall?.[1]?.status).toBe('done');
   });
 
@@ -121,7 +147,9 @@ describe('promptSession', () => {
 
     await expect(promptSession(deps, VALID_OPTIONS)).rejects.toThrow('connection reset');
 
-    const completeCall = deps.mutationFn.mock.calls.find((c: any[]) => c[0] === 'mock-completePendingPrompt');
+    const completeCall = deps.mutationFn.mock.calls.find(
+      (c: any[]) => c[0] === 'mock-completePendingPrompt'
+    );
     expect(completeCall?.[1]?.status).toBe('error');
     expect(completeCall?.[1]?.errorMessage).toBe('connection reset');
   });
@@ -138,7 +166,9 @@ describe('promptSession', () => {
     // Should not call harness.prompt
     expect(deps.promptFn).not.toHaveBeenCalled();
     // Should complete with error
-    const completeCall = deps.mutationFn.mock.calls.find((c: any[]) => c[0] === 'mock-completePendingPrompt');
+    const completeCall = deps.mutationFn.mock.calls.find(
+      (c: any[]) => c[0] === 'mock-completePendingPrompt'
+    );
     expect(completeCall?.[1]?.status).toBe('error');
   });
 });

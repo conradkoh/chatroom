@@ -60,18 +60,14 @@ export function startPendingPromptSubscription(
       processing = true;
       void drainPendingTasks(ctx, harnessRegistry)
         .catch((err: unknown) => {
-          console.warn(
-            `[direct-harness] Pending task processing failed: ${getErrorMessage(err)}`
-          );
+          console.warn(`[direct-harness] Pending task processing failed: ${getErrorMessage(err)}`);
         })
         .finally(() => {
           processing = false;
         });
     },
     (err: unknown) => {
-      console.warn(
-        `[direct-harness] Pending task subscription error: ${getErrorMessage(err)}`
-      );
+      console.warn(`[direct-harness] Pending task subscription error: ${getErrorMessage(err)}`);
     }
   );
 
@@ -115,6 +111,12 @@ async function executeClaimedTask(
     workspaceId: Id<'chatroom_workspaces'>;
     taskType: 'prompt' | 'resume';
     parts: Array<{ type: 'text'; text: string }>;
+    override: {
+      agent: string;
+      model?: { providerID: string; modelID: string };
+      system?: string;
+      tools?: Record<string, boolean>;
+    };
   }
 ): Promise<void> {
   // Look up the workspace to get cwd (for getOrSpawn)
@@ -139,7 +141,9 @@ async function executeClaimedTask(
   const harnessProcess = await harnessRegistry
     .getOrSpawn(claimed.workspaceId as string, workspace.workingDir)
     .catch((err: unknown) => {
-      throw new Error(`Failed to get harness for workspace ${claimed.workspaceId}: ${getErrorMessage(err)}`);
+      throw new Error(
+        `Failed to get harness for workspace ${claimed.workspaceId}: ${getErrorMessage(err)}`
+      );
     });
 
   if (claimed.taskType === 'resume') {
@@ -154,7 +158,11 @@ async function executeClaimedTask(
  */
 async function executeResumeTask(
   ctx: DaemonContext,
-  spawner: HarnessProcessRegistry extends { getOrSpawn: (...args: any[]) => Promise<infer P> } ? P extends { spawner: infer S } ? S : never : never,
+  spawner: HarnessProcessRegistry extends { getOrSpawn: (...args: any[]) => Promise<infer P> }
+    ? P extends { spawner: infer S }
+      ? S
+      : never
+    : never,
   claimed: {
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
@@ -162,10 +170,10 @@ async function executeResumeTask(
   }
 ): Promise<void> {
   // Get the session's harnessSessionId to resume with
-  const session = await ctx.deps.backend.query(
-    api.chatroom.directHarness.sessions.getSession,
-    { sessionId: ctx.sessionId, harnessSessionRowId: claimed.harnessSessionRowId }
-  );
+  const session = await ctx.deps.backend.query(api.chatroom.directHarness.sessions.getSession, {
+    sessionId: ctx.sessionId,
+    harnessSessionRowId: claimed.harnessSessionRowId,
+  });
 
   if (!session?.harnessSessionId) {
     await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
@@ -173,7 +181,8 @@ async function executeResumeTask(
       machineId: ctx.machineId,
       promptId: claimed._id,
       status: 'error',
-      errorMessage: 'Session has no harness session ID — it may not have completed spawning originally',
+      errorMessage:
+        'Session has no harness session ID — it may not have completed spawning originally',
     });
     return;
   }
@@ -204,10 +213,12 @@ async function executeResumeTask(
       errorMessage: err instanceof Error ? err.message : String(err),
     });
     // Also mark the session itself as failed
-    await ctx.deps.backend.mutation(api.chatroom.directHarness.sessions.closeSession, {
-      sessionId: ctx.sessionId,
-      harnessSessionRowId: claimed.harnessSessionRowId,
-    }).catch(() => {}); // best-effort
+    await ctx.deps.backend
+      .mutation(api.chatroom.directHarness.sessions.closeSession, {
+        sessionId: ctx.sessionId,
+        harnessSessionRowId: claimed.harnessSessionRowId,
+      })
+      .catch(() => {}); // best-effort
     throw err;
   }
 }
@@ -223,6 +234,12 @@ async function executePromptTask(
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
     parts: Array<{ type: 'text'; text: string }>;
+    override: {
+      agent: string;
+      model?: { providerID: string; modelID: string };
+      system?: string;
+      tools?: Record<string, boolean>;
+    };
   }
 ): Promise<void> {
   await promptSession(
@@ -239,6 +256,7 @@ async function executePromptTask(
       harnessSessionRowId: claimed.harnessSessionRowId as string,
       promptId: claimed._id as string,
       parts: claimed.parts,
+      override: claimed.override,
     }
   );
 }

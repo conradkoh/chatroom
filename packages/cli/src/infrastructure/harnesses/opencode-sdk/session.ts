@@ -29,7 +29,9 @@ export interface OpencodeSdkSessionClient {
   };
   event: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    subscribe(args?: any): Promise<{ stream: AsyncGenerator<{ type: string; properties?: Record<string, unknown> }> }>;
+    subscribe(
+      args?: any
+    ): Promise<{ stream: AsyncGenerator<{ type: string; properties?: Record<string, unknown> }> }>;
   };
   app: {
     /** Returns the list of agents configured in this opencode server instance. */
@@ -58,16 +60,25 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
     /** Abort the ongoing event subscription loop. */
     private readonly stopEventStream: () => void,
     /** Kill the child process on close (undefined for resumed sessions). */
-    private readonly killProcess?: () => void,
+    private readonly killProcess?: () => void
   ) {}
 
   // ── DirectHarnessSession ─────────────────────────────────────────────────
 
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
+    if (!input.agent || input.agent.trim() === '') {
+      throw new Error('PromptInput.agent is required and must not be empty');
+    }
     await this.client.session.promptAsync({
       path: { id: this.harnessSessionId as string },
-      body: { parts: input.parts.map((p) => ({ type: p.type, text: p.text })) },
+      body: {
+        parts: input.parts.map((p) => ({ type: p.type, text: p.text })),
+        agent: input.agent,
+        ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(input.system !== undefined ? { system: input.system } : {}),
+        ...(input.tools !== undefined ? { tools: input.tools } : {}),
+      },
     });
   }
 
@@ -112,7 +123,7 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
 export function subscribeToSessionEvents(
   client: OpencodeSdkSessionClient,
   session: OpencodeSdkDirectHarnessSession,
-  now: () => number = Date.now,
+  now: () => number = Date.now
 ): () => void {
   let stopped = false;
 

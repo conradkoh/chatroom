@@ -20,7 +20,11 @@ function createMockClient() {
   });
 
   const client: OpencodeSdkSessionClient = {
-    session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: promptAsyncFn, abort: abortFn },
+    session: {
+      create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }),
+      promptAsync: promptAsyncFn,
+      abort: abortFn,
+    },
     event: { subscribe: subscribeFn },
     app: { agents: vi.fn().mockResolvedValue({ data: [] }) },
   };
@@ -39,7 +43,7 @@ function createSession(
     HARNESS_SESSION_ID,
     mergedClient,
     stopFn,
-    killProcess,
+    killProcess
   );
   return { session, stopFn, client: mergedClient };
 }
@@ -52,10 +56,14 @@ describe('OpencodeSdkDirectHarnessSession', () => {
     expect(session.harnessSessionId).toBe(HARNESS_SESSION_ID);
   });
 
-  it('prompt() calls client.session.promptAsync with the input', async () => {
+  it('prompt() calls client.session.promptAsync with agent and parts', async () => {
     const promptAsyncFn = vi.fn().mockResolvedValue(undefined);
     const { session } = createSession({
-      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: promptAsyncFn, abort: vi.fn() },
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }),
+        promptAsync: promptAsyncFn,
+        abort: vi.fn(),
+      },
     });
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hello world' }] });
@@ -64,12 +72,47 @@ describe('OpencodeSdkDirectHarnessSession', () => {
     const args = promptAsyncFn.mock.calls[0][0];
     expect(args.path.id).toBe(HARNESS_SESSION_ID);
     expect(args.body.parts).toEqual([{ type: 'text', text: 'hello world' }]);
+    expect(args.body.agent).toBe('builder');
+  });
+
+  it('prompt() passes model, system, tools override fields to SDK body', async () => {
+    const promptAsyncFn = vi.fn().mockResolvedValue(undefined);
+    const { session } = createSession({
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }),
+        promptAsync: promptAsyncFn,
+        abort: vi.fn(),
+      },
+    });
+
+    await session.prompt({
+      agent: 'builder',
+      model: { providerID: 'anthropic', modelID: 'claude-3-5-sonnet' },
+      system: 'You are a helpful assistant',
+      tools: { bash: true },
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+
+    const body = promptAsyncFn.mock.calls[0][0].body;
+    expect(body.agent).toBe('builder');
+    expect(body.model).toEqual({ providerID: 'anthropic', modelID: 'claude-3-5-sonnet' });
+    expect(body.system).toBe('You are a helpful assistant');
+    expect(body.tools).toEqual({ bash: true });
+  });
+
+  it('prompt() throws when agent is empty', async () => {
+    const { session } = createSession();
+    await expect(
+      session.prompt({ agent: '', parts: [{ type: 'text', text: 'hello' }] })
+    ).rejects.toThrow(/agent is required/);
   });
 
   it('prompt() throws when the session is closed', async () => {
     const { session } = createSession();
     await session.close();
-    await expect(session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'too late' }] })).rejects.toThrow('closed');
+    await expect(
+      session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'too late' }] })
+    ).rejects.toThrow('closed');
   });
 
   it('onEvent() delivers forwarded events to the listener', () => {
@@ -98,7 +141,11 @@ describe('OpencodeSdkDirectHarnessSession', () => {
   it('close() calls stopEventStream and abort', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
     const { session, stopFn } = createSession({
-      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: vi.fn(), abort: abortFn },
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }),
+        promptAsync: vi.fn(),
+        abort: abortFn,
+      },
     });
 
     await session.close();
@@ -110,7 +157,11 @@ describe('OpencodeSdkDirectHarnessSession', () => {
   it('close() is idempotent — second call is a no-op', async () => {
     const abortFn = vi.fn().mockResolvedValue(undefined);
     const { session } = createSession({
-      session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: vi.fn(), abort: abortFn },
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }),
+        promptAsync: vi.fn(),
+        abort: abortFn,
+      },
     });
 
     await session.close();
@@ -147,7 +198,11 @@ describe('subscribeToSessionEvents', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(received).toHaveLength(1);
-    expect(received[0]).toMatchObject({ type: 'tool_use', payload: { tool: 'bash' }, timestamp: 999 });
+    expect(received[0]).toMatchObject({
+      type: 'tool_use',
+      payload: { tool: 'bash' },
+      timestamp: 999,
+    });
 
     stop();
   });
@@ -162,7 +217,9 @@ describe('subscribeToSessionEvents', () => {
     subscribeFn.mockResolvedValue({
       stream: (async function* () {
         yield { type: 'first', properties: {} };
-        await new Promise<void>((r) => { yieldSecond = r; });
+        await new Promise<void>((r) => {
+          yieldSecond = r;
+        });
         yield { type: 'second', properties: {} };
       })(),
     });

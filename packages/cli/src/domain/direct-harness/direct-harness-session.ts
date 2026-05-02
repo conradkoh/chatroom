@@ -19,10 +19,16 @@ export interface PromptPart {
   readonly text: string;
 }
 
-/** Input to a prompt call — agent and structured content parts. */
+/** Input to a prompt call — agent, optional overrides, and structured content parts. */
 export interface PromptInput {
-  /** The agent sending the prompt (e.g. 'builder', 'planner'). */
+  /** The agent sending the prompt (e.g. 'builder', 'planner'). Required. */
   readonly agent: string;
+  /** Optional model override to pass to the SDK. */
+  readonly model?: { readonly providerID: string; readonly modelID: string };
+  /** Optional system prompt override. */
+  readonly system?: string;
+  /** Optional tool enable/disable map. */
+  readonly tools?: Record<string, boolean>;
   readonly parts: readonly PromptPart[];
 }
 
