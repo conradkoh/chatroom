@@ -3,13 +3,9 @@
  *
  * Scans all backend source files and verifies two invariants:
  *
- * 1. No new bare-string ConvexError throws outside the baseline.
- *    The baseline captures existing bare-string throws that predate this
- *    convention. It is SHRINKING-ONLY: any commit that reduces a count must
- *    update the baseline. New entries are forbidden — migrate the throw
- *    to the structured form instead. When baseline reaches zero, the
- *    allow-list entries are removed entirely and bare-string throws are
- *    forbidden everywhere with zero exceptions.
+ * 1. No bare-string ConvexError throws anywhere in the codebase.
+ *    All ConvexError calls must use the structured `{ code, message }` form.
+ *    Bare-string throws are forbidden — migrate to the structured form instead.
  *
  * 2. Every code used in a structured throw (`{ code: 'X', message: ... }`)
  *    is registered in BACKEND_ERROR_CODES. This prevents typos and drift.
@@ -28,26 +24,6 @@ import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
 
 const BACKEND_ROOT = path.resolve(__dirname, '..');
 const SOURCE_DIRS = ['convex', 'src'];
-
-// ─── Baseline: bare-string throws allowed per file ───────────────────────────
-// INTENT: this list is SHRINKING-ONLY. Any commit that reduces a count must
-// update the baseline below. New entries are forbidden — migrate the throw
-// to the structured form { code, message } instead.
-// When all counts reach 0, remove the entries and the allow-list logic entirely.
-const BARE_STRING_BASELINE: Record<string, number> = {
-  'convex/chatrooms.ts': 2,
-  'convex/attendance.ts': 3,
-  'convex/auth/authenticatedUser.ts': 1,
-  'convex/backlog.ts': 9,
-  'convex/chatroomSkillCustomizations.ts': 1,
-  'convex/commands.ts': 9,
-  'convex/contexts.ts': 1,
-  'convex/machines.ts': 2,
-  'convex/savedCommands.ts': 5,
-  'src/domain/usecase/backlog/create-backlog-item.ts': 1,
-  'src/domain/usecase/backlog/patch-backlog-item.ts': 1,
-  'src/domain/usecase/backlog/update-backlog-item.ts': 2,
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,31 +75,28 @@ describe('Error codes registry enforcement', () => {
     expect(unregistered, `Unregistered error codes found: ${unregistered.join(', ')}`).toEqual([]);
   });
 
-  it('no new bare-string ConvexError throws outside the baseline', () => {
+  it('no bare-string ConvexError throws anywhere in the codebase', () => {
     // Matches: throw new ConvexError('...') or throw new ConvexError("...")
     // Does NOT match: throw new ConvexError({ code: ... }) or template literals
     const bareStringPattern = /throw new ConvexError\(['"][^'"]+['"]\)/g;
 
-    // Count actual bare-string throws per file (relative to BACKEND_ROOT)
-    const actualCounts: Record<string, number> = {};
+    // Collect all files with bare-string throws
+    const violations: string[] = [];
     for (const file of allFiles) {
       const rel = path.relative(BACKEND_ROOT, file);
       const content = fs.readFileSync(file, 'utf-8');
       const matches = content.match(bareStringPattern);
       if (matches && matches.length > 0) {
-        actualCounts[rel] = matches.length;
+        violations.push(
+          `${rel} (${matches.length} bare-string throw${matches.length > 1 ? 's' : ''})`
+        );
       }
     }
 
-    // Check: no files with bare-string throws that aren't in the baseline
-    const newFiles = Object.keys(actualCounts).filter((f) => !(f in BARE_STRING_BASELINE));
-    expect(newFiles, `Files with new bare-string ConvexError throws (not in baseline): ${newFiles.join(', ')}`).toEqual([]);
-
-    // Check: no file exceeds its baseline count
-    for (const [file, count] of Object.entries(actualCounts)) {
-      const baseline = BARE_STRING_BASELINE[file] ?? 0;
-      expect(count, `${file} has ${count} bare-string throws, baseline allows ${baseline}. Update baseline if you migrated throws.`).toBeLessThanOrEqual(baseline);
-    }
+    expect(
+      violations,
+      `Bare-string ConvexError throws found — migrate to { code, message } form:\n${violations.join('\n')}`
+    ).toEqual([]);
   });
 
   it('all registered codes are classified as fatal or non-fatal', async () => {
@@ -138,6 +111,9 @@ describe('Error codes registry enforcement', () => {
       }
     }
 
-    expect(unclassified, `Codes not classified as fatal or non-fatal: ${unclassified.join(', ')}`).toEqual([]);
+    expect(
+      unclassified,
+      `Codes not classified as fatal or non-fatal: ${unclassified.join(', ')}`
+    ).toEqual([]);
   });
 });

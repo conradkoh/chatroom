@@ -22,7 +22,8 @@ export async function patchBacklogItem(
   args: PatchBacklogItemArgs
 ): Promise<void> {
   const item = await ctx.db.get('chatroom_backlog', args.itemId);
-  if (!item) throw new ConvexError('Backlog item not found');
+  if (!item)
+    throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
 
   const updates: Record<string, unknown> = { updatedAt: Date.now() };
   if (args.priority !== undefined) updates.priority = args.priority;

@@ -46,7 +46,10 @@ export const createSavedCommand = mutation({
 
     const trimmedName = args.command.name.trim();
     if (!trimmedName) {
-      throw new ConvexError('Command name must not be empty');
+      throw new ConvexError({
+        code: 'COMMAND_NAME_EMPTY',
+        message: 'Command name must not be empty',
+      });
     }
 
     const now = Date.now();
@@ -72,14 +75,15 @@ export const updateSavedCommand = mutation({
     ...SessionIdArg,
     commandId: v.id('chatroom_savedCommands'),
     name: v.optional(v.string()),
-    command: v.optional(
-      v.union(v.object({ type: v.literal('prompt'), prompt: v.string() }))
-    ),
+    command: v.optional(v.union(v.object({ type: v.literal('prompt'), prompt: v.string() }))),
   },
   handler: async (ctx, args) => {
     const command = await ctx.db.get(args.commandId);
     if (!command) {
-      throw new ConvexError('Saved command not found');
+      throw new ConvexError({
+        code: 'SAVED_COMMAND_NOT_FOUND',
+        message: 'Saved command not found',
+      });
     }
 
     // Verify the caller has access to the chatroom this command belongs to
@@ -88,7 +92,10 @@ export const updateSavedCommand = mutation({
     // Reject type changes — not supported
     const storedType = 'type' in command ? command.type : 'prompt';
     if (args.command && args.command.type !== storedType) {
-      throw new ConvexError('Cannot change command type');
+      throw new ConvexError({
+        code: 'COMMAND_TYPE_IMMUTABLE',
+        message: 'Cannot change command type',
+      });
     }
 
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
@@ -96,7 +103,10 @@ export const updateSavedCommand = mutation({
     if (args.name !== undefined) {
       const trimmedName = args.name.trim();
       if (!trimmedName) {
-        throw new ConvexError('Command name must not be empty');
+        throw new ConvexError({
+          code: 'COMMAND_NAME_EMPTY',
+          message: 'Command name must not be empty',
+        });
       }
       updates.name = trimmedName;
     }
@@ -122,7 +132,10 @@ export const deleteSavedCommand = mutation({
   handler: async (ctx, args) => {
     const command = await ctx.db.get(args.commandId);
     if (!command) {
-      throw new ConvexError('Saved command not found');
+      throw new ConvexError({
+        code: 'SAVED_COMMAND_NOT_FOUND',
+        message: 'Saved command not found',
+      });
     }
 
     // Verify the caller has access to the chatroom this command belongs to
@@ -131,4 +144,3 @@ export const deleteSavedCommand = mutation({
     await ctx.db.delete(args.commandId);
   },
 });
-

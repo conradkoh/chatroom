@@ -19,14 +19,18 @@ export async function updateBacklogItem(
   args: UpdateBacklogItemArgs
 ): Promise<void> {
   const item = await ctx.db.get(args.itemId);
-  if (!item) throw new ConvexError('Backlog item not found');
+  if (!item)
+    throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
 
   if (!canEditBacklogContent(item.status)) {
-    throw new ConvexError(`Cannot edit item with status: ${item.status}. Must be in backlog.`);
+    throw new ConvexError({
+      code: 'BACKLOG_INVALID_TRANSITION',
+      message: `Cannot edit item with status: ${item.status}. Must be in backlog.`,
+    });
   }
 
   if (!args.content.trim()) {
-    throw new ConvexError('Content cannot be empty');
+    throw new ConvexError({ code: 'CONTENT_EMPTY', message: 'Content cannot be empty' });
   }
 
   await ctx.db.patch(args.itemId, {
