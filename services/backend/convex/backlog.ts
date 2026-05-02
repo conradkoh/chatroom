@@ -25,7 +25,10 @@ async function requireBacklogItemForChatroom(
 ): Promise<void> {
   await requireChatroomAccess(ctx, sessionId, chatroomId);
   if (item.chatroomId !== chatroomId) {
-    throw new ConvexError('Backlog item does not belong to this chatroom');
+    throw new ConvexError({
+      code: 'BACKLOG_ITEM_WRONG_CHATROOM',
+      message: 'Backlog item does not belong to this chatroom',
+    });
   }
 }
 
@@ -93,10 +96,11 @@ export const closeBacklogItem = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     const reason = args.reason.trim();
     if (reason.length === 0) {
-      throw new ConvexError('Reason cannot be empty');
+      throw new ConvexError({ code: 'REASON_EMPTY', message: 'Reason cannot be empty' });
     }
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await closeBacklogItemUseCase(ctx, item, { reason });
@@ -113,7 +117,8 @@ export const completeBacklogItem = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await completeBacklogItemUseCase(ctx, args.itemId);
     return { success: true };
@@ -142,7 +147,8 @@ export const reopenBacklogItem = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await reopenBacklogItemUseCase(ctx, args.itemId);
     return { success: true };
@@ -158,7 +164,8 @@ export const markBacklogItemForReview = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await markBacklogItemForReviewUseCase(ctx, args.itemId);
     return { success: true };
@@ -174,7 +181,8 @@ export const sendBacklogItemBackForRework = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await sendBacklogItemBackForReworkUseCase(ctx, args.itemId);
     return { success: true };
@@ -191,7 +199,8 @@ export const updateBacklogItem = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await updateBacklogItemUseCase(ctx, { itemId: args.itemId, content: args.content });
     return { success: true };
@@ -226,7 +235,8 @@ export const patchBacklogItem = mutation({
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get(args.itemId);
-    if (!item) throw new ConvexError('Backlog item not found');
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
     await patchBacklogItemUseCase(ctx, {
       itemId: args.itemId,

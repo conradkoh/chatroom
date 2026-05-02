@@ -168,13 +168,15 @@ describe('completeBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Backlog item completed');
+    // Strict equality: catches omitted required args (regression: objectContaining
+    // let missing fields slip through undetected).
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
+      {
         sessionId: TEST_SESSION_ID,
         chatroomId: TEST_CHATROOM_ID,
         itemId: TEST_TASK_ID,
-      })
+      }
     );
   });
 });
@@ -532,13 +534,17 @@ describe('updateBacklog', () => {
     );
 
     expect(exitSpy).not.toHaveBeenCalled();
+    // Use strict equality (not objectContaining) to ensure no required fields
+    // are silently omitted — the prior objectContaining form let a missing
+    // chatroomId slip through undetected.
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
+      {
         sessionId: TEST_SESSION_ID,
+        chatroomId: TEST_CHATROOM_ID,
         itemId: TEST_TASK_ID,
         content: 'Updated content',
-      })
+      }
     );
     expect(getAllLogOutput()).toContain('Backlog item content updated');
   });
@@ -584,13 +590,15 @@ describe('closeBacklog', () => {
     );
 
     expect(exitSpy).not.toHaveBeenCalled();
+    // Strict equality: catches omitted required args like chatroomId
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
+      {
         sessionId: TEST_SESSION_ID,
+        chatroomId: TEST_CHATROOM_ID,
         itemId: TEST_TASK_ID,
         reason: 'duplicate of item XYZ',
-      })
+      }
     );
     expect(getAllLogOutput()).toContain('Backlog item closed');
   });
@@ -634,11 +642,16 @@ describe('closeBacklog', () => {
     );
 
     expect(exitSpy).not.toHaveBeenCalled();
+    // Strict equality: include all required mutation args, not just the
+    // trimmed field — objectContaining would silently miss omitted fields.
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
+      {
+        sessionId: TEST_SESSION_ID,
+        chatroomId: TEST_CHATROOM_ID,
+        itemId: TEST_TASK_ID,
         reason: 'trimmed reason',
-      })
+      }
     );
     expect(getAllLogOutput()).toContain('Reason: trimmed reason');
   });

@@ -1457,7 +1457,10 @@ async function runRecordCustomAgentRegistered(
   }
 
   if (!chatroom.teamId) {
-    throw new ConvexError('Chatroom has no teamId — cannot build agent config key');
+    throw new ConvexError({
+      code: 'CHATROOM_NO_TEAM_ID',
+      message: 'Chatroom has no teamId — cannot build agent config key',
+    });
   }
   const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
 
@@ -1697,7 +1700,10 @@ export const saveTeamAgentConfig = mutation({
     }
 
     if (!chatroom.teamId) {
-      throw new ConvexError('Chatroom has no teamId — cannot build agent config key');
+      throw new ConvexError({
+        code: 'CHATROOM_NO_TEAM_ID',
+        message: 'Chatroom has no teamId — cannot build agent config key',
+      });
     }
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
 

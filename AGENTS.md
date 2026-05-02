@@ -98,6 +98,10 @@ export const myQuery = query({
 });
 ```
 
+### Error Handling
+
+All backend errors must use structured `ConvexError({ code, message, fields? })` with codes registered in `services/backend/config/errorCodes.ts`. Bare-string throws (`throw new ConvexError('msg')`) are forbidden — enforced by a unit test. See `docs/developer/error-handling.md` for the full convention, including the return-union pattern for expected business outcomes.
+
 ### Feature Flags
 
 Configured in `services/backend/config/featureFlags.ts`.

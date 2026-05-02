@@ -35,7 +35,10 @@ export const recordAttendance = mutation({
 
     // Name is required if not authenticated or not self
     if (!attendanceUserId && !name) {
-      throw new ConvexError('Name is required for anonymous attendance');
+      throw new ConvexError({
+        code: 'NAME_REQUIRED',
+        message: 'Name is required for anonymous attendance',
+      });
     }
 
     // delete any records already associated with this user
@@ -85,7 +88,10 @@ export const deleteAttendanceRecord = mutation({
     // Get the record to check permissions
     const record = await ctx.db.get('attendanceRecords', args.recordId);
     if (!record) {
-      throw new ConvexError('Attendance record not found');
+      throw new ConvexError({
+        code: 'ATTENDANCE_NOT_FOUND',
+        message: 'Attendance record not found',
+      });
     }
 
     // Check if the user is authorized to delete this record
@@ -95,7 +101,10 @@ export const deleteAttendanceRecord = mutation({
     // 1. The user is the owner of the record (their userId matches)
     // 2. The record doesn't have a userId (anonymous entry)
     if (record.userId && (!user || record.userId !== user._id)) {
-      throw new ConvexError('Not authorized to delete this attendance record');
+      throw new ConvexError({
+        code: 'ATTENDANCE_DELETE_UNAUTHORIZED',
+        message: 'Not authorized to delete this attendance record',
+      });
     }
 
     // Delete the record

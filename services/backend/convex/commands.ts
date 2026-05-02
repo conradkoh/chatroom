@@ -45,18 +45,28 @@ export const syncCommands = mutation({
         name: v.string(),
         script: v.string(),
         source: v.union(v.literal('package.json'), v.literal('turbo.json')),
-        subWorkspace: v.optional(v.object({
-          type: v.string(),
-          path: v.string(),
-          name: v.string(),
-        })),
+        subWorkspace: v.optional(
+          v.object({
+            type: v.string(),
+            path: v.string(),
+            name: v.string(),
+          })
+        ),
       })
     ),
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
-    if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
 
     if (args.commands.length > MAX_COMMANDS_PER_SYNC) {
       throw new ConvexError(`Too many commands (max ${MAX_COMMANDS_PER_SYNC})`);
@@ -104,7 +114,11 @@ export const runCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Security: Verify the command exists in the synced commands for this workspace.
     // This prevents arbitrary command injection — only pre-discovered scripts can be run.
@@ -114,15 +128,15 @@ export const runCommand = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .filter((q) =>
-        q.and(
-          q.eq(q.field('name'), args.commandName),
-          q.eq(q.field('script'), args.script)
-        )
+        q.and(q.eq(q.field('name'), args.commandName), q.eq(q.field('script'), args.script))
       )
       .first();
 
     if (!existingCmd) {
-      throw new ConvexError('Command not found in synced commands. Only discovered scripts can be run.');
+      throw new ConvexError({
+        code: 'COMMAND_NOT_DISCOVERED',
+        message: 'Command not found in synced commands. Only discovered scripts can be run.',
+      });
     }
 
     const now = Date.now();
@@ -165,13 +179,21 @@ export const stopCommand = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const run = await ctx.db.get(args.runId);
-    if (!run) throw new ConvexError('Run not found');
-    if (run.machineId !== args.machineId) throw new ConvexError('Run does not belong to this machine');
+    if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+    if (run.machineId !== args.machineId)
+      throw new ConvexError({
+        code: 'RUN_WRONG_MACHINE',
+        message: 'Run does not belong to this machine',
+      });
     if (run.status !== 'running' && run.status !== 'pending') {
-      throw new ConvexError('Command is not running');
+      throw new ConvexError({ code: 'COMMAND_NOT_RUNNING', message: 'Command is not running' });
     }
 
     const now = Date.now();
@@ -205,12 +227,24 @@ export const updateRunStatus = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
-    if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
 
     const run = await ctx.db.get(args.runId);
-    if (!run) throw new ConvexError('Run not found');
-    if (run.machineId !== args.machineId) throw new ConvexError('Run does not belong to this machine');
+    if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+    if (run.machineId !== args.machineId)
+      throw new ConvexError({
+        code: 'RUN_WRONG_MACHINE',
+        message: 'Run does not belong to this machine',
+      });
 
     // State transition validation: only allow valid forward transitions
     const validTransitions: Record<string, string[]> = {
@@ -254,8 +288,16 @@ export const appendOutput = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'owner' });
-    if (!ownerCheck.ok) throw new ConvexError('Not authorized for this machine');
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
 
     if (args.content.length > MAX_OUTPUT_CHUNK_BYTES) {
       throw new ConvexError(`Output chunk too large (max ${MAX_OUTPUT_CHUNK_BYTES} bytes)`);
@@ -295,7 +337,11 @@ export const listCommands = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     return await ctx.db
       .query('chatroom_runnableCommands')
@@ -319,7 +365,11 @@ export const listRuns = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     const runs = await ctx.db
       .query('chatroom_commandRuns')
@@ -350,7 +400,11 @@ export const getRunOutput = query({
     if (!run) return { chunks: [], run: null };
 
     // Verify the caller has access to this machine through chatroom membership
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: run.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: run.machineId },
+      permission: 'write-access',
+    });
 
     const chunks = await ctx.db
       .query('chatroom_commandOutput')
@@ -382,7 +436,11 @@ export const clearStaleCommandRuns = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireAccess(ctx, { accessor: { type: 'user', id: auth.userId }, resource: { type: 'machine', id: args.machineId }, permission: 'write-access' });
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
 
     // Query all runs for this machine using the machineId prefix of the
     // by_machine_workingDir index, then filter by status in code.
