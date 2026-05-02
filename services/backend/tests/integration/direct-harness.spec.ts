@@ -123,9 +123,9 @@ describe('openSession', () => {
 
     const { sessionId, workspaceId } = await setupWorkspaceForSession('open-flag-off');
 
-    await expect(
-      openSession(sessionId, workspaceId)
-    ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
+    await expect(openSession(sessionId, workspaceId)).rejects.toThrow(
+      'directHarnessWorkers feature flag is disabled'
+    );
   });
 
   test('throws when workspace is not found', async () => {
@@ -244,7 +244,7 @@ describe('appendMessages', () => {
       harnessSessionRowId,
       chunks: [
         { seq: 0, content: 'duplicate', timestamp: 1001 }, // duplicate
-        { seq: 1, content: 'new', timestamp: 1002 },        // new
+        { seq: 1, content: 'new', timestamp: 1002 }, // new
       ],
     });
 
@@ -303,7 +303,8 @@ describe('listSessionsByWorkspace', () => {
 
 describe('publishMachineCapabilities', () => {
   test('upserts a machine registry entry', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('pub-success');
+    const { sessionId, chatroomId, machineId, workspaceId } =
+      await setupWorkspaceForSession('pub-success');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
@@ -331,12 +332,15 @@ describe('publishMachineCapabilities', () => {
   });
 
   test('second publish replaces the previous entry (upsert semantics)', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('pub-upsert');
+    const { sessionId, chatroomId, machineId, workspaceId } =
+      await setupWorkspaceForSession('pub-upsert');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
-      workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+      workspaces: [
+        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+      ],
     });
 
     // Second publish with agents
@@ -373,7 +377,9 @@ describe('publishMachineCapabilities', () => {
       t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
         sessionId,
         machineId,
-        workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+        workspaces: [
+          { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+        ],
       })
     ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
   });
@@ -381,20 +387,26 @@ describe('publishMachineCapabilities', () => {
 
 describe('getMachineRegistry', () => {
   test('filters by chatroom — only machines with workspaces in the chatroom are returned', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } = await setupWorkspaceForSession('registry-filter');
+    const { sessionId, chatroomId, machineId, workspaceId } =
+      await setupWorkspaceForSession('registry-filter');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
-      workspaces: [{ workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] }],
+      workspaces: [
+        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+      ],
     });
 
     // Query from a different chatroom — should return empty
     const otherChatroomId = await createPairTeamChatroom(sessionId);
-    const otherRegistries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
-      sessionId,
-      chatroomId: otherChatroomId,
-    });
+    const otherRegistries = await t.query(
+      api.chatroom.directHarness.capabilities.getMachineRegistry,
+      {
+        sessionId,
+        chatroomId: otherChatroomId,
+      }
+    );
 
     expect(otherRegistries).toHaveLength(0);
 
@@ -556,43 +568,44 @@ describe('completePendingPrompt', () => {
   });
 });
 
-  test('rejects when prompt belongs to a different machine', async () => {
-    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('complete-cross-machine');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+test('rejects when prompt belongs to a different machine', async () => {
+  const { sessionId, workspaceId, machineId } =
+    await setupWorkspaceForSession('complete-cross-machine');
+  const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
-      sessionId,
-      harnessSessionRowId,
-      parts: [{ type: 'text' as const, text: 'hello' }],
-    });
+  await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+    sessionId,
+    harnessSessionRowId,
+    parts: [{ type: 'text' as const, text: 'hello' }],
+  });
 
-    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
-      sessionId,
-      machineId,
-    });
-    expect(claimed).not.toBeNull();
+  const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+    sessionId,
+    machineId,
+  });
+  expect(claimed).not.toBeNull();
 
-    // Register another machine for the same user
-    const otherMachineId = 'other-machine-for-cross';
-    await t.mutation(api.machines.register, {
+  // Register another machine for the same user
+  const otherMachineId = 'other-machine-for-cross';
+  await t.mutation(api.machines.register, {
+    sessionId,
+    machineId: otherMachineId,
+    hostname: 'other-host',
+    os: 'darwin',
+    availableHarnesses: ['opencode'],
+    availableModels: {},
+  });
+
+  // Trying to complete with the other machine should fail
+  await expect(
+    t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
       sessionId,
       machineId: otherMachineId,
-      hostname: 'other-host',
-      os: 'darwin',
-      availableHarnesses: ['opencode'],
-      availableModels: {},
-    });
-
-    // Trying to complete with the other machine should fail
-    await expect(
-      t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
-        sessionId,
-        machineId: otherMachineId,
-        promptId: claimed!._id,
-        status: 'done',
-      })
-    ).rejects.toThrow('Prompt does not belong to this machine');
-  });
+      promptId: claimed!._id,
+      status: 'done',
+    })
+  ).rejects.toThrow('Prompt does not belong to this machine');
+});
 
 describe('updateSessionAgent (with validation)', () => {
   test('updates agent when registry has no agent list (harness not booted yet)', async () => {
@@ -616,7 +629,8 @@ describe('updateSessionAgent (with validation)', () => {
   });
 
   test('rejects unknown agent when registry has an agent list', async () => {
-    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('update-agent-reject');
+    const { sessionId, workspaceId, machineId } =
+      await setupWorkspaceForSession('update-agent-reject');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     // Publish registry with known agents
@@ -643,7 +657,8 @@ describe('updateSessionAgent (with validation)', () => {
   });
 
   test('accepts known agent from registry', async () => {
-    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('update-agent-accept');
+    const { sessionId, workspaceId, machineId } =
+      await setupWorkspaceForSession('update-agent-accept');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
@@ -670,6 +685,40 @@ describe('updateSessionAgent (with validation)', () => {
 });
 
 // ─── resumeSession ────────────────────────────────────────────────────────────
+
+// ─── webapp openSession gap documentation ─────────────────────────────────────
+
+describe('openSession — daemon integration gap (Phase A documentation)', () => {
+  test('openSession creates a harness session row but does NOT create a chatroom_pendingPrompts row', async () => {
+    // This test documents the fundamental gap in the current implementation:
+    // When the webapp calls openSession, a session row is inserted in status='pending'.
+    // However, the daemon only subscribes to chatroom_pendingPrompts, not harnessSessions.
+    // Therefore no daemon-side handler ever picks up the new session and spawns the harness.
+    //
+    // Fix (Phase B, pending user approval): add a daemon subscription on
+    // chatroom_harnessSessions where status='pending' AND harnessSessionId=undefined,
+    // scoped to the machine's workspaces.
+
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('open-gap-doc');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    // Verify session was created in pending state
+    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    expect(session?.status).toBe('pending');
+    expect(session?.harnessSessionId).toBeUndefined();
+
+    // Verify that NO chatroom_pendingPrompts row was created
+    // (the daemon watches pendingPrompts, not harnessSessions)
+    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed).toBeNull(); // daemon sees nothing — gap confirmed
+  });
+});
 
 describe('resumeSession', () => {
   test('enqueues a resume task for an active session', async () => {
@@ -730,4 +779,3 @@ describe('resumeSession', () => {
     expect(result.promptId).toBeDefined();
   });
 });
-
