@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * DirectHarnessPanel — workspace picker, session list, and new-session button.
+ * DirectHarnessPanel — workspace picker, session list, message stream, and composer.
  *
  * Rendered inside the chatroom sidebar when featureFlags.directHarnessWorkers is true.
  * Fully gated at the component boundary — returns null when the flag is off.
@@ -12,18 +12,20 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, Terminal } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 import { NewSessionButton } from './NewSessionButton';
 import { SessionList } from './SessionList';
 import { WorkspacePicker } from './WorkspacePicker';
+import { SessionMessageStream } from './SessionMessageStream';
+import { SessionComposer } from './SessionComposer';
+import { HarnessBootIndicator } from './HarnessBootIndicator';
 
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,14 @@ function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
     { chatroomId: chatroomId as Id<'chatroom_rooms'> }
   );
 
+  // Currently selected session (for status gating)
+  const selectedSession = useSessionQuery(
+    api.chatroom.directHarness.sessions.getSession,
+    selectedSessionId
+      ? { harnessSessionRowId: selectedSessionId as Id<'chatroom_harnessSessions'> }
+      : 'skip'
+  );
+
   // Find machine + agents for the selected workspace
   const selectedWorkspaceMachineId = (() => {
     if (!selectedWorkspaceId || !machineRegistries) return null;
@@ -69,6 +79,13 @@ function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
     }
     return [];
   })();
+
+  const isBooting =
+    selectedSession?.status === 'pending' || selectedSession?.status === 'spawning';
+
+  const handleRequestNewSession = useCallback(() => {
+    setSelectedSessionId(null); // deselect session to show new-session button
+  }, []);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -104,13 +121,37 @@ function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
                 selectedSessionId={selectedSessionId}
                 onSelect={setSelectedSessionId}
               />
-              <NewSessionButton
-                workspaceId={selectedWorkspaceId}
-                machineId={selectedWorkspaceMachineId}
-                chatroomId={chatroomId}
-                availableAgents={availableAgents}
-              />
+              {!selectedSessionId && (
+                <NewSessionButton
+                  workspaceId={selectedWorkspaceId}
+                  machineId={selectedWorkspaceMachineId}
+                  chatroomId={chatroomId}
+                  availableAgents={availableAgents}
+                />
+              )}
             </>
+          )}
+
+          {/* Session view — shown when a session is selected */}
+          {selectedSessionId && selectedWorkspaceId && (
+            <div className="space-y-2 border-t border-border pt-2">
+              {/* Boot indicator — shown during pending/spawning */}
+              {isBooting && <HarnessBootIndicator />}
+
+              {/* Message stream */}
+              {!isBooting && (
+                <SessionMessageStream sessionId={selectedSessionId} />
+              )}
+
+              {/* Composer */}
+              <SessionComposer
+                sessionId={selectedSessionId}
+                chatroomId={chatroomId}
+                workspaceId={selectedWorkspaceId}
+                availableAgents={availableAgents}
+                onRequestNewSession={handleRequestNewSession}
+              />
+            </div>
           )}
         </div>
       </CollapsibleContent>
