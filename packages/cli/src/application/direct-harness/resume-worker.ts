@@ -9,7 +9,7 @@ import type {
   DirectHarnessSessionEvent,
   FlushStrategy,
   HarnessSessionId,
-  WorkerId,
+  HarnessSessionRowId,
 } from '../../domain/direct-harness/index.js';
 
 import {
@@ -60,12 +60,12 @@ export async function resumeWorker(
   const { workerId, harnessSessionId } = options;
 
   // 1. Reattach to the existing harness session
-  const session = await harness.resume(harnessSessionId as HarnessSessionId);
+  const session = await harness.resumeSession(harnessSessionId as HarnessSessionId);
 
   // 2. Build the message transport + sink
   const transport = new ConvexMessageStreamTransport({ backend, sessionId });
   const sink = new BufferedMessageStreamSink({
-    workerId: workerId as WorkerId,
+    workerId: workerId as HarnessSessionRowId,
     transport,
     strategy: deps.flushStrategy ?? createDefaultFlushStrategy(),
     maxBufferItems: deps.bufferLimit,

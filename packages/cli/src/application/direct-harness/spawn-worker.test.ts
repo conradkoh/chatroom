@@ -33,7 +33,7 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
   const listeners = new Set<(e: DirectHarnessSessionEvent) => void>();
   return {
     harnessSessionId: 'harness-session-123' as any,
-    send: vi.fn().mockResolvedValue(undefined),
+    prompt: vi.fn().mockResolvedValue(undefined),
     onEvent: vi.fn((listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -48,8 +48,8 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
 function createMockHarness(session: DirectHarnessSession): DirectHarnessSpawner {
   return {
     harnessName: 'test-harness',
-    spawn: vi.fn().mockResolvedValue(session),
-    resume: vi.fn().mockResolvedValue(session),
+    openSession: vi.fn().mockResolvedValue(session),
+    resumeSession: vi.fn().mockResolvedValue(session),
   };
 }
 
@@ -93,9 +93,9 @@ describe('spawnWorker', () => {
     vi.clearAllMocks();
   });
 
-  it('calls createWorker → spawn → associateHarnessSession in order', async () => {
+  it('calls createWorker → openSession → associateHarnessSession in order', async () => {
     const { harness, mutationFn } = createDeps();
-    const harnessSpy = harness.spawn as ReturnType<typeof vi.fn>;
+    const harnessSpy = harness.openSession as ReturnType<typeof vi.fn>;
 
     await spawnWorker({ backend: { mutation: mutationFn as any }, sessionId: 'test-session', harness, chunkExtractor: () => null, nowFn: () => 0 }, VALID_OPTIONS);
 
@@ -185,7 +185,7 @@ describe('spawnWorker', () => {
     expect(session.close).toHaveBeenCalled();
   });
 
-  it('does NOT spawn harness if createWorker throws', async () => {
+  it('does NOT open session if createWorker throws', async () => {
     const mutationFn = vi.fn().mockRejectedValue(new Error('createWorker failed'));
     const session = createMockSession();
     const harness = createMockHarness(session);
@@ -195,7 +195,7 @@ describe('spawnWorker', () => {
       VALID_OPTIONS
     )).rejects.toThrow('createWorker failed');
 
-    expect(harness.spawn).not.toHaveBeenCalled();
+    expect(harness.openSession).not.toHaveBeenCalled();
   });
 
   it('uses default Composite([Interval, Sentence]) strategy when flushStrategy not provided', async () => {
@@ -214,10 +214,10 @@ describe('spawnWorker', () => {
     expect(customStrategy.name).toBe('always');
   });
 
-  it('passes chatroomId, machineId, role to harness.spawn config', async () => {
+  it('passes chatroomId, machineId, role to harness.openSession config', async () => {
     const deps = createDeps();
     await spawnWorker(deps, VALID_OPTIONS);
-    expect(deps.harness.spawn).toHaveBeenCalledWith(
+    expect(deps.harness.openSession).toHaveBeenCalledWith(
       expect.objectContaining({
         config: expect.objectContaining({
           chatroomId: 'room-1',

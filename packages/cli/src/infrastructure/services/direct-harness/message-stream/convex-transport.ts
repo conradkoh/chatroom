@@ -10,7 +10,7 @@ import type {
   MessageStreamChunk,
   MessageStreamTransport,
 } from '../../../../domain/direct-harness/message-stream/index.js';
-import type { WorkerId } from '../../../../domain/direct-harness/harness-worker.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
 import { api } from '../../../../api.js';
 
 /** Minimal backend interface — matches BackendOps and DaemonContext.deps.backend. */
@@ -37,7 +37,7 @@ export interface ConvexMessageStreamTransportOptions {
 export class ConvexMessageStreamTransport implements MessageStreamTransport {
   constructor(private readonly options: ConvexMessageStreamTransportOptions) {}
 
-  async persist(workerId: WorkerId, chunks: readonly MessageStreamChunk[]): Promise<void> {
+  async persist(harnessSessionRowId: HarnessSessionRowId, chunks: readonly MessageStreamChunk[]): Promise<void> {
     if (chunks.length === 0) return;
 
     // Typed access to the nested module — Convex generates dotted paths
@@ -46,8 +46,8 @@ export class ConvexMessageStreamTransport implements MessageStreamTransport {
 
     await this.options.backend.mutation(appendMessages, {
       sessionId: this.options.sessionId,
-      // WorkerId is a branded string; Convex Id types are structurally strings at runtime
-      workerId: workerId as unknown as string,
+      // HarnessSessionRowId is a branded string; Convex Id types are structurally strings at runtime
+      workerId: harnessSessionRowId as unknown as string,
       chunks: chunks.map((c) => ({
         seq: c.seq,
         content: c.content,

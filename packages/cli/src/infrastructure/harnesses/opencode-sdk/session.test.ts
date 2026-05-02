@@ -51,13 +51,13 @@ describe('OpencodeSdkDirectHarnessSession', () => {
     expect(session.harnessSessionId).toBe(HARNESS_SESSION_ID);
   });
 
-  it('send() calls client.session.promptAsync with the input', async () => {
+  it('prompt() calls client.session.promptAsync with the input', async () => {
     const promptAsyncFn = vi.fn().mockResolvedValue(undefined);
     const { session } = createSession({
       session: { promptAsync: promptAsyncFn, abort: vi.fn() },
     });
 
-    await session.send('hello world');
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hello world' }] });
 
     expect(promptAsyncFn).toHaveBeenCalledOnce();
     const args = promptAsyncFn.mock.calls[0][0];
@@ -65,10 +65,10 @@ describe('OpencodeSdkDirectHarnessSession', () => {
     expect(args.body.parts).toEqual([{ type: 'text', text: 'hello world' }]);
   });
 
-  it('send() throws when the session is closed', async () => {
+  it('prompt() throws when the session is closed', async () => {
     const { session } = createSession();
     await session.close();
-    await expect(session.send('too late')).rejects.toThrow('closed');
+    await expect(session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'too late' }] })).rejects.toThrow('closed');
   });
 
   it('onEvent() delivers forwarded events to the listener', () => {

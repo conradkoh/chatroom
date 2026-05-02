@@ -10,7 +10,7 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   FlushStrategy,
-  WorkerId,
+  HarnessSessionRowId,
 } from '../../domain/direct-harness/index.js';
 
 import {
@@ -51,7 +51,7 @@ export interface SpawnWorkerDeps {
   readonly nowFn?: () => number;
 }
 
-/** Options for spawning a new worker. */
+/** Options for opening a new session. */
 export interface SpawnWorkerOptions {
   /** Chatroom the worker is associated with (Convex Id<'chatroom_rooms'> as string). */
   readonly chatroomId: string;
@@ -103,8 +103,8 @@ export async function spawnWorker(
     { sessionId, chatroomId, harnessName: harness.harnessName }
   );
 
-  // 2. Spawn the harness process
-  const session = await harness.spawn({
+  // 2. Open a harness session
+  const session = await harness.openSession({
     cwd,
     env,
     config: { chatroomId, machineId, role },
@@ -125,7 +125,7 @@ export async function spawnWorker(
   // 4. Build the message transport + sink
   const transport = new ConvexMessageStreamTransport({ backend, sessionId });
   const sink = new BufferedMessageStreamSink({
-    workerId: workerId as WorkerId,
+    workerId: workerId as HarnessSessionRowId,
     transport,
     strategy: deps.flushStrategy ?? createDefaultFlushStrategy(),
     maxBufferItems: deps.bufferLimit,

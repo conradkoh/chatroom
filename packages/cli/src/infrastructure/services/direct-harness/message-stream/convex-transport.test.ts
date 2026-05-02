@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConvexMessageStreamTransport } from './convex-transport.js';
 import type { ConvexMessageStreamTransportBackend } from './convex-transport.js';
-import type { WorkerId } from '../../../../domain/direct-harness/harness-worker.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
 import type { MessageStreamChunk } from '../../../../domain/direct-harness/message-stream/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const SESSION_ID = 'test-session-id';
-const WORKER_ID = 'worker-abc' as WorkerId;
+const WORKER_ID = 'worker-abc' as HarnessSessionRowId;
 
 function createBackend(): { backend: ConvexMessageStreamTransportBackend; mutation: ReturnType<typeof vi.fn> } {
   const mutation = vi.fn().mockResolvedValue(undefined);

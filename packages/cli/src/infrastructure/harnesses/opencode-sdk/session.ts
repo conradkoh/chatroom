@@ -9,6 +9,7 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   HarnessSessionId,
+  PromptInput,
 } from '../../../domain/direct-harness/index.js';
 
 /**
@@ -49,11 +50,11 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
 
   // ── DirectHarnessSession ─────────────────────────────────────────────────
 
-  async send(input: string): Promise<void> {
+  async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
     await this.client.session.promptAsync({
       path: { id: this.harnessSessionId as string },
-      body: { parts: [{ type: 'text', text: input }] },
+      body: { parts: input.parts.map((p) => ({ type: p.type, text: p.text })) },
     });
   }
 

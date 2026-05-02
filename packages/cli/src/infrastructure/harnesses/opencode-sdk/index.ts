@@ -5,14 +5,14 @@
  * opencode-sdk utility functions without modifying OpenCodeSdkAgentService.
  *
  * Key design choices:
- * - spawn() starts the server and creates a session WITHOUT sending any
- *   initial prompt. Callers use send() for messages.
- * - Sessions are persisted via FileSessionMetadataStore so resume() works
- *   across daemon restarts (same as OpenCodeSdkAgentService does for pids).
+ * - openSession() starts the server and creates a session WITHOUT sending any
+ *   initial prompt. Callers use prompt() for messages.
+ * - Sessions are persisted via FileSessionMetadataStore so resumeSession()
+ *   works across daemon restarts (same as OpenCodeSdkAgentService does for pids).
  * - Events are forwarded via raw client.event.subscribe() loop to avoid
  *   double-subscribing to the same stream as SessionEventForwarder.
- * - close() on a spawned session removes the store entry; resume() sessions
- *   leave it intact so the original spawner can still manage the process.
+ * - close() on an opened session removes the store entry; resumeSession()
+ *   sessions leave it intact so the original spawner can still manage the process.
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
@@ -21,7 +21,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import type {
   DirectHarnessSpawner,
   DirectHarnessSession,
-  SpawnOptions,
+  OpenSessionOptions,
   HarnessSessionId,
 } from '../../../domain/direct-harness/index.js';
 
@@ -55,8 +55,8 @@ export interface CreateOpencodeSdkHarnessOptions {
   readonly sessionStore?: SessionMetadataStore;
 }
 
-/** Fields required in SpawnOptions.config for opencode-sdk sessions. */
-interface OpencodeSdkSpawnConfig {
+/** Fields required in OpenSessionOptions.config for opencode-sdk sessions. */
+interface OpencodeSdkSessionConfig {
   chatroomId: string;
   role: string;
   machineId: string;
@@ -87,20 +87,20 @@ export function createOpencodeSdkHarness(
   return {
     harnessName: 'opencode-sdk',
 
-    async spawn(spawnOptions: SpawnOptions): Promise<DirectHarnessSession> {
+    async openSession(sessionOptions: OpenSessionOptions): Promise<DirectHarnessSession> {
       // ── Validate required config fields ──────────────────────────────────
-      const config = (spawnOptions.config ?? {}) as Partial<OpencodeSdkSpawnConfig>;
+      const config = (sessionOptions.config ?? {}) as Partial<OpencodeSdkSessionConfig>;
       if (!config.chatroomId || !config.role || !config.machineId) {
         throw new Error(
-          'opencode-sdk spawn() requires chatroomId, role, and machineId in SpawnOptions.config'
+          'opencode-sdk openSession() requires chatroomId, role, and machineId in OpenSessionOptions.config'
         );
       }
-      const { chatroomId, role, machineId } = config as OpencodeSdkSpawnConfig;
+      const { chatroomId, role, machineId } = config as OpencodeSdkSessionConfig;
 
-      const cwd = spawnOptions.cwd ?? process.cwd();
+      const cwd = sessionOptions.cwd ?? process.cwd();
       const env = {
         ...process.env,
-        ...(spawnOptions.env ?? {}),
+        ...(sessionOptions.env ?? {}),
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
       };
@@ -147,7 +147,7 @@ export function createOpencodeSdkHarness(
 
       const harnessSessionId = sdkSessionId as HarnessSessionId;
 
-      // ── 4. Persist session for resume() across daemon restarts ────────────
+      // ── 4. Persist session for resumeSession() across daemon restarts ─────
       sessionStore.upsert({
         sessionId: sdkSessionId,
         machineId,
@@ -177,12 +177,12 @@ export function createOpencodeSdkHarness(
       return session;
     },
 
-    async resume(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
+    async resumeSession(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
       const meta = sessionStore.get(harnessSessionId as string);
       if (!meta) {
         throw new Error(
-          `Cannot resume harnessSessionId=${harnessSessionId}: not found in session store. ` +
-          `Ensure the harness was spawned with this instance or the store file is accessible.`
+          `Cannot resumeSession harnessSessionId=${harnessSessionId}: not found in session store. ` +
+          `Ensure the harness was opened with this instance or the store file is accessible.`
         );
       }
 

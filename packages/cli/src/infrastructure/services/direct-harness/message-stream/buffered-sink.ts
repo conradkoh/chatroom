@@ -11,14 +11,14 @@ import type {
   FlushStrategy,
   FlushContext,
 } from '../../../../domain/direct-harness/message-stream/index.js';
-import type { WorkerId } from '../../../../domain/direct-harness/harness-worker.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
 
 // ─── Options ────────────────────────────────────────────────────────────────
 
 /** Construction options for BufferedMessageStreamSink. */
 export interface BufferedSinkOptions {
-  /** Worker whose output this sink is collecting. */
-  readonly workerId: WorkerId;
+  /** Harness session whose output this sink is collecting. */
+  readonly workerId: HarnessSessionRowId;
   /** Persistence layer; called with a snapshot of buffered chunks on flush. */
   readonly transport: MessageStreamTransport;
   /** Determines when the buffer should be flushed to the transport. */

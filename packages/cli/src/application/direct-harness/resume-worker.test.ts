@@ -33,7 +33,7 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
   const listeners = new Set<(e: DirectHarnessSessionEvent) => void>();
   return {
     harnessSessionId: 'harness-session-resume' as any,
-    send: vi.fn().mockResolvedValue(undefined),
+    prompt: vi.fn().mockResolvedValue(undefined),
     onEvent: vi.fn((listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -48,8 +48,8 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
 function createMockHarness(session: DirectHarnessSession): DirectHarnessSpawner {
   return {
     harnessName: 'test-harness',
-    spawn: vi.fn().mockResolvedValue(session),
-    resume: vi.fn().mockResolvedValue(session),
+    openSession: vi.fn().mockResolvedValue(session),
+    resumeSession: vi.fn().mockResolvedValue(session),
   };
 }
 
@@ -87,10 +87,10 @@ describe('resumeWorker', () => {
     vi.clearAllMocks();
   });
 
-  it('calls harness.resume with the supplied harnessSessionId', async () => {
+  it('calls harness.resumeSession with the supplied harnessSessionId', async () => {
     const deps = createDeps();
     await resumeWorker(deps, VALID_OPTIONS);
-    expect(deps.harness.resume).toHaveBeenCalledWith('existing-harness-session');
+    expect(deps.harness.resumeSession).toHaveBeenCalledWith('existing-harness-session');
   });
 
   it('does NOT call createWorker or associateHarnessSession', async () => {
@@ -138,11 +138,11 @@ describe('resumeWorker', () => {
     expect(deps.session.close).toHaveBeenCalledTimes(1);
   });
 
-  it('propagates errors from harness.resume without creating a transport', async () => {
+  it('propagates errors from harness.resumeSession without creating a transport', async () => {
     const harness: DirectHarnessSpawner = {
       harnessName: 'test',
-      spawn: vi.fn(),
-      resume: vi.fn().mockRejectedValue(new Error('session not found')),
+      openSession: vi.fn(),
+      resumeSession: vi.fn().mockRejectedValue(new Error('session not found')),
     };
     const mutationFn = vi.fn();
 

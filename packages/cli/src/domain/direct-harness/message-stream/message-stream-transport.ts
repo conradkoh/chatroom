@@ -2,11 +2,11 @@
  * Transport interface for persisting message stream chunks to the backend.
  */
 
-import type { WorkerId } from '../harness-worker.js';
+import type { HarnessSessionRowId } from '../harness-session.js';
 
 /** A single ordered chunk of content produced by a harness session. */
 export interface MessageStreamChunk {
-  /** Monotonically increasing sequence number within a worker's stream. */
+  /** Monotonically increasing sequence number within a session's stream. */
   readonly seq: number;
   /** The text content of this chunk. */
   readonly content: string;
@@ -14,7 +14,7 @@ export interface MessageStreamChunk {
   readonly timestamp: number;
 }
 
-/** Responsible for durably persisting a batch of chunks for a given worker. */
+/** Responsible for durably persisting a batch of chunks for a given harness session. */
 export interface MessageStreamTransport {
-  persist(workerId: WorkerId, chunks: readonly MessageStreamChunk[]): Promise<void>;
+  persist(harnessSessionRowId: HarnessSessionRowId, chunks: readonly MessageStreamChunk[]): Promise<void>;
 }

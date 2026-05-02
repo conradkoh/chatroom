@@ -2,24 +2,31 @@
  * Barrel re-export for the domain/direct-harness module.
  *
  * Import from this barrel for convenience:
- *   import type { HarnessWorker, DirectHarnessSpawner } from '../domain/direct-harness/index.js';
+ *   import type { Workspace, DirectHarnessSpawner } from '../domain/direct-harness/index.js';
  */
 
 export type {
-  WorkerId,
   ChatroomId,
+  WorkspaceId,
+  Workspace,
+} from './workspace.js';
+
+export type {
+  HarnessSessionRowId,
   HarnessSessionId,
-  WorkerStatus,
-  HarnessWorker,
-} from './harness-worker.js';
+  HarnessSessionStatus,
+  HarnessSession,
+} from './harness-session.js';
 
 export type {
   DirectHarnessSessionEvent,
+  PromptPart,
+  PromptInput,
   DirectHarnessSession,
 } from './direct-harness-session.js';
 
 export type {
-  SpawnOptions,
+  OpenSessionOptions,
   DirectHarnessSpawner,
 } from './direct-harness-spawner.js';
 

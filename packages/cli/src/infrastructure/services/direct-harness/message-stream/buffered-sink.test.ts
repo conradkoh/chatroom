@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BufferedMessageStreamSink } from './buffered-sink.js';
 import type { BufferedSinkOptions } from './buffered-sink.js';
 import { IntervalFlushStrategy } from './strategies/interval-strategy.js';
-import type { MessageStreamTransport, WorkerId } from '../../../../domain/direct-harness/index.js';
+import type { MessageStreamTransport, HarnessSessionRowId } from '../../../../domain/direct-harness/index.js';
 import type { MessageStreamSinkWarning } from '../../../../domain/direct-harness/message-stream/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const WORKER_ID = 'worker-test' as WorkerId;
+const WORKER_ID = 'worker-test' as HarnessSessionRowId;
 
 function createTransport(): { transport: MessageStreamTransport; persist: ReturnType<typeof vi.fn> } {
   const persist = vi.fn().mockResolvedValue(undefined);
