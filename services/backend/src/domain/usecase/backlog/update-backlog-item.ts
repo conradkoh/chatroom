@@ -18,7 +18,7 @@ export async function updateBacklogItem(
   ctx: MutationCtx,
   args: UpdateBacklogItemArgs
 ): Promise<void> {
-  const item = await ctx.db.get('chatroom_backlog', args.itemId);
+  const item = await ctx.db.get(args.itemId);
   if (!item) throw new ConvexError('Backlog item not found');
 
   if (!canEditBacklogContent(item.status)) {
@@ -29,7 +29,7 @@ export async function updateBacklogItem(
     throw new ConvexError('Content cannot be empty');
   }
 
-  await ctx.db.patch('chatroom_backlog', args.itemId, {
+  await ctx.db.patch(args.itemId, {
     content: args.content.trim(),
     updatedAt: Date.now(),
   });
