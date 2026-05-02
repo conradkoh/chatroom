@@ -1,10 +1,24 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+const mockUseSessionQuery = vi.fn();
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
+}));
+
 import { DirectHarnessView } from './DirectHarnessView';
 
 describe('DirectHarnessView', () => {
-  it('renders the workspace placeholder when no workspace is selected', () => {
+  it('renders the loading state while workspaces are being fetched', () => {
+    mockUseSessionQuery.mockReturnValue(undefined);
     render(<DirectHarnessView chatroomId={'fakeid' as never} />);
-    expect(screen.getByText(/select a workspace/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading workspaces/i)).toBeInTheDocument();
+  });
+
+  it('renders the no-workspace empty state when workspaces are empty', () => {
+    mockUseSessionQuery.mockReturnValue([]);
+    render(<DirectHarnessView chatroomId={'fakeid' as never} />);
+    expect(screen.getByText(/no workspaces in this chatroom/i)).toBeInTheDocument();
   });
 });
