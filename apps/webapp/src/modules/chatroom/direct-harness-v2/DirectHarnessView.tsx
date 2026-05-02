@@ -6,6 +6,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { SessionList } from './SessionList';
 
 interface DirectHarnessViewProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -17,6 +18,8 @@ export const DirectHarnessView = memo(function DirectHarnessView({
   const workspaces = useSessionQuery(api.workspaces.listWorkspacesForChatroom, { chatroomId });
   const [selectedWorkspaceId, setSelectedWorkspaceId] =
     useState<Id<'chatroom_workspaces'> | null>(null);
+  const [selectedSessionId, setSelectedSessionId] =
+    useState<Id<'chatroom_harnessSessions'> | null>(null);
 
   // Auto-select first workspace once they load (and only if nothing selected yet)
   useEffect(() => {
@@ -24,6 +27,11 @@ export const DirectHarnessView = memo(function DirectHarnessView({
     if (!workspaces || workspaces.length === 0) return;
     setSelectedWorkspaceId(workspaces[0]._id);
   }, [workspaces, selectedWorkspaceId]);
+
+  // Reset session selection whenever workspace changes
+  useEffect(() => {
+    setSelectedSessionId(null);
+  }, [selectedWorkspaceId]);
 
   // Loading state — query returns undefined while in flight
   if (workspaces === undefined) {
@@ -36,7 +44,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
-      {/* Left pane — switcher + (future) session list */}
+      {/* Left pane — switcher + session list */}
       <div className="w-72 shrink-0 border-r border-border bg-card flex flex-col min-h-0">
         <div className="shrink-0 border-b border-border p-2">
           <WorkspaceSwitcher
@@ -45,14 +53,27 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             onSelect={setSelectedWorkspaceId}
           />
         </div>
-        {/* c3 will add SessionList here */}
-        <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
-          {selectedWorkspaceId ? 'Sessions list coming in c3.' : 'Select a workspace to begin.'}
-        </div>
+        {selectedWorkspaceId ? (
+          <SessionList
+            workspaceId={selectedWorkspaceId}
+            selectedSessionId={selectedSessionId}
+            onSelect={setSelectedSessionId}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
+            Select a workspace to begin.
+          </div>
+        )}
       </div>
       {/* Right pane — (future) session detail */}
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        {selectedWorkspaceId ? 'Select a session.' : 'No workspace selected.'}
+        {selectedSessionId ? (
+          <div>Session detail coming in c4 — selected: {selectedSessionId}</div>
+        ) : selectedWorkspaceId ? (
+          'Select a session.'
+        ) : (
+          'No workspace selected.'
+        )}
       </div>
     </div>
   );
