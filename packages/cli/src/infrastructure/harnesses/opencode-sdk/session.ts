@@ -46,7 +46,7 @@ export interface OpencodeSdkSessionClient {
 
 /**
  * Manages a single opencode-sdk session lifecycle.
- * Created by `createOpencodeSdkHarness().spawn()` or `.resume()`.
+ * Created by `createBoundOpencodeSdkHarness().openSession()` or `resumeSessionFromStore()`.
  */
 export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
   private closed = false;

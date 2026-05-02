@@ -1,19 +1,10 @@
 /**
  * opencode-sdk DirectHarness adapter.
  *
- * Two distinct modes:
+ * Multi-session bound spawner (`createOpencodeSdkHarnessProcess`) for the daemon,
+ * plus `createOpencodeSdkResumer` for the CLI `session resume` command (resume-only).
  *
- * 1. `createOpencodeSdkHarness()` — legacy/single-session mode.
- *    Each `openSession()` spawns a fresh `opencode serve` process. Used by tests
- *    and anywhere a registry is not available.
- *
- * 2. `spawnOpencodeSdkProcess()` + `createBoundOpencodeSdkHarness()` — multi-session mode.
- *    `spawnOpencodeSdkProcess` starts the server once and returns a process handle.
- *    `createBoundOpencodeSdkHarness` creates a spawner bound to the running process;
- *    its `openSession()` calls `client.session.create()` without spawning a new process.
- *    Used by `HarnessProcessRegistry` to support multiple sessions per workspace.
- *
- * `resumeSession()` is identical in both modes — reconnects via the session store.
+ * `resumeSession` logic is shared via `resumeSessionFromStore()`.
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
@@ -41,22 +32,6 @@ import {
 } from './session.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-/** Options for creating the opencode-sdk harness spawner (legacy single-session mode). */
-export interface CreateOpencodeSdkHarnessOptions {
-  /** Server startup timeout in ms. Default: 10 000 */
-  readonly startupTimeoutMs?: number;
-  /** Override the spawn function (for tests). */
-  readonly spawnFn?: typeof nodeSpawn;
-  /** Override Date.now (for tests). */
-  readonly nowFn?: () => number;
-  /**
-   * Session persistence store.
-   * Defaults to FileSessionMetadataStore so sessions survive daemon restarts.
-   * Inject InMemorySessionMetadataStore in tests.
-   */
-  readonly sessionStore?: SessionMetadataStore;
-}
 
 /** Options for spawning an opencode serve process (multi-session mode). */
 export interface SpawnOpencodeSdkProcessOptions {
@@ -132,6 +107,57 @@ async function createSessionOnClient(
     client,
     () => stopEventStream(),
     undefined // process lifecycle managed by HarnessProcessRegistry
+  );
+
+  stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+  return session;
+}
+
+// ─── Shared resume logic ────────────────────────────────────────────────────
+
+/** Options for resumeSessionFromStore that control client reuse. */
+interface ResumeClientOptions {
+  /** If provided, reuse this client when the stored baseUrl matches. */
+  readonly reuseClient?: {
+    readonly baseUrl: string;
+    readonly client: OpencodeSdkSessionClient;
+  };
+}
+
+/**
+ * Resume a session from the session metadata store.
+ *
+ * Shared between the bound spawner (reuses the process client when possible)
+ * and the CLI resume command (always creates a fresh client).
+ *
+ * Throws a clear error if the session ID is not found in the store.
+ */
+export async function resumeSessionFromStore(
+  harnessSessionId: HarnessSessionId,
+  sessionStore: SessionMetadataStore,
+  opts: ResumeClientOptions = {},
+  nowFn: () => number = Date.now
+): Promise<DirectHarnessSession> {
+  const meta = sessionStore.get(harnessSessionId as string);
+  if (!meta) {
+    throw new Error(
+      `Cannot resumeSession harnessSessionId=${harnessSessionId}: not found in session store.`
+    );
+  }
+
+  // Reuse the running process's client if the session belongs to it
+  const client: OpencodeSdkSessionClient =
+    opts.reuseClient && meta.baseUrl === opts.reuseClient.baseUrl
+      ? opts.reuseClient.client
+      : createOpencodeClient({ baseUrl: meta.baseUrl });
+
+  let stopEventStream: () => void = () => {};
+
+  const session = new OpencodeSdkDirectHarnessSession(
+    harnessSessionId,
+    client,
+    () => stopEventStream(),
+    undefined // process lifecycle managed elsewhere
   );
 
   stopEventStream = subscribeToSessionEvents(client, session, nowFn);
@@ -244,30 +270,12 @@ export function createBoundOpencodeSdkHarness(
     },
 
     async resumeSession(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
-      const meta = store.get(harnessSessionId as string);
-      if (!meta) {
-        throw new Error(
-          `Cannot resumeSession harnessSessionId=${harnessSessionId}: not found in session store.`
-        );
-      }
-
-      // Reuse the running process's client if the session belongs to it
-      const client: OpencodeSdkSessionClient =
-        meta.baseUrl === processHandle.baseUrl
-          ? processHandle.client
-          : createOpencodeClient({ baseUrl: meta.baseUrl });
-
-      let stopEventStream: () => void = () => {};
-
-      const session = new OpencodeSdkDirectHarnessSession(
+      return resumeSessionFromStore(
         harnessSessionId,
-        client,
-        () => stopEventStream(),
-        undefined
+        store,
+        { reuseClient: { baseUrl: processHandle.baseUrl, client: processHandle.client } },
+        nowFn
       );
-
-      stopEventStream = subscribeToSessionEvents(client, session, nowFn);
-      return session;
     },
   };
 }
@@ -320,21 +328,31 @@ export async function createOpencodeSdkHarnessProcess(
   };
 }
 
-// ─── Legacy single-session factory ───────────────────────────────────────────
+// ─── CLI resume-only spawner ─────────────────────────────────────────────────
+
+/** Options for `createOpencodeSdkResumer`. */
+export interface CreateOpencodeSdkResumerOptions {
+  /** Override Date.now (for tests). */
+  readonly nowFn?: () => number;
+  /**
+   * Session persistence store.
+   * Defaults to FileSessionMetadataStore so sessions survive daemon restarts.
+   * Inject InMemorySessionMetadataStore in tests.
+   */
+  readonly sessionStore?: SessionMetadataStore;
+}
 
 /**
- * Creates a DirectHarnessSpawner for the opencode SDK harness.
+ * Creates a resume-only DirectHarnessSpawner for the CLI `session resume` command.
  *
- * Legacy single-session mode: each `openSession()` spawns a fresh process.
- * Use `createOpencodeSdkHarnessProcess` + `HarnessProcessRegistry` for
- * multi-session (one process per workspace).
+ * `openSession()` throws — new sessions must be opened via the daemon's
+ * `HarnessProcessRegistry` using `createOpencodeSdkHarnessProcess`.
+ * `resumeSession()` reconnects to an existing session via the session store.
  */
-export function createOpencodeSdkHarness(
-  options: CreateOpencodeSdkHarnessOptions = {}
+export function createOpencodeSdkResumer(
+  options: CreateOpencodeSdkResumerOptions = {}
 ): DirectHarnessSpawner {
   const {
-    startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
-    spawnFn = nodeSpawn,
     nowFn = Date.now,
     sessionStore = new FileSessionMetadataStore(),
   } = options;
@@ -342,110 +360,14 @@ export function createOpencodeSdkHarness(
   return {
     harnessName: 'opencode-sdk',
 
-    async openSession(sessionOptions: OpenSessionOptions): Promise<DirectHarnessSession> {
-      const config = (sessionOptions.config ?? {}) as OpencodeSdkSessionConfig;
-      const chatroomId = config.chatroomId ?? '';
-      const role = config.role ?? config.agent ?? 'unknown';
-      const machineId = config.machineId ?? '';
-
-      const cwd = sessionOptions.cwd ?? process.cwd();
-      const env = {
-        ...process.env,
-        ...(sessionOptions.env ?? {}),
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      };
-
-      // ── 1. Start the opencode serve process ──────────────────────────────
-      const childProcess = spawnFn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
-        cwd,
-        env,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false,
-        detached: true,
-      });
-
-      if (!childProcess.pid) {
-        throw new Error('Failed to spawn opencode serve process');
-      }
-
-      const pid = childProcess.pid;
-
-      // ── 2. Wait for the server to start listening ─────────────────────────
-      const baseUrl = await waitForListeningUrl(childProcess, {
-        timeoutMs: startupTimeoutMs,
-      }).catch((err: unknown) => {
-        childProcess.kill();
-        throw err;
-      });
-
-      // ── 3. Create the SDK client and a new bare session ───────────────────
-      const sdkClient = createOpencodeClient({ baseUrl });
-
-      let sdkSessionId: string;
-      try {
-        const result = await sdkClient.session.create({ body: {} });
-        const sessionId = result.data?.id;
-        if (!sessionId) throw new Error('Failed to create session: missing id');
-        sdkSessionId = sessionId;
-      } catch (err) {
-        childProcess.kill();
-        throw err;
-      }
-
-      const client: OpencodeSdkSessionClient = sdkClient;
-      const harnessSessionId = sdkSessionId as HarnessSessionId;
-
-      // ── 4. Persist session for resumeSession() across daemon restarts ─────
-      sessionStore.upsert({
-        sessionId: sdkSessionId,
-        machineId,
-        chatroomId,
-        role,
-        pid,
-        createdAt: new Date(nowFn()).toISOString(),
-        baseUrl,
-      });
-
-      // ── 5. Build the session ──────────────────────────────────────────────
-      let stopEventStream: () => void = () => {};
-
-      const session = new OpencodeSdkDirectHarnessSession(
-        harnessSessionId,
-        client,
-        () => stopEventStream(),
-        () => {
-          sessionStore.remove(sdkSessionId);
-          childProcess.kill();
-        }
+    async openSession(): Promise<DirectHarnessSession> {
+      throw new Error(
+        'createOpencodeSdkResumer cannot open new sessions; use createOpencodeSdkHarnessProcess via HarnessProcessRegistry instead'
       );
-
-      stopEventStream = subscribeToSessionEvents(client, session, nowFn);
-      return session;
     },
 
     async resumeSession(harnessSessionId: HarnessSessionId): Promise<DirectHarnessSession> {
-      const meta = sessionStore.get(harnessSessionId as string);
-      if (!meta) {
-        throw new Error(
-          `Cannot resumeSession harnessSessionId=${harnessSessionId}: not found in session store. ` +
-            `Ensure the harness was opened with this instance or the store file is accessible.`
-        );
-      }
-
-      const client: OpencodeSdkSessionClient = createOpencodeClient({ baseUrl: meta.baseUrl });
-
-      let stopEventStream: () => void = () => {};
-
-      const session = new OpencodeSdkDirectHarnessSession(
-        harnessSessionId,
-        client,
-        () => stopEventStream(),
-        undefined
-      );
-
-      stopEventStream = subscribeToSessionEvents(client, session, nowFn);
-      return session;
+      return resumeSessionFromStore(harnessSessionId, sessionStore, {}, nowFn);
     },
   };
 }

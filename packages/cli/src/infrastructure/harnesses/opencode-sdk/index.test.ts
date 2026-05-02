@@ -1,11 +1,7 @@
-import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
-const mockCreateSessionFn = vi.fn();
-const mockPromptAsyncFn = vi.fn().mockResolvedValue(undefined);
-const mockAbortFn = vi.fn().mockResolvedValue(undefined);
 const mockSubscribeFn = vi.fn().mockResolvedValue({
   stream: (async function* () {})(),
 });
@@ -13,9 +9,9 @@ const mockSubscribeFn = vi.fn().mockResolvedValue({
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
     session: {
-      create: mockCreateSessionFn,
-      promptAsync: mockPromptAsyncFn,
-      abort: mockAbortFn,
+      create: vi.fn().mockResolvedValue({ data: { id: 'sdk-session-test' } }),
+      promptAsync: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
     },
     event: {
       subscribe: mockSubscribeFn,
@@ -30,163 +26,139 @@ vi.mock('../../services/remote-agents/opencode-sdk/parse-listening-url.js', () =
   waitForListeningUrl: vi.fn().mockResolvedValue('http://localhost:12345'),
 }));
 
-import { createOpencodeSdkHarness } from './index.js';
+import { createOpencodeSdkResumer, resumeSessionFromStore } from './index.js';
 import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
 import { InMemorySessionMetadataStore } from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function createFakeChild(pid = 9999) {
-  const emitter = new EventEmitter();
-  return {
-    pid,
-    kill: vi.fn(),
-    stdout: new EventEmitter(),
-    stderr: new EventEmitter(),
-    on: emitter.on.bind(emitter),
-    emit: emitter.emit.bind(emitter),
-  };
-}
-
-function createHarness(sessionStoreOverride?: InMemorySessionMetadataStore) {
-  const spawnFn = vi.fn();
+function createResumer(sessionStoreOverride?: InMemorySessionMetadataStore) {
   const sessionStore = sessionStoreOverride ?? new InMemorySessionMetadataStore();
-  const harness = createOpencodeSdkHarness({
-    spawnFn,
-    startupTimeoutMs: 1000,
+  const resumer = createOpencodeSdkResumer({
     nowFn: () => 0,
     sessionStore,
   });
-  return { harness, spawnFn, sessionStore };
+  return { resumer, sessionStore };
 }
-
-const VALID_CONFIG = { chatroomId: 'room-1', role: 'builder', machineId: 'machine-1' };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('createOpencodeSdkHarness', () => {
+describe('createOpencodeSdkResumer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateSessionFn.mockResolvedValue({ data: { id: 'sdk-session-test' } });
     mockSubscribeFn.mockResolvedValue({ stream: (async function* () {})() });
   });
 
   it('harnessName equals "opencode-sdk"', () => {
-    const { harness } = createHarness();
-    expect(harness.harnessName).toBe('opencode-sdk');
+    const { resumer } = createResumer();
+    expect(resumer.harnessName).toBe('opencode-sdk');
   });
 
-  it('openSession() returns a session with the harness-issued harnessSessionId', async () => {
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue(createFakeChild(1234));
-
-    const session = await harness.openSession({ cwd: '/tmp', config: VALID_CONFIG });
-
-    expect(session.harnessSessionId).toBe('sdk-session-test' as HarnessSessionId);
+  it('openSession() throws — resumer cannot open new sessions', async () => {
+    const { resumer } = createResumer();
+    await expect(resumer.openSession({ cwd: '/tmp' })).rejects.toThrow(
+      'createOpencodeSdkResumer cannot open new sessions'
+    );
   });
 
-  it('openSession() propagates errors when process fails to start (no pid)', async () => {
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue({ pid: undefined, kill: vi.fn(), stdout: new EventEmitter(), stderr: new EventEmitter() });
-
-    await expect(harness.openSession({ cwd: '/tmp', config: VALID_CONFIG })).rejects.toThrow('Failed to spawn');
-  });
-
-  it('openSession() propagates session.create failures', async () => {
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue(createFakeChild(2345));
-    mockCreateSessionFn.mockRejectedValue(new Error('session create failed'));
-
-    await expect(harness.openSession({ cwd: '/tmp', config: VALID_CONFIG })).rejects.toThrow('session create failed');
-  });
-
-  it('openSession() does not require chatroomId, role, or machineId — uses defaults when absent', async () => {
-    // The legacy spawner accepts missing config fields (uses empty string defaults).
-    // The new multi-session path (createBoundOpencodeSdkHarness) is the strict one.
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue(createFakeChild(3456));
-
-    // Should resolve without throwing — config fields are optional in legacy mode
-    const session = await harness.openSession({ cwd: '/tmp', config: { role: 'builder', machineId: 'machine-1' } });
-    expect(session.harnessSessionId).toBeDefined();
-    await session.close();
-  });
-
-  it('openSession() works even when role and machineId are absent', async () => {
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue(createFakeChild(3457));
-
-    const session = await harness.openSession({ cwd: '/tmp', config: { chatroomId: 'room-1' } });
-    expect(session.harnessSessionId).toBeDefined();
-    await session.close();
-  });
-
-  it('openSession() works with all config fields absent', async () => {
-    const { harness, spawnFn } = createHarness();
-    spawnFn.mockReturnValue(createFakeChild(3458));
-
-    const session = await harness.openSession({ cwd: '/tmp', config: {} });
-    expect(session.harnessSessionId).toBeDefined();
-    await session.close();
-  });
-
-  it('openSession() persists session metadata to the store', async () => {
+  it('resumeSession() returns a session for a known store entry', async () => {
     const sessionStore = new InMemorySessionMetadataStore();
-    const { harness, spawnFn } = createHarness(sessionStore);
-    spawnFn.mockReturnValue(createFakeChild(4567));
+    sessionStore.upsert({
+      sessionId: 'known-session-1',
+      machineId: 'm1',
+      chatroomId: 'c1',
+      role: 'builder',
+      pid: 1234,
+      createdAt: new Date(0).toISOString(),
+      baseUrl: 'http://localhost:12345',
+    });
 
-    await harness.openSession({ cwd: '/tmp', config: VALID_CONFIG });
+    const { resumer } = createResumer(sessionStore);
+    const session = await resumer.resumeSession('known-session-1' as HarnessSessionId);
 
-    const stored = sessionStore.get('sdk-session-test');
-    expect(stored).toBeDefined();
-    expect(stored?.baseUrl).toBe('http://localhost:12345');
-    expect(stored?.chatroomId).toBe('room-1');
-    expect(stored?.role).toBe('builder');
-    expect(stored?.machineId).toBe('machine-1');
+    expect(session.harnessSessionId).toBe('known-session-1');
   });
 
-  it('resumeSession() throws when harnessSessionId is not in the store', async () => {
-    const { harness } = createHarness();
-    const unknownId = 'nonexistent-session' as HarnessSessionId;
-
-    await expect(harness.resumeSession(unknownId)).rejects.toThrow('not found in session store');
+  it('resumeSession() throws for an unknown harnessSessionId', async () => {
+    const { resumer } = createResumer();
+    await expect(resumer.resumeSession('nonexistent-session' as HarnessSessionId)).rejects.toThrow(
+      'not found in session store'
+    );
   });
 
-  it('resumeSession() returns a working session after a successful openSession()', async () => {
+  it('uses provided sessionStore for lookups', async () => {
     const sessionStore = new InMemorySessionMetadataStore();
-    const { harness, spawnFn } = createHarness(sessionStore);
-    spawnFn.mockReturnValue(createFakeChild(5678));
+    sessionStore.upsert({
+      sessionId: 'stored-session',
+      machineId: 'm1',
+      chatroomId: 'c1',
+      role: 'reviewer',
+      pid: 5678,
+      createdAt: new Date(0).toISOString(),
+      baseUrl: 'http://localhost:9999',
+    });
 
-    const opened = await harness.openSession({ cwd: '/tmp', config: VALID_CONFIG });
-    const resumed = await harness.resumeSession(opened.harnessSessionId);
+    const { resumer } = createResumer(sessionStore);
+    const session = await resumer.resumeSession('stored-session' as HarnessSessionId);
+    expect(session.harnessSessionId).toBe('stored-session');
+  });
+});
 
-    expect(resumed.harnessSessionId).toBe(opened.harnessSessionId);
+describe('resumeSessionFromStore', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSubscribeFn.mockResolvedValue({ stream: (async function* () {})() });
   });
 
-  it('close() on opened session removes the store entry', async () => {
+  it('returns a session when the ID is found in the store', async () => {
     const sessionStore = new InMemorySessionMetadataStore();
-    const { harness, spawnFn } = createHarness(sessionStore);
-    spawnFn.mockReturnValue(createFakeChild(6789));
+    sessionStore.upsert({
+      sessionId: 'test-resume-id',
+      machineId: 'm1',
+      chatroomId: 'c1',
+      role: 'builder',
+      pid: 9999,
+      createdAt: new Date(0).toISOString(),
+      baseUrl: 'http://localhost:12345',
+    });
 
-    const session = await harness.openSession({ cwd: '/tmp', config: VALID_CONFIG });
-    expect(sessionStore.get('sdk-session-test')).toBeDefined();
+    const session = await resumeSessionFromStore(
+      'test-resume-id' as HarnessSessionId,
+      sessionStore,
+      {},
+      () => 0
+    );
 
-    await session.close();
-
-    expect(sessionStore.get('sdk-session-test')).toBeUndefined();
+    expect(session.harnessSessionId).toBe('test-resume-id');
   });
 
-  it('close() on resumed session does NOT remove the store entry', async () => {
+  it('throws when the ID is not found in the store', async () => {
     const sessionStore = new InMemorySessionMetadataStore();
-    const { harness, spawnFn } = createHarness(sessionStore);
-    spawnFn.mockReturnValue(createFakeChild(7890));
 
-    const opened = await harness.openSession({ cwd: '/tmp', config: VALID_CONFIG });
-    const resumed = await harness.resumeSession(opened.harnessSessionId);
+    await expect(
+      resumeSessionFromStore('unknown-id' as HarnessSessionId, sessionStore, {}, () => 0)
+    ).rejects.toThrow('not found in session store');
+  });
 
-    await resumed.close();
+  it('creates a new client when no reuseClient is provided', async () => {
+    const sessionStore = new InMemorySessionMetadataStore();
+    sessionStore.upsert({
+      sessionId: 'fresh-client-id',
+      machineId: 'm1',
+      chatroomId: 'c1',
+      role: 'builder',
+      pid: 9999,
+      createdAt: new Date(0).toISOString(),
+      baseUrl: 'http://localhost:54321',
+    });
 
-    // Store entry still present — the spawner still owns it
-    expect(sessionStore.get('sdk-session-test')).toBeDefined();
+    const session = await resumeSessionFromStore(
+      'fresh-client-id' as HarnessSessionId,
+      sessionStore,
+      {}, // no reuseClient
+      () => 0
+    );
+
+    expect(session.harnessSessionId).toBe('fresh-client-id');
   });
 });

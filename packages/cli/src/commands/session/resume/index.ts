@@ -6,7 +6,7 @@ import { resumeSession } from '../../../application/direct-harness/resume-sessio
 import type { ResumeSessionDeps } from '../../../application/direct-harness/resume-session.js';
 import { getSessionId } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../../infrastructure/convex/client.js';
-import { createOpencodeSdkHarness } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
+import { createOpencodeSdkResumer } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ async function createDefaultDeps(): Promise<SessionResumeDeps> {
       query: (endpoint, args) => client.query(endpoint, args),
     },
     sessionId: sessionIdValue,
-    spawner: createOpencodeSdkHarness(),
+    spawner: createOpencodeSdkResumer(),
     chunkExtractor: openCodeChunkExtractor,
     stdout: (line) => process.stdout.write(line + '\n'),
   };
