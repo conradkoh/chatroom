@@ -7,7 +7,7 @@ import type { MessageStreamChunk } from '../../../../domain/direct-harness/messa
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const SESSION_ID = 'test-session-id';
-const WORKER_ID = 'worker-abc' as HarnessSessionRowId;
+const HARNESS_SESSION_ROW_ID = 'worker-abc' as HarnessSessionRowId;
 
 function createBackend(): { backend: ConvexMessageStreamTransportBackend; mutation: ReturnType<typeof vi.fn> } {
   const mutation = vi.fn().mockResolvedValue(undefined);
@@ -25,7 +25,7 @@ describe('ConvexMessageStreamTransport', () => {
     const { backend, mutation } = createBackend();
     const transport = new ConvexMessageStreamTransport({ backend, sessionId: SESSION_ID });
 
-    await transport.persist(WORKER_ID, []);
+    await transport.persist(HARNESS_SESSION_ROW_ID, []);
 
     expect(mutation).not.toHaveBeenCalled();
   });
@@ -35,12 +35,12 @@ describe('ConvexMessageStreamTransport', () => {
     const transport = new ConvexMessageStreamTransport({ backend, sessionId: SESSION_ID });
     const chunks = [makeChunk(0, 'hello', 42)];
 
-    await transport.persist(WORKER_ID, chunks);
+    await transport.persist(HARNESS_SESSION_ROW_ID, chunks);
 
     expect(mutation).toHaveBeenCalledOnce();
     const [, args] = mutation.mock.calls[0];
     expect(args.sessionId).toBe(SESSION_ID);
-    expect(args.harnessSessionRowId).toBe(WORKER_ID);
+    expect(args.harnessSessionRowId).toBe(HARNESS_SESSION_ROW_ID);
     expect(args.chunks).toEqual([{ seq: 0, content: 'hello', timestamp: 42 }]);
   });
 
@@ -49,7 +49,7 @@ describe('ConvexMessageStreamTransport', () => {
     const transport = new ConvexMessageStreamTransport({ backend, sessionId: SESSION_ID });
     // Create a chunk with extra properties (to verify the mapping strips them)
     const richChunk = { seq: 1, content: 'data', timestamp: 999 } satisfies MessageStreamChunk;
-    await transport.persist(WORKER_ID, [richChunk]);
+    await transport.persist(HARNESS_SESSION_ROW_ID, [richChunk]);
 
     const [, args] = mutation.mock.calls[0];
     const sentChunk = args.chunks[0];
@@ -62,7 +62,7 @@ describe('ConvexMessageStreamTransport', () => {
     const transport = new ConvexMessageStreamTransport({ backend, sessionId: SESSION_ID });
     const chunks = [makeChunk(0, 'a'), makeChunk(1, 'b'), makeChunk(2, 'c')];
 
-    await transport.persist(WORKER_ID, chunks);
+    await transport.persist(HARNESS_SESSION_ROW_ID, chunks);
 
     const [, args] = mutation.mock.calls[0];
     expect(args.chunks.map((c: { seq: number }) => c.seq)).toEqual([0, 1, 2]);
@@ -74,6 +74,6 @@ describe('ConvexMessageStreamTransport', () => {
     vi.mocked(backend.mutation).mockRejectedValue(new Error('Convex disconnect'));
     const transport = new ConvexMessageStreamTransport({ backend, sessionId: SESSION_ID });
 
-    await expect(transport.persist(WORKER_ID, [makeChunk(0, 'x')])).rejects.toThrow('Convex disconnect');
+    await expect(transport.persist(HARNESS_SESSION_ROW_ID, [makeChunk(0, 'x')])).rejects.toThrow('Convex disconnect');
   });
 });

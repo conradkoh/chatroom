@@ -7,7 +7,7 @@ import type { MessageStreamSinkWarning } from '../../../../domain/direct-harness
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const WORKER_ID = 'worker-test' as HarnessSessionRowId;
+const HARNESS_SESSION_ROW_ID = 'worker-test' as HarnessSessionRowId;
 
 function createTransport(): { transport: MessageStreamTransport; persist: ReturnType<typeof vi.fn> } {
   const persist = vi.fn().mockResolvedValue(undefined);
@@ -26,7 +26,7 @@ function createSink(overrides: Partial<BufferedSinkOptions> = {}): SinkFixture {
   const clockMs = { value: 0 };
   const { transport, persist } = createTransport();
   const sink = new BufferedMessageStreamSink({
-    workerId: WORKER_ID,
+    workerId: HARNESS_SESSION_ROW_ID,
     transport,
     strategy: new IntervalFlushStrategy(500),
     tickIntervalMs: 100,
@@ -119,7 +119,7 @@ describe('BufferedMessageStreamSink', () => {
 
   it('re-prepends snapshot in seq order when transport rejects', async () => {
     const persist = vi.fn().mockRejectedValueOnce(new Error('network error'));
-    const { sink } = createSink({ transport: { persist }, workerId: WORKER_ID });
+    const { sink } = createSink({ transport: { persist }, workerId: HARNESS_SESSION_ROW_ID });
     sink.write({ content: 'a' });
     sink.write({ content: 'b' });
 
@@ -145,7 +145,7 @@ describe('BufferedMessageStreamSink', () => {
 
   it('emits transport-error warning on persist failure', async () => {
     const persist = vi.fn().mockRejectedValue(new Error('down'));
-    const { sink } = createSink({ transport: { persist }, workerId: WORKER_ID });
+    const { sink } = createSink({ transport: { persist }, workerId: HARNESS_SESSION_ROW_ID });
     const warnings: MessageStreamSinkWarning[] = [];
     sink.onWarning((w) => warnings.push(w));
     sink.write({ content: 'x' });
@@ -198,7 +198,7 @@ describe('BufferedMessageStreamSink', () => {
         callOrder.push('second-end');
       });
 
-    const { sink } = createSink({ transport: { persist }, workerId: WORKER_ID });
+    const { sink } = createSink({ transport: { persist }, workerId: HARNESS_SESSION_ROW_ID });
     sink.write({ content: 'a' });
     const f1 = sink.flush();
 
@@ -253,7 +253,7 @@ describe('BufferedMessageStreamSink', () => {
 
   it('supports multiple warning listeners and individual unsubscribe', async () => {
     const persist = vi.fn().mockRejectedValue(new Error('fail'));
-    const { sink } = createSink({ transport: { persist }, workerId: WORKER_ID });
+    const { sink } = createSink({ transport: { persist }, workerId: HARNESS_SESSION_ROW_ID });
 
     const received1: MessageStreamSinkWarning[] = [];
     const received2: MessageStreamSinkWarning[] = [];
