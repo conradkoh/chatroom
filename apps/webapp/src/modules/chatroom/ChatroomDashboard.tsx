@@ -100,7 +100,7 @@ import { openExternalUrl } from '@/lib/navigation';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
-import { DirectHarnessView } from './direct-harness-v2/DirectHarnessView';
+import { DirectHarnessView } from './direct-harness/DirectHarnessView';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
