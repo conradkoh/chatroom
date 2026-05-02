@@ -64,59 +64,6 @@ export const submitPrompt = mutation({
   },
 });
 
-// ─── updateSessionAgent (override) ────────────────────────────────────────────
-
-/**
- * Update the agent for a harness session.
- *
- * Validates that the requested agent is known in the machine registry for the
- * session's workspace. Rejects unknown agents with a descriptive error.
- */
-export const updateSessionAgentWithValidation = mutation({
-  args: {
-    ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
-    agent: v.string(),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(
-      ctx,
-      args.sessionId,
-      args.harnessSessionRowId
-    );
-
-    // Validate agent against machine registry
-    const workspace = await ctx.db.get(harnessSession.workspaceId);
-    if (workspace) {
-      const registryEntry = await ctx.db
-        .query('chatroom_machineRegistry')
-        .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
-        .first();
-
-      if (registryEntry) {
-        const wsEntry = registryEntry.workspaces.find(
-          (w) => w.workspaceId === (harnessSession.workspaceId as string)
-        );
-        if (wsEntry && wsEntry.agents.length > 0) {
-          const knownAgentNames = wsEntry.agents.map((a) => a.name);
-          if (!knownAgentNames.includes(args.agent)) {
-            throw new ConvexError(
-              `Unknown agent '${args.agent}'. Available agents for this workspace: ${knownAgentNames.join(', ')}`
-            );
-          }
-        }
-        // If agents list is empty (harness not booted yet), allow any agent name
-      }
-    }
-
-    await ctx.db.patch(args.harnessSessionRowId, {
-      agent: args.agent,
-      lastActiveAt: Date.now(),
-    });
-  },
-});
-
 // ─── claimNextPendingPrompt ───────────────────────────────────────────────────
 
 /**
@@ -126,7 +73,8 @@ export const updateSessionAgentWithValidation = mutation({
  * Transitions status pending → processing for the oldest pending prompt.
  * Returns null if no pending prompts exist for this machine.
  *
- * Ordered by `requestedAt` ascending to preserve submission order.
+ * Ordered by _creationTime ascending (index order tracks insertion, which equals requestedAt
+ * for our sequential writers). Convex mutations are serializable so insertion order is guaranteed.
  */
 export const claimNextPendingPrompt = mutation({
   args: {
@@ -154,7 +102,7 @@ export const claimNextPendingPrompt = mutation({
       .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
-      .order('asc') // oldest first (by index order, which tracks insertion; requestedAt used for ordering)
+      .order('asc') // oldest first (by _creationTime, which equals requestedAt for sequential inserts)
       .first();
 
     if (!pending) return null;
@@ -198,6 +146,11 @@ export const completePendingPrompt = mutation({
 
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) throw new ConvexError({ code: 'NOT_FOUND', message: 'Pending prompt not found' });
+
+    // Verify the prompt belongs to the machine that is completing it
+    if (prompt.machineId !== args.machineId) {
+      throw new ConvexError('Prompt does not belong to this machine');
+    }
 
     await ctx.db.patch(args.promptId, {
       status: args.status,

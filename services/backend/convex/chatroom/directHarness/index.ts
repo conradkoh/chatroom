@@ -20,7 +20,6 @@ export { publishMachineCapabilities, getMachineRegistry } from './capabilities.j
 
 export {
   submitPrompt,
-  updateSessionAgentWithValidation,
   claimNextPendingPrompt,
   completePendingPrompt,
   getPendingPromptsForMachine,

@@ -12,22 +12,28 @@
 
 import type { Id } from '../../api.js';
 import { api } from '../../api.js';
+import type { FunctionReference, OptionalRestArgs } from 'convex/server';
+import type { SessionId } from 'convex-helpers/server/sessions';
 import type { HarnessSessionId, PromptPart } from '../../domain/direct-harness/index.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /** Minimal backend interface required by promptSession. */
 export interface PromptSessionBackend {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mutation: (endpoint: any, args: any) => Promise<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  query: (endpoint: any, args: any) => Promise<any>;
+  mutation<F extends FunctionReference<'mutation'>>(
+    fn: F,
+    ...args: OptionalRestArgs<F>
+  ): Promise<F['_returnType']>;
+  query<F extends FunctionReference<'query'>>(
+    fn: F,
+    ...args: OptionalRestArgs<F>
+  ): Promise<F['_returnType']>;
 }
 
 /** Dependencies for promptSession. */
 export interface PromptSessionDeps {
   readonly backend: PromptSessionBackend;
-  readonly sessionId: string;
+  readonly sessionId: SessionId;
   readonly machineId: string;
   /** Spawner to call prompt on (resolved from HarnessProcessRegistry). */
   readonly prompt: (

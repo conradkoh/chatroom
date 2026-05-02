@@ -455,7 +455,7 @@ describe('claimNextPendingPrompt', () => {
     expect(result).toBeNull();
   });
 
-  test('claims the oldest pending prompt atomically', async () => {
+  test('claims oldest prompt first (FIFO) when multiple pending exist', async () => {
     const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('claim-atomic');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
@@ -556,14 +556,52 @@ describe('completePendingPrompt', () => {
   });
 });
 
-describe('updateSessionAgentWithValidation', () => {
+  test('rejects when prompt belongs to a different machine', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('complete-cross-machine');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
+      sessionId,
+      harnessSessionRowId,
+      parts: [{ type: 'text' as const, text: 'hello' }],
+    });
+
+    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed).not.toBeNull();
+
+    // Register another machine for the same user
+    const otherMachineId = 'other-machine-for-cross';
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId: otherMachineId,
+      hostname: 'other-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: {},
+    });
+
+    // Trying to complete with the other machine should fail
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+        sessionId,
+        machineId: otherMachineId,
+        promptId: claimed!._id,
+        status: 'done',
+      })
+    ).rejects.toThrow('Prompt does not belong to this machine');
+  });
+
+describe('updateSessionAgent (with validation)', () => {
   test('updates agent when registry has no agent list (harness not booted yet)', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent-no-registry');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     // No machine registry published — should accept any agent name
     await expect(
-      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
         sessionId,
         harnessSessionRowId,
         agent: 'planner',
@@ -578,7 +616,7 @@ describe('updateSessionAgentWithValidation', () => {
   });
 
   test('rejects unknown agent when registry has an agent list', async () => {
-    const { sessionId, workspaceId, chatroomId, machineId } = await setupWorkspaceForSession('update-agent-reject');
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('update-agent-reject');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     // Publish registry with known agents
@@ -596,7 +634,7 @@ describe('updateSessionAgentWithValidation', () => {
     });
 
     await expect(
-      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
         sessionId,
         harnessSessionRowId,
         agent: 'nonexistent-agent',
@@ -622,7 +660,7 @@ describe('updateSessionAgentWithValidation', () => {
     });
 
     await expect(
-      t.mutation(api.chatroom.directHarness.prompts.updateSessionAgentWithValidation, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
         sessionId,
         harnessSessionRowId,
         agent: 'build',

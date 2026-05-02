@@ -141,7 +141,12 @@ export const closeSession = mutation({
 
 /**
  * Update the agent associated with a harness session.
- * Used when the session is reassigned to a different role.
+ *
+ * Validates against the machine registry:
+ * - No registry entry → harness not booted yet → accept any agent
+ * - Registry entry, no workspace entry → harness not published this workspace yet → accept any
+ * - Registry entry, workspace with agents=[] → misconfigured harness → reject
+ * - Registry entry, workspace with agents → must be in the known list
  */
 export const updateSessionAgent = mutation({
   args: {
@@ -151,7 +156,41 @@ export const updateSessionAgent = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionRowId
+    );
+
+    // Validate agent against machine registry
+    const workspace = await ctx.db.get(harnessSession.workspaceId);
+    if (workspace) {
+      const registryEntry = await ctx.db
+        .query('chatroom_machineRegistry')
+        .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
+        .first();
+
+      if (registryEntry) {
+        const wsEntry = registryEntry.workspaces.find(
+          (w) => w.workspaceId === (harnessSession.workspaceId as string)
+        );
+        if (wsEntry) {
+          if (wsEntry.agents.length === 0) {
+            throw new ConvexError(
+              `Workspace harness reports no available agents. Check your opencode configuration.`
+            );
+          }
+          const knownAgentNames = wsEntry.agents.map((a) => a.name);
+          if (!knownAgentNames.includes(args.agent)) {
+            throw new ConvexError(
+              `Unknown agent '${args.agent}'. Available agents for this workspace: ${knownAgentNames.join(', ')}`
+            );
+          }
+        }
+        // wsEntry not found — harness hasn't published workspace yet; accept any agent
+      }
+      // No registry entry — harness not booted yet; accept any agent
+    }
 
     await ctx.db.patch(args.harnessSessionRowId, {
       agent: args.agent,

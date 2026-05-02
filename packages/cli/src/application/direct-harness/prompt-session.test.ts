@@ -49,7 +49,7 @@ function createDeps(overrides: Partial<PromptSessionDeps> = {}): PromptSessionDe
 
   return {
     backend: { mutation: mutationFn, query: queryFn },
-    sessionId: 'test-session',
+    sessionId: 'test-session' as any,
     machineId: 'test-machine',
     prompt: promptFn,
     ...overrides,
