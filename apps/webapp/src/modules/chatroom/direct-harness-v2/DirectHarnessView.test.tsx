@@ -2,9 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 const mockUseSessionQuery = vi.fn();
+const mockUseSessionMutation = vi.fn(() => vi.fn().mockResolvedValue({}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
+  useSessionMutation: (...args: unknown[]) => mockUseSessionMutation(...(args as [])),
 }));
 
 import { DirectHarnessView } from './DirectHarnessView';

@@ -5,6 +5,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { StatusDot } from './StatusDot';
 import { SessionMessageStream } from './SessionMessageStream';
+import { SessionComposer } from './SessionComposer';
 import { relativeTime } from './utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +56,8 @@ export function SessionDetail({ sessionRowId }: SessionDetailProps) {
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         <SessionMessageStream sessionRowId={sessionRowId} />
       </div>
+      {/* Composer */}
+      <SessionComposer sessionRowId={sessionRowId} status={session.status} />
     </div>
   );
 }

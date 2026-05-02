@@ -8,6 +8,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { SessionList } from './SessionList';
 import { SessionDetail } from './SessionDetail';
+import { NewSessionButton } from './NewSessionButton';
 
 interface DirectHarnessViewProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -55,11 +56,20 @@ export const DirectHarnessView = memo(function DirectHarnessView({
           />
         </div>
         {selectedWorkspaceId ? (
-          <SessionList
-            workspaceId={selectedWorkspaceId}
-            selectedSessionId={selectedSessionId}
-            onSelect={setSelectedSessionId}
-          />
+          <>
+            <SessionList
+              workspaceId={selectedWorkspaceId}
+              selectedSessionId={selectedSessionId}
+              onSelect={setSelectedSessionId}
+            />
+            <div className="shrink-0 border-t border-border p-2">
+              <NewSessionButton
+                workspaceId={selectedWorkspaceId}
+                chatroomId={chatroomId}
+                onSessionCreated={setSelectedSessionId}
+              />
+            </div>
+          </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
             Select a workspace to begin.
