@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
@@ -8,12 +8,13 @@ import { Send } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import type { SessionStatus } from './StatusDot';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SessionComposerProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
-  status: 'pending' | 'spawning' | 'active' | 'idle' | 'closed' | 'failed';
+  status: SessionStatus;
 }
 
 // ─── SessionComposer ──────────────────────────────────────────────────────────
@@ -22,7 +23,6 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const submitPrompt = useSessionMutation(api.chatroom.directHarness.prompts.submitPrompt);
 
@@ -71,7 +71,6 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
   return (
     <div className="shrink-0 border-t border-border p-2 flex flex-col gap-1.5">
       <Textarea
-        ref={textareaRef}
         rows={2}
         className="resize-none text-sm"
         placeholder="Send a prompt…"
