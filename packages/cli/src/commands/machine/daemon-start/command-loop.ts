@@ -19,10 +19,13 @@ import { startGitRequestSubscription } from './git-subscription.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
 import { discoverModels } from './init.js';
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -429,6 +432,53 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   const harnessRegistry = new HarnessProcessRegistry(async (workspaceId, cwd) =>
     createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
   );
+
+  // ── Capabilities Sync (direct-harness) ────────────────────────────────
+  // When a harness boots, discover its agents and republish the full machine
+  // snapshot so the UI "New session" button becomes enabled.
+  if (featureFlags.directHarnessWorkers) {
+    const capabilitiesCache = new MachineCapabilitiesCache();
+    const capabilitiesPublisher = new ConvexCapabilitiesPublisher({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+
+    harnessRegistry.setOnHarnessBooted(async (harnessProcess) => {
+      try {
+        const agents = await harnessProcess.listAgents();
+        capabilitiesCache.setAgents(harnessProcess.workspaceId, [...agents]);
+
+        const workspaces = await ctx.deps.backend.query(
+          api.workspaces.listWorkspacesForMachine,
+          { sessionId: ctx.sessionId, machineId: ctx.machineId }
+        );
+
+        const workspaceMetas = workspaces.map((ws: { _id: string; workingDir: string }) => ({
+          workspaceId: ws._id as string,
+          cwd: ws.workingDir,
+          name: ws.workingDir,
+        }));
+
+        await publishMachineSnapshot(
+          capabilitiesPublisher,
+          capabilitiesCache,
+          ctx.machineId,
+          workspaceMetas,
+        );
+
+        console.log(
+          `[${formatTimestamp()}] 🔄 Capabilities published for workspace ${harnessProcess.workspaceId} (${agents.length} agents)`
+        );
+      } catch (err) {
+        // Fire-and-forget — swallow errors to avoid crashing the daemon
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Failed to publish capabilities for booted workspace ${harnessProcess.workspaceId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    });
+  }
 
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.

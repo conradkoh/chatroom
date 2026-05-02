@@ -11,6 +11,7 @@ import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import { api } from '../../../api.js';
 import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
@@ -43,6 +44,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -244,6 +246,8 @@ async function registerCapabilities(
 
   // Publish workspace list to the machine registry (empty agent lists until harnesses boot)
   // Only runs when the direct-harness feature is enabled.
+  // Uses MachineCapabilitiesCache so the initial empty-agents publish shares the
+  // same code path as the onBooted incremental republish in command-loop.ts.
   if (featureFlags.directHarnessWorkers) {
     try {
       const workspaces = await client.query(api.workspaces.listWorkspacesForMachine, {
@@ -251,19 +255,14 @@ async function registerCapabilities(
         machineId,
       });
       if (workspaces.length > 0) {
-        await client.mutation(
-          api.chatroom.directHarness.capabilities.publishMachineCapabilities,
-          {
-            sessionId,
-            machineId,
-            workspaces: workspaces.map((ws) => ({
-              workspaceId: ws._id as string,
-              cwd: ws.workingDir,
-              name: ws.workingDir, // use workingDir as name for now
-              agents: [],
-            })),
-          }
-        );
+        const cache = new MachineCapabilitiesCache();
+        const publisher = new ConvexCapabilitiesPublisher({ backend: client, sessionId });
+        const workspaceMetas = workspaces.map((ws) => ({
+          workspaceId: ws._id as string,
+          cwd: ws.workingDir,
+          name: ws.workingDir,
+        }));
+        await publishMachineSnapshot(publisher, cache, machineId, workspaceMetas);
       }
     } catch {
       // Capability publishing is non-critical — daemon continues without it
