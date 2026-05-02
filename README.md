@@ -166,29 +166,7 @@ Elastic License 2.0 — see repository licensing files for details.
 
 Direct-harness sessions let you run an opencode AI process on a registered machine and interact with it directly from the chatroom UI — prompt it, switch the active agent mid-conversation, and resume after a daemon restart without losing message history.
 
-**Status**: preview-gated (`featureFlags.directHarnessWorkers = true` in dev/preview; `false` in prod).
-
-### How to enable
-
-The feature uses **two independent gates** that must agree per environment:
-
-**1. Backend** (`services/backend/config/featureFlags.ts`):
-
-Gated automatically via the `CONVEX_DEPLOYMENT` env var (set by Convex tooling):
-- `prod:*` → disabled (never on in production by default)
-- `dev:*` / `local:*` / unset → enabled
-
-To force-enable in production, override `directHarnessWorkers` directly in `featureFlags.ts`.
-
-**2. Webapp** (`apps/webapp/.env.local` or your environment's public env):
-
-```
-NEXT_PUBLIC_DIRECT_HARNESS_ENABLED=true
-```
-
-Set to `'false'` (or omit) to hide the side panel regardless of the backend flag.
-
-Both env vars **must agree per environment** — mismatches cause the panel to render but backend calls to fail.
+Available in all environments — no setup required.
 
 ### CLI commands
 

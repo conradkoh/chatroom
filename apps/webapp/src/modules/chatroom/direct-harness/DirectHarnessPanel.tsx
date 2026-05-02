@@ -3,11 +3,7 @@
 /**
  * DirectHarnessPanel — workspace picker, session list, message stream, and composer.
  *
- * Rendered inside the chatroom sidebar when NEXT_PUBLIC_DIRECT_HARNESS_ENABLED is 'true'.
- * Fully gated at the component boundary — returns null when the flag is off.
- *
- * The backend is independently gated via CONVEX_DEPLOYMENT (see featureFlags.ts).
- * NEXT_PUBLIC_DIRECT_HARNESS_ENABLED and the backend gate MUST agree per environment.
+ * Rendered inside the chatroom sidebar unconditionally.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -38,14 +34,6 @@ interface DirectHarnessPanelProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DirectHarnessPanel({ chatroomId }: DirectHarnessPanelProps) {
-  // Gate on NEXT_PUBLIC_DIRECT_HARNESS_ENABLED env var (evaluated at Next.js bundle time).
-  // The backend uses its own CONVEX_DEPLOYMENT-based gate; both MUST agree per environment.
-  if (process.env.NEXT_PUBLIC_DIRECT_HARNESS_ENABLED !== 'true') return null;
-
-  return <DirectHarnessPanelInner chatroomId={chatroomId} />;
-}
-
-function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);

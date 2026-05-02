@@ -10,12 +10,6 @@ import { WorkspacePicker } from './WorkspacePicker';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock('@workspace/backend/config/featureFlags', () => ({
-  featureFlags: { directHarnessWorkers: true }, // backend flag (not used by panel directly)
-}));
-
-// Panel reads NEXT_PUBLIC_DIRECT_HARNESS_ENABLED from process.env
-process.env.NEXT_PUBLIC_DIRECT_HARNESS_ENABLED = 'true';
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: vi.fn(),
