@@ -188,7 +188,10 @@ describe('NewSessionButton', () => {
       expect(mockOpenSession).toHaveBeenCalledWith({
         workspaceId: WORKSPACE_ID,
         harnessName: 'opencode-sdk',
-        agent: 'builder',
+        config: { agent: 'builder' },
+        firstPrompt: expect.objectContaining({
+          parts: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
+        }),
       });
       expect(onSessionCreated).toHaveBeenCalledWith(NEW_SESSION_ID);
     });

@@ -12,14 +12,22 @@ import type { SessionStatus } from './StatusDot';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface LastUsedConfig {
+  agent: string;
+  model?: { providerID: string; modelID: string };
+  system?: string;
+  tools?: Record<string, boolean>;
+}
+
 interface SessionComposerProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
   status: SessionStatus;
+  lastUsedConfig: LastUsedConfig;
 }
 
 // ─── SessionComposer ──────────────────────────────────────────────────────────
 
-export function SessionComposer({ sessionRowId, status }: SessionComposerProps) {
+export function SessionComposer({ sessionRowId, status, lastUsedConfig }: SessionComposerProps) {
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +49,7 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
       await submitPrompt({
         harnessSessionRowId: sessionRowId,
         parts: [{ type: 'text', text: toSend }],
+        override: lastUsedConfig,
       });
       setText('');
     } catch (err) {
@@ -79,16 +88,9 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
         onKeyDown={handleKeyDown}
         disabled={isInputDisabled}
       />
-      {error && (
-        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end">
-        <Button
-          size="sm"
-          disabled={isSendDisabled}
-          onClick={handleSend}
-          className="gap-1.5"
-        >
+        <Button size="sm" disabled={isSendDisabled} onClick={handleSend} className="gap-1.5">
           <Send size={14} />
           Send
         </Button>

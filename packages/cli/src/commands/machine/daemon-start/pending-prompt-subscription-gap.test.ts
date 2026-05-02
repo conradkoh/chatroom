@@ -104,7 +104,7 @@ function makePendingSession(id = 'session-row-1', workspaceId = 'ws-1' as any) {
   return {
     _id: id,
     workspaceId,
-    agent: 'builder',
+    lastUsedConfig: { agent: 'builder' },
     harnessName: 'opencode-sdk',
     status: 'pending',
     harnessSessionId: undefined,

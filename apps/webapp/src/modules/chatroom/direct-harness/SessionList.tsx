@@ -64,7 +64,9 @@ export const SessionList = memo(function SessionList({
           >
             <StatusDot status={s.status} />
             <span className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground block truncate">{s.agent}</span>
+              <span className="text-sm font-medium text-foreground block truncate">
+                {s.lastUsedConfig.agent}
+              </span>
               <span className="text-xs text-muted-foreground">{relativeTime(s.lastActiveAt)}</span>
             </span>
           </button>

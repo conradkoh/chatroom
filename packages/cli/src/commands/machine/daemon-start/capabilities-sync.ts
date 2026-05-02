@@ -2,15 +2,20 @@
  * Capabilities sync — in-memory cache + publish helper for machine capabilities.
  *
  * Centralizes the "build full payload + publish" logic so that:
- * - init.ts can use it for the initial empty-agents publish on daemon start
+ * - init.ts can use it for the initial empty-harnesses publish on daemon start
  * - TheHarnessBooted callback can use it to incrementally update a single
- *   workspace's agent list and republish the full snapshot
+ *   workspace's harness list and republish the full snapshot
  *
  * DRY: both paths go through `publishMachineSnapshot()`, which reads from the
  * cache + workspace metadata to assemble the MachineCapabilities payload.
  */
 
-import type { PublishedAgent, WorkspaceCapabilities, MachineCapabilities } from '../../../domain/direct-harness/index.js';
+import type {
+  HarnessCapabilities,
+  PublishedAgent,
+  WorkspaceCapabilities,
+  MachineCapabilities,
+} from '../../../domain/direct-harness/index.js';
 import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
 
 // ─── Workspace metadata ─────────────────────────────────────────────────────
@@ -28,41 +33,56 @@ export interface WorkspaceMeta {
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
 /**
- * In-memory cache mapping workspaceId → published agents.
+ * In-memory cache mapping workspaceId → published harnesses.
  *
  * Thread safety: last-write-wins per workspaceId, then publish full snapshot.
  * Convex mutations serialize on the backend, so a simple Map is safe for
  * concurrent onBooted callbacks from different workspaces.
  */
 export class MachineCapabilitiesCache {
-  private readonly agents = new Map<string, PublishedAgent[]>();
+  private readonly harnesses = new Map<string, HarnessCapabilities[]>();
 
-  /** Set (or replace) the agent list for a single workspace. */
-  setAgents(workspaceId: string, agents: PublishedAgent[]): void {
-    this.agents.set(workspaceId, agents);
+  /** Set (or replace) the harness list for a single workspace. */
+  setHarnesses(workspaceId: string, harnesses: HarnessCapabilities[]): void {
+    this.harnesses.set(workspaceId, harnesses);
   }
 
   /**
-   * Remove a workspace's agent entry.
+   * @deprecated Use setHarnesses instead.
+   * Compatibility shim: wraps the provided agents under a single opencode-sdk harness entry.
+   */
+  setAgents(workspaceId: string, agents: PublishedAgent[]): void {
+    this.harnesses.set(workspaceId, [
+      {
+        name: 'opencode-sdk',
+        displayName: 'Opencode',
+        agents,
+        providers: [],
+      },
+    ]);
+  }
+
+  /**
+   * Remove a workspace's harness entry.
    * Used when a workspace is deregistered or the daemon resets.
    */
   deleteWorkspace(workspaceId: string): void {
-    this.agents.delete(workspaceId);
+    this.harnesses.delete(workspaceId);
   }
 
   /**
    * Build the workspaces array suitable for publishing.
    *
-   * Merges cached agents with the supplied metadata. Workspaces in `metas`
-   * that have no cached agents still appear with `agents: []` (so the UI
-   * shows them with the disabled tooltip until their harness boots).
+   * Merges cached harnesses with the supplied metadata. Workspaces in `metas`
+   * that have no cached harnesses still appear with `harnesses: []` (so the UI
+   * shows them as not-yet-ready until their harness boots).
    */
   buildWorkspaces(metas: readonly WorkspaceMeta[]): WorkspaceCapabilities[] {
     return metas.map((ws) => ({
       workspaceId: ws.workspaceId,
       cwd: ws.cwd,
       name: ws.name,
-      agents: this.agents.get(ws.workspaceId) ?? [],
+      harnesses: this.harnesses.get(ws.workspaceId) ?? [],
     }));
   }
 }
@@ -72,14 +92,14 @@ export class MachineCapabilitiesCache {
 /**
  * Build a full MachineCapabilities snapshot and publish it via the publisher.
  *
- * This is the single code path for both the initial empty-agents publish
+ * This is the single code path for both the initial empty-harnesses publish
  * (init.ts) and the incremental onBooted republish (command-loop.ts).
  */
 export async function publishMachineSnapshot(
   publisher: CapabilitiesPublisher,
   cache: MachineCapabilitiesCache,
   machineId: string,
-  workspaceMetas: readonly WorkspaceMeta[],
+  workspaceMetas: readonly WorkspaceMeta[]
 ): Promise<void> {
   const workspaces = cache.buildWorkspaces(workspaceMetas);
   const caps: MachineCapabilities = {

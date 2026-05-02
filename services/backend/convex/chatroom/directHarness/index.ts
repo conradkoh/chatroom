@@ -9,7 +9,7 @@ export {
   openSession,
   associateHarnessSessionId,
   closeSession,
-  updateSessionAgent,
+  updateSessionConfig,
   getSession,
   listSessionsByWorkspace,
 } from './sessions.js';

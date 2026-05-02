@@ -10,7 +10,11 @@
  *   (no per-session cleanup). The registry's `killAll()` is called on shutdown.
  */
 
-import type { DirectHarnessSpawner, PublishedAgent } from '../../domain/direct-harness/index.js';
+import type {
+  DirectHarnessSpawner,
+  PublishedAgent,
+  PublishedProvider,
+} from '../../domain/direct-harness/index.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -39,6 +43,11 @@ export interface HarnessProcess {
    * Returns an empty array if the harness does not support agent listing.
    */
   listAgents(): Promise<readonly PublishedAgent[]>;
+  /**
+   * Fetch the published provider list from the running harness.
+   * Returns an empty array on failure (non-blocking).
+   */
+  listProviders(): Promise<readonly PublishedProvider[]>;
 }
 
 // ─── Registry ──────────────────────────────────────────────────────────────

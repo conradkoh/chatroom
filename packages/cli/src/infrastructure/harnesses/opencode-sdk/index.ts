@@ -18,7 +18,7 @@ import type {
 } from '../../../domain/direct-harness/index.js';
 
 import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import type { PublishedAgent } from '../../../domain/direct-harness/index.js';
+import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/index.js';
 import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
 import {
   FileSessionMetadataStore,
@@ -216,7 +216,9 @@ export async function spawnOpencodeSdkProcess(
   const client: OpencodeSdkSessionClient = sdkClient;
 
   let alive = true;
-  childProcess.on('exit', () => { alive = false; });
+  childProcess.on('exit', () => {
+    alive = false;
+  });
 
   return {
     baseUrl,
@@ -292,12 +294,7 @@ export async function createOpencodeSdkHarnessProcess(
   nowFn: () => number = Date.now
 ): Promise<HarnessProcess> {
   const processHandle = await spawnOpencodeSdkProcess(workspaceId, cwd, options);
-  const spawner = createBoundOpencodeSdkHarness(
-    processHandle,
-    workspaceId,
-    sessionStore,
-    nowFn
-  );
+  const spawner = createBoundOpencodeSdkHarness(processHandle, workspaceId, sessionStore, nowFn);
 
   return {
     workspaceId,
@@ -310,17 +307,42 @@ export async function createOpencodeSdkHarnessProcess(
       try {
         const response = await processHandle.client.app.agents();
         const sdkAgents = response.data ?? [];
-        return sdkAgents.map((a): PublishedAgent => ({
-          name: a.name,
-          mode: a.mode,
-          ...(a.model ? { model: a.model } : {}),
-          ...(a.description ? { description: a.description } : {}),
-        }));
+        return sdkAgents.map(
+          (a): PublishedAgent => ({
+            name: a.name,
+            mode: a.mode,
+            ...(a.model ? { model: a.model } : {}),
+            ...(a.description ? { description: a.description } : {}),
+          })
+        );
       } catch (err) {
         console.warn(
           `[direct-harness] listAgents failed for workspace ${workspaceId}: ${
             err instanceof Error ? err.message : String(err)
           }. Returning empty agent list.`
+        );
+        return [];
+      }
+    },
+    async listProviders(): Promise<readonly PublishedProvider[]> {
+      try {
+        const response = await processHandle.client.config.providers();
+        const sdkProviders = response.data?.providers ?? [];
+        return sdkProviders.map(
+          (p): PublishedProvider => ({
+            providerID: p.id,
+            name: p.name,
+            models: Object.entries(p.models).map(([modelID, m]) => ({
+              modelID,
+              name: m.name,
+            })),
+          })
+        );
+      } catch (err) {
+        console.warn(
+          `[direct-harness] listProviders failed for workspace ${workspaceId}: ${
+            err instanceof Error ? err.message : String(err)
+          }. Returning empty provider list.`
         );
         return [];
       }
@@ -352,10 +374,7 @@ export interface CreateOpencodeSdkResumerOptions {
 export function createOpencodeSdkResumer(
   options: CreateOpencodeSdkResumerOptions = {}
 ): DirectHarnessSpawner {
-  const {
-    nowFn = Date.now,
-    sessionStore = new FileSessionMetadataStore(),
-  } = options;
+  const { nowFn = Date.now, sessionStore = new FileSessionMetadataStore() } = options;
 
   return {
     harnessName: 'opencode-sdk',

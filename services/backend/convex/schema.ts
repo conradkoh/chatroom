@@ -2152,8 +2152,13 @@ export default defineSchema({
     harnessName: v.string(),
     /** Opencode-server-issued session identifier (set after spawning). */
     harnessSessionId: v.optional(v.string()),
-    /** The agent driving this session (e.g. 'builder', 'planner'). */
-    agent: v.string(),
+    /** The last-used configuration for this session (agent, model, etc.). */
+    lastUsedConfig: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
     status: v.union(
       v.literal('pending'),
       v.literal('spawning'),
@@ -2196,17 +2201,31 @@ export default defineSchema({
         workspaceId: v.string(),
         cwd: v.string(),
         name: v.string(),
-        agents: v.array(
+        harnesses: v.array(
           v.object({
             name: v.string(),
-            mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
-            model: v.optional(
+            displayName: v.string(),
+            agents: v.array(
               v.object({
-                providerID: v.string(),
-                modelID: v.string(),
+                name: v.string(),
+                mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                model: v.optional(
+                  v.object({
+                    providerID: v.string(),
+                    modelID: v.string(),
+                  })
+                ),
+                description: v.optional(v.string()),
               })
             ),
-            description: v.optional(v.string()),
+            providers: v.array(
+              v.object({
+                providerID: v.string(),
+                name: v.string(),
+                models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+              })
+            ),
+            configSchema: v.optional(v.any()),
           })
         ),
       })
@@ -2225,6 +2244,13 @@ export default defineSchema({
     /** Task type: 'prompt' sends a text prompt; 'resume' reconnects to the harness. */
     taskType: v.union(v.literal('prompt'), v.literal('resume')),
     parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+    /** Per-prompt config override (agent, model, etc.) — propagated to the SDK. */
+    override: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
     status: v.union(
       v.literal('pending'),
       v.literal('processing'),

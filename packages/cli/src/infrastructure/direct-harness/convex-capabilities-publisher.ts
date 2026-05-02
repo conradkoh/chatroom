@@ -5,7 +5,10 @@
  * mutation to upsert the machine capability snapshot.
  */
 
-import type { CapabilitiesPublisher, MachineCapabilities } from '../../domain/direct-harness/index.js';
+import type {
+  CapabilitiesPublisher,
+  MachineCapabilities,
+} from '../../domain/direct-harness/index.js';
 import { api } from '../../api.js';
 
 /** Minimal backend interface required by the publisher. */
@@ -41,11 +44,21 @@ export class ConvexCapabilitiesPublisher implements CapabilitiesPublisher {
         workspaceId: ws.workspaceId,
         cwd: ws.cwd,
         name: ws.name,
-        agents: ws.agents.map((a) => ({
-          name: a.name,
-          mode: a.mode,
-          ...(a.model ? { model: a.model } : {}),
-          ...(a.description ? { description: a.description } : {}),
+        harnesses: ws.harnesses.map((h) => ({
+          name: h.name,
+          displayName: h.displayName,
+          agents: h.agents.map((a) => ({
+            name: a.name,
+            mode: a.mode,
+            ...(a.model ? { model: a.model } : {}),
+            ...(a.description ? { description: a.description } : {}),
+          })),
+          providers: h.providers.map((p) => ({
+            providerID: p.providerID,
+            name: p.name,
+            models: p.models.map((m) => ({ modelID: m.modelID, name: m.name })),
+          })),
+          ...(h.configSchema !== undefined ? { configSchema: h.configSchema } : {}),
         })),
       })),
     });

@@ -5,11 +5,7 @@
  *   import type { Workspace, DirectHarnessSpawner } from '../domain/direct-harness/index.js';
  */
 
-export type {
-  ChatroomId,
-  WorkspaceId,
-  Workspace,
-} from './workspace.js';
+export type { ChatroomId, WorkspaceId, Workspace } from './workspace.js';
 
 export type {
   HarnessSessionRowId,
@@ -25,10 +21,7 @@ export type {
   DirectHarnessSession,
 } from './direct-harness-session.js';
 
-export type {
-  OpenSessionOptions,
-  DirectHarnessSpawner,
-} from './direct-harness-spawner.js';
+export type { OpenSessionOptions, DirectHarnessSpawner } from './direct-harness-spawner.js';
 
 export type {
   FlushContext,
@@ -41,6 +34,8 @@ export type {
 
 export type {
   PublishedAgent,
+  PublishedProvider,
+  HarnessCapabilities,
   WorkspaceCapabilities,
   MachineCapabilities,
 } from './machine-capabilities.js';

@@ -85,7 +85,8 @@ async function openSession(
     sessionId,
     workspaceId,
     harnessName: TEST_HARNESS_NAME,
-    agent,
+    config: { agent },
+    firstPrompt: { parts: [{ type: 'text' as const, text: `Starting session as ${agent}` }] },
   });
 }
 
@@ -114,7 +115,7 @@ describe('openSession', () => {
     expect(session).toBeDefined();
     expect(session?.status).toBe('pending');
     expect(session?.harnessName).toBe(TEST_HARNESS_NAME);
-    expect(session?.agent).toBe('builder');
+    expect(session?.lastUsedConfig?.agent).toBe('builder');
     expect(session?.harnessSessionId).toBeUndefined();
   });
 
@@ -139,7 +140,8 @@ describe('openSession', () => {
         sessionId,
         workspaceId: fakeWorkspaceId,
         harnessName: TEST_HARNESS_NAME,
-        agent: 'builder',
+        config: { agent: 'builder' },
+        firstPrompt: { parts: [{ type: 'text' as const, text: 'hello' }] },
       })
     ).rejects.toThrow();
   });
@@ -253,18 +255,18 @@ describe('appendMessages', () => {
   });
 });
 
-// ─── updateSessionAgent ───────────────────────────────────────────────────────
+// ─── updateSessionConfig ──────────────────────────────────────────────────────
 
-describe('updateSessionAgent', () => {
+describe('updateSessionConfig', () => {
   test('updates the agent field on a session', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent');
 
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
-    await t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
+    await t.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
       sessionId,
       harnessSessionRowId,
-      agent: 'planner',
+      config: { agent: 'planner' },
     });
 
     const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
@@ -272,7 +274,7 @@ describe('updateSessionAgent', () => {
       harnessSessionRowId,
     });
 
-    expect(session?.agent).toBe('planner');
+    expect(session?.lastUsedConfig?.agent).toBe('planner');
   });
 });
 
@@ -292,8 +294,8 @@ describe('listSessionsByWorkspace', () => {
     });
 
     expect(sessions).toHaveLength(2);
-    expect(sessions[0]?.agent).toBe('builder');
-    expect(sessions[1]?.agent).toBe('planner');
+    expect(sessions[0]?.lastUsedConfig?.agent).toBe('builder');
+    expect(sessions[1]?.lastUsedConfig?.agent).toBe('planner');
     // Verify ascending order
     expect(sessions[0]!.createdAt).toBeLessThanOrEqual(sessions[1]!.createdAt);
   });
@@ -314,7 +316,14 @@ describe('publishMachineCapabilities', () => {
           workspaceId: workspaceId as string,
           cwd: TEST_CWD,
           name: TEST_CWD,
-          agents: [{ name: 'build', mode: 'primary' as const }],
+          harnesses: [
+            {
+              name: 'opencode-sdk',
+              displayName: 'Opencode',
+              agents: [{ name: 'build', mode: 'primary' as const }],
+              providers: [],
+            },
+          ],
         },
       ],
     });
@@ -327,8 +336,8 @@ describe('publishMachineCapabilities', () => {
     expect(registries).toHaveLength(1);
     expect(registries[0]?.machineId).toBe(machineId);
     expect(registries[0]?.workspaces).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.agents).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.agents[0]?.name).toBe('build');
+    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents).toHaveLength(1);
+    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents[0]?.name).toBe('build');
   });
 
   test('second publish replaces the previous entry (upsert semantics)', async () => {
@@ -339,11 +348,11 @@ describe('publishMachineCapabilities', () => {
       sessionId,
       machineId,
       workspaces: [
-        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, harnesses: [] },
       ],
     });
 
-    // Second publish with agents
+    // Second publish with harnesses
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
@@ -352,9 +361,16 @@ describe('publishMachineCapabilities', () => {
           workspaceId: workspaceId as string,
           cwd: TEST_CWD,
           name: TEST_CWD,
-          agents: [
-            { name: 'build', mode: 'primary' as const },
-            { name: 'debug', mode: 'subagent' as const },
+          harnesses: [
+            {
+              name: 'opencode-sdk',
+              displayName: 'Opencode',
+              agents: [
+                { name: 'build', mode: 'primary' as const },
+                { name: 'debug', mode: 'subagent' as const },
+              ],
+              providers: [],
+            },
           ],
         },
       ],
@@ -366,7 +382,7 @@ describe('publishMachineCapabilities', () => {
     });
 
     expect(registries).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.agents).toHaveLength(2);
+    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents).toHaveLength(2);
   });
 
   test('throws when feature flag is off', async () => {
@@ -378,7 +394,7 @@ describe('publishMachineCapabilities', () => {
         sessionId,
         machineId,
         workspaces: [
-          { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+          { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, harnesses: [] },
         ],
       })
     ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
@@ -394,7 +410,7 @@ describe('getMachineRegistry', () => {
       sessionId,
       machineId,
       workspaces: [
-        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, agents: [] },
+        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, harnesses: [] },
       ],
     });
 
@@ -431,6 +447,7 @@ describe('submitPrompt', () => {
       sessionId,
       harnessSessionRowId,
       parts: [{ type: 'text' as const, text: 'hello' }],
+      override: { agent: 'builder' },
     });
 
     expect(result.promptId).toBeDefined();
@@ -450,6 +467,7 @@ describe('submitPrompt', () => {
         sessionId,
         harnessSessionRowId,
         parts: [{ type: 'text' as const, text: 'too late' }],
+        override: { agent: 'builder' },
       })
     ).rejects.toThrow();
   });
@@ -475,11 +493,13 @@ describe('claimNextPendingPrompt', () => {
       sessionId,
       harnessSessionRowId,
       parts: [{ type: 'text' as const, text: 'first' }],
+      override: { agent: 'builder' },
     });
     await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
       sessionId,
       harnessSessionRowId,
       parts: [{ type: 'text' as const, text: 'second' }],
+      override: { agent: 'builder' },
     });
 
     const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
@@ -496,12 +516,19 @@ describe('claimNextPendingPrompt', () => {
     });
     expect(claimed2).not.toBeNull();
 
-    // Claiming again should return null (no more pending)
+    // Claim the third prompt (firstPrompt inserted atomically by openSession)
     const claimed3 = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
       sessionId,
       machineId,
     });
-    expect(claimed3).toBeNull();
+    expect(claimed3).not.toBeNull();
+
+    // Claiming again should return null (no more pending)
+    const claimed4 = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(claimed4).toBeNull();
   });
 });
 
@@ -514,6 +541,7 @@ describe('completePendingPrompt', () => {
       sessionId,
       harnessSessionRowId,
       parts: [{ type: 'text' as const, text: 'hello' }],
+      override: { agent: 'builder' },
     });
 
     const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
@@ -544,6 +572,7 @@ describe('completePendingPrompt', () => {
       sessionId,
       harnessSessionRowId,
       parts: [{ type: 'text' as const, text: 'oops' }],
+      override: { agent: 'builder' },
     });
 
     const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
@@ -577,6 +606,7 @@ test('rejects when prompt belongs to a different machine', async () => {
     sessionId,
     harnessSessionRowId,
     parts: [{ type: 'text' as const, text: 'hello' }],
+    override: { agent: 'builder' },
   });
 
   const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
@@ -607,17 +637,17 @@ test('rejects when prompt belongs to a different machine', async () => {
   ).rejects.toThrow('Prompt does not belong to this machine');
 });
 
-describe('updateSessionAgent (with validation)', () => {
+describe('updateSessionConfig (with validation)', () => {
   test('updates agent when registry has no agent list (harness not booted yet)', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent-no-registry');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
 
     // No machine registry published — should accept any agent name
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
         sessionId,
         harnessSessionRowId,
-        agent: 'planner',
+        config: { agent: 'planner' },
       })
     ).resolves.toBeDefined();
 
@@ -625,7 +655,7 @@ describe('updateSessionAgent (with validation)', () => {
       sessionId,
       harnessSessionRowId,
     });
-    expect(session?.agent).toBe('planner');
+    expect(session?.lastUsedConfig?.agent).toBe('planner');
   });
 
   test('rejects unknown agent when registry has an agent list', async () => {
@@ -642,16 +672,23 @@ describe('updateSessionAgent (with validation)', () => {
           workspaceId: workspaceId as string,
           cwd: TEST_CWD,
           name: TEST_CWD,
-          agents: [{ name: 'build', mode: 'primary' as const }],
+          harnesses: [
+            {
+              name: 'opencode-sdk',
+              displayName: 'Opencode',
+              agents: [{ name: 'build', mode: 'primary' as const }],
+              providers: [],
+            },
+          ],
         },
       ],
     });
 
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
         sessionId,
         harnessSessionRowId,
-        agent: 'nonexistent-agent',
+        config: { agent: 'nonexistent-agent' },
       })
     ).rejects.toThrow('Unknown agent');
   });
@@ -669,16 +706,23 @@ describe('updateSessionAgent (with validation)', () => {
           workspaceId: workspaceId as string,
           cwd: TEST_CWD,
           name: TEST_CWD,
-          agents: [{ name: 'build', mode: 'primary' as const }],
+          harnesses: [
+            {
+              name: 'opencode-sdk',
+              displayName: 'Opencode',
+              agents: [{ name: 'build', mode: 'primary' as const }],
+              providers: [],
+            },
+          ],
         },
       ],
     });
 
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.updateSessionAgent, {
+      t.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
         sessionId,
         harnessSessionRowId,
-        agent: 'build',
+        config: { agent: 'build' },
       })
     ).resolves.toBeDefined();
   });
@@ -688,19 +732,14 @@ describe('updateSessionAgent (with validation)', () => {
 
 // ─── webapp openSession gap documentation ─────────────────────────────────────
 
-describe('openSession — daemon integration gap (Phase A documentation)', () => {
-  test('openSession creates a harness session row but does NOT create a chatroom_pendingPrompts row', async () => {
-    // This test documents the fundamental gap in the current implementation:
-    // When the webapp calls openSession, a session row is inserted in status='pending'.
-    // However, the daemon only subscribes to chatroom_pendingPrompts, not harnessSessions.
-    // Therefore no daemon-side handler ever picks up the new session and spawns the harness.
-    //
-    // Fix (Phase B, pending user approval): add a daemon subscription on
-    // chatroom_harnessSessions where status='pending' AND harnessSessionId=undefined,
-    // scoped to the machine's workspaces.
+describe('openSession — atomic pending prompt creation', () => {
+  test('openSession creates a harness session row AND a chatroom_pendingPrompts row atomically', async () => {
+    // openSession now atomically inserts both a harness session row (status='pending')
+    // AND a paired chatroom_pendingPrompts row containing the firstPrompt.
+    // The daemon subscription on chatroom_pendingPrompts will pick this up immediately.
 
     const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('open-gap-doc');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { harnessSessionRowId, promptId } = await openSession(sessionId, workspaceId);
 
     // Verify session was created in pending state
     const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
@@ -710,13 +749,13 @@ describe('openSession — daemon integration gap (Phase A documentation)', () =>
     expect(session?.status).toBe('pending');
     expect(session?.harnessSessionId).toBeUndefined();
 
-    // Verify that NO chatroom_pendingPrompts row was created
-    // (the daemon watches pendingPrompts, not harnessSessions)
+    // Verify that a chatroom_pendingPrompts row WAS created
+    expect(promptId).toBeDefined();
     const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
       sessionId,
       machineId,
     });
-    expect(claimed).toBeNull(); // daemon sees nothing — gap confirmed
+    expect(claimed).not.toBeNull(); // daemon can pick it up
   });
 });
 

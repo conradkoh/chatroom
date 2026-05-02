@@ -23,7 +23,7 @@ function makeSession(
     _creationTime: createdAt,
     workspaceId: 'ws1' as never,
     harnessName: 'harness',
-    agent,
+    lastUsedConfig: { agent },
     status,
     createdBy: 'u1' as never,
     createdAt,

@@ -27,9 +27,23 @@ export const submitPrompt = mutation({
     ...SessionIdArg,
     harnessSessionRowId: v.id('chatroom_harnessSessions'),
     parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+    override: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
+
+    if (!args.override.agent || args.override.agent.trim() === '') {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_AGENT',
+        message: 'override.agent is required and must not be empty',
+      });
+    }
+
     const { harnessSession, session } = await getSessionWithAccess(
       ctx,
       args.sessionId,
@@ -37,9 +51,10 @@ export const submitPrompt = mutation({
     );
 
     if (harnessSession.status === 'closed' || harnessSession.status === 'failed') {
-      throw new ConvexError(
-        `Cannot submit prompt — session ${args.harnessSessionRowId} status is '${harnessSession.status}'`
-      );
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_CLOSED',
+        message: `Cannot submit prompt — session ${args.harnessSessionRowId} status is '${harnessSession.status}'`,
+      });
     }
 
     // Look up workspace to get machineId (denormalized for daemon poll)
@@ -49,12 +64,20 @@ export const submitPrompt = mutation({
     }
 
     const now = Date.now();
+
+    // Update lastUsedConfig on the session to mirror the override (keeps session-detail in sync)
+    await ctx.db.patch(args.harnessSessionRowId, {
+      lastUsedConfig: args.override,
+      lastActiveAt: now,
+    });
+
     const promptId = await ctx.db.insert('chatroom_pendingPrompts', {
       harnessSessionRowId: args.harnessSessionRowId,
       machineId: workspace.machineId,
       workspaceId: harnessSession.workspaceId,
       taskType: 'prompt',
       parts: args.parts,
+      override: args.override,
       status: 'pending',
       requestedBy: session.userId,
       requestedAt: now,
@@ -114,6 +137,7 @@ export const resumeSession = mutation({
       workspaceId: harnessSession.workspaceId,
       taskType: 'resume',
       parts: [], // no parts for resume tasks
+      override: { agent: harnessSession.lastUsedConfig.agent },
       status: 'pending',
       requestedBy: session.userId,
       requestedAt: now,

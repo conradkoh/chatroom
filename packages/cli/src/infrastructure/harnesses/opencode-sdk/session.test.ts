@@ -27,6 +27,7 @@ function createMockClient() {
     },
     event: { subscribe: subscribeFn },
     app: { agents: vi.fn().mockResolvedValue({ data: [] }) },
+    config: { providers: vi.fn().mockResolvedValue({ data: { providers: [] } }) },
   };
 
   return { client, promptAsyncFn, abortFn, subscribeFn };

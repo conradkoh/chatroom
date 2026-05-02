@@ -10,6 +10,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 import { SessionComposer } from './SessionComposer';
 
 const SESSION_ROW_ID = 'sr1' as never;
+const DEFAULT_CONFIG = { agent: 'test-agent' };
 
 describe('SessionComposer', () => {
   beforeEach(() => {
@@ -18,13 +19,25 @@ describe('SessionComposer', () => {
   });
 
   it('renders textarea and send button when status is active', () => {
-    render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
+    render(
+      <SessionComposer
+        sessionRowId={SESSION_ROW_ID}
+        status="active"
+        lastUsedConfig={DEFAULT_CONFIG}
+      />
+    );
     expect(screen.getByPlaceholderText(/send a prompt/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
   });
 
   it('send button is disabled when text is empty', () => {
-    render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
+    render(
+      <SessionComposer
+        sessionRowId={SESSION_ROW_ID}
+        status="active"
+        lastUsedConfig={DEFAULT_CONFIG}
+      />
+    );
     const sendButton = screen.getByRole('button', { name: /send/i });
     expect(sendButton).toBeDisabled();
   });
@@ -33,7 +46,13 @@ describe('SessionComposer', () => {
     const mockMutationFn = vi.fn().mockResolvedValue({});
     mockUseSessionMutation.mockReturnValue(mockMutationFn);
 
-    render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
+    render(
+      <SessionComposer
+        sessionRowId={SESSION_ROW_ID}
+        status="active"
+        lastUsedConfig={DEFAULT_CONFIG}
+      />
+    );
 
     const textarea = screen.getByPlaceholderText(/send a prompt/i);
     fireEvent.change(textarea, { target: { value: 'hello world' } });
@@ -46,6 +65,7 @@ describe('SessionComposer', () => {
       expect(mockMutationFn).toHaveBeenCalledWith({
         harnessSessionRowId: SESSION_ROW_ID,
         parts: [{ type: 'text', text: 'hello world' }],
+        override: DEFAULT_CONFIG,
       });
     });
 
@@ -55,7 +75,13 @@ describe('SessionComposer', () => {
   });
 
   it('renders status banner instead of input when status is closed', () => {
-    render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="closed" />);
+    render(
+      <SessionComposer
+        sessionRowId={SESSION_ROW_ID}
+        status="closed"
+        lastUsedConfig={DEFAULT_CONFIG}
+      />
+    );
     expect(screen.queryByPlaceholderText(/send a prompt/i)).not.toBeInTheDocument();
     expect(screen.getByText(/session is closed/i)).toBeInTheDocument();
   });

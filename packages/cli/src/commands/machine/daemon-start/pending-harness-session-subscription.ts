@@ -115,7 +115,7 @@ async function processSession(
   session: {
     _id: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
-    agent: string;
+    lastUsedConfig: { agent: string };
     harnessName: string;
   }
 ): Promise<void> {
@@ -149,7 +149,7 @@ async function processSession(
 
   // 3. Open a session on the running harness process
   const harnessSession = await harnessProcess.spawner.openSession({
-    config: { agent: session.agent },
+    config: { agent: session.lastUsedConfig.agent },
   });
 
   // 4. Associate the harness-issued session ID with the backend row.
@@ -180,6 +180,6 @@ async function processSession(
   wireEventSink(harnessSession, sink, openCodeChunkExtractor);
 
   console.log(
-    `[direct-harness] Harness session opened: rowId=${rowId} agent=${session.agent} workspace=${session.workspaceId}`
+    `[direct-harness] Harness session opened: rowId=${rowId} agent=${session.lastUsedConfig.agent} workspace=${session.workspaceId}`
   );
 }

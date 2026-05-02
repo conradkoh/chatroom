@@ -43,13 +43,16 @@ export function SessionDetail({ sessionRowId }: SessionDetailProps) {
       <div className="shrink-0 border-b border-border p-3">
         <div className="flex items-center gap-2">
           <StatusDot status={session.status} />
-          <span className="text-sm font-semibold text-foreground">{session.agent}</span>
+          <span className="text-sm font-semibold text-foreground">
+            {session.lastUsedConfig.agent}
+          </span>
           <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5">
             {session.harnessName}
           </span>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          Started {relativeTime(session.createdAt)} · Last active {relativeTime(session.lastActiveAt)}
+          Started {relativeTime(session.createdAt)} · Last active{' '}
+          {relativeTime(session.lastActiveAt)}
         </div>
       </div>
       {/* Message stream */}
@@ -57,7 +60,11 @@ export function SessionDetail({ sessionRowId }: SessionDetailProps) {
         <SessionMessageStream sessionRowId={sessionRowId} />
       </div>
       {/* Composer */}
-      <SessionComposer sessionRowId={sessionRowId} status={session.status} />
+      <SessionComposer
+        sessionRowId={sessionRowId}
+        status={session.status}
+        lastUsedConfig={session.lastUsedConfig}
+      />
     </div>
   );
 }

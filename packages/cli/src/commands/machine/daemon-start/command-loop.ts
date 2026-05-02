@@ -455,7 +455,27 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     harnessRegistry.setOnHarnessBooted(async (harnessProcess) => {
       try {
         const agents = await harnessProcess.listAgents();
-        capabilitiesCache.setAgents(harnessProcess.workspaceId, [...agents]);
+
+        // listProviders failure must not block agent publishing — log + use empty list
+        let providers: Awaited<ReturnType<typeof harnessProcess.listProviders>> = [];
+        try {
+          providers = await harnessProcess.listProviders();
+        } catch (providerErr) {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  listProviders failed for workspace ${harnessProcess.workspaceId}: ${
+              providerErr instanceof Error ? providerErr.message : String(providerErr)
+            }. Publishing with empty providers.`
+          );
+        }
+
+        capabilitiesCache.setHarnesses(harnessProcess.workspaceId, [
+          {
+            name: 'opencode-sdk',
+            displayName: 'Opencode',
+            agents: [...agents],
+            providers: [...providers],
+          },
+        ]);
 
         const workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
           sessionId: ctx.sessionId,
@@ -476,7 +496,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         );
 
         console.log(
-          `[${formatTimestamp()}] 🔄 Capabilities published for workspace ${harnessProcess.workspaceId} (${agents.length} agents)`
+          `[${formatTimestamp()}] 🔄 Capabilities published for workspace ${harnessProcess.workspaceId} (${agents.length} agents, ${providers.length} providers)`
         );
       } catch (err) {
         // Fire-and-forget — swallow errors to avoid crashing the daemon

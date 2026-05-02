@@ -44,6 +44,18 @@ export interface OpencodeSdkSessionClient {
       }>;
     }>;
   };
+  config: {
+    /** Returns providers and their models from the opencode server's active config. */
+    providers(): Promise<{
+      data?: {
+        providers: Array<{
+          id: string;
+          name: string;
+          models: Record<string, { id: string; name: string }>;
+        }>;
+      };
+    }>;
+  };
 }
 
 /**

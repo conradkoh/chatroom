@@ -8,12 +8,7 @@ import { Plus, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,13 +37,12 @@ export function NewSessionButton({
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const registry = useSessionQuery(
-    api.chatroom.directHarness.capabilities.getMachineRegistry,
-    { chatroomId }
-  );
+  const registry = useSessionQuery(api.chatroom.directHarness.capabilities.getMachineRegistry, {
+    chatroomId,
+  });
   const openSession = useSessionMutation(api.chatroom.directHarness.sessions.openSession);
 
-  // Dedupe agents for this workspace: flatMap machines → filter workspace → flatMap agents
+  // Dedupe agents for this workspace: flatMap machines → filter workspace → flatMap harnesses → flatMap agents
   // Multiple machines may publish overlapping agent names — pick first occurrence
   const allAgents: PublishedAgent[] = registry
     ? (() => {
@@ -57,10 +51,15 @@ export function NewSessionButton({
         for (const machine of registry) {
           for (const ws of machine.workspaces) {
             if (ws.workspaceId !== workspaceId) continue;
-            for (const agent of ws.agents) {
-              if (!seen.has(agent.name)) {
-                seen.add(agent.name);
-                agents.push(agent as PublishedAgent);
+            for (const harness of (ws as any).harnesses ?? (ws as any).agents ?? []) {
+              const agentList: PublishedAgent[] = Array.isArray(harness.agents)
+                ? harness.agents
+                : [harness]; // backward compat if old shape
+              for (const agent of agentList) {
+                if (!seen.has(agent.name)) {
+                  seen.add(agent.name);
+                  agents.push(agent as PublishedAgent);
+                }
               }
             }
           }
@@ -69,11 +68,9 @@ export function NewSessionButton({
       })()
     : [];
 
-  const availableAgents = allAgents.filter(
-    (a) => a.mode === 'primary' || a.mode === 'all'
-  );
+  const availableAgents = allAgents.filter((a) => a.mode === 'primary' || a.mode === 'all');
 
-  const harnessReady = (registry !== undefined) && availableAgents.length > 0;
+  const harnessReady = registry !== undefined && availableAgents.length > 0;
 
   const handleConfirm = async () => {
     if (!selectedAgent) return;
@@ -83,7 +80,8 @@ export function NewSessionButton({
       const result = await openSession({
         workspaceId,
         harnessName: 'opencode-sdk',
-        agent: selectedAgent,
+        config: { agent: selectedAgent },
+        firstPrompt: { parts: [{ type: 'text', text: `Starting session as ${selectedAgent}` }] },
       });
       onSessionCreated(result.harnessSessionRowId);
       setOpen(false);
@@ -124,10 +122,7 @@ export function NewSessionButton({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        className="w-56 p-3 bg-card border-border text-foreground"
-        align="start"
-      >
+      <PopoverContent className="w-56 p-3 bg-card border-border text-foreground" align="start">
         <div className="space-y-3">
           <p className="text-xs font-semibold text-foreground">Choose agent</p>
           <div className="space-y-1">
@@ -139,9 +134,7 @@ export function NewSessionButton({
                   key={agent.name}
                   onClick={() => setSelectedAgent(agent.name)}
                   className={`w-full text-left px-2 py-1.5 rounded-sm text-xs transition-colors hover:bg-accent/50 ${
-                    selectedAgent === agent.name
-                      ? 'bg-accent text-foreground'
-                      : 'text-foreground'
+                    selectedAgent === agent.name ? 'bg-accent text-foreground' : 'text-foreground'
                   }`}
                 >
                   <div className="font-medium">{agent.name}</div>
@@ -154,9 +147,7 @@ export function NewSessionButton({
               ))
             )}
           </div>
-          {error && (
-            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
           <Button
             size="sm"
             className="w-full h-7 text-xs"

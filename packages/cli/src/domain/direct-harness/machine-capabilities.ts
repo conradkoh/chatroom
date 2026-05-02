@@ -19,6 +19,31 @@ export interface PublishedAgent {
 }
 
 /**
+ * A published provider and its available models.
+ */
+export interface PublishedProvider {
+  readonly providerID: string;
+  readonly name: string;
+  readonly models: ReadonlyArray<{ readonly modelID: string; readonly name: string }>;
+}
+
+/**
+ * A snapshot of one harness type's capabilities.
+ */
+export interface HarnessCapabilities {
+  /** Harness identifier (e.g. 'opencode-sdk'). */
+  readonly name: string;
+  /** Human-readable display name (e.g. 'Opencode'). */
+  readonly displayName: string;
+  /** Agents available in this harness. */
+  readonly agents: readonly PublishedAgent[];
+  /** Providers and their models. */
+  readonly providers: readonly PublishedProvider[];
+  /** Optional JSON schema for harness-specific config. */
+  readonly configSchema?: unknown;
+}
+
+/**
  * A snapshot of one workspace's entry in the machine registry.
  * Carries only the fields needed for UI rendering.
  */
@@ -29,8 +54,8 @@ export interface WorkspaceCapabilities {
   readonly cwd: string;
   /** Human-readable workspace label. */
   readonly name: string;
-  /** Agents published by the running harness, or empty if no harness is up yet. */
-  readonly agents: readonly PublishedAgent[];
+  /** Harnesses published by the running daemon, or empty if no harness is up yet. */
+  readonly harnesses: readonly HarnessCapabilities[];
 }
 
 /**

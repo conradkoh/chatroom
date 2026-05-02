@@ -17,7 +17,7 @@ function makeSession(overrides?: Partial<Record<string, unknown>>) {
   return {
     _id: SESSION_ROW_ID,
     _creationTime: Date.now(),
-    agent: 'builder',
+    lastUsedConfig: { agent: 'builder' },
     harnessName: 'my-harness',
     status: 'active' as const,
     workspaceId: 'ws1' as never,
@@ -45,7 +45,7 @@ describe('SessionDetail', () => {
   it('renders agent name when session is loaded', () => {
     // First call: getSession; second call: streamSessionMessages (return [])
     mockUseSessionQuery
-      .mockReturnValueOnce(makeSession({ agent: 'planner' }))
+      .mockReturnValueOnce(makeSession({ lastUsedConfig: { agent: 'planner' } }))
       .mockReturnValueOnce([]);
     render(<SessionDetail sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByText('planner')).toBeInTheDocument();

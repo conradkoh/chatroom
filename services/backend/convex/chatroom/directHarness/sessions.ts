@@ -23,21 +23,43 @@ import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js'
 /**
  * Open a new harness session in the given workspace.
  *
- * The workspace must already be registered by the daemon before calling
- * this mutation. Access is verified via the workspace's chatroomId.
+ * Atomic: inserts the session row AND a paired pending-prompt row in a single
+ * transaction. Validates firstPrompt and config.agent BEFORE inserting any row
+ * so a bad request leaves no orphaned rows behind (per design §9.5).
  *
- * Returns { harnessSessionRowId } — the backend-issued session row ID.
+ * Returns { harnessSessionRowId, promptId }.
  */
 export const openSession = mutation({
   args: {
     ...SessionIdArg,
     workspaceId: v.id('chatroom_workspaces'),
     harnessName: v.string(),
-    /** The agent role opening this session (e.g. 'builder', 'planner'). */
-    agent: v.string(),
+    config: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
+    firstPrompt: v.object({
+      parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+    }),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
+
+    // Validate BEFORE inserting any row (§9.5)
+    if (!args.config.agent || args.config.agent.trim() === '') {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_AGENT',
+        message: 'config.agent is required and must not be empty',
+      });
+    }
+    if (!args.firstPrompt.parts || args.firstPrompt.parts.length === 0) {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'firstPrompt.parts must have at least one entry',
+      });
+    }
 
     const workspace = await ctx.db.get(args.workspaceId);
     if (!workspace) {
@@ -50,18 +72,33 @@ export const openSession = mutation({
     const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
 
     const now = Date.now();
+
+    // Atomically insert session row + pending prompt
     const harnessSessionRowId = await ctx.db.insert('chatroom_harnessSessions', {
       workspaceId: args.workspaceId,
       harnessName: args.harnessName,
       harnessSessionId: undefined,
-      agent: args.agent,
+      lastUsedConfig: args.config,
       status: 'pending',
       createdBy: session.userId,
       createdAt: now,
       lastActiveAt: now,
     });
 
-    return { harnessSessionRowId };
+    const promptId = await ctx.db.insert('chatroom_pendingPrompts', {
+      harnessSessionRowId,
+      machineId: workspace.machineId,
+      workspaceId: args.workspaceId,
+      taskType: 'prompt',
+      parts: args.firstPrompt.parts,
+      override: args.config,
+      status: 'pending',
+      requestedBy: session.userId,
+      requestedAt: now,
+      updatedAt: now,
+    });
+
+    return { harnessSessionRowId, promptId };
   },
 });
 
@@ -95,9 +132,10 @@ export const associateHarnessSessionId = mutation({
 
     // Conflict: different session already associated
     if (harnessSession.harnessSessionId !== undefined && harnessSession.harnessSessionId !== null) {
-      throw new ConvexError(
-        `HarnessSession ${args.harnessSessionRowId} already has a different harnessSessionId: ${harnessSession.harnessSessionId}`
-      );
+      throw new ConvexError({
+        code: 'CONFLICT',
+        message: `HarnessSession ${args.harnessSessionRowId} already has a different harnessSessionId: ${harnessSession.harnessSessionId}`,
+      });
     }
 
     await ctx.db.patch(args.harnessSessionRowId, {
@@ -138,22 +176,30 @@ export const closeSession = mutation({
   },
 });
 
-// ─── updateSessionAgent ───────────────────────────────────────────────────────
+// ─── updateSessionConfig ──────────────────────────────────────────────────────
 
 /**
- * Update the agent associated with a harness session.
+ * Update the config (agent, model, system, tools) associated with a harness session.
  *
- * Validates against the machine registry:
+ * Patches lastUsedConfig by merging the provided fields with the existing config.
+ * Only present keys overwrite.
+ *
+ * Validates agent against the machine registry when provided:
  * - No registry entry → harness not booted yet → accept any agent
  * - Registry entry, no workspace entry → harness not published this workspace yet → accept any
  * - Registry entry, workspace with agents=[] → misconfigured harness → reject
  * - Registry entry, workspace with agents → must be in the known list
  */
-export const updateSessionAgent = mutation({
+export const updateSessionConfig = mutation({
   args: {
     ...SessionIdArg,
     harnessSessionRowId: v.id('chatroom_harnessSessions'),
-    agent: v.string(),
+    config: v.object({
+      agent: v.optional(v.string()),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -163,38 +209,52 @@ export const updateSessionAgent = mutation({
       args.harnessSessionRowId
     );
 
-    // Validate agent against machine registry
-    const workspace = await ctx.db.get(harnessSession.workspaceId);
-    if (workspace) {
-      const registryEntry = await ctx.db
-        .query('chatroom_machineRegistry')
-        .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
-        .first();
+    // Validate agent against machine registry if provided
+    if (args.config.agent !== undefined) {
+      const workspace = await ctx.db.get(harnessSession.workspaceId);
+      if (workspace) {
+        const registryEntry = await ctx.db
+          .query('chatroom_machineRegistry')
+          .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
+          .first();
 
-      if (registryEntry) {
-        const wsEntry = registryEntry.workspaces.find(
-          (w) => w.workspaceId === (harnessSession.workspaceId as string)
-        );
-        if (wsEntry) {
-          if (wsEntry.agents.length === 0) {
-            throw new ConvexError(
-              `Workspace harness reports no available agents. Check your opencode configuration.`
-            );
+        if (registryEntry) {
+          const wsEntry = registryEntry.workspaces.find(
+            (w) => w.workspaceId === (harnessSession.workspaceId as string)
+          );
+          if (wsEntry) {
+            const allAgents = wsEntry.harnesses.flatMap((h) => h.agents);
+            if (allAgents.length === 0) {
+              throw new ConvexError({
+                code: 'HARNESS_SESSION_UNKNOWN_AGENT',
+                message: `Workspace harness reports no available agents. Check your opencode configuration.`,
+              });
+            }
+            const knownAgentNames = allAgents.map((a) => a.name);
+            if (!knownAgentNames.includes(args.config.agent)) {
+              throw new ConvexError({
+                code: 'HARNESS_SESSION_UNKNOWN_AGENT',
+                message: `Unknown agent '${args.config.agent}'. Available agents for this workspace: ${knownAgentNames.join(', ')}`,
+              });
+            }
           }
-          const knownAgentNames = wsEntry.agents.map((a) => a.name);
-          if (!knownAgentNames.includes(args.agent)) {
-            throw new ConvexError(
-              `Unknown agent '${args.agent}'. Available agents for this workspace: ${knownAgentNames.join(', ')}`
-            );
-          }
+          // wsEntry not found — harness hasn't published workspace yet; accept any agent
         }
-        // wsEntry not found — harness hasn't published workspace yet; accept any agent
+        // No registry entry — harness not booted yet; accept any agent
       }
-      // No registry entry — harness not booted yet; accept any agent
     }
 
+    // Merge provided fields into existing lastUsedConfig
+    const updatedConfig = {
+      ...harnessSession.lastUsedConfig,
+      ...(args.config.agent !== undefined ? { agent: args.config.agent } : {}),
+      ...(args.config.model !== undefined ? { model: args.config.model } : {}),
+      ...(args.config.system !== undefined ? { system: args.config.system } : {}),
+      ...(args.config.tools !== undefined ? { tools: args.config.tools } : {}),
+    };
+
     await ctx.db.patch(args.harnessSessionRowId, {
-      agent: args.agent,
+      lastUsedConfig: updatedConfig,
       lastActiveAt: Date.now(),
     });
   },

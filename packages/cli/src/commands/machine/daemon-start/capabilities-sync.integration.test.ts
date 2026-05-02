@@ -14,9 +14,11 @@ import { HarnessProcessRegistry } from '../../../application/direct-harness/get-
 import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import type { WorkspaceMeta } from './capabilities-sync.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import type {
+  MachineCapabilities,
+  WorkspaceCapabilities,
+} from '../../../domain/direct-harness/index.js';
 import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
-import type { MachineCapabilities, PublishedAgent, WorkspaceCapabilities } from '../../../domain/direct-harness/index.js';
 
 // ─── Fakes ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,12 @@ class FakeCapabilitiesPublisher implements CapabilitiesPublisher {
         workspaceId: ws.workspaceId,
         cwd: ws.cwd,
         name: ws.name,
-        agents: [...ws.agents],
+        harnesses: ws.harnesses.map((h) => ({
+          name: h.name,
+          displayName: h.displayName,
+          agents: [...h.agents],
+          providers: [...h.providers],
+        })),
       })),
     });
   }
@@ -54,7 +61,15 @@ function createMockProcess(
     isAlive: () => true,
     kill: vi.fn().mockResolvedValue(undefined),
     listAgents: vi.fn().mockResolvedValue(agents),
+    listProviders: vi.fn().mockResolvedValue([]),
   };
+}
+
+/** Helper to extract agents from the first harness in a workspace snapshot. */
+function getAgentsFromWorkspace(
+  ws: WorkspaceCapabilities
+): readonly { name: string; mode: string }[] {
+  return ws.harnesses[0]?.agents ?? [];
 }
 
 /** Workspace metadata for the test. */
@@ -111,28 +126,24 @@ describe('boot→publish wiring integration', () => {
 
     const wsAlpha = lastCall.workspaces.find((ws) => ws.workspaceId === 'ws-alpha')!;
     expect(wsAlpha).toBeDefined();
-    expect(wsAlpha.agents).toEqual([
+    expect(getAgentsFromWorkspace(wsAlpha)).toEqual([
       { name: 'build', mode: 'primary' },
       { name: 'chat', mode: 'all' },
     ]);
 
-    // ws-beta has no agents yet (harness hasn't booted)
+    // ws-beta has no harnesses yet (harness hasn't booted)
     const wsBeta = lastCall.workspaces.find((ws) => ws.workspaceId === 'ws-beta')!;
     expect(wsBeta).toBeDefined();
-    expect(wsBeta.agents).toEqual([]);
+    expect(wsBeta.harnesses).toEqual([]);
   });
 
   it('preserves first workspace agents when second workspace boots', async () => {
     const factory = vi.fn().mockImplementation(async (workspaceId: string) => {
       if (workspaceId === 'ws-alpha') {
-        return createMockProcess('ws-alpha', [
-          { name: 'build', mode: 'primary' },
-        ]);
+        return createMockProcess('ws-alpha', [{ name: 'build', mode: 'primary' }]);
       }
       if (workspaceId === 'ws-beta') {
-        return createMockProcess('ws-beta', [
-          { name: 'review', mode: 'subagent' },
-        ]);
+        return createMockProcess('ws-beta', [{ name: 'review', mode: 'subagent' }]);
       }
       return createMockProcess(workspaceId, []);
     });
@@ -168,11 +179,11 @@ describe('boot→publish wiring integration', () => {
     const wsBeta = lastCall.workspaces.find((ws) => ws.workspaceId === 'ws-beta')!;
 
     // ws-alpha's agents should be preserved (not overwritten by ws-beta boot)
-    expect(wsAlpha.agents).toEqual([{ name: 'build', mode: 'primary' }]);
-    expect(wsBeta.agents).toEqual([{ name: 'review', mode: 'subagent' }]);
+    expect(getAgentsFromWorkspace(wsAlpha)).toEqual([{ name: 'build', mode: 'primary' }]);
+    expect(getAgentsFromWorkspace(wsBeta)).toEqual([{ name: 'review', mode: 'subagent' }]);
   });
 
-  it('still publishes snapshot even when listAgents fails (with empty agents)', async () => {
+  it('still publishes snapshot even when listAgents fails (with empty harnesses)', async () => {
     const factory = vi.fn().mockImplementation(async (workspaceId: string) => {
       const process = createMockProcess(workspaceId, []);
       // Override listAgents to throw
@@ -219,6 +230,74 @@ describe('boot→publish wiring integration', () => {
 
     // Cache is also empty because the callback never ran
     const workspaces = cache.buildWorkspaces(workspaceMetas);
-    expect(workspaces.every((ws) => ws.agents.length === 0)).toBe(true);
+    expect(workspaces.every((ws) => ws.harnesses.length === 0)).toBe(true);
+  });
+
+  it('publishes populated providers field alongside agents', async () => {
+    const mockProviders = [
+      {
+        providerID: 'anthropic',
+        name: 'Anthropic',
+        models: [
+          { modelID: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+          { modelID: 'claude-3-haiku', name: 'Claude 3 Haiku' },
+        ],
+      },
+    ];
+
+    cache.setHarnesses('ws-alpha', [
+      {
+        name: 'opencode-sdk',
+        displayName: 'Opencode',
+        agents: [{ name: 'builder', mode: 'primary' }],
+        providers: mockProviders,
+      },
+    ]);
+
+    await publishMachineSnapshot(publisher, cache, 'test-machine', workspaceMetas);
+
+    expect(publisher.calls).toHaveLength(1);
+    const ws = publisher.calls[0].workspaces.find((w) => w.workspaceId === 'ws-alpha');
+    expect(ws).toBeDefined();
+    const harness = ws!.harnesses.find((h) => h.name === 'opencode-sdk');
+    expect(harness).toBeDefined();
+    expect(harness!.providers).toHaveLength(1);
+    expect(harness!.providers[0].providerID).toBe('anthropic');
+    expect(harness!.providers[0].models).toHaveLength(2);
+  });
+
+  it('payload size: 5 providers × 100 models × 3 workspaces stays under 256 KB', () => {
+    const providers = Array.from({ length: 5 }, (_, pi) => ({
+      providerID: `provider-${pi}`,
+      name: `Provider ${pi}`,
+      models: Array.from({ length: 100 }, (_, mi) => ({
+        modelID: `model-${pi}-${mi}`,
+        name: `Model ${pi}-${mi}`,
+      })),
+    }));
+
+    const agents = [{ name: 'builder', mode: 'primary' as const }];
+    const threeWorkspaceMetas: WorkspaceMeta[] = Array.from({ length: 3 }, (_, i) => ({
+      workspaceId: `ws-${i}`,
+      cwd: `/home/user/project-${i}`,
+      name: `project-${i}`,
+    }));
+
+    const bigCache = new MachineCapabilitiesCache();
+    for (const meta of threeWorkspaceMetas) {
+      bigCache.setHarnesses(meta.workspaceId, [
+        { name: 'opencode-sdk', displayName: 'Opencode', agents, providers },
+      ]);
+    }
+
+    const workspaces = bigCache.buildWorkspaces(threeWorkspaceMetas);
+    const payload: MachineCapabilities = {
+      machineId: 'test-machine',
+      lastSeenAt: Date.now(),
+      workspaces,
+    };
+
+    const size = JSON.stringify(payload).length;
+    expect(size).toBeLessThan(256 * 1024);
   });
 });
