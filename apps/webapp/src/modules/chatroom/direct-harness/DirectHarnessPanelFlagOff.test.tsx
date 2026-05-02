@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DirectHarnessPanel } from './DirectHarnessPanel';
 
-// Mock feature flag as OFF for this test file
+// Mock feature flag as OFF for this test file — panel should return null
 vi.mock('@workspace/backend/config/featureFlags', () => ({
   featureFlags: { directHarnessWorkers: false },
 }));
+
+// Panel reads NEXT_PUBLIC_DIRECT_HARNESS_ENABLED, not the backend flag directly
+process.env.NEXT_PUBLIC_DIRECT_HARNESS_ENABLED = 'false';
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: vi.fn().mockReturnValue(undefined),

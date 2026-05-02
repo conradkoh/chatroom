@@ -170,13 +170,25 @@ Direct-harness sessions let you run an opencode AI process on a registered machi
 
 ### How to enable
 
-In `services/backend/config/featureFlags.ts` set:
+The feature uses **two independent gates** that must agree per environment:
 
-```ts
-directHarnessWorkers: true,
+**1. Backend** (`services/backend/config/featureFlags.ts`):
+
+Gated automatically via the `CONVEX_DEPLOYMENT` env var (set by Convex tooling):
+- `prod:*` → disabled (never on in production by default)
+- `dev:*` / `local:*` / unset → enabled
+
+To force-enable in production, override `directHarnessWorkers` directly in `featureFlags.ts`.
+
+**2. Webapp** (`apps/webapp/.env.local` or your environment's public env):
+
+```
+NEXT_PUBLIC_DIRECT_HARNESS_ENABLED=true
 ```
 
-This unlocks backend mutations, CLI commands, and the side panel in the chatroom UI.
+Set to `'false'` (or omit) to hide the side panel regardless of the backend flag.
+
+Both env vars **must agree per environment** — mismatches cause the panel to render but backend calls to fail.
 
 ### CLI commands
 

@@ -734,31 +734,43 @@ describe('resumeSession', () => {
 // ─── Feature flag env-gating ──────────────────────────────────────────────────
 
 describe('featureFlags.directHarnessWorkers env-gating', () => {
-  test('is false when NODE_ENV=production', () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
-    try {
-      // Re-require the module with production NODE_ENV
-      // Note: since the flag is evaluated at module load time, we test the
-      // expected formula directly to document the contract.
-      const isProduction = process.env.NODE_ENV === 'production';
-      expect(isProduction).toBe(true);
-      // The formula used in featureFlags.ts:
-      const flagValue = process.env.NODE_ENV !== 'production';
-      expect(flagValue).toBe(false);
-    } finally {
-      process.env.NODE_ENV = originalEnv;
+  const originalDeployment = process.env.CONVEX_DEPLOYMENT;
+
+  afterEach(() => {
+    // Restore original CONVEX_DEPLOYMENT after each test
+    if (originalDeployment === undefined) {
+      delete process.env.CONVEX_DEPLOYMENT;
+    } else {
+      process.env.CONVEX_DEPLOYMENT = originalDeployment;
     }
   });
 
-  test('is true when NODE_ENV is not production', () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    try {
-      const flagValue = process.env.NODE_ENV !== 'production';
-      expect(flagValue).toBe(true);
-    } finally {
-      process.env.NODE_ENV = originalEnv;
-    }
+  test('formula returns false when CONVEX_DEPLOYMENT starts with prod:', () => {
+    process.env.CONVEX_DEPLOYMENT = 'prod:wonderful-deployment';
+    const isProd = (process.env.CONVEX_DEPLOYMENT ?? '').startsWith('prod:');
+    // The formula used in featureFlags.ts:
+    const flagValue = !isProd;
+    expect(flagValue).toBe(false);
+  });
+
+  test('formula returns true when CONVEX_DEPLOYMENT starts with dev:', () => {
+    process.env.CONVEX_DEPLOYMENT = 'dev:wonderful-deployment';
+    const isProd = (process.env.CONVEX_DEPLOYMENT ?? '').startsWith('prod:');
+    const flagValue = !isProd;
+    expect(flagValue).toBe(true);
+  });
+
+  test('formula returns true when CONVEX_DEPLOYMENT starts with local:', () => {
+    process.env.CONVEX_DEPLOYMENT = 'local:local-dev';
+    const isProd = (process.env.CONVEX_DEPLOYMENT ?? '').startsWith('prod:');
+    const flagValue = !isProd;
+    expect(flagValue).toBe(true);
+  });
+
+  test('formula returns true when CONVEX_DEPLOYMENT is undefined (test/CLI context)', () => {
+    delete process.env.CONVEX_DEPLOYMENT;
+    const isProd = (process.env.CONVEX_DEPLOYMENT ?? '').startsWith('prod:');
+    const flagValue = !isProd;
+    expect(flagValue).toBe(true);
   });
 });
