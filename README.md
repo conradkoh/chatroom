@@ -159,3 +159,67 @@ Convex gives reactive queries, transactional mutations in one language, and a sm
 ## License
 
 Elastic License 2.0 — see repository licensing files for details.
+
+---
+
+## Direct-harness sessions (preview)
+
+Direct-harness sessions let you run an opencode AI process on a registered machine and interact with it directly from the chatroom UI — prompt it, switch the active agent mid-conversation, and resume after a daemon restart without losing message history.
+
+**Status**: preview-gated (`featureFlags.directHarnessWorkers = true` in dev/preview; `false` in prod).
+
+### How to enable
+
+In `services/backend/config/featureFlags.ts` set:
+
+```ts
+directHarnessWorkers: true,
+```
+
+This unlocks backend mutations, CLI commands, and the side panel in the chatroom UI.
+
+### CLI commands
+
+```bash
+# Open a new harness session in a registered workspace
+chatroom session open --workspace-id <id> --agent build
+
+# Resume an existing session after a daemon restart
+chatroom session resume \
+  --harness-session-row-id <id> \
+  --harness-session-id <sdk-session-id>
+```
+
+Workspaces are registered automatically by the daemon when agents start. List workspaces for a chatroom via the UI or the existing `api.workspaces.listWorkspacesForChatroom` query.
+
+### UI side panel
+
+The **Direct Harness** panel appears in the chatroom sidebar (below the work queue) when the flag is on:
+
+```
+┌──────────────────────────────────┐
+│ ▸  Direct Harness                │
+├──────────────────────────────────┤
+│  Workspace   [/home/user/repo ▼] │
+│                                  │
+│  Sessions                        │
+│  ● build      active  ···        │
+│  ○ planner    idle    ···        │
+│                                  │
+│  [ + New session ]               │
+├──────────────────────────────────┤
+│  Hello from the harness          │
+│  Processing your request…        │
+│                                  │
+│  [build ▼]                       │
+│  ┌─────────────────────────┐     │
+│  │ Type a prompt…          │ ▶   │
+│  └─────────────────────────┘     │
+└──────────────────────────────────┘
+```
+
+- **Workspace picker** — selects which workspace (machine + working dir) to target.
+- **Session list** — shows harness sessions with status dots (green=active, grey=idle, red=failed). Click an idle session to resume it transparently.
+- **New session button** — opens an agent picker; disabled while the harness is booting.
+- **Message stream** — live messages from the running harness session.
+- **Agent chip** — click to switch the active agent mid-conversation; uses the existing session without restarting.
