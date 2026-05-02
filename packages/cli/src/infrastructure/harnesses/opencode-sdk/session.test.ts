@@ -22,6 +22,7 @@ function createMockClient() {
   const client: OpencodeSdkSessionClient = {
     session: { create: vi.fn().mockResolvedValue({ data: { id: 'mock-session' } }), promptAsync: promptAsyncFn, abort: abortFn },
     event: { subscribe: subscribeFn },
+    app: { agents: vi.fn().mockResolvedValue({ data: [] }) },
   };
 
   return { client, promptAsyncFn, abortFn, subscribeFn };

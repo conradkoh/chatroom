@@ -31,6 +31,17 @@ export interface OpencodeSdkSessionClient {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     subscribe(args?: any): Promise<{ stream: AsyncGenerator<{ type: string; properties?: Record<string, unknown> }> }>;
   };
+  app: {
+    /** Returns the list of agents configured in this opencode server instance. */
+    agents(): Promise<{
+      data?: Array<{
+        name: string;
+        mode: 'subagent' | 'primary' | 'all';
+        model?: { providerID: string; modelID: string };
+        description?: string;
+      }>;
+    }>;
+  };
 }
 
 /**

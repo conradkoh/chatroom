@@ -300,22 +300,20 @@ export async function createOpencodeSdkHarnessProcess(
     },
     async listAgents(): Promise<readonly PublishedAgent[]> {
       try {
-        // Call client.app.agents() on the running process
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const response = await (processHandle.client as any).app?.agents?.();
-        const sdkAgents: Array<{
-          name: string;
-          mode: 'subagent' | 'primary' | 'all';
-          model?: { providerID: string; modelID: string };
-          description?: string;
-        }> = response?.data ?? [];
+        const response = await processHandle.client.app.agents();
+        const sdkAgents = response.data ?? [];
         return sdkAgents.map((a): PublishedAgent => ({
           name: a.name,
           mode: a.mode,
           ...(a.model ? { model: a.model } : {}),
           ...(a.description ? { description: a.description } : {}),
         }));
-      } catch {
+      } catch (err) {
+        console.warn(
+          `[direct-harness] listAgents failed for workspace ${workspaceId}: ${
+            err instanceof Error ? err.message : String(err)
+          }. Returning empty agent list.`
+        );
         return [];
       }
     },

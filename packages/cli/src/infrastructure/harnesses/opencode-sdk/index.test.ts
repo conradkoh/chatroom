@@ -20,6 +20,9 @@ vi.mock('@opencode-ai/sdk', () => ({
     event: {
       subscribe: mockSubscribeFn,
     },
+    app: {
+      agents: vi.fn().mockResolvedValue({ data: [] }),
+    },
   })),
 }));
 

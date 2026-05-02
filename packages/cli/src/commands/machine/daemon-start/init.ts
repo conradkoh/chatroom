@@ -243,28 +243,31 @@ async function registerCapabilities(
   }
 
   // Publish workspace list to the machine registry (empty agent lists until harnesses boot)
-  try {
-    const workspaces = await client.query(api.workspaces.listWorkspacesForMachine, {
-      sessionId,
-      machineId,
-    });
-    if (workspaces.length > 0) {
-      await client.mutation(
-        api.chatroom.directHarness.capabilities.publishMachineCapabilities,
-        {
-          sessionId,
-          machineId,
-          workspaces: workspaces.map((ws) => ({
-            workspaceId: ws._id as string,
-            cwd: ws.workingDir,
-            name: ws.workingDir, // use workingDir as name for now
-            agents: [],
-          })),
-        }
-      );
+  // Only runs when the direct-harness feature is enabled.
+  if (featureFlags.directHarnessWorkers) {
+    try {
+      const workspaces = await client.query(api.workspaces.listWorkspacesForMachine, {
+        sessionId,
+        machineId,
+      });
+      if (workspaces.length > 0) {
+        await client.mutation(
+          api.chatroom.directHarness.capabilities.publishMachineCapabilities,
+          {
+            sessionId,
+            machineId,
+            workspaces: workspaces.map((ws) => ({
+              workspaceId: ws._id as string,
+              cwd: ws.workingDir,
+              name: ws.workingDir, // use workingDir as name for now
+              agents: [],
+            })),
+          }
+        );
+      }
+    } catch {
+      // Capability publishing is non-critical — daemon continues without it
     }
-  } catch {
-    // Capability publishing is non-critical — daemon continues without it
   }
 
   return availableModels;
