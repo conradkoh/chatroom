@@ -1,38 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Send } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { SessionStatus } from './StatusDot';
+import { useSubmitPrompt } from './hooks/useSubmitPrompt';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface LastUsedConfig {
-  agent: string;
-  model?: { providerID: string; modelID: string };
-  system?: string;
-  tools?: Record<string, boolean>;
-}
 
 interface SessionComposerProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
   status: SessionStatus;
-  lastUsedConfig: LastUsedConfig;
 }
 
 // ─── SessionComposer ──────────────────────────────────────────────────────────
 
-export function SessionComposer({ sessionRowId, status, lastUsedConfig }: SessionComposerProps) {
+export function SessionComposer({ sessionRowId, status }: SessionComposerProps) {
   const [text, setText] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submitPrompt = useSessionMutation(api.chatroom.directHarness.prompts.submitPrompt);
+  const { submit, isSubmitting: isSending } = useSubmitPrompt({
+    harnessSessionRowId: sessionRowId,
+  });
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isInputDisabled =
@@ -43,20 +35,13 @@ export function SessionComposer({ sessionRowId, status, lastUsedConfig }: Sessio
   const handleSend = async () => {
     if (isSendDisabled) return;
     const toSend = trimmed;
-    setIsSending(true);
     setError(null);
     try {
-      await submitPrompt({
-        harnessSessionRowId: sessionRowId,
-        parts: [{ type: 'text', text: toSend }],
-        override: lastUsedConfig,
-      });
+      await submit({ parts: [{ type: 'text', text: toSend }] });
       setText('');
     } catch (err) {
       console.error('Failed to send prompt:', err);
       setError(err instanceof Error ? err.message : 'Failed to send prompt.');
-    } finally {
-      setIsSending(false);
     }
   };
 

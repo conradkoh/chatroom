@@ -60,11 +60,7 @@ export function SessionDetail({ sessionRowId }: SessionDetailProps) {
         <SessionMessageStream sessionRowId={sessionRowId} />
       </div>
       {/* Composer */}
-      <SessionComposer
-        sessionRowId={sessionRowId}
-        status={session.status}
-        lastUsedConfig={session.lastUsedConfig}
-      />
+      <SessionComposer sessionRowId={sessionRowId} status={session.status} />
     </div>
   );
 }
