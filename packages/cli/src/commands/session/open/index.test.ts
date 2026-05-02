@@ -22,6 +22,7 @@ function createDeps(overrides: Partial<SessionOpenDeps> = {}): SessionOpenDeps &
   return {
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ workingDir: '/tmp/ws1', _id: 'ws-1' }),
     },
     sessionId: 'session-abc',
     harnessRegistry: {
@@ -58,9 +59,6 @@ describe('sessionOpen', () => {
   it('prints harnessSessionRowId and harnessSessionId to stdout', async () => {
     vi.spyOn(await import('../../../infrastructure/auth/storage.js'), 'getSessionId').mockReturnValue('session-abc' as any);
     const deps = createDeps();
-
-    // Mock workspace lookup to succeed
-    (deps.backend as any).query = vi.fn().mockResolvedValue({ workingDir: '/tmp/ws1', _id: 'ws-1' });
 
     await expect(sessionOpen(VALID_OPTIONS, deps)).rejects.toThrow('exit');
     expect(deps._lines).toContain('harnessSessionRowId: session-row-123');

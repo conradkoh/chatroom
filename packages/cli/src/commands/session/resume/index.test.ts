@@ -22,6 +22,7 @@ function createDeps(overrides: Partial<SessionResumeDeps> = {}): SessionResumeDe
   return {
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
     },
     sessionId: 'session-abc',
     spawner: { harnessName: 'opencode-sdk', openSession: vi.fn(), resumeSession: vi.fn() },

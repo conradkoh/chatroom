@@ -31,6 +31,8 @@ import type { SessionHandle } from './internal.js';
 export interface OpenSessionBackend {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mutation: (endpoint: any, args: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: (endpoint: any, args: any) => Promise<any>;
 }
 
 /** Dependencies for openSession. */

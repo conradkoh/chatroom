@@ -3,6 +3,7 @@
  */
 
 import { api } from '../../../api.js';
+import type { Id } from '../../../api.js';
 import { openSession } from '../../../application/direct-harness/open-session.js';
 import type { OpenSessionDeps } from '../../../application/direct-harness/open-session.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
@@ -14,7 +15,7 @@ import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/openco
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SessionOpenOptions {
-  /** Convex Id of the workspace (from `workspace list`). */
+  /** Convex Id of the workspace (from: `workspace list` or daemon registry). */
   workspaceId: string;
   /** Agent role opening this session (e.g. 'builder', 'planner'). */
   agent: string;
@@ -45,6 +46,7 @@ async function createDefaultDeps(): Promise<SessionOpenDeps> {
   return {
     backend: {
       mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
     },
     sessionId: sessionIdValue,
     harnessRegistry: registry,
@@ -79,16 +81,17 @@ export async function sessionOpen(
     return;
   }
 
-  const { workspaceId, agent, harness: _harness = 'opencode-sdk' } = options;
+  const { workspaceId: workspaceIdRaw, agent, harness: _harness = 'opencode-sdk' } = options;
+  const workspaceId = workspaceIdRaw as Id<'chatroom_workspaces'>;
 
-  // Look up the workspace to get workingDir and harnessName
-  const workspace = await (d.backend as any).query(
+  // Look up the workspace to get workingDir for harness process spawning
+  const workspace = await d.backend.query(
     api.workspaces.getWorkspaceById,
     { sessionId: d.sessionId, workspaceId }
   ).catch(() => null);
 
   if (!workspace) {
-    console.error(`❌ Workspace ${workspaceId} not found or not accessible.`);
+    console.error(`❌ Workspace ${workspaceIdRaw} not found or not accessible.`);
     process.exit(1);
     return;
   }
@@ -96,7 +99,7 @@ export async function sessionOpen(
   const openFn = d.openSessionImpl ?? openSession;
 
   const handle = await openFn(d, {
-    workspaceId,
+    workspaceId: workspaceIdRaw,
     workingDir: workspace.workingDir,
     harnessName: 'opencode-sdk',
     agent,

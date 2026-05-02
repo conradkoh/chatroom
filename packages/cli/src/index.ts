@@ -1156,38 +1156,6 @@ opencodeCommand
     await installTool({ checkExisting: !options.force });
   });
 
-// ─── Workspace commands ──────────────────────────────────────────────────
-
-const workspaceCommand = program
-  .command('workspace')
-  .description('Manage workspaces (machine + working-directory pairs) for direct-harness sessions');
-
-workspaceCommand
-  .command('create')
-  .description('Register a new workspace for a chatroom on a machine')
-  .requiredOption('--chatroom-id <id>', 'Target chatroom Convex Id')
-  .requiredOption('--machine-id <id>', 'Machine Id')
-  .requiredOption('--cwd <path>', 'Working directory on the machine')
-  .requiredOption('--name <name>', 'Human-readable workspace label')
-  .action(async (options: { chatroomId: string; machineId: string; cwd: string; name: string }) => {
-    const { workspaceCreate } = await import('./commands/workspace/index.js');
-    await workspaceCreate({
-      chatroomId: options.chatroomId,
-      machineId: options.machineId,
-      cwd: options.cwd,
-      name: options.name,
-    });
-  });
-
-workspaceCommand
-  .command('list')
-  .description('List registered workspaces for a chatroom')
-  .requiredOption('--chatroom-id <id>', 'Target chatroom Convex Id')
-  .action(async (options: { chatroomId: string }) => {
-    const { workspaceList } = await import('./commands/workspace/index.js');
-    await workspaceList({ chatroomId: options.chatroomId });
-  });
-
 // ─── Session commands ────────────────────────────────────────────────────
 
 const sessionCommand = program

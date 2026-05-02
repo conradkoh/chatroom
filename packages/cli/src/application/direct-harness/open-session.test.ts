@@ -82,7 +82,7 @@ function createDeps(overrides: Partial<OpenSessionDeps> = {}): OpenSessionDeps &
   );
 
   return {
-    backend: { mutation: mutationFn },
+    backend: { mutation: mutationFn, query: vi.fn().mockResolvedValue(undefined) },
     sessionId: 'test-session',
     harnessRegistry,
     chunkExtractor,
@@ -137,7 +137,7 @@ describe('openSession', () => {
 
     const session = createMockSession();
     const deps = createDeps({
-      backend: { mutation: mutationFn },
+      backend: { mutation: mutationFn, query: vi.fn().mockResolvedValue(undefined) },
       harnessRegistry: createMockRegistry(session),
     });
 
@@ -147,7 +147,7 @@ describe('openSession', () => {
 
   it('does NOT get or spawn a harness if backend openSession throws', async () => {
     const mutationFn = vi.fn().mockRejectedValue(new Error('backend down'));
-    const deps = createDeps({ backend: { mutation: mutationFn } });
+    const deps = createDeps({ backend: { mutation: mutationFn, query: vi.fn() } });
 
     await expect(openSession(deps, VALID_OPTIONS)).rejects.toThrow('backend down');
     expect((deps.harnessRegistry as any).getOrSpawn).not.toHaveBeenCalled();

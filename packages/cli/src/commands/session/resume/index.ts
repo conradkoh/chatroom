@@ -39,6 +39,7 @@ async function createDefaultDeps(): Promise<SessionResumeDeps> {
   return {
     backend: {
       mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
     },
     sessionId: sessionIdValue,
     spawner: createOpencodeSdkHarness(),

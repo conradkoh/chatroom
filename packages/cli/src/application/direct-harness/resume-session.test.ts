@@ -68,7 +68,7 @@ function createDeps(sessionOverride?: DirectHarnessSession): ResumeSessionDeps &
     e.type === 'message' ? String((e.payload as any)?.content ?? '') : null;
 
   return {
-    backend: { mutation: mutationFn },
+    backend: { mutation: mutationFn, query: vi.fn().mockResolvedValue(undefined) },
     sessionId: 'test-session',
     spawner,
     chunkExtractor,
@@ -150,7 +150,7 @@ describe('resumeSession', () => {
     const mutationFn = vi.fn();
 
     await expect(resumeSession(
-      { backend: { mutation: mutationFn }, sessionId: 's', spawner, chunkExtractor: () => null, nowFn: () => 0 },
+      { backend: { mutation: mutationFn, query: vi.fn().mockResolvedValue(undefined) }, sessionId: 's', spawner, chunkExtractor: () => null, nowFn: () => 0 },
       VALID_OPTIONS
     )).rejects.toThrow('session not found');
 
