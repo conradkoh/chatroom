@@ -1,7 +1,7 @@
 /**
  * Convex-backed MessageStreamTransport for the direct-harness feature.
  *
- * Bridges BufferedMessageStreamSink → chatroom/workers/mutations:appendMessages.
+ * Bridges BufferedMessageStreamSink → chatroom/directHarness/messages:appendMessages.
  * Failures propagate as rejected promises so the sink can apply its
  * retry + warning behavior.
  */
@@ -42,12 +42,12 @@ export class ConvexMessageStreamTransport implements MessageStreamTransport {
 
     // Typed access to the nested module — Convex generates dotted paths
     // for files in subdirectories (mirrors api.integrations.telegram.actions etc).
-    const appendMessages = api.chatroom.workers.mutations.appendMessages;
+    const appendMessages = api.chatroom.directHarness.messages.appendMessages;
 
     await this.options.backend.mutation(appendMessages, {
       sessionId: this.options.sessionId,
       // HarnessSessionRowId is a branded string; Convex Id types are structurally strings at runtime
-      workerId: harnessSessionRowId as unknown as string,
+      harnessSessionRowId: harnessSessionRowId as unknown as string,
       chunks: chunks.map((c) => ({
         seq: c.seq,
         content: c.content,

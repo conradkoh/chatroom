@@ -40,7 +40,7 @@ describe('ConvexMessageStreamTransport', () => {
     expect(mutation).toHaveBeenCalledOnce();
     const [, args] = mutation.mock.calls[0];
     expect(args.sessionId).toBe(SESSION_ID);
-    expect(args.workerId).toBe(WORKER_ID);
+    expect(args.harnessSessionRowId).toBe(WORKER_ID);
     expect(args.chunks).toEqual([{ seq: 0, content: 'hello', timestamp: 42 }]);
   });
 

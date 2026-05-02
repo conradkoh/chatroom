@@ -12,10 +12,13 @@ import type {
 vi.mock('../../api.js', () => ({
   api: {
     chatroom: {
-      workers: {
-        mutations: {
-          createWorker: 'mock-createWorker',
-          associateHarnessSession: 'mock-associateHarnessSession',
+      directHarness: {
+        sessions: {
+          openSession: 'mock-openSession',
+          associateHarnessSessionId: 'mock-associateHarnessSessionId',
+        },
+        messages: {
+          appendMessages: 'mock-appendMessages',
         },
       },
     },
@@ -59,8 +62,8 @@ function createDeps(overrides: Partial<SpawnWorkerDeps> = {}): SpawnWorkerDeps &
 } {
   const session = createMockSession();
   const mutationFn = vi.fn();
-  mutationFn.mockResolvedValueOnce({ workerId: 'backend-worker-1' }); // createWorker
-  mutationFn.mockResolvedValue(undefined); // associateHarnessSession
+  mutationFn.mockResolvedValueOnce({ harnessSessionRowId: 'backend-session-1' }); // openSession
+  mutationFn.mockResolvedValue(undefined); // associateHarnessSessionId
 
   const harness = createMockHarness(session);
   const chunkExtractor = vi.fn((e: DirectHarnessSessionEvent) =>
@@ -93,22 +96,22 @@ describe('spawnWorker', () => {
     vi.clearAllMocks();
   });
 
-  it('calls createWorker → openSession → associateHarnessSession in order', async () => {
+  it('calls openSession → harness.openSession → associateHarnessSessionId in order', async () => {
     const { harness, mutationFn } = createDeps();
     const harnessSpy = harness.openSession as ReturnType<typeof vi.fn>;
 
     await spawnWorker({ backend: { mutation: mutationFn as any }, sessionId: 'test-session', harness, chunkExtractor: () => null, nowFn: () => 0 }, VALID_OPTIONS);
 
     const callOrder = mutationFn.mock.calls.map((c: any[]) => c[0]);
-    expect(callOrder[0]).toBe('mock-createWorker');
-    expect(callOrder[1]).toBe('mock-associateHarnessSession');
+    expect(callOrder[0]).toBe('mock-openSession');
+    expect(callOrder[1]).toBe('mock-associateHarnessSessionId');
     expect(harnessSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('returns workerId matching the backend-issued id', async () => {
+  it('returns workerId matching the backend-issued harnessSessionRowId', async () => {
     const deps = createDeps();
     const handle = await spawnWorker(deps, VALID_OPTIONS);
-    expect(handle.workerId).toBe('backend-worker-1');
+    expect(handle.workerId).toBe('backend-session-1');
   });
 
   it('returns harnessSessionId matching the harness session id', async () => {
@@ -117,11 +120,11 @@ describe('spawnWorker', () => {
     expect(handle.harnessSessionId).toBe('harness-session-123');
   });
 
-  it('passes harnessName from the harness to createWorker', async () => {
+  it('passes harnessName from the harness to openSession', async () => {
     const deps = createDeps();
     await spawnWorker(deps, VALID_OPTIONS);
-    const [, createWorkerArgs] = deps.mutationFn.mock.calls[0];
-    expect(createWorkerArgs.harnessName).toBe('test-harness');
+    const [, openSessionArgs] = deps.mutationFn.mock.calls[0];
+    expect(openSessionArgs.harnessName).toBe('test-harness');
   });
 
   it('events flowing through chunkExtractor reach appendMessages via the sink', async () => {
@@ -169,9 +172,9 @@ describe('spawnWorker', () => {
     expect(deps.session.close).toHaveBeenCalledTimes(1);
   });
 
-  it('closes the session and rethrows if associateHarnessSession throws', async () => {
+  it('closes the session and rethrows if associateHarnessSessionId throws', async () => {
     const mutationFn = vi.fn();
-    mutationFn.mockResolvedValueOnce({ workerId: 'worker-fail' });
+    mutationFn.mockResolvedValueOnce({ harnessSessionRowId: 'session-fail' });
     mutationFn.mockRejectedValueOnce(new Error('associate failed'));
 
     const session = createMockSession();
@@ -185,15 +188,15 @@ describe('spawnWorker', () => {
     expect(session.close).toHaveBeenCalled();
   });
 
-  it('does NOT open session if createWorker throws', async () => {
-    const mutationFn = vi.fn().mockRejectedValue(new Error('createWorker failed'));
+  it('does NOT open session if openSession throws', async () => {
+    const mutationFn = vi.fn().mockRejectedValue(new Error('openSession failed'));
     const session = createMockSession();
     const harness = createMockHarness(session);
 
     await expect(spawnWorker(
       { backend: { mutation: mutationFn }, sessionId: 's', harness, chunkExtractor: () => null, nowFn: () => 0 },
       VALID_OPTIONS
-    )).rejects.toThrow('createWorker failed');
+    )).rejects.toThrow('openSession failed');
 
     expect(harness.openSession).not.toHaveBeenCalled();
   });
@@ -214,7 +217,7 @@ describe('spawnWorker', () => {
     expect(customStrategy.name).toBe('always');
   });
 
-  it('passes chatroomId, machineId, role to harness.openSession config', async () => {
+  it('passes chatroomId, machineId, role, cwd to harness.openSession config', async () => {
     const deps = createDeps();
     await spawnWorker(deps, VALID_OPTIONS);
     expect(deps.harness.openSession).toHaveBeenCalledWith(

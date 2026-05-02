@@ -1,5 +1,5 @@
 /**
- * Orchestrator: createWorker → harness.spawn → associateHarnessSession.
+ * Orchestrator: openSession (backend) → harness.openSession → associateHarnessSessionId.
  *
  * Wires harness session events through a BufferedMessageStreamSink backed
  * by ConvexMessageStreamTransport → backend appendMessages mutation.
@@ -53,25 +53,25 @@ export interface SpawnWorkerDeps {
 
 /** Options for opening a new session. */
 export interface SpawnWorkerOptions {
-  /** Chatroom the worker is associated with (Convex Id<'chatroom_rooms'> as string). */
+  /** Chatroom the session is associated with (Convex Id<'chatroom_rooms'> as string). */
   readonly chatroomId: string;
-  /** Machine the worker runs on. */
+  /** Machine the session runs on. */
   readonly machineId: string;
-  /** Role or label associated with the worker. */
+  /** Agent role opening this session. */
   readonly role: string;
-  /** Working directory for the harness process. */
+  /** Working directory for the harness process (maps to workspace workingDir). */
   readonly cwd?: string;
   /** Additional environment variables. */
   readonly env?: Readonly<Record<string, string>>;
 }
 
-/** A live worker with its session and message sink. */
+/** A live session handle with its harness session and message sink. */
 export interface WorkerHandle {
-  /** Backend-issued worker identifier. */
+  /** Backend-issued session row identifier (harnessSessionRowId). */
   readonly workerId: string;
   /** Harness-issued session identifier. */
   readonly harnessSessionId: string;
-  /** The live harness session — use send() to forward messages. */
+  /** The live harness session — use prompt() to forward messages. */
   readonly session: DirectHarnessSession;
   /**
    * Flush any pending message chunks and close the harness session.
@@ -83,24 +83,28 @@ export interface WorkerHandle {
 // ─── spawnWorker ─────────────────────────────────────────────────────────────
 
 /**
- * Create a new worker, spawn a harness session, associate the two, and
- * wire harness events through to the backend via a buffered message sink.
+ * Open a new backend session row, spawn a harness process session, associate
+ * the two, and wire harness events through to the backend via a buffered
+ * message sink.
  *
- * If `associateHarnessSession` fails after the harness has been spawned,
+ * If `associateHarnessSessionId` fails after the harness has been spawned,
  * the session is closed immediately to avoid leaking processes the backend
  * doesn't know about.
+ *
+ * NOTE: The workspace must already be registered by the daemon before calling
+ * this function. c10 will add explicit workspace management.
  */
 export async function spawnWorker(
   deps: SpawnWorkerDeps,
   options: SpawnWorkerOptions
 ): Promise<WorkerHandle> {
   const { backend, sessionId, harness, chunkExtractor, nowFn = Date.now } = deps;
-  const { chatroomId, machineId, role, cwd, env } = options;
+  const { chatroomId, machineId, role, cwd = process.cwd(), env } = options;
 
-  // 1. Create backend worker record → get workerId
-  const { workerId } = await backend.mutation(
-    api.chatroom.workers.mutations.createWorker,
-    { sessionId, chatroomId, harnessName: harness.harnessName }
+  // 1. Open backend session record → get harnessSessionRowId
+  const { harnessSessionRowId } = await backend.mutation(
+    api.chatroom.directHarness.sessions.openSession,
+    { sessionId, chatroomId, machineId, cwd, harnessName: harness.harnessName, agent: role }
   );
 
   // 2. Open a harness session
@@ -110,12 +114,12 @@ export async function spawnWorker(
     config: { chatroomId, machineId, role },
   });
 
-  // 3. Associate the harness session with the backend worker.
+  // 3. Associate the harness session with the backend row.
   //    If this fails, close the session to avoid leaking processes.
   try {
     await backend.mutation(
-      api.chatroom.workers.mutations.associateHarnessSession,
-      { sessionId, workerId, harnessSessionId: session.harnessSessionId as string }
+      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      { sessionId, harnessSessionRowId, harnessSessionId: session.harnessSessionId as string }
     );
   } catch (err) {
     await session.close().catch(() => {});
@@ -125,7 +129,7 @@ export async function spawnWorker(
   // 4. Build the message transport + sink
   const transport = new ConvexMessageStreamTransport({ backend, sessionId });
   const sink = new BufferedMessageStreamSink({
-    workerId: workerId as HarnessSessionRowId,
+    workerId: harnessSessionRowId as HarnessSessionRowId,
     transport,
     strategy: deps.flushStrategy ?? createDefaultFlushStrategy(),
     maxBufferItems: deps.bufferLimit,
@@ -135,5 +139,5 @@ export async function spawnWorker(
   // 5. Wire events from the session through the chunk extractor into the sink
   const unsubscribeEvents = wireEventSink(session, sink, chunkExtractor);
 
-  return buildWorkerHandle(workerId, session.harnessSessionId as string, session, sink, unsubscribeEvents);
+  return buildWorkerHandle(harnessSessionRowId, session.harnessSessionId as string, session, sink, unsubscribeEvents);
 }

@@ -2139,41 +2139,47 @@ export default defineSchema({
     .index('by_chatroomId', ['chatroomId'])
     .index('by_lastObservedAt', ['lastObservedAt']),
 
-  // ─── direct-harness workers (feature flag: directHarnessWorkers) ───────────
+  // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
 
   /**
-   * Tracks a single harness worker process associated with a chatroom.
-   * WorkerId is the Convex-issued _id.
+   * A HarnessSession represents one conversation with a harness process.
+   * Sessions are associated with an existing chatroom_workspaces entry and
+   * are resumable across daemon restarts.
+   * harnessSessionRowId is the Convex-issued _id.
    */
-  chatroom_workers: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
+  chatroom_harnessSessions: defineTable({
+    workspaceId: v.id('chatroom_workspaces'),
     harnessName: v.string(),
+    /** Opencode-server-issued session identifier (set after spawning). */
     harnessSessionId: v.optional(v.string()),
+    /** The agent driving this session (e.g. 'builder', 'planner'). */
+    agent: v.string(),
     status: v.union(
       v.literal('pending'),
       v.literal('spawning'),
-      v.literal('running'),
-      v.literal('stopped'),
+      v.literal('active'),
+      v.literal('idle'),
+      v.literal('closed'),
       v.literal('failed')
     ),
     createdBy: v.id('users'),
     createdAt: v.number(),
-    updatedAt: v.number(),
+    lastActiveAt: v.number(),
   })
-    .index('by_chatroom', ['chatroomId'])
-    .index('by_harnessSession', ['harnessSessionId'])
-    .index('by_chatroom_status', ['chatroomId', 'status']),
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_status', ['workspaceId', 'status'])
+    .index('by_harnessSessionId', ['harnessSessionId']),
 
   /**
-   * Buffered output chunks produced by a harness worker process.
-   * seq is monotonically increasing per worker.
+   * Buffered output chunks produced by a harness session.
+   * seq is monotonically increasing per session.
    */
-  chatroom_workerMessages: defineTable({
-    workerId: v.id('chatroom_workers'),
+  chatroom_harnessSessionMessages: defineTable({
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
     seq: v.number(),
     content: v.string(),
     timestamp: v.number(),
   })
-    .index('by_worker_seq', ['workerId', 'seq'])
-    .index('by_worker', ['workerId']),
+    .index('by_session_seq', ['harnessSessionRowId', 'seq'])
+    .index('by_session', ['harnessSessionRowId']),
 });

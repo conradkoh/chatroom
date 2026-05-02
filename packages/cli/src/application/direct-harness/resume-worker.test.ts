@@ -12,10 +12,13 @@ import type {
 vi.mock('../../api.js', () => ({
   api: {
     chatroom: {
-      workers: {
-        mutations: {
-          createWorker: 'mock-createWorker',
-          associateHarnessSession: 'mock-associateHarnessSession',
+      directHarness: {
+        sessions: {
+          openSession: 'mock-openSession',
+          associateHarnessSessionId: 'mock-associateHarnessSessionId',
+        },
+        messages: {
+          appendMessages: 'mock-appendMessages',
         },
       },
     },
