@@ -82,6 +82,11 @@ function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
 
   const isBooting =
     selectedSession?.status === 'pending' || selectedSession?.status === 'spawning';
+  // Agent of the failed session — pre-fill new session button for one-click recovery
+  const failedSessionAgent =
+    (selectedSession?.status === 'failed' || selectedSession?.status === 'closed')
+      ? selectedSession?.agent ?? undefined
+      : undefined;
 
   const handleRequestNewSession = useCallback(() => {
     setSelectedSessionId(null); // deselect session to show new-session button
@@ -127,6 +132,7 @@ function DirectHarnessPanelInner({ chatroomId }: DirectHarnessPanelProps) {
                   machineId={selectedWorkspaceMachineId}
                   chatroomId={chatroomId}
                   availableAgents={availableAgents}
+                  defaultAgent={failedSessionAgent}
                 />
               )}
             </>

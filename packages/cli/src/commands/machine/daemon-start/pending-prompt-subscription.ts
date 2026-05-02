@@ -1,8 +1,16 @@
 /**
- * Reactive subscription for pending prompt execution in the direct-harness daemon.
+ * Reactive subscription for pending task execution in the direct-harness daemon.
  *
  * Subscribes to `getPendingPromptsForMachine` via the Convex WebSocket client.
- * When new pending prompts appear, the daemon claims and executes them.
+ * When new pending tasks appear, the daemon claims and executes them.
+ *
+ * Handles two task types:
+ * - 'prompt': sends a text prompt to the harness session
+ * - 'resume': reconnects to an existing harness session
+ *
+ * Lazy resume contract: sessions are NOT auto-resumed on daemon startup.
+ * Resume only happens on explicit user action (click in the UI). This keeps
+ * daemon boot fast and avoids surprise costs.
  */
 
 import type { ConvexClient } from 'convex/browser';
@@ -12,6 +20,7 @@ import type { Id } from '../../../api.js';
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import { promptSession } from '../../../application/direct-harness/prompt-session.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
 import type { DaemonContext } from './types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -21,11 +30,11 @@ export interface PendingPromptSubscriptionHandle {
 }
 
 /**
- * Start the reactive pending-prompt subscription.
+ * Start the reactive pending-task subscription.
  *
  * Only active when the `directHarnessWorkers` feature flag is enabled.
- * When pending prompts appear for this machine, claims and executes them
- * sequentially using `promptSession`.
+ * When pending tasks appear for this machine, claims and executes them
+ * sequentially.
  */
 export function startPendingPromptSubscription(
   ctx: DaemonContext,
@@ -49,10 +58,10 @@ export function startPendingPromptSubscription(
       if (processing) return;
 
       processing = true;
-      void drainPendingPrompts(ctx, harnessRegistry)
+      void drainPendingTasks(ctx, harnessRegistry)
         .catch((err: unknown) => {
           console.warn(
-            `[direct-harness] Pending prompt processing failed: ${getErrorMessage(err)}`
+            `[direct-harness] Pending task processing failed: ${getErrorMessage(err)}`
           );
         })
         .finally(() => {
@@ -61,7 +70,7 @@ export function startPendingPromptSubscription(
     },
     (err: unknown) => {
       console.warn(
-        `[direct-harness] Pending prompt subscription error: ${getErrorMessage(err)}`
+        `[direct-harness] Pending task subscription error: ${getErrorMessage(err)}`
       );
     }
   );
@@ -74,36 +83,37 @@ export function startPendingPromptSubscription(
 }
 
 /**
- * Claim and execute all pending prompts for this machine, one at a time.
- * Stops when no more pending prompts remain.
+ * Claim and execute all pending tasks for this machine, one at a time.
+ * Stops when no more pending tasks remain.
  */
-async function drainPendingPrompts(
+async function drainPendingTasks(
   ctx: DaemonContext,
   harnessRegistry: HarnessProcessRegistry
 ): Promise<void> {
   while (true) {
-    // Atomically claim the next pending prompt
+    // Atomically claim the next pending task
     const claimed = await ctx.deps.backend.mutation(
       api.chatroom.directHarness.prompts.claimNextPendingPrompt,
       { sessionId: ctx.sessionId, machineId: ctx.machineId }
     );
 
-    if (!claimed) break; // No more pending prompts
+    if (!claimed) break; // No more pending tasks
 
-    await executeClaimedPrompt(ctx, harnessRegistry, claimed);
+    await executeClaimedTask(ctx, harnessRegistry, claimed);
   }
 }
 
 /**
- * Execute one claimed prompt — find the harness session, call prompt(), complete the row.
+ * Execute one claimed task — dispatches to prompt or resume handler based on taskType.
  */
-async function executeClaimedPrompt(
+async function executeClaimedTask(
   ctx: DaemonContext,
   harnessRegistry: HarnessProcessRegistry,
   claimed: {
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
+    taskType: 'prompt' | 'resume';
     parts: Array<{ type: 'text'; text: string }>;
   }
 ): Promise<void> {
@@ -125,20 +135,103 @@ async function executeClaimedPrompt(
   }
 
   // Get or spawn the harness process for this workspace
+  // (Resume also needs the harness process — it may not be running after a daemon restart)
   const harnessProcess = await harnessRegistry
     .getOrSpawn(claimed.workspaceId as string, workspace.workingDir)
     .catch((err: unknown) => {
       throw new Error(`Failed to get harness for workspace ${claimed.workspaceId}: ${getErrorMessage(err)}`);
     });
 
+  if (claimed.taskType === 'resume') {
+    await executeResumeTask(ctx, harnessProcess.spawner, claimed);
+  } else {
+    await executePromptTask(ctx, harnessProcess, claimed);
+  }
+}
+
+/**
+ * Execute a 'resume' task — reconnect to an existing harness session.
+ */
+async function executeResumeTask(
+  ctx: DaemonContext,
+  spawner: HarnessProcessRegistry extends { getOrSpawn: (...args: any[]) => Promise<infer P> } ? P extends { spawner: infer S } ? S : never : never,
+  claimed: {
+    _id: Id<'chatroom_pendingPrompts'>;
+    harnessSessionRowId: Id<'chatroom_harnessSessions'>;
+    workspaceId: Id<'chatroom_workspaces'>;
+  }
+): Promise<void> {
+  // Get the session's harnessSessionId to resume with
+  const session = await ctx.deps.backend.query(
+    api.chatroom.directHarness.sessions.getSession,
+    { sessionId: ctx.sessionId, harnessSessionRowId: claimed.harnessSessionRowId }
+  );
+
+  if (!session?.harnessSessionId) {
+    await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      promptId: claimed._id,
+      status: 'error',
+      errorMessage: 'Session has no harness session ID — it may not have completed spawning originally',
+    });
+    return;
+  }
+
+  try {
+    // Reconnect to the harness session by its SDK-issued ID
+    await spawner.resumeSession(session.harnessSessionId as HarnessSessionId);
+
+    // Mark session as active again
+    await ctx.deps.backend.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
+      sessionId: ctx.sessionId,
+      harnessSessionRowId: claimed.harnessSessionRowId,
+      harnessSessionId: session.harnessSessionId,
+    });
+
+    await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      promptId: claimed._id,
+      status: 'done',
+    });
+  } catch (err) {
+    await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      promptId: claimed._id,
+      status: 'error',
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    // Also mark the session itself as failed
+    await ctx.deps.backend.mutation(api.chatroom.directHarness.sessions.closeSession, {
+      sessionId: ctx.sessionId,
+      harnessSessionRowId: claimed.harnessSessionRowId,
+    }).catch(() => {}); // best-effort
+    throw err;
+  }
+}
+
+/**
+ * Execute a 'prompt' task — send a text prompt to the harness session.
+ */
+async function executePromptTask(
+  ctx: DaemonContext,
+  harnessProcess: Awaited<ReturnType<HarnessProcessRegistry['getOrSpawn']>>,
+  claimed: {
+    _id: Id<'chatroom_pendingPrompts'>;
+    harnessSessionRowId: Id<'chatroom_harnessSessions'>;
+    workspaceId: Id<'chatroom_workspaces'>;
+    parts: Array<{ type: 'text'; text: string }>;
+  }
+): Promise<void> {
   await promptSession(
     {
       backend: ctx.deps.backend,
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       prompt: async (harnessSessionId, input) => {
-        const session = harnessProcess.spawner;
-        const liveSession = await session.resumeSession(harnessSessionId);
+        const liveSession = await harnessProcess.spawner.resumeSession(harnessSessionId);
         await liveSession.prompt(input);
       },
     },

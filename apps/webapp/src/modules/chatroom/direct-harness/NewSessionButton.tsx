@@ -34,6 +34,8 @@ interface NewSessionButtonProps {
   machineId: string | null;
   chatroomId: string;
   availableAgents: PublishedAgent[];
+  /** Pre-select an agent (used when re-opening after failed resume). */
+  defaultAgent?: string;
 }
 
 export function NewSessionButton({
@@ -41,9 +43,10 @@ export function NewSessionButton({
   machineId,
   chatroomId: _chatroomId,
   availableAgents,
+  defaultAgent,
 }: NewSessionButtonProps) {
   const [open, setOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(defaultAgent ?? null);
   const [isOpening, setIsOpening] = useState(false);
 
   const openSessionMutation = useSessionMutation(

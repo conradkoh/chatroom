@@ -33,6 +33,16 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
         sessions: {
           listSessionsByWorkspace: 'mock-listSessionsByWorkspace',
           openSession: 'mock-openSession',
+          getSession: 'mock-getSession',
+          closeSession: 'mock-closeSession',
+          updateSessionAgent: 'mock-updateSessionAgent',
+        },
+        prompts: {
+          resumeSession: 'mock-resumeSession',
+          submitPrompt: 'mock-submitPrompt',
+        },
+        messages: {
+          streamSessionMessages: 'mock-streamSessionMessages',
         },
         capabilities: {
           getMachineRegistry: 'mock-getMachineRegistry',

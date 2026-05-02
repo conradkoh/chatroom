@@ -2222,6 +2222,8 @@ export default defineSchema({
     /** Denormalized for efficient daemon polling. */
     machineId: v.string(),
     workspaceId: v.id('chatroom_workspaces'),
+    /** Task type: 'prompt' sends a text prompt; 'resume' reconnects to the harness. */
+    taskType: v.union(v.literal('prompt'), v.literal('resume')),
     parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
     status: v.union(
       v.literal('pending'),

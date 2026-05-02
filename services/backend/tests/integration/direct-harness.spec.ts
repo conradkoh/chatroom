@@ -668,3 +668,65 @@ describe('updateSessionAgent (with validation)', () => {
     ).resolves.toBeDefined();
   });
 });
+
+// ─── resumeSession ────────────────────────────────────────────────────────────
+
+describe('resumeSession', () => {
+  test('enqueues a resume task for an active session', async () => {
+    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('resume-enqueue');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    // Associate to mark as active
+    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
+      sessionId,
+      harnessSessionRowId,
+      harnessSessionId: 'sdk-session-xyz',
+    });
+
+    const result = await t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+
+    expect(result.promptId).toBeDefined();
+
+    // Verify the task was inserted with taskType='resume'
+    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    const resumeTask = queue.find((q) => (q as any).taskType === 'resume');
+    expect(resumeTask).toBeDefined();
+    expect((resumeTask as any).parts).toHaveLength(0);
+  });
+
+  test('throws when session is in pending/spawning state', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('resume-pending');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    // Session is in 'pending' state after openSession
+
+    await expect(
+      t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
+        sessionId,
+        harnessSessionRowId,
+      })
+    ).rejects.toThrow('still starting');
+  });
+
+  test('allows resuming a closed session (daemon will try and fail gracefully if harness gone)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('resume-closed');
+    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+
+    await t.mutation(api.chatroom.directHarness.sessions.closeSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+
+    // Resume on closed is allowed — daemon decides if it works
+    const result = await t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
+      sessionId,
+      harnessSessionRowId,
+    });
+    expect(result.promptId).toBeDefined();
+  });
+});
