@@ -83,6 +83,19 @@ export const submitPrompt = mutation({
       updatedAt: now,
     });
 
+    // Write the user's prompt text as a message so it appears in the chat
+    // history immediately (the UI reads from chatroom_harnessSessionMessages,
+    // not from chatroom_pendingPrompts).
+    const promptText = args.parts.map((p) => p.text).join('\n');
+    if (promptText.trim()) {
+      await ctx.db.insert('chatroom_harnessSessionMessages', {
+        harnessSessionRowId: args.harnessSessionRowId,
+        seq: Date.now(),
+        content: promptText,
+        timestamp: now,
+      });
+    }
+
     return { promptId };
   },
 });

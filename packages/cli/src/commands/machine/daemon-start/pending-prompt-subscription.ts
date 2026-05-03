@@ -20,8 +20,17 @@ import type { DaemonContext } from './types.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
+import {
+  createDefaultFlushStrategy,
+  wireEventSink,
+} from '../../../application/direct-harness/internal.js';
 import { promptSession } from '../../../application/direct-harness/prompt-session.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
+import type { HarnessSessionId, HarnessSessionRowId } from '../../../domain/direct-harness/index.js';
+import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
+import {
+  BufferedMessageStreamSink,
+  ConvexMessageStreamTransport,
+} from '../../../infrastructure/services/direct-harness/message-stream/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Handle returned by `startPendingPromptSubscription` to stop the subscription. */
@@ -242,6 +251,19 @@ async function executePromptTask(
     };
   }
 ): Promise<void> {
+  // Create the message sink and transport *before* calling promptSession so
+  // they live for the duration of the resumed session. The transport will
+  // flush response chunks to chatroom_harnessSessionMessages as they arrive.
+  const transport = new ConvexMessageStreamTransport({
+    backend: ctx.deps.backend,
+    sessionId: ctx.sessionId,
+  });
+  const sink = new BufferedMessageStreamSink({
+    workerId: claimed.harnessSessionRowId as unknown as HarnessSessionRowId,
+    transport,
+    strategy: createDefaultFlushStrategy(),
+  });
+
   await promptSession(
     {
       backend: ctx.deps.backend,
@@ -249,7 +271,15 @@ async function executePromptTask(
       machineId: ctx.machineId,
       prompt: async (harnessSessionId, input) => {
         const liveSession = await harnessProcess.spawner.resumeSession(harnessSessionId);
-        await liveSession.prompt(input);
+        // Wire the resumed session's events to the message sink so the
+        // harness response appears in the UI chat history.
+        const unsubscribeEvents = wireEventSink(liveSession, sink, openCodeChunkExtractor);
+        try {
+          await liveSession.prompt(input);
+        } finally {
+          unsubscribeEvents();
+          await liveSession.close().catch(() => {});
+        }
       },
     },
     {
@@ -259,4 +289,7 @@ async function executePromptTask(
       override: claimed.override,
     }
   );
+
+  // Flush any remaining buffered chunks and close the sink
+  await sink.close();
 }
