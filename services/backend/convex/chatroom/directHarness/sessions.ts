@@ -58,11 +58,20 @@ export const openSession = mutation({
 
     // Validate BEFORE inserting any row (§9.5)
     assertAgentNonEmpty(args.config.agent);
-    if (args.firstPrompt && (!args.firstPrompt.parts || args.firstPrompt.parts.length === 0)) {
-      throw new ConvexError({
-        code: 'HARNESS_SESSION_INVALID_PROMPT',
-        message: 'firstPrompt.parts must have at least one entry',
-      });
+    if (args.firstPrompt) {
+      if (!args.firstPrompt.parts || args.firstPrompt.parts.length === 0) {
+        throw new ConvexError({
+          code: 'HARNESS_SESSION_INVALID_PROMPT',
+          message: 'firstPrompt.parts must have at least one entry',
+        });
+      }
+      const promptText = args.firstPrompt.parts.map((p) => p.text).join('\n');
+      if (!promptText.trim()) {
+        throw new ConvexError({
+          code: 'HARNESS_SESSION_INVALID_PROMPT',
+          message: 'firstPrompt text must not be empty',
+        });
+      }
     }
 
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);

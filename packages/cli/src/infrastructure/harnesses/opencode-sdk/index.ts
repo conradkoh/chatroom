@@ -100,6 +100,7 @@ async function createSessionOnClient(
     machineId: meta.machineId,
     chatroomId: meta.chatroomId,
     role: meta.role,
+    title: sessionTitle,
     pid: meta.pid,
     createdAt: new Date(nowFn()).toISOString(),
     baseUrl: meta.baseUrl,
@@ -162,7 +163,7 @@ export async function resumeSessionFromStore(
 
   const session = new OpencodeSdkDirectHarnessSession(
     harnessSessionId,
-    meta.role, // Use role as fallback title for resumed sessions
+    meta.title ?? meta.role, // Use stored title if available, fall back to role
     client,
     () => stopEventStream(),
     undefined // process lifecycle managed elsewhere

@@ -7,6 +7,8 @@ export interface SessionMetadata {
   machineId: string;
   chatroomId: string;
   role: string;
+  /** Display title synced from the harness (e.g. opencode session title). */
+  title?: string;
   pid: number;
   createdAt: string;
   baseUrl: string;

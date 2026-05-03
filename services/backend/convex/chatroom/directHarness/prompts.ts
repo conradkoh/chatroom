@@ -43,6 +43,21 @@ export const submitPrompt = mutation({
 
     assertAgentNonEmpty(args.override.agent);
 
+    // Validate parts BEFORE doing any DB writes
+    if (!args.parts || args.parts.length === 0) {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'parts must have at least one entry',
+      });
+    }
+    const promptText = args.parts.map((p) => p.text).join('\n');
+    if (!promptText.trim()) {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'Prompt text must not be empty',
+      });
+    }
+
     const { harnessSession, session } = await getSessionWithAccess(
       ctx,
       args.sessionId,
@@ -86,7 +101,6 @@ export const submitPrompt = mutation({
     // Write the user's prompt text as a message so it appears in the chat
     // history immediately (the UI reads from chatroom_harnessSessionMessages,
     // not from chatroom_pendingPrompts).
-    const promptText = args.parts.map((p) => p.text).join('\n');
     if (promptText.trim()) {
       await ctx.db.insert('chatroom_harnessSessionMessages', {
         harnessSessionRowId: args.harnessSessionRowId,
