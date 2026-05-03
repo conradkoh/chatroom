@@ -100,12 +100,12 @@ export function startPendingHarnessSessionSubscription(
 /**
  * Orchestrate opening a single pending harness session.
  *
- * Mirrors the `application/direct-harness/open-session` flow:
  *   1. Look up the workspace to get cwd
  *   2. getOrSpawn the harness process → triggers onHarnessBooted → publishes agents
  *   3. Open a session on the running harness process
  *   4. Associate the harness-issued session ID with the backend row
  *   5. Wire event sink so session output is streamed to the backend
+ *   6. Claim and process the first pending prompt (avoids race with prompt subscription)
  *
  * On failure, marks the backend session row as closed so the UI can surface the error.
  */
@@ -180,6 +180,53 @@ async function processSession(
   });
 
   wireEventSink(harnessSession, sink, openCodeChunkExtractor);
+
+  // 6. Claim and process the first pending prompt (created atomically with the
+  //    session row by openSession). This avoids the race where the prompt
+  //    subscription claims the prompt before harnessSessionId is associated.
+  //    The response streams through the sink wired in step 5.
+  const claimedPrompt = await ctx.deps.backend.mutation(
+    api.chatroom.directHarness.prompts.claimNextPendingPrompt,
+    {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      harnessSessionRowId: session._id,
+    }
+  );
+
+  if (claimedPrompt && claimedPrompt.taskType === 'prompt') {
+    try {
+      await harnessSession.prompt({
+        agent: claimedPrompt.override.agent,
+        parts: claimedPrompt.parts,
+        ...(claimedPrompt.override.model ? { model: claimedPrompt.override.model } : {}),
+        ...(claimedPrompt.override.system ? { system: claimedPrompt.override.system } : {}),
+        ...(claimedPrompt.override.tools ? { tools: claimedPrompt.override.tools } : {}),
+      });
+      await ctx.deps.backend.mutation(
+        api.chatroom.directHarness.prompts.completePendingPrompt,
+        {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          promptId: claimedPrompt._id,
+          status: 'done',
+        }
+      );
+    } catch (err) {
+      await ctx.deps.backend
+        .mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          promptId: claimedPrompt._id,
+          status: 'error',
+          errorMessage: getErrorMessage(err),
+        })
+        .catch(() => {});
+      console.warn(
+        `[direct-harness] First prompt failed for session ${rowId}: ${getErrorMessage(err)}`
+      );
+    }
+  }
 
   console.log(
     `[direct-harness] Harness session opened: rowId=${rowId} agent=${session.lastUsedConfig.agent} workspace=${session.workspaceId}`

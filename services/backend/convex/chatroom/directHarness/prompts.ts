@@ -165,6 +165,10 @@ export const resumeSession = mutation({
 /**
  * Atomically claim the next pending prompt for a machine.
  *
+ * When harnessSessionRowId is provided, only claims a pending prompt for that
+ * specific session. Use this from `processSession` to claim the first prompt
+ * after association without racing the prompt subscription.
+ *
  * Auth: machine ownership (same pattern as publishMachineCapabilities).
  * Transitions status pending → processing for the oldest pending prompt.
  * Returns null if no pending prompts exist for this machine.
@@ -176,6 +180,7 @@ export const claimNextPendingPrompt = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
+    harnessSessionRowId: v.optional(v.id('chatroom_harnessSessions')),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -192,14 +197,21 @@ export const claimNextPendingPrompt = mutation({
     if (!machine) throw new Error(`Machine ${args.machineId} is not registered`);
     if (machine.userId !== auth.user._id) throw new Error('Machine belongs to a different user');
 
-    // Find the oldest pending prompt for this machine
-    const pending = await ctx.db
+    // Find the oldest pending prompt for this machine (optionally filtered by session)
+    let query = ctx.db
       .query('chatroom_pendingPrompts')
       .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
-      .order('asc') // oldest first (by _creationTime, which equals requestedAt for sequential inserts)
-      .first();
+      .order('asc'); // oldest first (by _creationTime, which equals requestedAt for sequential inserts)
+
+    if (args.harnessSessionRowId) {
+      query = query.filter((q) =>
+        q.eq(q.field('harnessSessionRowId'), args.harnessSessionRowId)
+      );
+    }
+
+    const pending = await query.first();
 
     if (!pending) return null;
 
