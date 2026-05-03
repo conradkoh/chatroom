@@ -467,11 +467,6 @@ export async function initDaemon(): Promise<DaemonContext> {
       logStartup(ctx, availableModels);
       await recoverState(ctx);
 
-      // Start the local API server after the context is fully assembled.
-      // Port conflicts are handled gracefully inside startLocalApi (warns and continues).
-      const localApiHandle = await startLocalApi(ctx);
-      ctx.stopLocalApi = localApiHandle.stop;
-
       return ctx;
     } catch (error) {
       if (isNetworkError(error)) {
