@@ -42,6 +42,27 @@ export function assertAgentNonEmpty(agent: string): void {
   }
 }
 
+// ─── Message sequencing ─────────────────────────────────────────────────────
+
+/**
+ * Compute the next monotonically-increasing sequence number for a session's
+ * messages. Convex mutations are serialized, so this is race-free: no two
+ * mutations can interleave between the read and write.
+ *
+ * Falls back to Date.now() if no messages exist yet (first message).
+ */
+export async function getNextMessageSeq(
+  ctx: { db: MutationCtx['db'] },
+  harnessSessionRowId: Id<'chatroom_harnessSessions'>
+): Promise<number> {
+  const lastMessage = await ctx.db
+    .query('chatroom_harnessSessionMessages')
+    .withIndex('by_session_seq', (q) => q.eq('harnessSessionRowId', harnessSessionRowId))
+    .order('desc')
+    .first();
+  return lastMessage ? lastMessage.seq + 1 : Date.now();
+}
+
 // ─── Session access guard ────────────────────────────────────────────────────
 
 /** The authenticated context returned when a session access check passes. */

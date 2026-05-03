@@ -12,6 +12,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import {
   assertAgentNonEmpty,
+  getNextMessageSeq,
   getSessionWithAccess,
   requireDirectHarnessWorkers,
 } from './helpers.js';
@@ -104,7 +105,7 @@ export const submitPrompt = mutation({
     if (promptText.trim()) {
       await ctx.db.insert('chatroom_harnessSessionMessages', {
         harnessSessionRowId: args.harnessSessionRowId,
-        seq: Date.now(),
+        seq: await getNextMessageSeq(ctx, args.harnessSessionRowId),
         content: promptText,
         timestamp: now,
       });
