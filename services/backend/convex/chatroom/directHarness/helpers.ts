@@ -26,6 +26,22 @@ export function requireDirectHarnessWorkers(): void {
   }
 }
 
+// ─── Agent validation ────────────────────────────────────────────────────────
+
+/**
+ * Asserts that the given agent string is non-empty. Throws a ConvexError with
+ * code HARNESS_SESSION_INVALID_AGENT if the assertion fails.
+ */
+export function assertAgentNonEmpty(agent: string): void {
+  if (!agent || agent.trim().length === 0) {
+    throw new ConvexError({
+      code: 'HARNESS_SESSION_INVALID_AGENT',
+      message: 'Agent must be a non-empty string',
+      fields: { agent },
+    });
+  }
+}
+
 // ─── Session access guard ────────────────────────────────────────────────────
 
 /** The authenticated context returned when a session access check passes. */
@@ -43,7 +59,7 @@ export async function getSessionWithAccess(
   sessionId: string,
   harnessSessionRowId: Id<'chatroom_harnessSessions'>
 ): Promise<SessionAccess> {
-  const harnessSession = await ctx.db.get("chatroom_harnessSessions", harnessSessionRowId);
+  const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionRowId);
   if (!harnessSession) {
     throw new ConvexError({
       code: 'NOT_FOUND',
@@ -51,7 +67,7 @@ export async function getSessionWithAccess(
     });
   }
 
-  const workspace = await ctx.db.get("chatroom_workspaces", harnessSession.workspaceId);
+  const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
   if (!workspace) {
     throw new ConvexError({
       code: 'NOT_FOUND',

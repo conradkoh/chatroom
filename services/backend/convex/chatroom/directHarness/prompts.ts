@@ -10,7 +10,11 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js';
+import {
+  assertAgentNonEmpty,
+  getSessionWithAccess,
+  requireDirectHarnessWorkers,
+} from './helpers.js';
 import { mutation, query } from '../../_generated/server.js';
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 
@@ -37,12 +41,7 @@ export const submitPrompt = mutation({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    if (!args.override.agent || args.override.agent.trim() === '') {
-      throw new ConvexError({
-        code: 'HARNESS_SESSION_INVALID_AGENT',
-        message: 'override.agent is required and must not be empty',
-      });
-    }
+    assertAgentNonEmpty(args.override.agent);
 
     const { harnessSession, session } = await getSessionWithAccess(
       ctx,
@@ -58,7 +57,7 @@ export const submitPrompt = mutation({
     }
 
     // Look up workspace to get machineId (denormalized for daemon poll)
-    const workspace = await ctx.db.get("chatroom_workspaces", harnessSession.workspaceId);
+    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
     if (!workspace) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
     }
@@ -66,7 +65,7 @@ export const submitPrompt = mutation({
     const now = Date.now();
 
     // Update lastUsedConfig on the session to mirror the override (keeps session-detail in sync)
-    await ctx.db.patch("chatroom_harnessSessions", args.harnessSessionRowId, {
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, {
       lastUsedConfig: args.override,
       lastActiveAt: now,
     });
@@ -125,7 +124,7 @@ export const resumeSession = mutation({
       );
     }
 
-    const workspace = await ctx.db.get("chatroom_workspaces", harnessSession.workspaceId);
+    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
     if (!workspace) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
     }
@@ -192,7 +191,7 @@ export const claimNextPendingPrompt = mutation({
     if (!pending) return null;
 
     // Atomically claim it
-    await ctx.db.patch("chatroom_pendingPrompts", pending._id, {
+    await ctx.db.patch('chatroom_pendingPrompts', pending._id, {
       status: 'processing',
       updatedAt: Date.now(),
     });
@@ -228,7 +227,7 @@ export const completePendingPrompt = mutation({
     if (!machine) throw new Error(`Machine ${args.machineId} is not registered`);
     if (machine.userId !== auth.user._id) throw new Error('Machine belongs to a different user');
 
-    const prompt = await ctx.db.get("chatroom_pendingPrompts", args.promptId);
+    const prompt = await ctx.db.get('chatroom_pendingPrompts', args.promptId);
     if (!prompt) throw new ConvexError({ code: 'NOT_FOUND', message: 'Pending prompt not found' });
 
     // Verify the prompt belongs to the machine that is completing it
@@ -236,7 +235,7 @@ export const completePendingPrompt = mutation({
       throw new ConvexError('Prompt does not belong to this machine');
     }
 
-    await ctx.db.patch("chatroom_pendingPrompts", args.promptId, {
+    await ctx.db.patch('chatroom_pendingPrompts', args.promptId, {
       status: args.status,
       ...(args.errorMessage ? { errorMessage: args.errorMessage } : {}),
       updatedAt: Date.now(),
