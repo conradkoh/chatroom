@@ -27,11 +27,13 @@ import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
 /**
  * Open a new harness session in the given workspace.
  *
- * Atomic: inserts the session row AND a paired pending-prompt row in a single
- * transaction. Validates firstPrompt and config.agent BEFORE inserting any row
- * so a bad request leaves no orphaned rows behind (per design §9.5).
+ * When firstPrompt is provided (webapp path), inserts the session row AND a
+ * paired pending-prompt row atomically. Validates config.agent BEFORE inserting
+ * any row so a bad request leaves no orphaned rows behind (per design §9.5).
  *
- * Returns { harnessSessionRowId, promptId }.
+ * When firstPrompt is omitted (CLI path), only the session row is created.
+ *
+ * Returns { harnessSessionRowId, promptId? }.
  */
 export const openSession = mutation({
   args: {
@@ -44,16 +46,19 @@ export const openSession = mutation({
       system: v.optional(v.string()),
       tools: v.optional(v.record(v.string(), v.boolean())),
     }),
-    firstPrompt: v.object({
-      parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
-    }),
+    /** Optional first prompt. When omitted (CLI path), only the session row is created. */
+    firstPrompt: v.optional(
+      v.object({
+        parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
     // Validate BEFORE inserting any row (§9.5)
     assertAgentNonEmpty(args.config.agent);
-    if (!args.firstPrompt.parts || args.firstPrompt.parts.length === 0) {
+    if (args.firstPrompt && (!args.firstPrompt.parts || args.firstPrompt.parts.length === 0)) {
       throw new ConvexError({
         code: 'HARNESS_SESSION_INVALID_PROMPT',
         message: 'firstPrompt.parts must have at least one entry',
@@ -72,7 +77,6 @@ export const openSession = mutation({
 
     const now = Date.now();
 
-    // Atomically insert session row + pending prompt
     const harnessSessionRowId = await ctx.db.insert('chatroom_harnessSessions', {
       workspaceId: args.workspaceId,
       harnessName: args.harnessName,
@@ -84,30 +88,34 @@ export const openSession = mutation({
       lastActiveAt: now,
     });
 
-    const promptId = await ctx.db.insert('chatroom_pendingPrompts', {
-      harnessSessionRowId,
-      machineId: workspace.machineId,
-      workspaceId: args.workspaceId,
-      taskType: 'prompt',
-      parts: args.firstPrompt.parts,
-      override: args.config,
-      status: 'pending',
-      requestedBy: session.userId,
-      requestedAt: now,
-      updatedAt: now,
-    });
+    let promptId: string | undefined;
 
-    // Write the user's prompt text as a message so it appears in the chat
-    // history immediately (the UI reads from chatroom_harnessSessionMessages,
-    // not from chatroom_pendingPrompts).
-    const promptText = args.firstPrompt.parts.map((p) => p.text).join('\n');
-    if (promptText.trim()) {
-      await ctx.db.insert('chatroom_harnessSessionMessages', {
+    if (args.firstPrompt) {
+      promptId = await ctx.db.insert('chatroom_pendingPrompts', {
         harnessSessionRowId,
-        seq: now,
-        content: promptText,
-        timestamp: now,
+        machineId: workspace.machineId,
+        workspaceId: args.workspaceId,
+        taskType: 'prompt',
+        parts: args.firstPrompt.parts,
+        override: args.config,
+        status: 'pending',
+        requestedBy: session.userId,
+        requestedAt: now,
+        updatedAt: now,
       });
+
+      // Write the user's prompt text as a message so it appears in the chat
+      // history immediately (the UI reads from chatroom_harnessSessionMessages,
+      // not from chatroom_pendingPrompts).
+      const promptText = args.firstPrompt.parts.map((p) => p.text).join('\n');
+      if (promptText.trim()) {
+        await ctx.db.insert('chatroom_harnessSessionMessages', {
+          harnessSessionRowId,
+          seq: now,
+          content: promptText,
+          timestamp: now,
+        });
+      }
     }
 
     return { harnessSessionRowId, promptId };

@@ -87,9 +87,10 @@ export async function openSession(
   const { workspaceId, workingDir, harnessName, agent } = options;
 
   // 1. Create backend session row → get harnessSessionRowId
+  //    CLI path: opens a session without a first prompt (no firstPrompt).
   const { harnessSessionRowId } = await backend.mutation(
     api.chatroom.directHarness.sessions.openSession,
-    { sessionId, workspaceId, harnessName, agent }
+    { sessionId, workspaceId, harnessName, config: { agent } }
   );
 
   // 2. Get or spawn the harness process for this workspace
