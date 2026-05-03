@@ -12,6 +12,7 @@ import {
   HarnessModelSelect,
   parseModelKey,
 } from './components/HarnessSelects';
+import { useHarnessConfig } from './hooks/useHarnessConfig';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -43,8 +44,6 @@ export function SessionParamsPopover({
   lastUsedConfig,
 }: SessionParamsPopoverProps) {
   const [open, setOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState('');
-  const [selectedModel, setSelectedModel] = useState(''); // "<providerID>::<modelID>"
   const [systemPrompt, setSystemPrompt] = useState('');
   // v1: tools as free-form JSON textarea.
   // TODO: Replace with a structured per-tool toggle list once opencode exposes
@@ -63,10 +62,18 @@ export function SessionParamsPopover({
     api.chatroom.directHarness.sessions.updateSessionConfig
   );
 
-  // Find harness matching this session
-  const currentHarness = harnesses?.find((h) => h.name === harnessName);
-  const agents = currentHarness?.agents ?? [];
-  const providers = currentHarness?.providers ?? [];
+  const {
+    setSelectedAgent,
+    selectedModel,
+    setSelectedModel,
+    eligibleAgents,
+    providers,
+    resolvedAgent,
+  } = useHarnessConfig({
+    harnesses,
+    harnessName,
+    initial: { agent: lastUsedConfig.agent, model: lastUsedConfig.model },
+  });
 
   // Hydrate form when popover opens
   const handleOpenChange = (next: boolean) => {
@@ -80,14 +87,6 @@ export function SessionParamsPopover({
       setShowAdvanced(false);
     }
   };
-
-  // Resolved agent: user selection if valid, else last-used, else first eligible
-  const eligibleAgents = agents.filter((a) => a.mode === 'primary' || a.mode === 'all');
-  const resolvedAgent =
-    eligibleAgents.find((a) => a.name === selectedAgent)?.name ??
-    eligibleAgents.find((a) => a.name === lastUsedConfig.agent)?.name ??
-    eligibleAgents[0]?.name ??
-    selectedAgent;
 
   const canApply = !!resolvedAgent && !isApplying;
 
@@ -171,7 +170,7 @@ export function SessionParamsPopover({
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Agent</Label>
           <HarnessAgentSelect
-            agents={agents}
+            agents={eligibleAgents}
             value={resolvedAgent}
             onValueChange={(v) => {
               setSelectedAgent(v);

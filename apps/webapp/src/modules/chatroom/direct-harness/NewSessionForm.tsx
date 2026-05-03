@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+import { useHarnessConfig, type HarnessOption } from './hooks/useHarnessConfig';
 import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,22 +31,6 @@ import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
 interface NewSessionFormProps {
   workspaceId: Id<'chatroom_workspaces'>;
   onSessionCreated: (newSessionId: Id<'chatroom_harnessSessions'>) => void;
-}
-
-interface HarnessOption {
-  name: string;
-  displayName: string;
-  agents: {
-    name: string;
-    mode: 'subagent' | 'primary' | 'all';
-    model?: { providerID: string; modelID: string };
-    description?: string;
-  }[];
-  providers: {
-    providerID: string;
-    name: string;
-    models: { modelID: string; name: string }[];
-  }[];
 }
 
 const FALLBACK_HARNESS: HarnessOption = {
@@ -59,12 +44,7 @@ const FALLBACK_HARNESS: HarnessOption = {
 
 export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionFormProps) {
   const [open, setOpen] = useState(false);
-
-  // User selections — empty string means "use auto default"
   const [selectedHarness, setSelectedHarness] = useState<string>('');
-  const [selectedAgent, setSelectedAgent] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>(''); // "<providerID>::<modelID>"
-
   const [firstMessage, setFirstMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,41 +81,15 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
   const currentHarness: HarnessOption =
     harnessOptions.find((h) => h.name === selectedHarness) ?? harnessOptions[0];
 
-  const eligibleAgents = useMemo(
-    () => currentHarness?.agents.filter((a) => a.mode === 'primary' || a.mode === 'all') ?? [],
-    [currentHarness]
-  );
+  const {
+    setSelectedAgent,
+    setSelectedModel,
+    eligibleAgents,
+    resolvedAgent,
+    resolvedModel,
+    modelOptions,
+  } = useHarnessConfig({ harnesses: harnessOptions, harnessName: currentHarness?.name ?? '' });
 
-  // Resolved agent: user selection if valid, else first eligible
-  const resolvedAgent =
-    eligibleAgents.find((a) => a.name === selectedAgent)?.name ?? eligibleAgents[0]?.name ?? '';
-
-  // Flat model list
-  const modelOptions = useMemo(() => {
-    const list: { value: string; label: string }[] = [];
-    for (const provider of currentHarness?.providers ?? []) {
-      for (const model of provider.models) {
-        list.push({
-          value: `${provider.providerID}::${model.modelID}`,
-          label: `${provider.name} · ${model.name}`,
-        });
-      }
-    }
-    return list;
-  }, [currentHarness]);
-
-  // Resolved model: user selection if valid, else agent default, else first
-  const agentDefaultModel = eligibleAgents.find((a) => a.name === resolvedAgent)?.model;
-  const agentDefaultModelKey = agentDefaultModel
-    ? `${agentDefaultModel.providerID}::${agentDefaultModel.modelID}`
-    : undefined;
-  const resolvedModel =
-    modelOptions.find((m) => m.value === selectedModel)?.value ??
-    (agentDefaultModelKey && modelOptions.find((m) => m.value === agentDefaultModelKey)?.value) ??
-    modelOptions[0]?.value ??
-    '';
-
-  // TODO(refresh-capabilities): wire up requestRefresh mutation here
   const handleRefresh = useCallback(() => {
     refresh(workspaceId);
   }, [refresh, workspaceId]);
