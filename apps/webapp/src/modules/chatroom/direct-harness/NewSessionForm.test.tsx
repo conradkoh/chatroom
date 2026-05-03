@@ -162,20 +162,23 @@ describe('NewSessionForm', () => {
     expect(submitBtn).toBeDisabled();
   });
 
-  it('empty agent list: submit disabled with message', async () => {
+  it('empty agent list: shows text input and allows submit with default agent', async () => {
     const noAgentHarness = { ...SAMPLE_HARNESS, agents: [] };
     mockUseSessionQuery.mockReturnValue([noAgentHarness]);
     render(<NewSessionForm workspaceId={WORKSPACE_ID} onSessionCreated={vi.fn()} />);
     await openForm();
 
-    // No agent select items; message shown
-    expect(screen.getByText(/no agents available/i)).toBeInTheDocument();
+    // Agent text input is shown (not a disabled message)
+    const agentInput = screen.getByPlaceholderText('builder');
+    expect(agentInput).toBeInTheDocument();
+    expect(screen.getByText(/agent list will populate/i)).toBeInTheDocument();
 
+    // Submit is enabled with default "builder" agent + a message
     const textarea = screen.getByPlaceholderText(/what would you like to do/i);
     fireEvent.change(textarea, { target: { value: 'Hello' } });
 
     const submitBtn = screen.getByRole('button', { name: /create & send/i });
-    expect(submitBtn).toBeDisabled();
+    expect(submitBtn).not.toBeDisabled();
   });
 
   it('auto-fires a refresh when the dialog opens', async () => {

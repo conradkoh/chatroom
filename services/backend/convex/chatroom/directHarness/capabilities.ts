@@ -238,18 +238,12 @@ export function mergeHarnessCapabilities(
 // ─── listForWorkspace ─────────────────────────────────────────────────────────
 
 /**
- * Return the merged harness capabilities for a single workspace, aggregated
- * across all machines that publish that workspace.
+ * Return harness capabilities for a workspace.
  *
- * Merge strategy (server-side; per design §9.4 — server-side deviation):
- * - Dedupe harnesses by `harness.name` (last writer wins for displayName/configSchema)
- * - Within a harness, dedupe agents by `agent.name` (last writer wins)
- * - Within a harness, dedupe providers by `provider.providerID` (last writer wins)
- * - Within a provider, dedupe models by `model.modelID` (last writer wins)
- *
- * The caller needs only the workspaceId — no chatroomId needed because
- * workspace-level auth is sufficient (the workspace belongs to a chatroom the
- * session already has access to).
+ * First checks the machine registry (populated when a harness boots) for rich
+ * agent/provider details. Falls back to the machine's registered availableHarnesses
+ * when no harness has booted yet — this lets users start a session even before
+ * the first harness boots (agents/providers will be discovered during boot).
  */
 export const listForWorkspace = query({
   args: {
@@ -262,8 +256,52 @@ export const listForWorkspace = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
 
-    const allEntries = await ctx.db.query('chatroom_machineRegistry').collect();
-    return mergeHarnessCapabilities(allEntries, args.workspaceId as string);
+    // Look up the workspace to find its owning machine
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) return [];
+
+    // 1. Try the machine registry (rich agent/provider details from a booted harness)
+    const registryEntry = await ctx.db
+      .query('chatroom_machineRegistry')
+      .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
+      .first();
+
+    if (registryEntry) {
+      const wsEntry = registryEntry.workspaces.find(
+        (w) => w.workspaceId === (args.workspaceId as string)
+      );
+      if (wsEntry && wsEntry.harnesses.length > 0) {
+        return wsEntry.harnesses.map((h) => ({
+          name: h.name,
+          displayName: h.displayName,
+          configSchema: h.configSchema,
+          agents: h.agents,
+          providers: h.providers,
+        }));
+      }
+    }
+
+    // 2. Fallback: use the machine's availableHarnesses from registration.
+    //    Agents and providers are empty — they'll be discovered when the
+    //    harness boots during the first session.
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
+      .first();
+
+    if (!machine || !machine.availableHarnesses || machine.availableHarnesses.length === 0) {
+      return [];
+    }
+
+    return machine.availableHarnesses.map((name) => ({
+      name,
+      displayName:
+        name === 'opencode-sdk'
+          ? 'Opencode'
+          : name.charAt(0).toUpperCase() + name.slice(1),
+      agents: [],
+      providers: [],
+    }));
   },
 });
 

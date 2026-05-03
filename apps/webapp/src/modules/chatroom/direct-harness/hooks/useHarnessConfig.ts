@@ -87,12 +87,18 @@ export function useHarnessConfig({
     return list;
   }, [providers]);
 
-  // Resolved agent: user selection → initial → first eligible
+  // Resolved agent:
+  //   - When agents are available: user selection → initial → first eligible
+  //   - When no agents yet (harness not booted): free-text input → 'builder' default
   const resolvedAgent =
-    eligibleAgents.find((a) => a.name === selectedAgent)?.name ??
-    (initial?.agent ? eligibleAgents.find((a) => a.name === initial.agent)?.name : undefined) ??
-    eligibleAgents[0]?.name ??
-    '';
+    eligibleAgents.length > 0
+      ? (eligibleAgents.find((a) => a.name === selectedAgent)?.name ??
+        (initial?.agent
+          ? eligibleAgents.find((a) => a.name === initial.agent)?.name
+          : undefined) ??
+        eligibleAgents[0]?.name ??
+        '')
+      : (selectedAgent || 'builder');
 
   // Resolved model: user selection → agent default → first model
   const agentDefaultModel = eligibleAgents.find((a) => a.name === resolvedAgent)?.model;

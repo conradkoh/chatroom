@@ -1,5 +1,6 @@
 'use client';
 
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -41,9 +42,19 @@ export function HarnessAgentSelect({ agents, value, onValueChange }: HarnessAgen
   const eligibleAgents = agents.filter((a) => a.mode === 'primary' || a.mode === 'all');
 
   if (eligibleAgents.length === 0) {
+    // No agents discovered yet — harness hasn't booted.
+    // Show a text input so the user can type an agent name (default: "builder").
     return (
-      <div className="text-xs text-muted-foreground py-1">
-        No agents available for this harness.
+      <div className="space-y-1">
+        <Input
+          className="h-8 text-xs bg-background border-border"
+          placeholder="builder"
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Agent list will populate after the first session starts.
+        </p>
       </div>
     );
   }

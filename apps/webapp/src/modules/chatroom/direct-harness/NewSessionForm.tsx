@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -56,7 +57,11 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
   });
   const openSession = useSessionMutation(api.chatroom.directHarness.sessions.openSession);
 
-  const { refresh } = useRefreshCapabilities();
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const { refresh } = useRefreshCapabilities({
+    onError: (err) => setRefreshError(err.message),
+  });
 
   // Show loading banner 500ms after open if harnesses still empty
   useEffect(() => {
@@ -101,6 +106,7 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
     setSelectedModel('');
     setFirstMessage('');
     setError(null);
+    setRefreshError(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -173,6 +179,12 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
           </div>
         )}
 
+        {refreshError && (
+          <div className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            Refresh failed: {refreshError}
+          </div>
+        )}
+
         <div className="space-y-4">
           {/* Harness */}
           <div className="space-y-1.5">
@@ -202,8 +214,19 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Agent</label>
             {eligibleAgents.length === 0 ? (
-              <div className="text-xs text-muted-foreground py-1">
-                No agents available for this harness.
+              <div className="space-y-1">
+                <Input
+                  className="h-8 text-xs bg-background border-border"
+                  placeholder="builder"
+                  value={resolvedAgent}
+                  onChange={(e) => {
+                    setSelectedAgent(e.target.value);
+                    setSelectedModel('');
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Agent list will populate after the first session starts.
+                </p>
               </div>
             ) : (
               <Select
