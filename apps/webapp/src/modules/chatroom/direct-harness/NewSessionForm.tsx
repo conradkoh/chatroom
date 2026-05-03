@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 import { useHarnessConfig, type HarnessOption } from './hooks/useHarnessConfig';
 import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
+import { CapabilitiesRefreshButton } from './components/CapabilitiesRefreshButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
   });
   const openSession = useSessionMutation(api.chatroom.directHarness.sessions.openSession);
 
-  const { refresh, isRefreshing } = useRefreshCapabilities();
+  const { refresh } = useRefreshCapabilities();
 
   // Show loading banner 500ms after open if harnesses still empty
   useEffect(() => {
@@ -162,16 +163,7 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
         <DialogHeader>
           <div className="flex items-center justify-between pr-8">
             <DialogTitle className="text-sm font-semibold">New session</DialogTitle>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent/50"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              title="Refresh capabilities"
-            >
-              <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
-            </Button>
+            <CapabilitiesRefreshButton workspaceId={workspaceId} />
           </div>
         </DialogHeader>
 
