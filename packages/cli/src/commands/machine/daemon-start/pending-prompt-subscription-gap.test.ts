@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
+import { SessionHandleRegistry } from './session-handle-registry.js';
 import type { DaemonContext } from './types.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 
@@ -117,6 +118,7 @@ describe('startPendingHarnessSessionSubscription', () => {
   let ctx: DaemonContext;
   let harnessProcess: ReturnType<typeof makeMockHarnessProcess>;
   let harnessRegistry: HarnessProcessRegistry;
+  let sessionRegistry: SessionHandleRegistry;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,12 +128,13 @@ describe('startPendingHarnessSessionSubscription', () => {
       killAll: vi.fn().mockResolvedValue(undefined),
       setOnHarnessBooted: vi.fn(),
     } as unknown as HarnessProcessRegistry;
+    sessionRegistry = new SessionHandleRegistry();
     ctx = makeMockContext();
   });
 
   it('subscribes to listPendingSessionsForMachine on the wsClient', () => {
     const { wsClient } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     expect(wsClient.onUpdate).toHaveBeenCalledOnce();
     // Verify it subscribes with the correct session and machine IDs
     const [_query, args] = wsClient.onUpdate.mock.calls[0] as [
@@ -147,14 +150,14 @@ describe('startPendingHarnessSessionSubscription', () => {
     const wsClient = {
       onUpdate: vi.fn().mockReturnValue(mockUnsubscribe),
     };
-    const handle = startPendingHarnessSessionSubscription(ctx, wsClient as any, harnessRegistry);
+    const handle = startPendingHarnessSessionSubscription(ctx, wsClient as any, harnessRegistry, sessionRegistry);
     handle.stop();
     expect(mockUnsubscribe).toHaveBeenCalledOnce();
   });
 
   it('does nothing when subscription fires with empty array', async () => {
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([]);
     // Allow microtasks to flush
     await new Promise((r) => setTimeout(r, 10));
@@ -163,7 +166,7 @@ describe('startPendingHarnessSessionSubscription', () => {
 
   it('calls getOrSpawn for a pending session workspace', async () => {
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([makePendingSession()]);
     await new Promise((r) => setTimeout(r, 50));
     expect(harnessRegistry.getOrSpawn).toHaveBeenCalledWith('ws-1', '/test/workspace');
@@ -171,7 +174,7 @@ describe('startPendingHarnessSessionSubscription', () => {
 
   it('calls spawner.openSession with the session agent', async () => {
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([makePendingSession('row-1', 'ws-1' as any)]);
     await new Promise((r) => setTimeout(r, 50));
     expect(harnessProcess.spawner.openSession).toHaveBeenCalledWith({
@@ -181,7 +184,7 @@ describe('startPendingHarnessSessionSubscription', () => {
 
   it('calls associateHarnessSessionId after spawner.openSession succeeds', async () => {
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([makePendingSession('row-1', 'ws-1' as any)]);
     await new Promise((r) => setTimeout(r, 50));
 
@@ -210,7 +213,7 @@ describe('startPendingHarnessSessionSubscription', () => {
     );
 
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
 
     const session = makePendingSession('row-1', 'ws-1' as any);
     triggerUpdate([session]);
@@ -228,7 +231,7 @@ describe('startPendingHarnessSessionSubscription', () => {
     const mutationMock = ctx.deps.backend.mutation as ReturnType<typeof vi.fn>;
 
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([makePendingSession('row-missing-ws', 'ws-missing' as any)]);
     await new Promise((r) => setTimeout(r, 50));
 
@@ -248,7 +251,7 @@ describe('startPendingHarnessSessionSubscription', () => {
     );
 
     const { wsClient, triggerUpdate } = makeMockWsClient();
-    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry);
+    startPendingHarnessSessionSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
     triggerUpdate([makePendingSession('row-1', 'ws-1' as any)]);
     await new Promise((r) => setTimeout(r, 50));
 

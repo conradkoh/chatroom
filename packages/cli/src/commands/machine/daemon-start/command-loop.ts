@@ -15,6 +15,7 @@ import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
+import { SessionHandleRegistry } from './session-handle-registry.js';
 import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
@@ -448,6 +449,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
   );
 
+  // Shared session handle registry — eliminates duplicate sinks by having
+  // both subscription modules share the same session + sink per rowId.
+  const sessionRegistry = new SessionHandleRegistry();
+
   // ── Capabilities Sync (direct-harness) ────────────────────────────────
   // When a harness boots, discover its agents and republish the full machine
   // snapshot so the UI "New session" button becomes enabled.
@@ -540,6 +545,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (pendingRefreshTaskSubscriptionHandle) pendingRefreshTaskSubscriptionHandle.stop();
+    await sessionRegistry.closeAll();
     await harnessRegistry.killAll();
 
     await onDaemonShutdown(ctx);
@@ -574,14 +580,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   }
 
   // ── Pending Prompt Subscription ─────────────────────────────────────
-  pendingPromptSubscriptionHandle = startPendingPromptSubscription(ctx, wsClient, harnessRegistry);
+  pendingPromptSubscriptionHandle = startPendingPromptSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
 
   // ── Pending Harness Session Subscription ─────────────────────────────
   // Subscribes to pending harness sessions created by the webapp UI.
   pendingHarnessSessionSubscriptionHandle = startPendingHarnessSessionSubscription(
     ctx,
     wsClient,
-    harnessRegistry
+    harnessRegistry,
+    sessionRegistry
   );
 
   // ── Pending Refresh Task Subscription ────────────────────────────────

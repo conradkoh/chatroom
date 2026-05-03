@@ -17,6 +17,7 @@ import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexClient } from 'convex/browser';
 
 import type { DaemonContext } from './types.js';
+import { SessionHandleRegistry } from './session-handle-registry.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
@@ -48,7 +49,8 @@ export interface PendingPromptSubscriptionHandle {
 export function startPendingPromptSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient,
-  harnessRegistry: HarnessProcessRegistry
+  harnessRegistry: HarnessProcessRegistry,
+  sessionRegistry: SessionHandleRegistry
 ): PendingPromptSubscriptionHandle {
   if (!featureFlags.directHarnessWorkers) {
     return { stop: () => {} };
@@ -67,7 +69,7 @@ export function startPendingPromptSubscription(
       if (processing) return;
 
       processing = true;
-      void drainPendingTasks(ctx, harnessRegistry)
+      void drainPendingTasks(ctx, harnessRegistry, sessionRegistry)
         .catch((err: unknown) => {
           console.warn(`[direct-harness] Pending task processing failed: ${getErrorMessage(err)}`);
         })
@@ -93,7 +95,8 @@ export function startPendingPromptSubscription(
  */
 async function drainPendingTasks(
   ctx: DaemonContext,
-  harnessRegistry: HarnessProcessRegistry
+  harnessRegistry: HarnessProcessRegistry,
+  sessionRegistry: SessionHandleRegistry
 ): Promise<void> {
   while (true) {
     // Atomically claim the next pending task
@@ -104,7 +107,7 @@ async function drainPendingTasks(
 
     if (!claimed) break; // No more pending tasks
 
-    await executeClaimedTask(ctx, harnessRegistry, claimed);
+    await executeClaimedTask(ctx, harnessRegistry, sessionRegistry, claimed);
   }
 }
 
@@ -114,6 +117,7 @@ async function drainPendingTasks(
 async function executeClaimedTask(
   ctx: DaemonContext,
   harnessRegistry: HarnessProcessRegistry,
+  sessionRegistry: SessionHandleRegistry,
   claimed: {
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
@@ -156,35 +160,37 @@ async function executeClaimedTask(
     });
 
   if (claimed.taskType === 'resume') {
-    await executeResumeTask(ctx, harnessProcess.spawner, claimed);
+    await executeResumeTask(ctx, harnessProcess, sessionRegistry, claimed);
   } else {
-    await executePromptTask(ctx, harnessProcess, claimed);
+    await executePromptTask(ctx, harnessProcess, sessionRegistry, claimed);
   }
 }
 
 /**
  * Execute a 'resume' task — reconnect to an existing harness session.
+ *
+ * Creates a new session + sink, wires them, and registers in the shared
+ * registry so subsequent prompts reuse this session.
  */
 async function executeResumeTask(
   ctx: DaemonContext,
-  spawner: HarnessProcessRegistry extends { getOrSpawn: (...args: any[]) => Promise<infer P> }
-    ? P extends { spawner: infer S }
-      ? S
-      : never
-    : never,
+  harnessProcess: Awaited<ReturnType<HarnessProcessRegistry['getOrSpawn']>>,
+  sessionRegistry: SessionHandleRegistry,
   claimed: {
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
   }
 ): Promise<void> {
+  const rowId = claimed.harnessSessionRowId as string;
+
   // Get the session's harnessSessionId to resume with
-  const session = await ctx.deps.backend.query(api.chatroom.directHarness.sessions.getSession, {
+  const backendSession = await ctx.deps.backend.query(api.chatroom.directHarness.sessions.getSession, {
     sessionId: ctx.sessionId,
     harnessSessionRowId: claimed.harnessSessionRowId,
   });
 
-  if (!session?.harnessSessionId) {
+  if (!backendSession?.harnessSessionId) {
     await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
@@ -198,13 +204,31 @@ async function executeResumeTask(
 
   try {
     // Reconnect to the harness session by its SDK-issued ID
-    await spawner.resumeSession(session.harnessSessionId as HarnessSessionId);
+    const liveSession = await harnessProcess.spawner.resumeSession(
+      backendSession.harnessSessionId as HarnessSessionId
+    );
 
-    // Mark session as active again
+    // Create transport + sink and wire them to the resumed session
+    const transport = new ConvexMessageStreamTransport({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const sink = new BufferedMessageStreamSink({
+      workerId: claimed.harnessSessionRowId as unknown as HarnessSessionRowId,
+      transport,
+      strategy: createDefaultFlushStrategy(),
+    });
+    wireEventSink(liveSession, sink, openCodeChunkExtractor);
+
+    // Register in shared registry so subsequent prompts reuse this session
+    sessionRegistry.register(rowId, { session: liveSession, sink, rowId });
+
+    // Mark session as active again, syncing the title from the resumed session
     await ctx.deps.backend.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
       sessionId: ctx.sessionId,
       harnessSessionRowId: claimed.harnessSessionRowId,
-      harnessSessionId: session.harnessSessionId,
+      harnessSessionId: backendSession.harnessSessionId,
+      sessionTitle: liveSession.sessionTitle,
     });
 
     await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
@@ -234,10 +258,17 @@ async function executeResumeTask(
 
 /**
  * Execute a 'prompt' task — send a text prompt to the harness session.
+ *
+ * Uses the existing session + sink from the shared registry (created by
+ * processSession or a prior resume). Falls back to creating a new session
+ * + sink if none is registered (e.g. after daemon restart).
+ *
+ * The session is kept alive across prompts — no per-prompt close/abort.
  */
 async function executePromptTask(
   ctx: DaemonContext,
   harnessProcess: Awaited<ReturnType<HarnessProcessRegistry['getOrSpawn']>>,
+  sessionRegistry: SessionHandleRegistry,
   claimed: {
     _id: Id<'chatroom_pendingPrompts'>;
     harnessSessionRowId: Id<'chatroom_harnessSessions'>;
@@ -251,45 +282,65 @@ async function executePromptTask(
     };
   }
 ): Promise<void> {
-  // Create the message sink and transport *before* calling promptSession so
-  // they live for the duration of the resumed session. The transport will
-  // flush response chunks to chatroom_harnessSessionMessages as they arrive.
-  const transport = new ConvexMessageStreamTransport({
-    backend: ctx.deps.backend,
-    sessionId: ctx.sessionId,
-  });
-  const sink = new BufferedMessageStreamSink({
-    workerId: claimed.harnessSessionRowId as unknown as HarnessSessionRowId,
-    transport,
-    strategy: createDefaultFlushStrategy(),
-  });
+  const rowId = claimed.harnessSessionRowId as string;
 
+  // Resolve the active session handle (from registry or by resuming)
+  let handle = sessionRegistry.get(rowId);
+
+  if (!handle) {
+    // No active handle — session was opened by processSession on a prior
+    // daemon run, or the process died. Resume the session and create a
+    // fresh sink. Register it so future prompts reuse it.
+    const backendSession = await ctx.deps.backend.query(api.chatroom.directHarness.sessions.getSession, {
+      sessionId: ctx.sessionId,
+      harnessSessionRowId: claimed.harnessSessionRowId,
+    });
+
+    if (!backendSession?.harnessSessionId) {
+      await ctx.deps.backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        promptId: claimed._id,
+        status: 'error',
+        errorMessage: 'Session has no harness session ID — it may not have been spawned yet',
+      });
+      return;
+    }
+
+    const liveSession = await harnessProcess.spawner.resumeSession(
+      backendSession.harnessSessionId as HarnessSessionId
+    );
+    const transport = new ConvexMessageStreamTransport({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const sink = new BufferedMessageStreamSink({
+      workerId: claimed.harnessSessionRowId as unknown as HarnessSessionRowId,
+      transport,
+      strategy: createDefaultFlushStrategy(),
+    });
+    wireEventSink(liveSession, sink, openCodeChunkExtractor);
+
+    handle = { session: liveSession, sink, rowId };
+    sessionRegistry.register(rowId, handle);
+  }
+
+  // Send the prompt through the existing session — response streams
+  // through the already-wired sink.
   await promptSession(
     {
       backend: ctx.deps.backend,
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-      prompt: async (harnessSessionId, input) => {
-        const liveSession = await harnessProcess.spawner.resumeSession(harnessSessionId);
-        // Wire the resumed session's events to the message sink so the
-        // harness response appears in the UI chat history.
-        const unsubscribeEvents = wireEventSink(liveSession, sink, openCodeChunkExtractor);
-        try {
-          await liveSession.prompt(input);
-        } finally {
-          unsubscribeEvents();
-          await liveSession.close().catch(() => {});
-        }
+      prompt: async (_harnessSessionId, input) => {
+        await handle!.session.prompt(input);
       },
     },
     {
-      harnessSessionRowId: claimed.harnessSessionRowId as string,
+      harnessSessionRowId: rowId,
       promptId: claimed._id as string,
       parts: claimed.parts,
       override: claimed.override,
     }
   );
-
-  // Flush any remaining buffered chunks and close the sink
-  await sink.close();
 }

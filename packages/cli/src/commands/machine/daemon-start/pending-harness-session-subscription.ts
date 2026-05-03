@@ -19,6 +19,7 @@ import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexClient } from 'convex/browser';
 
 import type { DaemonContext } from './types.js';
+import { SessionHandleRegistry } from './session-handle-registry.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
@@ -49,7 +50,8 @@ export interface PendingHarnessSessionSubscriptionHandle {
 export function startPendingHarnessSessionSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient,
-  harnessRegistry: HarnessProcessRegistry
+  harnessRegistry: HarnessProcessRegistry,
+  sessionRegistry: SessionHandleRegistry
 ): PendingHarnessSessionSubscriptionHandle {
   if (!featureFlags.directHarnessWorkers) {
     return { stop: () => {} };
@@ -72,7 +74,7 @@ export function startPendingHarnessSessionSubscription(
         if (inFlight.has(rowId)) continue;
 
         inFlight.add(rowId);
-        void processSession(ctx, harnessRegistry, session)
+        void processSession(ctx, harnessRegistry, sessionRegistry, session)
           .catch((err: unknown) => {
             console.warn(
               `[direct-harness] Failed to open harness session ${rowId}: ${getErrorMessage(err)}`
@@ -112,6 +114,7 @@ export function startPendingHarnessSessionSubscription(
 async function processSession(
   ctx: DaemonContext,
   harnessRegistry: HarnessProcessRegistry,
+  sessionRegistry: SessionHandleRegistry,
   session: {
     _id: Id<'chatroom_harnessSessions'>;
     workspaceId: Id<'chatroom_workspaces'>;
@@ -180,6 +183,11 @@ async function processSession(
   });
 
   wireEventSink(harnessSession, sink, openCodeChunkExtractor);
+
+  // 5b. Register the active session in the shared registry so subsequent
+  //      prompts (via executePromptTask) reuse this session + sink instead
+  //      of creating duplicates.
+  sessionRegistry.register(rowId, { session: harnessSession, sink, rowId });
 
   // 6. Claim and process the first pending prompt (created atomically with the
   //    session row by openSession). This avoids the race where the prompt
