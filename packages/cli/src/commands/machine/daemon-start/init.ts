@@ -12,7 +12,6 @@ import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { api } from '../../../api.js';
-import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
@@ -439,11 +438,6 @@ export async function initDaemon(): Promise<DaemonContext> {
 
       logStartup(ctx, availableModels);
       await recoverState(ctx);
-
-      // Start the local API server after the context is fully assembled.
-      // Port conflicts are handled gracefully inside startLocalApi (warns and continues).
-      const localApiHandle = await startLocalApi(ctx);
-      ctx.stopLocalApi = localApiHandle.stop;
 
       return ctx;
     } catch (error) {

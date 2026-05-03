@@ -444,11 +444,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     await onDaemonShutdown(ctx);
 
-    // Stop the local API server if it was started
-    if (ctx.stopLocalApi) {
-      await ctx.stopLocalApi().catch(() => {});
-    }
-
     releaseLock();
     process.exit(0);
   };
