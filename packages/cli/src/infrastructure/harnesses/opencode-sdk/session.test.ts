@@ -43,6 +43,7 @@ function createSession(
   const stopFn = vi.fn();
   const session = new OpencodeSdkDirectHarnessSession(
     HARNESS_SESSION_ID,
+    'Test Session',
     mergedClient,
     stopFn,
     killProcess

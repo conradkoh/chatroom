@@ -2152,6 +2152,8 @@ export default defineSchema({
     harnessName: v.string(),
     /** Opencode-server-issued session identifier (set after spawning). */
     harnessSessionId: v.optional(v.string()),
+    /** Display title synced from the opencode SDK session (auto-generated or user-renamed). */
+    sessionTitle: v.optional(v.string()),
     /** The last-used configuration for this session (agent, model, etc.). */
     lastUsedConfig: v.object({
       agent: v.string(),

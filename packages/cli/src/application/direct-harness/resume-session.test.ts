@@ -37,6 +37,7 @@ function createMockSession(): DirectHarnessSession & { _triggerEvent: (e: Direct
   const listeners = new Set<(e: DirectHarnessSessionEvent) => void>();
   return {
     harnessSessionId: 'harness-session-resume' as any,
+    sessionTitle: 'Test Resume Session',
     prompt: vi.fn().mockResolvedValue(undefined),
     onEvent: vi.fn((listener) => {
       listeners.add(listener);

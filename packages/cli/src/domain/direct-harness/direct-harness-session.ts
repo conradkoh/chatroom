@@ -36,6 +36,8 @@ export interface PromptInput {
 export interface DirectHarnessSession {
   /** The session identifier assigned by the harness on spawn. */
   readonly harnessSessionId: HarnessSessionId;
+  /** Display title synced from the harness (e.g. opencode session title). */
+  readonly sessionTitle: string;
   /**
    * Send a structured prompt to the running harness.
    * The agent is passed per-call so a single session can serve multiple roles.

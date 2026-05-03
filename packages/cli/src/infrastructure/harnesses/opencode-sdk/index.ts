@@ -65,6 +65,8 @@ interface OpencodeSdkSessionConfig {
   chatroomId?: string;
   role?: string;
   machineId?: string;
+  /** Display title for the opencode session (synced to sidebar). */
+  title?: string;
 }
 
 const OPENCODE_COMMAND = 'opencode';
@@ -77,13 +79,19 @@ async function createSessionOnClient(
   client: OpencodeSdkSessionClient,
   sessionStore: SessionMetadataStore,
   meta: { machineId: string; chatroomId: string; role: string; pid: number; baseUrl: string },
-  nowFn: () => number
+  nowFn: () => number,
+  title?: string
 ): Promise<DirectHarnessSession> {
   let sdkSessionId: string;
-  const result = await client.session.create({ body: {} });
+  const result = await client.session.create({
+    body: { ...(title ? { title } : {}) },
+  });
   const sessionId = result.data?.id;
   if (!sessionId) throw new Error('Failed to create session: missing id');
   sdkSessionId = sessionId;
+
+  // Capture the title from the response (opencode may auto-generate or use ours)
+  const sessionTitle = result.data?.title ?? title ?? meta.role;
 
   const harnessSessionId = sdkSessionId as HarnessSessionId;
 
@@ -102,6 +110,7 @@ async function createSessionOnClient(
   // Bound sessions do NOT own the process — no killProcess callback
   const session = new OpencodeSdkDirectHarnessSession(
     harnessSessionId,
+    sessionTitle,
     client,
     () => stopEventStream(),
     undefined // process lifecycle managed by HarnessProcessRegistry
@@ -153,6 +162,7 @@ export async function resumeSessionFromStore(
 
   const session = new OpencodeSdkDirectHarnessSession(
     harnessSessionId,
+    meta.role, // Use role as fallback title for resumed sessions
     client,
     () => stopEventStream(),
     undefined // process lifecycle managed elsewhere
@@ -254,6 +264,7 @@ export function createBoundOpencodeSdkHarness(
     async openSession(sessionOptions: OpenSessionOptions): Promise<DirectHarnessSession> {
       const config = (sessionOptions.config ?? {}) as OpencodeSdkSessionConfig;
       const agent = config.agent ?? config.role ?? 'unknown';
+      const title = config.title ?? agent;
 
       return createSessionOnClient(
         processHandle.client,
@@ -265,7 +276,8 @@ export function createBoundOpencodeSdkHarness(
           pid: processHandle.pid,
           baseUrl: processHandle.baseUrl,
         },
-        nowFn
+        nowFn,
+        title
       );
     },
 

@@ -153,12 +153,14 @@ async function processSession(
   });
 
   // 4. Associate the harness-issued session ID with the backend row.
+  //    Sync the session title from the harness so the sidebar shows it.
   //    If this fails, close the harness session to avoid leaking processes.
   try {
     await ctx.deps.backend.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
       sessionId: ctx.sessionId,
       harnessSessionRowId: session._id,
       harnessSessionId: harnessSession.harnessSessionId as string,
+      sessionTitle: harnessSession.sessionTitle,
     });
   } catch (err) {
     await harnessSession.close().catch(() => {});

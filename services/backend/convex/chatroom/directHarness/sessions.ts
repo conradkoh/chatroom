@@ -115,6 +115,7 @@ export const associateHarnessSessionId = mutation({
     ...SessionIdArg,
     harnessSessionRowId: v.id('chatroom_harnessSessions'),
     harnessSessionId: v.string(),
+    sessionTitle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -140,6 +141,7 @@ export const associateHarnessSessionId = mutation({
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, {
       harnessSessionId: args.harnessSessionId,
       status: 'active',
+      ...(args.sessionTitle ? { sessionTitle: args.sessionTitle } : {}),
       lastActiveAt: Date.now(),
     });
   },

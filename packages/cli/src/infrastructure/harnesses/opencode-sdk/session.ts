@@ -68,6 +68,7 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
 
   constructor(
     public readonly harnessSessionId: HarnessSessionId,
+    public readonly sessionTitle: string,
     private readonly client: OpencodeSdkSessionClient,
     /** Abort the ongoing event subscription loop. */
     private readonly stopEventStream: () => void,
