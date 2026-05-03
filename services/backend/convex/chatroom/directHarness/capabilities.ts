@@ -102,6 +102,139 @@ export const publishMachineCapabilities = mutation({
   },
 });
 
+// ─── mergeHarnessCapabilities ─────────────────────────────────────────────────
+
+type MachineRegistryEntry = {
+  workspaces: Array<{
+    workspaceId: string;
+    harnesses: Array<{
+      name: string;
+      displayName: string;
+      agents: Array<{
+        name: string;
+        mode: 'subagent' | 'primary' | 'all';
+        model?: { providerID: string; modelID: string };
+        description?: string;
+      }>;
+      providers: Array<{
+        providerID: string;
+        name: string;
+        models: Array<{ modelID: string; name: string }>;
+      }>;
+      configSchema?: unknown;
+    }>;
+  }>;
+};
+
+export type WorkspaceHarnessSummary = {
+  name: string;
+  displayName: string;
+  configSchema?: unknown;
+  agents: Array<{
+    name: string;
+    mode: 'subagent' | 'primary' | 'all';
+    model?: { providerID: string; modelID: string };
+    description?: string;
+  }>;
+  providers: Array<{
+    providerID: string;
+    name: string;
+    models: Array<{ modelID: string; name: string }>;
+  }>;
+};
+
+/**
+ * Pure merge function: aggregates harness capabilities across multiple machines
+ * for a single workspace.
+ *
+ * Merge strategy (per design §9.4):
+ * - Dedupe harnesses by `harness.name` (last writer wins for displayName/configSchema)
+ * - Within a harness, dedupe agents by `agent.name` (last writer wins)
+ * - Within a harness, dedupe providers by `provider.providerID` (last writer wins)
+ * - Within a provider, dedupe models by `model.modelID` (last writer wins)
+ */
+export function mergeHarnessCapabilities(
+  entries: MachineRegistryEntry[],
+  workspaceId: string
+): WorkspaceHarnessSummary[] {
+  const harnessMap = new Map<
+    string,
+    {
+      name: string;
+      displayName: string;
+      agents: Map<
+        string,
+        {
+          name: string;
+          mode: 'subagent' | 'primary' | 'all';
+          model?: { providerID: string; modelID: string };
+          description?: string;
+        }
+      >;
+      providers: Map<
+        string,
+        {
+          providerID: string;
+          name: string;
+          models: Map<string, { modelID: string; name: string }>;
+        }
+      >;
+      configSchema?: unknown;
+    }
+  >();
+
+  for (const entry of entries) {
+    const wsEntry = entry.workspaces.find((w) => w.workspaceId === workspaceId);
+    if (!wsEntry) continue;
+
+    for (const harness of wsEntry.harnesses) {
+      let h = harnessMap.get(harness.name);
+      if (!h) {
+        h = {
+          name: harness.name,
+          displayName: harness.displayName,
+          agents: new Map(),
+          providers: new Map(),
+          configSchema: harness.configSchema,
+        };
+        harnessMap.set(harness.name, h);
+      } else {
+        // Last writer wins for displayName/configSchema
+        h.displayName = harness.displayName;
+        if (harness.configSchema !== undefined) h.configSchema = harness.configSchema;
+      }
+
+      for (const agent of harness.agents) {
+        h.agents.set(agent.name, agent);
+      }
+      for (const provider of harness.providers) {
+        let p = h.providers.get(provider.providerID);
+        if (!p) {
+          p = { providerID: provider.providerID, name: provider.name, models: new Map() };
+          h.providers.set(provider.providerID, p);
+        } else {
+          p.name = provider.name;
+        }
+        for (const model of provider.models) {
+          p.models.set(model.modelID, model);
+        }
+      }
+    }
+  }
+
+  return Array.from(harnessMap.values()).map((h) => ({
+    name: h.name,
+    displayName: h.displayName,
+    configSchema: h.configSchema,
+    agents: Array.from(h.agents.values()),
+    providers: Array.from(h.providers.values()).map((p) => ({
+      providerID: p.providerID,
+      name: p.name,
+      models: Array.from(p.models.values()),
+    })),
+  }));
+}
+
 // ─── listForWorkspace ─────────────────────────────────────────────────────────
 
 /**
@@ -129,86 +262,8 @@ export const listForWorkspace = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return [];
 
-    // All machine registry entries that reference this workspace
     const allEntries = await ctx.db.query('chatroom_machineRegistry').collect();
-
-    // Merged harnesses map: harnessName → harness snapshot
-    const harnessMap = new Map<
-      string,
-      {
-        name: string;
-        displayName: string;
-        agents: Map<
-          string,
-          {
-            name: string;
-            mode: 'subagent' | 'primary' | 'all';
-            model?: { providerID: string; modelID: string };
-            description?: string;
-          }
-        >;
-        providers: Map<
-          string,
-          {
-            providerID: string;
-            name: string;
-            models: Map<string, { modelID: string; name: string }>;
-          }
-        >;
-        configSchema?: unknown;
-      }
-    >();
-
-    for (const entry of allEntries) {
-      const wsEntry = entry.workspaces.find((w) => w.workspaceId === (args.workspaceId as string));
-      if (!wsEntry) continue;
-
-      for (const harness of wsEntry.harnesses) {
-        let h = harnessMap.get(harness.name);
-        if (!h) {
-          h = {
-            name: harness.name,
-            displayName: harness.displayName,
-            agents: new Map(),
-            providers: new Map(),
-            configSchema: harness.configSchema,
-          };
-          harnessMap.set(harness.name, h);
-        } else {
-          // Last writer wins for displayName/configSchema
-          h.displayName = harness.displayName;
-          if (harness.configSchema !== undefined) h.configSchema = harness.configSchema;
-        }
-
-        for (const agent of harness.agents) {
-          h.agents.set(agent.name, agent);
-        }
-        for (const provider of harness.providers) {
-          let p = h.providers.get(provider.providerID);
-          if (!p) {
-            p = { providerID: provider.providerID, name: provider.name, models: new Map() };
-            h.providers.set(provider.providerID, p);
-          } else {
-            p.name = provider.name;
-          }
-          for (const model of provider.models) {
-            p.models.set(model.modelID, model);
-          }
-        }
-      }
-    }
-
-    return Array.from(harnessMap.values()).map((h) => ({
-      name: h.name,
-      displayName: h.displayName,
-      configSchema: h.configSchema,
-      agents: Array.from(h.agents.values()),
-      providers: Array.from(h.providers.values()).map((p) => ({
-        providerID: p.providerID,
-        name: p.name,
-        models: Array.from(p.models.values()),
-      })),
-    }));
+    return mergeHarnessCapabilities(allEntries, args.workspaceId as string);
   },
 });
 
