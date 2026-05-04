@@ -1,4 +1,7 @@
 /**
+ * @deprecated Flush strategies are now internal to BufferedJournalFactory
+ *             (time-based interval). Retained only until old callers migrate.
+ *
  * OR-combines multiple flush strategies — flushes if ANY child returns true.
  */
 

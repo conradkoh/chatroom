@@ -1,4 +1,6 @@
 /**
+ * @deprecated Time-based flushing is now built into BufferedJournalFactory.
+ *
  * Flushes when at least `intervalMs` has elapsed since the last flush.
  */
 

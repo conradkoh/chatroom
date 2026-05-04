@@ -1,5 +1,13 @@
 /**
+ * @deprecated Use BufferedJournalFactory + OutputRepository instead
+ *             (infrastructure/repos/journal-factory.ts and output-repository.ts).
+ *
  * Barrel re-export for the message-stream infrastructure layer.
+ *
+ * This entire directory is the v1 output pipeline. Chunks were buffered in a
+ * MessageStreamSink and flushed via a MessageStreamTransport. The new approach
+ * uses SessionJournal (same buffering semantics) + OutputRepository (flush via
+ * Convex mutation), with a time-based drain interval in BufferedJournalFactory.
  */
 
 export { BufferedMessageStreamSink } from './buffered-sink.js';

@@ -1,4 +1,7 @@
 /**
+ * @deprecated Token-count flushing is not used in the new architecture.
+ *             BufferedJournalFactory uses a time-based interval instead.
+ *
  * Flushes when the buffer reaches a maximum item count or byte size.
  */
 

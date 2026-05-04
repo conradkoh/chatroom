@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use ConvexOutputRepository (infrastructure/repos/convex-output-repository.js)
+ *             instead. This was the v1 transport — replaced by OutputRepository port.
+ *
  * Convex-backed MessageStreamTransport for the direct-harness feature.
  *
  * Bridges BufferedMessageStreamSink → chatroom/directHarness/messages:appendMessages.

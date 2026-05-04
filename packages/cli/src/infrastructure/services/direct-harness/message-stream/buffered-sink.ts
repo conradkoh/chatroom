@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use SessionJournal (BufferedJournalFactory creates these) instead.
+ *             This was the v1 output buffer — replaced by the domain-level
+ *             SessionJournal interface with a time-based drain.
+ *
  * Default MessageStreamSink implementation with buffering, strategy-driven flushing,
  * drop-oldest backpressure, transport-retry, and observable warnings.
  */

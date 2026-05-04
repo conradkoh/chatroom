@@ -1,4 +1,7 @@
 /**
+ * @deprecated Sentence-based flush is not used in the new architecture.
+ *             BufferedJournalFactory uses a time-based interval instead.
+ *
  * Flushes when the last buffered chunk ends with a sentence terminator.
  */
 
