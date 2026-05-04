@@ -14,11 +14,10 @@ import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/op
 import { opencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
-import type { DirectHarnessSession } from '../../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { PromptRepository } from '../../../../domain/direct-harness/ports/prompt-repository.js';
-import type { JournalFactory, SessionJournal } from '../../../../domain/direct-harness/usecases/open-session.js';
+import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
@@ -51,13 +50,9 @@ interface ClaimedPrompt {
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export interface ActiveSession {
-  readonly harnessSessionRowId: string;
-  readonly harnessSessionId: string;
-  readonly session: DirectHarnessSession;
-  readonly journal: SessionJournal;
-  close(): Promise<void>;
-}
+import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
+
+export type ActiveSession = SessionHandle;
 
 export interface SessionSubscriberDeps {
   readonly activeSessions: Map<string, ActiveSession>;
@@ -181,11 +176,10 @@ async function processOne(
     };
 
     // 7. Store in shared registry so prompt-subscriber can find it
-    const handle: ActiveSession = {
+    const handle: SessionHandle = {
       harnessSessionRowId: rowId,
       harnessSessionId: liveSession.harnessSessionId as string,
       session: liveSession,
-      journal,
       close,
     };
     deps.activeSessions.set(rowId, handle);
