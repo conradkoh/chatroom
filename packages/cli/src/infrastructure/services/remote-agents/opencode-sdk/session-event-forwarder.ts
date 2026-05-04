@@ -52,7 +52,10 @@ function eventSessionId(event: OpenCodeEvent): string | undefined {
     return (p.part as { sessionID?: string }).sessionID;
   }
   if ('info' in p && p.info && typeof p.info === 'object') {
-    return (p.info as { sessionID?: string }).sessionID;
+    // session.created / session.updated / session.deleted carry a Session object
+    // in properties.info. The Session type uses `id` as its identifier, not `sessionID`.
+    const info = p.info as { id?: string; sessionID?: string };
+    return info.id ?? info.sessionID;
   }
   return undefined;
 }
