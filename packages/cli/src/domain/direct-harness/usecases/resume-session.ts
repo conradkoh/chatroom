@@ -12,6 +12,7 @@
 import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { FlushStrategy, MessageStreamSink, MessageStreamTransport } from '../ports/index.js';
+import type { SessionHandle } from './open-session.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export interface ResumeSessionInput {
   readonly harnessSessionId: string;
 }
 
-export type ResumeSessionResult = import('./open-session.js').OpenSessionResult;
+export type ResumeSessionResult = SessionHandle;
 
 // ─── Use case function ────────────────────────────────────────────────────────
 

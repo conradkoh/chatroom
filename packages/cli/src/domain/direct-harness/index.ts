@@ -87,9 +87,11 @@ export { openSession } from './usecases/open-session.js';
 export type {
   OpenSessionDeps,
   OpenSessionInput,
-  OpenSessionResult,
+  SessionHandle,
   SessionRepository,
   SpawnerProvider,
+  SessionJournal,
+  JournalFactory,
 } from './usecases/open-session.js';
 
 export { resumeSession } from './usecases/resume-session.js';

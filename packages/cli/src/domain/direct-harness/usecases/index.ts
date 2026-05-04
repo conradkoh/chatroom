@@ -9,9 +9,11 @@ export { openSession } from './open-session.js';
 export type {
   OpenSessionDeps,
   OpenSessionInput,
-  OpenSessionResult,
+  SessionHandle,
   SessionRepository,
   SpawnerProvider,
+  SessionJournal,
+  JournalFactory,
 } from './open-session.js';
 
 export { resumeSession } from './resume-session.js';
