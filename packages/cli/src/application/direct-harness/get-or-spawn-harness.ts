@@ -1,4 +1,10 @@
 /**
+ * @deprecated Use BoundHarness (domain/direct-harness/entities/bound-harness.js)
+ *             + SpawnerProvider (domain/direct-harness/usecases/open-session.js)
+ *             instead. HarnessProcessRegistry is the v1 approach — each consumer
+ *             managed process lifecycle separately. BoundHarness encapsulates
+ *             lifecycle in a single interface.
+ *
  * HarnessProcessRegistry — maintains one harness process per workspace.
  *
  * Responsibilities:

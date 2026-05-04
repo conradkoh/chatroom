@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use resumeSession from domain/direct-harness/usecases/resume-session.js
+ *             instead. This file is the v1 application-layer implementation and
+ *             will be removed once the daemon migrates to the domain use case.
+ *
  * Application use case: resume an existing harness session after a daemon restart.
  *
  * Reattaches to the running harness session without creating a new backend row

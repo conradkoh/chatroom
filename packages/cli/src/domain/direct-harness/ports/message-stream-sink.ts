@@ -1,4 +1,9 @@
 /**
+ * @deprecated Use SessionJournal (domain/direct-harness/usecases/open-session.js)
+ *             and OutputRepository (domain/direct-harness/ports/output-repository.js)
+ *             instead. Retained for backwards compatibility with the old
+ *             application-layer infrastructure.
+ *
  * Sink interface for buffering and flushing harness output to the backend.
  */
 

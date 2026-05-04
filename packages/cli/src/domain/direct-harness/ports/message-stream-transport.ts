@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use OutputRepository (domain/direct-harness/ports/output-repository.js)
+ *             instead. Retained for backwards compatibility with the old
+ *             application-layer infrastructure.
+ *
  * Transport interface for persisting message stream chunks to the backend.
  */
 

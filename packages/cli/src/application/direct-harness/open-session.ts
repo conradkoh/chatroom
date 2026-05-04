@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use openSession from domain/direct-harness/usecases/open-session.js
+ *             instead. This file is the v1 application-layer implementation and
+ *             will be removed once the daemon migrates to the domain use case.
+ *
  * Application use case: open a new harness session in a workspace.
  *
  * Orchestrates:

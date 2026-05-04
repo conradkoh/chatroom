@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use promptSession from domain/direct-harness/usecases/prompt-session.js
+ *             instead. This file is the v1 application-layer implementation and
+ *             will be removed once the daemon migrates to the domain use case.
+ *
  * Application use case: execute a prompt against a running harness session.
  *
  * Uses the override from the pending prompt row (not from lastUsedConfig) so the

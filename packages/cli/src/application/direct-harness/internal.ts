@@ -1,4 +1,7 @@
 /**
+ * @deprecated Helpers for the v1 application-layer use cases. Retained only
+ *             until callers migrate to domain/direct-harness/usecases.
+ *
  * Shared internal helpers for the direct-harness application use cases.
  * Not exported from the public barrel — for internal use only.
  */

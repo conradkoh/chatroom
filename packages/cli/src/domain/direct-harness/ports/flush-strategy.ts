@@ -1,4 +1,7 @@
 /**
+ * @deprecated Flush strategies will become an internal detail of the JournalFactory
+ *             implementation. Domain use cases no longer reference this type directly.
+ *
  * Strategy interface for deciding when to flush a buffered message stream.
  */
 
