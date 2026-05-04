@@ -7,7 +7,7 @@ import type {
   DirectHarnessSpawner,
   DirectHarnessSession,
   DirectHarnessSessionEvent,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 

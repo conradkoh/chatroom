@@ -19,7 +19,7 @@ import type {
   DirectHarnessSessionEvent,
   FlushStrategy,
   HarnessSessionRowId,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 import {
   BufferedMessageStreamSink,
   ConvexMessageStreamTransport,

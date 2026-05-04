@@ -2,7 +2,7 @@
  * OR-combines multiple flush strategies — flushes if ANY child returns true.
  */
 
-import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 /**
  * Composes a list of strategies: flushes when any one of them signals a flush.

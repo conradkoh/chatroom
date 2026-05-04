@@ -27,7 +27,7 @@ import {
   createDefaultFlushStrategy,
   wireEventSink,
 } from '../../../application/direct-harness/internal.js';
-import type { HarnessSessionRowId } from '../../../domain/direct-harness/index.js';
+import type { HarnessSessionRowId } from '../../../domain/index.js';
 import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
 import {
   BufferedMessageStreamSink,

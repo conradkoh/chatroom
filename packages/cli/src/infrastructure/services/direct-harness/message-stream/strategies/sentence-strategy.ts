@@ -2,7 +2,7 @@
  * Flushes when the last buffered chunk ends with a sentence terminator.
  */
 
-import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 /** Regex for sentence-ending punctuation, optionally followed by closing quotes/parens and whitespace. */
 const SENTENCE_END_RE = /[.!?]["')\]]?\s*$/;

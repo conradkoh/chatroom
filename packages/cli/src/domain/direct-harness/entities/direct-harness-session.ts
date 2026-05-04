@@ -39,6 +39,11 @@ export interface DirectHarnessSession {
   /** Display title synced from the harness (e.g. opencode session title). */
   readonly sessionTitle: string;
   /**
+   * Update the cached session title when the harness reports a change (optional;
+   * implementations that never rename sessions may omit this).
+   */
+  setTitle?(title: string): void;
+  /**
    * Send a structured prompt to the running harness.
    * The agent is passed per-call so a single session can serve multiple roles.
    */

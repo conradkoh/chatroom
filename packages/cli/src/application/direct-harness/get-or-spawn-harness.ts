@@ -14,7 +14,7 @@ import type {
   DirectHarnessSpawner,
   PublishedAgent,
   PublishedProvider,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

@@ -26,7 +26,7 @@ import {
   wireEventSink,
 } from '../../../application/direct-harness/internal.js';
 import { promptSession } from '../../../application/direct-harness/prompt-session.js';
-import type { HarnessSessionId, HarnessSessionRowId } from '../../../domain/direct-harness/index.js';
+import type { HarnessSessionId, HarnessSessionRowId } from '../../../domain/index.js';
 import { openCodeChunkExtractor } from '../../../infrastructure/harnesses/opencode-sdk/chunk-extractor.js';
 import {
   BufferedMessageStreamSink,

@@ -10,13 +10,13 @@
  * cache + workspace metadata to assemble the MachineCapabilities payload.
  */
 
-import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
+import type { CapabilitiesPublisher } from '../../../domain/direct-harness/ports/capabilities-publisher.js';
 import type {
   HarnessCapabilities,
   PublishedAgent,
   WorkspaceCapabilities,
   MachineCapabilities,
-} from '../../../domain/direct-harness/index.js';
+} from '../../../domain/index.js';
 
 // ─── Workspace metadata ─────────────────────────────────────────────────────
 

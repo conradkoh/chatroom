@@ -15,11 +15,11 @@ import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities
 import type { WorkspaceMeta } from './capabilities-sync.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
+import type { CapabilitiesPublisher } from '../../../domain/direct-harness/ports/capabilities-publisher.js';
 import type {
   MachineCapabilities,
   WorkspaceCapabilities,
-} from '../../../domain/direct-harness/index.js';
+} from '../../../domain/index.js';
 
 // ─── Fakes ───────────────────────────────────────────────────────────────────
 

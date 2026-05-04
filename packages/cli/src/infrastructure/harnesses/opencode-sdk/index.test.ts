@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { createOpencodeSdkResumer, resumeSessionFromStore } from './index.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
+import type { HarnessSessionId } from '../../../domain/index.js';
 import { InMemorySessionMetadataStore } from '../../services/remote-agents/opencode-sdk/session-metadata-store.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────

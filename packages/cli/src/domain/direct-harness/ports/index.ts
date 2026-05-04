@@ -1,5 +1,5 @@
 /**
- * Barrel re-export for the domain/direct-harness/message-stream module.
+ * Barrel re-export for the domain/ports module.
  */
 
 export type { FlushContext, FlushStrategy } from './flush-strategy.js';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { SentenceFlushStrategy } from './sentence-strategy.js';
-import type { FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 const dummyCtx: FlushContext = {
   bufferByteSize: 0,

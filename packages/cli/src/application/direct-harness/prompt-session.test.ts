@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { promptSession } from './prompt-session.js';
 import type { PromptSessionDeps, PromptSessionOptions } from './prompt-session.js';
-import type { HarnessSessionId } from '../../domain/direct-harness/index.js';
+import type { HarnessSessionId } from '../../domain/index.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 

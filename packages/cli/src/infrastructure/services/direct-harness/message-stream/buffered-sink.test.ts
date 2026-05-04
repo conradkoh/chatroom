@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BufferedMessageStreamSink } from './buffered-sink.js';
 import type { BufferedSinkOptions } from './buffered-sink.js';
 import { IntervalFlushStrategy } from './strategies/interval-strategy.js';
-import type { MessageStreamTransport, HarnessSessionRowId } from '../../../../domain/direct-harness/index.js';
-import type { MessageStreamSinkWarning } from '../../../../domain/direct-harness/message-stream/index.js';
+import type { MessageStreamTransport, HarnessSessionRowId } from '../../../../domain/index.js';
+import type { MessageStreamSinkWarning } from '../../../../domain/direct-harness/ports/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

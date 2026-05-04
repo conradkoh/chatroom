@@ -10,7 +10,7 @@ import type {
   DirectHarnessSessionEvent,
   HarnessSessionId,
   PromptInput,
-} from '../../../domain/direct-harness/index.js';
+} from '../../../domain/index.js';
 
 /**
  * Minimal client surface needed by the session.

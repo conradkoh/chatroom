@@ -7,7 +7,7 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   FlushStrategy,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 import type {
   BufferedMessageStreamSink} from '../../infrastructure/services/direct-harness/message-stream/index.js';
 import {

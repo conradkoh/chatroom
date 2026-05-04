@@ -2,7 +2,7 @@
  * Flushes when the buffer reaches a maximum item count or byte size.
  */
 
-import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 /** Triggers a flush once the buffer contains `maxItems` items or `maxBytes` total content bytes. */
 export class TokenCountFlushStrategy implements FlushStrategy {

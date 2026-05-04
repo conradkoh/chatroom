@@ -2,7 +2,7 @@
  * Transport interface for persisting message stream chunks to the backend.
  */
 
-import type { HarnessSessionRowId } from '../harness-session.js';
+import type { HarnessSessionRowId } from '../entities/harness-session.js';
 
 /** A single ordered chunk of content produced by a harness session. */
 export interface MessageStreamChunk {

@@ -23,7 +23,7 @@ import type {
   DirectHarnessSession,
   OpenSessionOptions,
   HarnessSessionId,
- PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/index.js';
+ PublishedAgent, PublishedProvider } from '../../../domain/index.js';
 import { waitForListeningUrl } from '../../services/remote-agents/opencode-sdk/parse-listening-url.js';
 import {
   FileSessionMetadataStore,

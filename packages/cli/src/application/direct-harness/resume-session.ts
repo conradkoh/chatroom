@@ -12,7 +12,7 @@ import type {
   FlushStrategy,
   HarnessSessionId,
   HarnessSessionRowId,
- DirectHarnessSpawner } from '../../domain/direct-harness/index.js';
+ DirectHarnessSpawner } from '../../domain/index.js';
 import {
   BufferedMessageStreamSink,
   ConvexMessageStreamTransport,

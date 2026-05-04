@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { CompositeFlushStrategy } from './composite-strategy.js';
-import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushStrategy, FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 const dummyCtx: FlushContext = {
   bufferByteSize: 0,

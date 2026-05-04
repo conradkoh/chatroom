@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { IntervalFlushStrategy } from './interval-strategy.js';
-import type { FlushContext } from '../../../../../domain/direct-harness/message-stream/index.js';
+import type { FlushContext } from '../../../../../domain/direct-harness/ports/index.js';
 
 function makeCtx(overrides: Partial<FlushContext> = {}): FlushContext {
   return {

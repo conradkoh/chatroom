@@ -5,7 +5,7 @@
  * chatroom/directHarness/capabilities.publishMachineCapabilities mutation.
  */
 
-import type { MachineCapabilities } from './machine-capabilities.js';
+import type { MachineCapabilities } from '../entities/machine-capabilities.js';
 
 /** Port for publishing machine capabilities. */
 export interface CapabilitiesPublisher {

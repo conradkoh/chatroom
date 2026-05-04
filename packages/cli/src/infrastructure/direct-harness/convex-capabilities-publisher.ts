@@ -9,7 +9,7 @@ import { api } from '../../api.js';
 import type {
   CapabilitiesPublisher,
   MachineCapabilities,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 
 /** Minimal backend interface required by the publisher. */
 export interface CapabilitiesTransportBackend {

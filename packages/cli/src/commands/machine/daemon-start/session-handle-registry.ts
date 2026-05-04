@@ -12,7 +12,7 @@
  * On daemon shutdown, `closeAll()` flushes and closes all sinks + sessions.
  */
 
-import type { DirectHarnessSession } from '../../../domain/direct-harness/index.js';
+import type { DirectHarnessSession } from '../../../domain/index.js';
 import type { BufferedMessageStreamSink } from '../../../infrastructure/services/direct-harness/message-stream/index.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────

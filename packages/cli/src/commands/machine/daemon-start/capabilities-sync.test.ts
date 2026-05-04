@@ -6,8 +6,8 @@ import { describe, it, expect } from 'vitest';
 
 import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import type { WorkspaceMeta } from './capabilities-sync.js';
-import type { CapabilitiesPublisher } from '../../../domain/direct-harness/capabilities-publisher.js';
-import type { HarnessCapabilities, PublishedAgent } from '../../../domain/direct-harness/index.js';
+import type { CapabilitiesPublisher } from '../../../domain/direct-harness/ports/capabilities-publisher.js';
+import type { HarnessCapabilities, PublishedAgent } from '../../../domain/index.js';
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
 

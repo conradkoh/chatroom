@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { ConvexMessageStreamTransport } from './convex-transport.js';
 import type { ConvexMessageStreamTransportBackend } from './convex-transport.js';
-import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
-import type { MessageStreamChunk } from '../../../../domain/direct-harness/message-stream/index.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
+import type { MessageStreamChunk } from '../../../../domain/direct-harness/ports/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

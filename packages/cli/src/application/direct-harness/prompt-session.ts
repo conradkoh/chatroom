@@ -20,7 +20,7 @@ import type {
   HarnessSessionId,
   PromptInput,
   PromptPart,
-} from '../../domain/direct-harness/index.js';
+} from '../../domain/index.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
  * drop-oldest backpressure, transport-retry, and observable warnings.
  */
 
-import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
 import type {
   MessageStreamSink,
   MessageStreamSinkWarning,
@@ -11,7 +11,7 @@ import type {
   MessageStreamTransport,
   FlushStrategy,
   FlushContext,
-} from '../../../../domain/direct-harness/message-stream/index.js';
+} from '../../../../domain/direct-harness/ports/index.js';
 
 // ─── Options ────────────────────────────────────────────────────────────────
 

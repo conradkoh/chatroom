@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { HarnessProcessRegistry } from './get-or-spawn-harness.js';
 import type { HarnessProcess } from './get-or-spawn-harness.js';
-import type { DirectHarnessSpawner } from '../../domain/direct-harness/index.js';
+import type { DirectHarnessSpawner } from '../../domain/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import {
   extractEventSessionId,
   type OpencodeSdkSessionClient,
 } from './session.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
+import type { HarnessSessionId } from '../../../domain/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

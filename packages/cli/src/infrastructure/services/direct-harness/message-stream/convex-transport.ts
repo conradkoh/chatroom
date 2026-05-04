@@ -7,11 +7,11 @@
  */
 
 import { api } from '../../../../api.js';
-import type { HarnessSessionRowId } from '../../../../domain/direct-harness/harness-session.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
 import type {
   MessageStreamChunk,
   MessageStreamTransport,
-} from '../../../../domain/direct-harness/message-stream/index.js';
+} from '../../../../domain/direct-harness/ports/index.js';
 
 /** Minimal backend interface — matches BackendOps and DaemonContext.deps.backend. */
 export interface ConvexMessageStreamTransportBackend {

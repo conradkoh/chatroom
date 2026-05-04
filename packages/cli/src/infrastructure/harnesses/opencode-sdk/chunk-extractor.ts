@@ -5,7 +5,7 @@
  * all other events (tool calls, session status, etc.) return null.
  */
 
-import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/index.js';
+import type { DirectHarnessSessionEvent } from '../../../domain/index.js';
 
 interface MessagePartProps {
   part?: {
