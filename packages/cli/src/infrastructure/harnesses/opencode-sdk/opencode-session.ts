@@ -130,10 +130,18 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       }
     }
 
+    // Wait for the event stream to fully stop
+    const streamPromise = this.eventStreamPromise;
+    this.eventStreamPromise = null;
+    this.eventStream = null;
+    try {
+      await streamPromise;
+    } catch {
+      // Silenced — stream errors after close are expected
+    }
+
     // Clear listeners
     this.onEventListeners.clear();
-    this.eventStream = null;
-    this.eventStreamPromise = null;
   }
 
   /** Update the session title (called when the harness reports a rename). */
@@ -162,9 +170,23 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       const stream = await this.client.event.subscribe();
       this.eventStream = stream as unknown as EventStream;
 
-      for await (const event of this.eventStream.stream) {
+      // Manual iteration instead of `for await` to avoid unhandled rejections
+      // when an async generator's next() throws during shutdown interleaving.
+      const iterator = this.eventStream.stream[Symbol.asyncIterator]();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        let result: IteratorResult<unknown>;
+        try {
+          result = await iterator.next();
+        } catch (err) {
+          // Stream error — log and abort if not closed
+          if (this.closed) return;
+          throw err;
+        }
+        if (result.done) break;
         if (this.closed) break;
 
+        const event = result.value as OpenCodeEvent;
         // Only forward events for this session
         if (eventSessionId(event) !== this.harnessSessionId) continue;
 
