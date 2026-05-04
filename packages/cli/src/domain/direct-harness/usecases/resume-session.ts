@@ -9,14 +9,14 @@
  * Does NOT create a new backend row or re-associate — the session already exists.
  */
 
-import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
-import type { DirectHarnessSpawner } from '../entities/direct-harness-spawner.js';
+import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
+import type { BoundHarness } from '../entities/bound-harness.js';
 import type { FlushStrategy, MessageStreamSink, MessageStreamTransport } from '../ports/index.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
 export interface ResumeSessionDeps {
-  readonly spawner: DirectHarnessSpawner;
+  readonly harness: BoundHarness;
   readonly transport: MessageStreamTransport;
   readonly chunkExtractor: (event: DirectHarnessSessionEvent) => string | null;
   readonly flushStrategy?: FlushStrategy;

@@ -11,7 +11,7 @@
  */
 
 import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
-import type { DirectHarnessSpawner } from '../entities/direct-harness-spawner.js';
+import type { BoundHarness } from '../entities/bound-harness.js';
 import type { FlushStrategy, MessageStreamSink, MessageStreamTransport } from '../ports/index.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
@@ -31,9 +31,9 @@ export interface SessionRepository {
   ): Promise<void>;
 }
 
-/** Resolves a spawner for a workspace (may spawn a process on first call). */
+/** Resolves a BoundHarness for a workspace (may spawn a process on first call). */
 export interface SpawnerProvider {
-  getSpawner(workspaceId: string, workingDir: string): Promise<DirectHarnessSpawner>;
+  getSpawner(workspaceId: string, workingDir: string): Promise<BoundHarness>;
 }
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
