@@ -2,25 +2,24 @@
  * Domain use case: resume an existing harness session after a daemon restart.
  *
  * Orchestrates:
- *   1. Reconnect to the running harness process via the spawner
- *   2. Rebuild a MessageStreamSink and rewire session events
- *   3. Return a handle for prompt/close operations
+ *   1. Reconnect to the running harness process via BoundHarness.resumeSession()
+ *   2. Create a SessionJournal via JournalFactory
+ *   3. Wire session events through the chunk extractor into the journal
+ *   4. Return a SessionHandle for prompt / close operations
  *
  * Does NOT create a new backend row or re-associate — the session already exists.
  */
 
 import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { FlushStrategy, MessageStreamSink, MessageStreamTransport } from '../ports/index.js';
-import type { SessionHandle } from './open-session.js';
+import type { SessionHandle, SessionJournal, JournalFactory } from './open-session.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
 export interface ResumeSessionDeps {
   readonly harness: BoundHarness;
-  readonly transport: MessageStreamTransport;
+  readonly journalFactory: JournalFactory;
   readonly chunkExtractor: (event: DirectHarnessSessionEvent) => string | null;
-  readonly flushStrategy?: FlushStrategy;
   readonly nowFn?: () => number;
 }
 

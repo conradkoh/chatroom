@@ -55,15 +55,11 @@ export type { SessionRepository } from './ports/session-repository.js';
 export type { OutputRepository, OutputChunk } from './ports/output-repository.js';
 export type { PromptRepository, PromptOverride } from './ports/prompt-repository.js';
 
-// Legacy ports — still re-exported for backwards compatibility with existing infrastructure.
-export type {
-  FlushContext,
-  FlushStrategy,
-  MessageStreamChunk,
-  MessageStreamTransport,
-  MessageStreamSink,
-  MessageStreamSinkWarning,
-} from './ports/index.js';
+// ─── Legacy message-stream ports (to be removed after migration) ───────────────
+
+export type { FlushContext, FlushStrategy } from './ports/index.js';
+export type { MessageStreamChunk, MessageStreamTransport } from './ports/index.js';
+export type { MessageStreamSink, MessageStreamSinkWarning } from './ports/index.js';
 
 // ─── Use cases ──────────────────────────────────────────────────────────────────
 
