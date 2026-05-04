@@ -1,12 +1,19 @@
 /**
  * v2 Domain types for the BoundHarness abstraction.
  *
- * BoundHarness is a simpler, higher-level interface than DirectHarnessSpawner.
- * It represents a harness process bound to a workspace, with methods to:
+ * BoundHarness is the replacement for the v1 `DirectHarnessSpawner` + `HarnessProcess`
+ * split. It represents a harness process bound to a workspace with a single
+ * cohesive interface:
  *   - List available models
- *   - Create new sessions
+ *   - Create new sessions (with typed `NewSessionConfig`)
  *   - Resume existing sessions
  *   - Manage process lifecycle
+ *
+ * Migration from v1:
+ *   `DirectHarnessSpawner.openSession(OpenSessionOptions)` → `BoundHarness.newSession(NewSessionConfig)`
+ *   `DirectHarnessSpawner.resumeSession(id)`              → `BoundHarness.resumeSession(id, opts?)`
+ *   `HarnessProcess.isAlive()` / `.kill()`                → `BoundHarness.isAlive()` / `.close()`
+ *   `HarnessProcess.listAgents()` / `.listProviders()`    → Use the `CapabilitiesCollector` port instead
  */
 
 import type { HarnessSessionId, HarnessSessionRowId } from './harness-session.js';

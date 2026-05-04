@@ -80,3 +80,51 @@ export type {
   MessageStreamSink,
   MessageStreamSinkWarning,
 } from './ports/index.js';
+
+// ─── Use cases ──────────────────────────────────────────────────────────────────
+
+export { openSession } from './usecases/open-session.js';
+export type {
+  OpenSessionDeps,
+  OpenSessionInput,
+  OpenSessionResult,
+  SessionRepository,
+  SpawnerProvider,
+} from './usecases/open-session.js';
+
+export { resumeSession } from './usecases/resume-session.js';
+export type {
+  ResumeSessionDeps,
+  ResumeSessionInput,
+  ResumeSessionResult,
+} from './usecases/resume-session.js';
+
+export { promptSession } from './usecases/prompt-session.js';
+export type {
+  PromptSessionDeps,
+  PromptSessionInput,
+  PromptOverride,
+  SessionQueryPort,
+  PromptOverrideQueryPort,
+  PromptCompletionPort,
+} from './usecases/prompt-session.js';
+
+export { closeSession } from './usecases/close-session.js';
+export type {
+  CloseSessionDeps,
+  CloseSessionInput,
+  SessionStatusPort,
+} from './usecases/close-session.js';
+
+export { publishCapabilities } from './usecases/publish-capabilities.js';
+export type {
+  PublishCapabilitiesDeps,
+  PublishCapabilitiesInput,
+  CapabilitiesCollector,
+  CollectorResolver,
+} from './usecases/publish-capabilities.js';
+
+export { wireSessionToBus } from './usecases/wire-session-to-bus.js';
+export type {
+  WireSessionToBusDeps,
+} from './usecases/wire-session-to-bus.js';
