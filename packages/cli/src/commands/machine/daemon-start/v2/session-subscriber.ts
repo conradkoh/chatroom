@@ -19,8 +19,37 @@ import type { BoundHarness } from '../../../../domain/direct-harness/entities/bo
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { PromptRepository } from '../../../../domain/direct-harness/ports/prompt-repository.js';
 import type { JournalFactory, SessionJournal } from '../../../../domain/direct-harness/usecases/open-session.js';
+import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Convex shape types ──────────────────────────────────────────────────────
+
+/** Shape of a pending session row from listPendingSessionsForMachine. */
+interface PendingSession {
+  _id: string;
+  workspaceId: string;
+  harnessName: string;
+  lastUsedConfig: { agent: string };
+}
+
+/** Shape of the workspace lookup result. */
+interface WorkspaceInfo {
+  workingDir: string;
+}
+
+/** Shape of a claimed prompt from claimNextPendingPrompt. */
+interface ClaimedPrompt {
+  _id: string;
+  taskType: string;
+  parts: { type: 'text'; text: string }[];
+  override: {
+    agent: string;
+    model?: { providerID: string; modelID: string };
+    system?: string;
+    tools?: Record<string, boolean>;
+  };
+}
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export interface ActiveSession {
   readonly harnessSessionRowId: string;
@@ -57,12 +86,11 @@ export function startSessionSubscriber(
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (pendingSessions: any) => {
+    (pendingSessions: PendingSession[] | null) => {
       if (!pendingSessions || pendingSessions.length === 0) return;
 
       for (const session of pendingSessions) {
-        const rowId = session._id as string;
+        const rowId = session._id;
         if (inFlight.has(rowId)) continue;
         inFlight.add(rowId);
         void processOne(ctx, deps, session).finally(() => inFlight.delete(rowId));
@@ -81,17 +109,19 @@ export function startSessionSubscriber(
 
 // ─── Per-session orchestration ───────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function processOne(ctx: DaemonContext, deps: SessionSubscriberDeps, session: any): Promise<void> {
-  const rowId = session._id as string;
+async function processOne(
+  ctx: DaemonContext,
+  deps: SessionSubscriberDeps,
+  session: PendingSession
+): Promise<void> {
+  const rowId = session._id;
 
   try {
     // 1. Look up workspace to get workingDir
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const workspace: any = await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-      sessionId: ctx.sessionId,
-      workspaceId: session.workspaceId,
-    });
+    const workspace = (await ctx.deps.backend.query(
+      api.workspaces.getWorkspaceById,
+      { sessionId: ctx.sessionId, workspaceId: session.workspaceId }
+    )) as WorkspaceInfo | null;
 
     if (!workspace) {
       console.warn(
@@ -115,8 +145,7 @@ async function processOne(ctx: DaemonContext, deps: SessionSubscriberDeps, sessi
     // 3. Open a session on the harness
     const liveSession = await harness.newSession({
       agent: session.lastUsedConfig.agent,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      harnessSessionRowId: rowId as any,
+      harnessSessionRowId: rowId as unknown as HarnessSessionRowId,
     });
 
     // 4. Associate the harness-issued session ID with the existing backend row.
@@ -162,11 +191,10 @@ async function processOne(ctx: DaemonContext, deps: SessionSubscriberDeps, sessi
     deps.activeSessions.set(rowId, handle);
 
     // 8. Claim and process the first pending prompt
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const claimed: any = await ctx.deps.backend.mutation(
+    const claimed = (await ctx.deps.backend.mutation(
       api.chatroom.directHarness.prompts.claimNextPendingPrompt,
       { sessionId: ctx.sessionId, machineId: ctx.machineId, harnessSessionRowId: rowId }
-    );
+    )) as ClaimedPrompt | null;
 
     if (claimed && claimed.taskType === 'prompt') {
       try {
