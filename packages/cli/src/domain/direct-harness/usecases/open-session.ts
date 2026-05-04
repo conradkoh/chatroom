@@ -17,6 +17,7 @@
 import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { HarnessSessionRowId } from '../entities/harness-session.js';
+import { closeSession } from './close-session.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 
@@ -151,15 +152,11 @@ export async function openSession(
       // Stop listening so no more records are written during shutdown
       unsubscribeEvents();
 
-      // Persist any remaining buffered chunks
-      try {
-        await journal.commit();
-      } catch {
-        // Best-effort flush — swallow transport errors on shutdown
-      }
-
-      // Close the harness session
-      await session.close();
+      // Delegate to the closeSession use case for journal + session lifecycle
+      await closeSession(
+        { session, journal },
+        { harnessSessionRowId }
+      );
     },
   };
 }
