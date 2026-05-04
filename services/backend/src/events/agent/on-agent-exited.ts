@@ -18,7 +18,7 @@ export interface OnAgentExitedArgs {
  *
  * This backend function is a no-op kept as a hook for future observability needs.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export async function onAgentExited(_ctx: MutationCtx, _args: OnAgentExitedArgs): Promise<void> {
   // No-op: daemon owns restart logic.
 }

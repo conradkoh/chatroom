@@ -865,7 +865,7 @@ export async function getCommitStatusChecks(
     if ('error' in checkRunsResult || 'error' in statusResult) return null;
 
     const checkRunsData = JSON.parse(checkRunsResult.stdout.trim()) as {
-      check_runs: Array<{ name: string; status: string; conclusion: string | null }>;
+      check_runs: { name: string; status: string; conclusion: string | null }[];
       total_count: number;
     };
 

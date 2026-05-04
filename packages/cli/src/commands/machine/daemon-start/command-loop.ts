@@ -2,34 +2,44 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import {
   AGENT_REQUEST_DEADLINE_MS,
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { pushCommands } from './command-sync-heartbeat.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
+import { startFileTreeSubscription } from './file-tree-subscription.js';
+import { startSessionSubscriber } from './v2/session-subscriber.js';
+import { startPromptSubscriber } from './v2/prompt-subscriber.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
-import { pushCommands } from './command-sync-heartbeat.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
-import { startObservedSyncSubscription } from './observed-sync.js';
-import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
+import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
+import { startObservedSyncSubscription } from './observed-sync.js';
+import { startPendingRefreshTaskSubscription } from './pending-refresh-task-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { api } from '../../../api.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
+import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
+import { ConvexPromptRepository } from '../../../infrastructure/repos/convex-prompt-repository.js';
+import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -157,7 +167,9 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
     if (Object.keys(modelDiff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
+      console.log(
+        `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
+      );
     }
     if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
@@ -320,8 +332,7 @@ export async function dispatchCommandEvent(
     const outcome = await refreshModels(ctx);
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
 
-    const batchId =
-      'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
+    const batchId = 'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
     if (!batchId) {
       return;
     }
@@ -419,6 +430,23 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
 
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  // Gated by directHarnessWorkers flag. Both return { stop: () => void }.
+  let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
+  let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
+  // ── Pending Refresh Task Subscription ────────────────────────────────
+  // Subscribes to pending capability refresh tasks for this machine's workspaces.
+  let pendingRefreshTaskSubscriptionHandle: ReturnType<
+    typeof startPendingRefreshTaskSubscription
+  > | null = null;
+  // Shared state for v2 direct-harness subscribers.
+  // activeSessions: opened/resumed sessions shared by session-subscriber
+  //   and prompt-subscriber so they reuse the same DirectHarnessSession.
+  // harnesses: running BoundHarness instances per workspace, lazily spawned
+  //   on first use and killed on shutdown.
+  const activeSessions = new Map<string, SessionHandle>();
+  const harnesses = new Map<string, BoundHarness>();
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   if (ctx.observedSyncEnabled) {
@@ -441,13 +469,19 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
+    if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
+    if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
+    if (pendingRefreshTaskSubscriptionHandle) pendingRefreshTaskSubscriptionHandle.stop();
+    // Close all active direct-harness sessions
+    for (const handle of activeSessions.values()) {
+      await handle.close().catch(() => {});
+    }
+    // Kill all running harness processes
+    for (const harness of harnesses.values()) {
+      await harness.close().catch(() => {});
+    }
 
     await onDaemonShutdown(ctx);
-
-    // Stop the local API server if it was started
-    if (ctx.stopLocalApi) {
-      await ctx.stopLocalApi().catch(() => {});
-    }
 
     releaseLock();
     process.exit(0);
@@ -477,6 +511,45 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   if (ctx.observedSyncEnabled) {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
   }
+
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  if (featureFlags.directHarnessWorkers) {
+    const sessionRepository = new ConvexSessionRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const outputRepository = new ConvexOutputRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const promptRepository = new ConvexPromptRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    const journalFactory = new BufferedJournalFactory({
+      outputRepository,
+    });
+
+    const sharedDeps = {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      promptRepository,
+      journalFactory,
+    };
+
+    pendingPromptSubscriptionHandle = startPromptSubscriber(ctx, wsClient, sharedDeps);
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, sharedDeps);
+  }
+
+  // ── Pending Refresh Task Subscription ────────────────────────────────
+  // Subscribes to pending capability refresh tasks for this machine's workspaces.
+  pendingRefreshTaskSubscriptionHandle = startPendingRefreshTaskSubscription(
+    ctx,
+    wsClient,
+    harnesses
+  );
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);

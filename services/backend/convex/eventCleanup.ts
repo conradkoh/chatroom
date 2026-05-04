@@ -32,7 +32,7 @@ export const cleanupOldEvents = internalMutation({
 
     let deleted = 0;
     for (const event of oldEvents) {
-      await ctx.db.delete(event._id);
+      await ctx.db.delete("chatroom_eventStream", event._id);
       deleted++;
     }
 

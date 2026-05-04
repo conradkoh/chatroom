@@ -1,7 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
@@ -21,19 +19,14 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
-import { MessageFeed } from './components/MessageFeed';
-import { PromptModal } from './components/PromptModal';
-import { SavedCommandModal } from './components/SavedCommandModal';
-import { SendForm } from './components/SendForm';
-import { SetupChecklistModal } from './components/SetupChecklistModal';
-import { WorkQueue } from './components/WorkQueue';
-import { AttachmentsProvider } from './context/AttachmentsContext';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -41,42 +34,43 @@ import {
   type SettingsTab,
   type CommandItem,
 } from './components/CommandPalette';
+import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { MessageFeed } from './components/MessageFeed';
 import { ProcessManager } from './components/ProcessManager';
+import { PromptModal } from './components/PromptModal';
+import { SavedCommandModal } from './components/SavedCommandModal';
+import { SendForm } from './components/SendForm';
+import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
+import { WorkQueue } from './components/WorkQueue';
+import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
+import { DirectHarnessView } from './direct-harness/DirectHarnessView';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
+import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
+import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
-import { exhaustive } from '@/lib/exhaustive';
-import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { FileContentViewer } from './workspace/components/FileContentViewer';
 import {
   FileExplorerPanel,
   FILE_EXPLORER_REFRESH_EVENT,
 } from './workspace/components/FileExplorerPanel';
-import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
-import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
-import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
+import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
-import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,19 +81,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+import { getAppTitle } from '@/lib/environment';
+import { exhaustive } from '@/lib/exhaustive';
+import { toRepoHttpsUrl } from '@/lib/git-url';
+import { openExternalUrl } from '@/lib/navigation';
+import { cn } from '@/lib/utils';
+import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
+
 
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';
-import { cn } from '@/lib/utils';
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
-import { useSendLocalAction } from '@/hooks/useSendLocalAction';
-import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
-import { getAppTitle } from '@/lib/environment';
-import { openExternalUrl } from '@/lib/navigation';
-import { toRepoHttpsUrl } from '@/lib/git-url';
-import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
-import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
@@ -1547,6 +1548,10 @@ export function ChatroomDashboard({
                         onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>
+                  </div>
+                ) : activeView === 'direct-harness' ? (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */

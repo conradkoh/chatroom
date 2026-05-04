@@ -6,8 +6,13 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { Check, ClipboardCheck, CornerUpLeft, Inbox, Undo2 } from 'lucide-react';
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+
+
+import { type BacklogItem, getScoringBadge } from '../backlog';
+import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
+import { formatRelativeTime } from '../WorkQueue/utils';
 
 import {
   FixedModal,
@@ -17,10 +22,6 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-
-import { type BacklogItem, getScoringBadge } from '../backlog';
-import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
-import { formatRelativeTime } from '../WorkQueue/utils';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 

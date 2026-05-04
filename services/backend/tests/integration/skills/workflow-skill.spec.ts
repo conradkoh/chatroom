@@ -7,8 +7,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { workflowSkill } from '../../../src/domain/usecase/skills/modules/workflow';
+
 import { GLOSSARY_TERMS } from '../../../prompts/sections/glossary';
+import { workflowSkill } from '../../../src/domain/usecase/skills/modules/workflow';
 
 describe('workflow skill prompt disclosure', () => {
   const prompt = workflowSkill.getPrompt('');

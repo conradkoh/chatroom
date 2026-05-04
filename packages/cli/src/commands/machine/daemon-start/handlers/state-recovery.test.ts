@@ -19,8 +19,8 @@ import { createMockDaemonDeps } from '../testing/index.js';
 // ---------------------------------------------------------------------------
 
 function createMockContext(overrides?: {
-  activeSlots?: Array<{ chatroomId: string; role: string; slot: any }>;
-  configs?: Array<{ machineId: string; workingDir?: string; role?: string }>;
+  activeSlots?: { chatroomId: string; role: string; slot: any }[];
+  configs?: { machineId: string; workingDir?: string; role?: string }[];
 }): DaemonContext {
   const deps: DaemonDeps = createMockDaemonDeps();
 

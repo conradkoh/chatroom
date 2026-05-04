@@ -125,7 +125,7 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [chatrooms]);
 
   // Watch chatrooms for handoff transitions (primary path)
@@ -144,6 +144,6 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     }
 
     processHandoffTransitions(chatrooms);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [chatrooms]);
 }

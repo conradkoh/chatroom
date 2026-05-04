@@ -1,13 +1,20 @@
 import { EventEmitter } from 'node:events';
+
+import { createOpencodeClient } from '@opencode-ai/sdk';
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
+import { CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt.js';
 import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
-import { CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
+
+// ---------------------------------------------------------------------------
+// Spawn lifecycle helpers
+// ---------------------------------------------------------------------------
+
 
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
@@ -65,12 +72,6 @@ vi.mock('@opencode-ai/sdk', () => ({
     event: { subscribe: sharedEventSubscribeFn },
   })),
 }));
-
-// ---------------------------------------------------------------------------
-// Spawn lifecycle helpers
-// ---------------------------------------------------------------------------
-
-import { createOpencodeClient } from '@opencode-ai/sdk';
 
 /** Build a fake child process with EventEmitter-backed stdout/stderr/exit. */
 function makeFakeChild(pid = 4321) {

@@ -11,7 +11,7 @@ import type { Workspace } from '../../types/workspace';
 
 interface UseChatroomWorkspacesOptions {
   /** Optional: agent views to enrich workspaces with agentRoles (matched by workingDir) */
-  agentViews?: Array<{ role: string; workingDir?: string }>;
+  agentViews?: { role: string; workingDir?: string }[];
   /** When true, no workspace registry subscription (workspaces stay empty). */
   skip?: boolean;
 }

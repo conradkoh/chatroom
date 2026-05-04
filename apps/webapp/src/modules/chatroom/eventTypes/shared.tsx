@@ -6,9 +6,9 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { fullMarkdownComponents, inlineEventProseClassNames } from '../components/markdown-utils';
-import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 import { useEventStreamMachine } from '../context/EventStreamMachineContext';
 import { getMachineDisplayName } from '../types/machine';
+import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
 // ─── Machine Detail Row ──────────────────────────────────────────────────────
 

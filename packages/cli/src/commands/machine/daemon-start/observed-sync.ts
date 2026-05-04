@@ -12,18 +12,18 @@
  * not re-deliver the onUpdate callback solely due to Date.now() crossing the TTL boundary.
  */
 
-import type { FunctionReturnType } from 'convex/server';
-import type { ConvexClient } from 'convex/browser';
-
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
-import { api } from '../../../api.js';
 import {
   OBSERVED_SAFETY_POLL_MS,
   OBSERVATION_TTL_MS,
 } from '@workspace/backend/config/reliability.js';
-import { pushSingleWorkspaceGitSummaryForObserved } from './git-heartbeat.js';
+import type { ConvexClient } from 'convex/browser';
+import type { FunctionReturnType } from 'convex/server';
+
 import { pushSingleWorkspaceCommands } from './command-sync-heartbeat.js';
+import { pushSingleWorkspaceGitSummaryForObserved } from './git-heartbeat.js';
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
+import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type ObservedChatrooms = FunctionReturnType<typeof api.machines.getObservedChatroomsForMachine>;

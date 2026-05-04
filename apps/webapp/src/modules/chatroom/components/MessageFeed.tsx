@@ -3,10 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
-
-import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
 import { usePaginatedQuery } from 'convex/react';
+import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -42,14 +40,13 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { AttachedWorkflowChip } from './AttachedWorkflowChip';
+import { getBacklogStatusBadge } from './backlog/presenters';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -57,14 +54,17 @@ import {
   contextSummaryProseClassNames,
 } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
+import { useAttachments } from '../context/AttachmentsContext';
+import { useHandoffNotification } from '../hooks/useHandoffNotification';
+import { useMessageStore } from '../hooks/useMessageStore';
+import type { ScrollController } from '../hooks/useScrollController';
+import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
 import {
   type EventStreamEvent,
   formatEventType,
   getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
-import { useAttachments } from '../context/AttachmentsContext';
-import { useHandoffNotification } from '../hooks/useHandoffNotification';
-import { useMessageStore } from '../hooks/useMessageStore';
 
 import {
   FixedModal,
@@ -78,8 +78,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 // Stable reference for remarkPlugins — avoids re-allocation on every render
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
-
-import type { ScrollController } from '../hooks/useScrollController';
 
 interface MessageFeedProps {
   chatroomId: string;

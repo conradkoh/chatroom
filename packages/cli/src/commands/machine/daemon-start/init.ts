@@ -4,19 +4,23 @@
 
 import { stat } from 'node:fs/promises';
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { publishCapabilities } from '../../../domain/direct-harness/usecases/publish-capabilities.js';
+import { InMemoryCollectorRegistry } from '../../../infrastructure/repos/convex-collector-resolver.js';
 import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { api } from '../../../api.js';
-import { startLocalApi } from '../../../infrastructure/local-api/index.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -27,22 +31,20 @@ import {
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
-import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
-import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -242,6 +244,35 @@ async function registerCapabilities(
     console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
   }
 
+  // Publish workspace list to the machine registry (empty agent lists until harnesses boot)
+  // Only runs when the direct-harness feature is enabled.
+  // Uses MachineCapabilitiesCache so the initial empty-agents publish shares the
+  // same code path as the onBooted incremental republish in command-loop.ts.
+  if (featureFlags.directHarnessWorkers) {
+    try {
+      const workspaces = await client.query(api.workspaces.listWorkspacesForMachine, {
+        sessionId,
+        machineId,
+      });
+      if (workspaces.length > 0) {
+        const registry = new InMemoryCollectorRegistry();
+        const publisher = new ConvexCapabilitiesPublisher({ backend: client, sessionId });
+        const baseWorkspaces = workspaces.map((ws: { _id: string; workingDir: string }) => ({
+          workspaceId: ws._id as string,
+          cwd: ws.workingDir,
+          name: ws.workingDir,
+          harnesses: [],
+        }));
+        await publishCapabilities(
+          { collectorResolver: registry, publisher, machineId },
+          { workspaces: baseWorkspaces }
+        );
+      }
+    } catch {
+      // Capability publishing is non-critical — daemon continues without it
+    }
+  }
+
   return availableModels;
 }
 
@@ -439,11 +470,6 @@ export async function initDaemon(): Promise<DaemonContext> {
 
       logStartup(ctx, availableModels);
       await recoverState(ctx);
-
-      // Start the local API server after the context is fully assembled.
-      // Port conflicts are handled gracefully inside startLocalApi (warns and continues).
-      const localApiHandle = await startLocalApi(ctx);
-      ctx.stopLocalApi = localApiHandle.stop;
 
       return ctx;
     } catch (error) {

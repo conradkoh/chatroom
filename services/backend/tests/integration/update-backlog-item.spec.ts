@@ -90,14 +90,26 @@ describe('updateBacklogItem', () => {
 
   test('throws when item not found', async () => {
     const { sessionId } = await createTestSession('test-update-backlog-notfound');
-    await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
 
-    const fakeId = 'k' + 'a'.repeat(15) as Id<'chatroom_backlog'>;
+    // Create a real item to get a valid ID format, then delete it so we have
+    // a non-existent ID in the correct format (Convex validates ID structure).
+    const realItemId = await t.run(async (ctx) => {
+      const { itemId } = await createBacklogItem(ctx, {
+        chatroomId,
+        createdBy: 'test-user',
+        content: 'temp item',
+      });
+      return itemId;
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.delete(realItemId);
+    });
 
     await expect(
       t.run(async (ctx) => {
         await updateBacklogItem(ctx, {
-          itemId: fakeId,
+          itemId: realItemId,
           content: 'does not matter',
         });
       })

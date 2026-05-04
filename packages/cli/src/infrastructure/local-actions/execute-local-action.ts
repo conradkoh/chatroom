@@ -2,18 +2,11 @@
  * Local Action Executor
  *
  * Shared module for executing local actions (open-vscode, open-finder, open-github-desktop, git operations).
- * Used by both:
- * - The local HTTP API routes (for direct localhost calls from Chrome)
- * - The daemon command loop (for Convex-relayed actions from Safari/all browsers)
+ * Used by the daemon command loop to process Convex-relayed actions.
  */
 
+import { exec } from 'node:child_process';
 import { access } from 'node:fs/promises';
-
-import {
-  escapeShellArg,
-  isCliAvailable,
-  execFireAndForget,
-} from '../local-api/routes/shared-utils.js';
 
 import {
   discardFile as gitDiscardFile,
@@ -35,6 +28,46 @@ export type LocalActionResult =
   | { success: false; error: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Escape a filesystem path for safe use as a shell argument.
+ * Wraps the path in double quotes and escapes any embedded double quotes.
+ */
+function escapeShellArg(arg: string): string {
+  return `"${arg.replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Resolve the platform-specific command used to locate an executable.
+ * - POSIX: `which <name>`
+ * - Windows: `where <name>`
+ */
+function resolveWhichCommand(name: string): string {
+  return process.platform === 'win32' ? `where ${name}` : `which ${name}`;
+}
+
+/**
+ * Check whether a CLI command is available on PATH.
+ * Resolves to `true` if found, `false` otherwise.
+ */
+function isCliAvailable(cliName: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    exec(resolveWhichCommand(cliName), (err) => {
+      resolve(!err);
+    });
+  });
+}
+
+/**
+ * Fire-and-forget: execute a shell command and log errors without propagating.
+ */
+function execFireAndForget(command: string, logTag: string): void {
+  exec(command, (err) => {
+    if (err) {
+      console.warn(`[${logTag}] exec failed: ${err.message}`);
+    }
+  });
+}
 
 /**
  * Resolve the platform-specific command used to open a folder in the file explorer.

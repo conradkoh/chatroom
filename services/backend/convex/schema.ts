@@ -2138,4 +2138,162 @@ export default defineSchema({
   })
     .index('by_chatroomId', ['chatroomId'])
     .index('by_lastObservedAt', ['lastObservedAt']),
+
+  // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
+
+  /**
+   * A HarnessSession represents one conversation with a harness process.
+   * Sessions are associated with an existing chatroom_workspaces entry and
+   * are resumable across daemon restarts.
+   * harnessSessionRowId is the Convex-issued _id.
+   */
+  chatroom_harnessSessions: defineTable({
+    workspaceId: v.id('chatroom_workspaces'),
+    harnessName: v.string(),
+    /** Opencode-server-issued session identifier (set after spawning). */
+    harnessSessionId: v.optional(v.string()),
+    /** Display title synced from the opencode SDK session (auto-generated or user-renamed). */
+    sessionTitle: v.optional(v.string()),
+    /** The last-used configuration for this session (agent, model, etc.). */
+    lastUsedConfig: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('spawning'),
+      v.literal('active'),
+      v.literal('idle'),
+      v.literal('closed'),
+      v.literal('failed')
+    ),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    lastActiveAt: v.number(),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_status', ['workspaceId', 'status'])
+    .index('by_harnessSessionId', ['harnessSessionId']),
+
+  /**
+   * Buffered output chunks produced by a harness session.
+   * seq is monotonically increasing per session.
+   */
+  chatroom_harnessSessionMessages: defineTable({
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    seq: v.number(),
+    content: v.string(),
+    timestamp: v.number(),
+  })
+    .index('by_session_seq', ['harnessSessionRowId', 'seq'])
+    .index('by_session', ['harnessSessionRowId']),
+
+  /**
+   * Per-machine capability snapshot: registered workspaces + per-workspace
+   * agent list from the running harness. Published by the daemon on startup
+   * and on harness boot. Upsert semantics (one row per machineId).
+   */
+  chatroom_machineRegistry: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    workspaces: v.array(
+      v.object({
+        workspaceId: v.string(),
+        cwd: v.string(),
+        name: v.string(),
+        agents: v.optional(v.array(v.any())),
+        harnesses: v.optional(
+          v.array(
+            v.object({
+              name: v.string(),
+              displayName: v.string(),
+              agents: v.array(
+                v.object({
+                  name: v.string(),
+                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                  model: v.optional(
+                    v.object({
+                      providerID: v.string(),
+                      modelID: v.string(),
+                    })
+                  ),
+                  description: v.optional(v.string()),
+                })
+              ),
+              providers: v.array(
+                v.object({
+                  providerID: v.string(),
+                  name: v.string(),
+                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+                })
+              ),
+              configSchema: v.optional(v.any()),
+            })
+          )
+        ),
+      })
+    ),
+  }).index('by_machineId', ['machineId']),
+
+  /**
+   * Pending daemon tasks for operations that the daemon must execute on behalf of
+   * the webapp. Currently supports 'refreshCapabilities' — asking a daemon to
+   * re-discover and re-publish its workspace capabilities.
+   *
+   * Index on (status, workspaceId) for efficient daemon polling.
+   */
+  chatroom_pendingDaemonTasks: defineTable({
+    /** When set, only the daemon on this machine should act; else any daemon for the workspace. */
+    machineId: v.optional(v.string()),
+    /** The workspace this task is targeted at. */
+    workspaceId: v.id('chatroom_workspaces'),
+    /** The kind of task to perform. */
+    taskType: v.union(v.literal('refreshCapabilities')),
+    createdAt: v.number(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('inProgress'),
+      v.literal('done'),
+      v.literal('failed')
+    ),
+    completedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_status_workspaceId', ['status', 'workspaceId'])
+    .index('by_machineId_status', ['machineId', 'status']),
+
+  /**
+   * Queued prompts to be executed by the daemon against a harness session.
+   * Status: pending → processing → done | error
+   */
+  chatroom_pendingPrompts: defineTable({
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    /** Denormalized for efficient daemon polling. */
+    machineId: v.string(),
+    workspaceId: v.id('chatroom_workspaces'),
+    /** Task type: 'prompt' sends a text prompt; 'resume' reconnects to the harness. */
+    taskType: v.union(v.literal('prompt'), v.literal('resume')),
+    parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
+    /** Per-prompt config override (agent, model, etc.) — propagated to the SDK. */
+    override: v.object({
+      agent: v.string(),
+      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+      system: v.optional(v.string()),
+      tools: v.optional(v.record(v.string(), v.boolean())),
+    }),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    errorMessage: v.optional(v.string()),
+    requestedBy: v.string(),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_session', ['harnessSessionRowId']),
 });

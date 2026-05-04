@@ -5,6 +5,8 @@ import { Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef } from 'react';
 
+import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
+
 import {
   Command,
   CommandEmpty,
@@ -14,15 +16,14 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { cn } from '@/lib/utils';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
 } from '@/modules/chatroom/context/ChatroomListingContext';
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 // Status indicator colors - using squares per theme guidelines (mirrors ChatroomSidebar)

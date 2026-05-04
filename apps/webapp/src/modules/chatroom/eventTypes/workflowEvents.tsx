@@ -3,10 +3,10 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { useState } from 'react';
 
-import { WorkflowVisualizer } from '../components/WorkflowVisualizer';
-import { buildWorkflowMermaid } from '../utils/workflowMermaid';
 import { registerEventType } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
+import { WorkflowVisualizer } from '../components/WorkflowVisualizer';
+import { buildWorkflowMermaid } from '../utils/workflowMermaid';
 import type {
   WorkflowStartedEvent,
   WorkflowStepCompletedEvent,

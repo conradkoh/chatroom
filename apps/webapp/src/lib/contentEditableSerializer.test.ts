@@ -15,7 +15,7 @@ describe('rawTextToHtml', () => {
   });
 
   it('returns empty string for falsy input', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     expect(rawTextToHtml(undefined as any)).toBe('');
   });
 

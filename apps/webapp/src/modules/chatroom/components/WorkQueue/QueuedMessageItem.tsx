@@ -3,8 +3,8 @@
 import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
-import type { Message } from '../../types/message';
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
+import type { Message } from '../../types/message';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

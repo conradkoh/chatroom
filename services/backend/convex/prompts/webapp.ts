@@ -1,10 +1,11 @@
 /** Convex queries for serving agent prompts to the CLI. */
 
 import { v } from 'convex/values';
-import type { Id } from '../_generated/dataModel';
+
 
 import { generateAgentPrompt } from '../../prompts/base/webapp/init/generator';
 import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '../../src/domain/types/skills';
+import type { Id } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 
 /** Returns the full agent initialization prompt for a role (used by the CLI get-system-prompt command). */
@@ -22,7 +23,7 @@ export const getAgentPrompt = query({
     // Resolve chatroom for customization lookup. If the ID is malformed or
     // doesn't exist, fall back to the default prompt and log so it's debuggable.
     const chatroomId = args.chatroomId as Id<'chatroom_rooms'>;
-    const chatroom = await ctx.db.get(chatroomId);
+    const chatroom = await ctx.db.get("chatroom_rooms", chatroomId);
     if (!chatroom) {
       console.warn(
         `[getAgentPrompt] Chatroom not found for ID "${args.chatroomId}" — using default prompt.`

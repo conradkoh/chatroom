@@ -9,10 +9,10 @@ import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { access } from 'node:fs/promises';
 
-import type { DaemonContext, SessionId } from '../types.js';
-import { formatTimestamp } from '../utils.js';
 import { api } from '../../../../api.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
+import type { DaemonContext, SessionId } from '../types.js';
+import { formatTimestamp } from '../utils.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

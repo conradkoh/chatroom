@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
+
 
 import {
   AgentProcessManager,
@@ -10,6 +10,7 @@ import {
   CRASH_LOOP_MAX_RESTARTS,
   CrashLoopTracker,
 } from '../../machine/crash-loop-tracker.js';
+import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

@@ -1,13 +1,14 @@
 'use client';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import { MermaidBlock } from './MermaidBlock';
 import { buildWorkflowChartWithStatus } from '../utils/workflowMermaid';
+
 import {
   FixedModal,
   FixedModalContent,

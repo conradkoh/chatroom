@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Code2, GitBranch, GitPullRequest, PanelBottomOpen } from 'lucide-react';
+import { useMemo } from 'react';
 import { SiGithub } from 'react-icons/si';
 
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
-import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
+import type { CommandItem } from './types';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import type { Workspace } from '../../types/workspace';
+import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
+
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
-import type { CommandItem } from './types';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

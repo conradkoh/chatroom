@@ -12,8 +12,25 @@
  * this repo. It is tested manually / via integration tests against a real deployment.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// Imports (after mocks)
+// ---------------------------------------------------------------------------
+
+
+import {
+  onCommandRun,
+  onCommandStop,
+  shutdownAllCommands,
+  evictStalePendingStops,
+  runningProcesses, // @internal
+  pendingStops,     // @internal
+} from './command-runner.js';
+import type { DaemonContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be declared before any imports that use them
@@ -36,21 +53,6 @@ vi.mock('../../../../api.js', () => ({
     },
   },
 }));
-
-// ---------------------------------------------------------------------------
-// Imports (after mocks)
-// ---------------------------------------------------------------------------
-
-import { spawn } from 'node:child_process';
-import {
-  onCommandRun,
-  onCommandStop,
-  shutdownAllCommands,
-  evictStalePendingStops,
-  runningProcesses, // @internal
-  pendingStops,     // @internal
-} from './command-runner.js';
-import type { DaemonContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -108,7 +110,7 @@ function createCtx(): DaemonContext {
  * Create a fake ChildProcess with pid, kill(), stdout, stderr, and event emitter
  * methods (on/emit). Returned object can be used as argument to vi.mocked(spawn).
  */
-function createFakeChild(pid: number = 9999) {
+function createFakeChild(pid = 9999) {
   const exitEmitter = new EventEmitter();
   const child = {
     pid,
@@ -128,7 +130,7 @@ function createFakeChild(pid: number = 9999) {
 // ---------------------------------------------------------------------------
 
 let ctx: DaemonContext;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let killSpy: any;
 
 beforeEach(() => {
@@ -379,7 +381,7 @@ describe('timeout watchdog', () => {
     await vi.advanceTimersByTimeAsync(31 * 60 * 1000);
 
     // SIGTERM should NOT have been called (the timeoutTimer was cleared)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const sigtermCalls = killSpy.mock.calls.filter((c: any) => c[1] === 'SIGTERM');
     expect(sigtermCalls).toHaveLength(0);
   });

@@ -10,9 +10,10 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { Square, X, Loader2, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Square, X, Loader2, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 
 interface TerminalOutputPanelProps {

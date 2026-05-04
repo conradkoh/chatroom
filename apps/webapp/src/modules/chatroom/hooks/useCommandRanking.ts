@@ -8,9 +8,11 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { fuzzyFilter } from '@/lib/fuzzyMatch';
+
 import { getCommandUsageStore } from '../lib/commandUsageStore';
 import { computeAllFrecencyScores, createRankedFilter } from '../lib/frecencyScoring';
+
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
 /**
  * Hook that provides:

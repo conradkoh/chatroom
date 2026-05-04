@@ -20,7 +20,7 @@ const DAY = 24 * HOUR;
  * Tuned so that 3 uses within 4 hours (3×150=450) significantly outranks
  * older commands and causes them to rank first.
  */
-const DECAY_BRACKETS: Array<{ maxAge: number; weight: number }> = [
+const DECAY_BRACKETS: { maxAge: number; weight: number }[] = [
   { maxAge: 4 * HOUR, weight: 150 },
   { maxAge: 1 * DAY, weight: 120 },
   { maxAge: 3 * DAY, weight: 90 },

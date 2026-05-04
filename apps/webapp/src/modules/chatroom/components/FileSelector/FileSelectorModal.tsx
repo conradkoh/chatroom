@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { memo, useCallback, useState, useRef } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
+import type { FileEntry } from './useFileSelector';
+import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
 
 import {
   Command,
@@ -15,14 +17,11 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
-
-import type { FileEntry } from './useFileSelector';
-
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { getFileName, getParentDir } from '@/lib/pathUtils';
+import { cn } from '@/lib/utils';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
+
 
 interface FileSelectorModalProps {
   open: boolean;

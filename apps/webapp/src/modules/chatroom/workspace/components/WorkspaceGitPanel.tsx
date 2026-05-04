@@ -5,13 +5,13 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { RefreshCw } from 'lucide-react';
 import { memo, useState, useCallback, useEffect } from 'react';
 
-import { PRDetailModal } from '../../components/PRDetailModal';
 
 import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { WorkspaceGitBranch } from './WorkspaceGitBranch';
 import { WorkspaceGitLog } from './WorkspaceGitLog';
 import { WorkspacePRReview } from './WorkspacePRReview';
+import { PRDetailModal } from '../../components/PRDetailModal';
 import {
   useWorkspaceGit,
   useFullDiff,
@@ -21,10 +21,9 @@ import {
   useAllPullRequests,
   useRecentCommits,
 } from '../hooks/useWorkspaceGit';
+import { prStateBadge, relativeTime } from '../utils/pr-helpers';
 
 import { cn } from '@/lib/utils';
-
-import { prStateBadge, relativeTime } from '../utils/pr-helpers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

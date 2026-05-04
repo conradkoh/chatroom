@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 export interface SessionMetadata {
   sessionId: string;
   machineId: string;
   chatroomId: string;
   role: string;
+  /** Display title synced from the harness (e.g. opencode session title). */
+  title?: string;
   pid: number;
   createdAt: string;
   baseUrl: string;

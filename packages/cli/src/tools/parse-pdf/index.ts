@@ -8,8 +8,8 @@
 import { access, readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import type { ToolResult } from '../types.js';
 import { ensureChatroomDir, ensureGitignore, generateOutputPath } from '../output.js';
+import type { ToolResult } from '../types.js';
 import type { ParsePdfDeps } from './deps.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────

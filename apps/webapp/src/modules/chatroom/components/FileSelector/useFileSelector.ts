@@ -5,8 +5,8 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
 import { useFileEntries } from '@/modules/chatroom/hooks/useFileEntries';
+import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
 
 interface UseFileSelectorOptions {
   chatroomId?: string;

@@ -10,6 +10,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
+// Imports
+// ---------------------------------------------------------------------------
+
+import { requireAuth, DEFAULT_AUTH_RETRY_INTERVAL_MS } from './middleware.js';
+import { isAuthenticated, getSessionId } from './storage.js';
+import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
+import { getConvexClient, getConvexUrl } from '../convex/client.js';
+
+// ---------------------------------------------------------------------------
 // Module Mocks — must be declared before imports that use them
 // ---------------------------------------------------------------------------
 
@@ -43,15 +52,6 @@ vi.mock('../../api.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Imports
-// ---------------------------------------------------------------------------
-
-import { requireAuth, DEFAULT_AUTH_RETRY_INTERVAL_MS } from './middleware.js';
-import { isAuthenticated, getSessionId } from './storage.js';
-import { getConvexClient, getConvexUrl } from '../convex/client.js';
-import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -64,11 +64,11 @@ async function getMockClient() {
 // Setup
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let exitSpy: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let logSpy: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let errorSpy: any;
 
 beforeEach(() => {

@@ -13,22 +13,22 @@
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { selectAgent } from './select-agent.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
-import { waitForListeningUrl } from './parse-listening-url.js';
-import {
-  FileSessionMetadataStore,
-  type SessionMetadata,
-  type SessionMetadataStore,
-} from './session-metadata-store.js';
 import { forwardFiltered } from './node-streams.js';
+import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
+import { selectAgent } from './select-agent.js';
 import {
   startSessionEventForwarder,
   type SessionEventForwarderClient,
   type SessionEventForwarderHandle,
 } from './session-event-forwarder.js';
+import {
+  FileSessionMetadataStore,
+  type SessionMetadata,
+  type SessionMetadataStore,
+} from './session-metadata-store.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;

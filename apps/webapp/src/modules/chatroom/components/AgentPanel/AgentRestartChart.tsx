@@ -53,7 +53,7 @@ function formatDayLabel(date: Date): string {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
+  payload?: { name: string; value: number; color: string }[];
   label?: string;
 }
 

@@ -3,8 +3,8 @@
  */
 
 import { api, type Id } from '../../../../api.js';
-import type { DaemonContext } from '../types.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
+import type { DaemonContext } from '../types.js';
 
 /**
  * Clear an agent's PID from both the Convex backend and local state file.

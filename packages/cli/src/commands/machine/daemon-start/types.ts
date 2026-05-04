@@ -24,7 +24,7 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// Re-export from canonical source (services/backend/src/domain/entities/agent.ts)
+// Re-export from canonical source (services/backend/src/domain/direct-harness/entities/agent.ts)
 export type StartAgentReason = AgentStartReason;
 export type StopAgentReason = AgentStopReason;
 
@@ -127,10 +127,4 @@ export interface DaemonContext {
    * does not require another push unless models also changed.
    */
   lastPushedHarnessFingerprint: string | null;
-  /**
-   * Stops the local API HTTP server.
-   * Populated after `startLocalApi()` returns successfully.
-   * May be undefined if the local API failed to start (e.g. port conflict).
-   */
-  stopLocalApi?: () => Promise<void>;
 }

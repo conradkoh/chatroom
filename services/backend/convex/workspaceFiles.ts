@@ -10,8 +10,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { getAuthenticatedUser } from './auth/authenticatedUser';
 import { requireAccess } from './auth/accessCheck';
+import { getAuthenticatedUser } from './auth/authenticatedUser';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ export const requestFileContent = mutation({
 
     if (existingRequest) {
       // Re-use existing request row
-      await ctx.db.patch(existingRequest._id, {
+      await ctx.db.patch("chatroom_workspaceFileContentRequests", existingRequest._id, {
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -377,7 +377,7 @@ export const requestFileTree = mutation({
     const now = Date.now();
 
     if (existingRequest) {
-      await ctx.db.patch(existingRequest._id, {
+      await ctx.db.patch("chatroom_workspaceFileTreeRequests", existingRequest._id, {
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -461,7 +461,7 @@ export const fulfillFileTreeRequest = mutation({
       .first();
 
     if (request) {
-      await ctx.db.patch(request._id, {
+      await ctx.db.patch("chatroom_workspaceFileTreeRequests", request._id, {
         status: 'done',
         updatedAt: Date.now(),
       });
@@ -497,7 +497,7 @@ export const purgeFileTree = mutation({
       )
       .first();
     if (tree) {
-      await ctx.db.delete(tree._id);
+      await ctx.db.delete("chatroom_workspaceFileTree", tree._id);
     }
 
     // Delete pending requests
@@ -508,7 +508,7 @@ export const purgeFileTree = mutation({
       )
       .collect();
     for (const req of requests) {
-      await ctx.db.delete(req._id);
+      await ctx.db.delete("chatroom_workspaceFileTreeRequests", req._id);
     }
 
     // Delete file content cache
@@ -519,7 +519,7 @@ export const purgeFileTree = mutation({
       )
       .collect();
     for (const content of contents) {
-      await ctx.db.delete(content._id);
+      await ctx.db.delete("chatroom_workspaceFileContent", content._id);
     }
 
     // Delete file content requests (uses different index)
@@ -531,7 +531,7 @@ export const purgeFileTree = mutation({
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of contentRequests) {
-      await ctx.db.delete(req._id);
+      await ctx.db.delete("chatroom_workspaceFileContentRequests", req._id);
     }
   },
 });
@@ -599,7 +599,7 @@ export const syncFileTreeV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch(existing._id, row);
+      await ctx.db.patch("chatroom_workspaceFileTreeV2", existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', row);
     }
@@ -709,7 +709,7 @@ export const fulfillFileContentV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch(existing._id, row);
+      await ctx.db.patch("chatroom_workspaceFileContentV2", existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFileContentV2', row);
     }
@@ -726,7 +726,7 @@ export const fulfillFileContentV2 = mutation({
       .first();
 
     if (request) {
-      await ctx.db.patch(request._id, {
+      await ctx.db.patch("chatroom_workspaceFileContentRequests", request._id, {
         status: 'done' as const,
         updatedAt: now,
       });
@@ -807,7 +807,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (treeV2) await ctx.db.delete(treeV2._id);
+    if (treeV2) await ctx.db.delete("chatroom_workspaceFileTreeV2", treeV2._id);
 
     // Delete v1 file tree
     const treeV1 = await ctx.db
@@ -816,7 +816,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (treeV1) await ctx.db.delete(treeV1._id);
+    if (treeV1) await ctx.db.delete("chatroom_workspaceFileTree", treeV1._id);
 
     // Delete pending requests
     const requests = await ctx.db
@@ -825,7 +825,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const req of requests) await ctx.db.delete(req._id);
+    for (const req of requests) await ctx.db.delete("chatroom_workspaceFileTreeRequests", req._id);
   },
 });
 
@@ -852,7 +852,7 @@ export const purgeFileContentV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const c of contentsV2) await ctx.db.delete(c._id);
+    for (const c of contentsV2) await ctx.db.delete("chatroom_workspaceFileContentV2", c._id);
 
     // Delete v1 file content
     const contentsV1 = await ctx.db
@@ -861,7 +861,7 @@ export const purgeFileContentV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const c of contentsV1) await ctx.db.delete(c._id);
+    for (const c of contentsV1) await ctx.db.delete("chatroom_workspaceFileContent", c._id);
 
     // Delete file content requests
     const requests = await ctx.db
@@ -871,6 +871,6 @@ export const purgeFileContentV2 = mutation({
       )
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
-    for (const req of requests) await ctx.db.delete(req._id);
+    for (const req of requests) await ctx.db.delete("chatroom_workspaceFileContentRequests", req._id);
   },
 });

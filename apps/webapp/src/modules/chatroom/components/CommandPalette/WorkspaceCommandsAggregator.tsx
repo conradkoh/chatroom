@@ -2,10 +2,10 @@
 
 import { memo, useCallback, useEffect, useRef } from 'react';
 
-import type { Workspace } from '../../types/workspace';
 import type { CommandItem } from './types';
 import { useWorkspaceCommandItems } from './useWorkspaceCommandItems';
 import type { WorkspaceCommandCallbacks } from './useWorkspaceCommandItems';
+import type { Workspace } from '../../types/workspace';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
