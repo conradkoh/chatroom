@@ -1,7 +1,7 @@
 /**
  * Direct Harness — Prompts Integration Tests
  *
- * Covers: submitPrompt, claimNextPendingPrompt, completePendingPrompt, resumeSession.
+ * Covers: submitPrompt, claimNextPendingPrompt, completePendingPrompt.
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
@@ -123,6 +123,21 @@ describe('completePendingPrompt', () => {
     const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('complete-done');
     const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
 
+    // Drain the first prompt created by openSession's firstPrompt
+    const firstClaim = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(firstClaim).not.toBeNull();
+
+    await t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId,
+      machineId,
+      promptId: firstClaim!._id,
+      status: 'done',
+    });
+
+    // Submit the test prompt
     await t.mutation(api.chatroom.directHarness.prompts.submitPrompt, {
       sessionId,
       harnessSessionRowId,
@@ -143,11 +158,12 @@ describe('completePendingPrompt', () => {
       status: 'done',
     });
 
-    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
+    // Verify: the completed prompt is no longer returned
+    const next = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
       sessionId,
-      harnessSessionRowId,
+      machineId,
     });
-    expect(queue[0]?.status).toBe('done');
+    expect(next).toBeNull();
   });
 
   test('updates status to error with message', async () => {
@@ -161,6 +177,20 @@ describe('completePendingPrompt', () => {
       override: { agent: 'builder' },
     });
 
+    // Drain openSession's first prompt
+    const firstClaim = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
+      sessionId,
+      machineId,
+    });
+    expect(firstClaim).not.toBeNull();
+    await t.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
+      sessionId,
+      machineId,
+      promptId: firstClaim!._id,
+      status: 'done',
+    });
+
+    // Now claim the test's prompt
     const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
       sessionId,
       machineId,
@@ -174,12 +204,12 @@ describe('completePendingPrompt', () => {
       errorMessage: 'connection reset',
     });
 
-    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
+    // Verify: a prompt with status 'error' is not returned by claimNextPendingPrompt
+    const next = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
       sessionId,
-      harnessSessionRowId,
+      machineId,
     });
-    expect(queue[0]?.status).toBe('error');
-    expect(queue[0]?.errorMessage).toBe('connection reset');
+    expect(next).toBeNull();
   });
 });
 
@@ -221,62 +251,4 @@ test('rejects when prompt belongs to a different machine', async () => {
       status: 'done',
     })
   ).rejects.toThrow('Prompt does not belong to this machine');
-});
-
-// ─── resumeSession ────────────────────────────────────────────────────────────
-
-describe('resumeSession', () => {
-  test('enqueues a resume task for an active session', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('resume-enqueue');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
-
-    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-      sessionId,
-      harnessSessionRowId,
-      harnessSessionId: 'sdk-session-xyz',
-    });
-
-    const result = await t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
-
-    expect(result.promptId).toBeDefined();
-
-    const queue = await t.query(api.chatroom.directHarness.prompts.getSessionPromptQueue, {
-      sessionId,
-      harnessSessionRowId,
-    });
-    const resumeTask = queue.find((q) => (q as any).taskType === 'resume');
-    expect(resumeTask).toBeDefined();
-    expect((resumeTask as any).parts).toHaveLength(0);
-  });
-
-  test('throws when session is in pending/spawning state', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('resume-pending');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
-
-    await expect(
-      t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
-        sessionId,
-        harnessSessionRowId,
-      })
-    ).rejects.toThrow('still starting');
-  });
-
-  test('allows resuming a closed session (daemon will try and fail gracefully if harness gone)', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('resume-closed');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
-
-    await t.mutation(api.chatroom.directHarness.sessions.closeSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
-
-    const result = await t.mutation(api.chatroom.directHarness.prompts.resumeSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
-    expect(result.promptId).toBeDefined();
-  });
 });

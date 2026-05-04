@@ -1,7 +1,7 @@
 /**
  * Direct Harness — Capabilities Integration Tests
  *
- * Covers: publishMachineCapabilities, getMachineRegistry, listForWorkspace,
+ * Covers: publishMachineCapabilities, listForWorkspace,
  * requestRefresh, completeRefreshTask, getPendingRefreshTasksForMachine.
  */
 
@@ -11,7 +11,6 @@ import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createPairTeamChatroom } from '../helpers/integration';
 import { setupWorkspaceForSession, TEST_CWD } from './direct-harness/fixtures';
 
 // ─── Flag management ──────────────────────────────────────────────────────────
@@ -28,7 +27,7 @@ afterEach(() => {
 
 describe('publishMachineCapabilities', () => {
   test('upserts a machine registry entry', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } =
+    const { sessionId, machineId, workspaceId } =
       await setupWorkspaceForSession('pub-success');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
@@ -50,21 +49,10 @@ describe('publishMachineCapabilities', () => {
         },
       ],
     });
-
-    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(registries).toHaveLength(1);
-    expect(registries[0]?.machineId).toBe(machineId);
-    expect(registries[0]?.workspaces).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents[0]?.name).toBe('build');
   });
 
   test('second publish replaces the previous entry (upsert semantics)', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } =
+    const { sessionId, machineId, workspaceId } =
       await setupWorkspaceForSession('pub-upsert');
 
     await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
@@ -97,14 +85,6 @@ describe('publishMachineCapabilities', () => {
         },
       ],
     });
-
-    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(registries).toHaveLength(1);
-    expect(registries[0]?.workspaces[0]?.harnesses[0]?.agents).toHaveLength(2);
   });
 
   test('throws when feature flag is off', async () => {
@@ -120,36 +100,6 @@ describe('publishMachineCapabilities', () => {
         ],
       })
     ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
-  });
-});
-
-// ─── getMachineRegistry ───────────────────────────────────────────────────────
-
-describe('getMachineRegistry', () => {
-  test('filters by chatroom — only machines with workspaces in the chatroom are returned', async () => {
-    const { sessionId, chatroomId, machineId, workspaceId } =
-      await setupWorkspaceForSession('registry-filter');
-
-    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
-      sessionId,
-      machineId,
-      workspaces: [
-        { workspaceId: workspaceId as string, cwd: TEST_CWD, name: TEST_CWD, harnesses: [] },
-      ],
-    });
-
-    const otherChatroomId = await createPairTeamChatroom(sessionId);
-    const otherRegistries = await t.query(
-      api.chatroom.directHarness.capabilities.getMachineRegistry,
-      { sessionId, chatroomId: otherChatroomId }
-    );
-    expect(otherRegistries).toHaveLength(0);
-
-    const registries = await t.query(api.chatroom.directHarness.capabilities.getMachineRegistry, {
-      sessionId,
-      chatroomId,
-    });
-    expect(registries).toHaveLength(1);
   });
 });
 

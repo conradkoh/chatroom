@@ -2294,6 +2294,5 @@ export default defineSchema({
     requestedAt: v.number(),
     updatedAt: v.number(),
   })
-    .index('by_machine_status', ['machineId', 'status'])
-    .index('by_session', ['harnessSessionRowId']),
+    .index('by_machine_status', ['machineId', 'status']),
 });

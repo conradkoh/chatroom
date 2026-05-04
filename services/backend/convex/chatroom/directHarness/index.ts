@@ -18,15 +18,12 @@ export { appendMessages, streamSessionMessages } from './messages.js';
 
 export {
   publishMachineCapabilities,
-  getMachineRegistry,
   listForWorkspace,
 } from './capabilities.js';
 
 export {
   submitPrompt,
-  resumeSession,
   claimNextPendingPrompt,
   completePendingPrompt,
   getPendingPromptsForMachine,
-  getSessionPromptQueue,
 } from './prompts.js';

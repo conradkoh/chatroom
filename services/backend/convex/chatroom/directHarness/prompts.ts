@@ -115,66 +115,6 @@ export const submitPrompt = mutation({
   },
 });
 
-// ─── resumeSession ─────────────────────────────────────────────────────
-
-/**
- * Enqueue a resume task for a session.
- *
- * The daemon picks it up via claimNextPendingPrompt, reconnects to the harness,
- * and flips the session status back to 'active'.
- *
- * Lazy resume contract: sessions are NOT auto-resumed on daemon startup.
- * Resume only happens on explicit user action (click in the UI).
- * This keeps daemon boot fast and avoids surprise costs.
- *
- * Note: closed sessions CAN be resumed if opencode still has the session
- * record in its store. The mutation does not block on this; only the
- * daemon knows whether the harness can actually resume. If it cannot,
- * status will flip to 'failed'.
- */
-export const resumeSession = mutation({
-  args: {
-    ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    const { harnessSession, session } = await getSessionWithAccess(
-      ctx,
-      args.sessionId,
-      args.harnessSessionRowId
-    );
-
-    // Structurally invalid statuses cannot be resumed
-    if (harnessSession.status === 'pending' || harnessSession.status === 'spawning') {
-      throw new ConvexError(
-        `Cannot resume session ${args.harnessSessionRowId} — it is still starting (status: ${harnessSession.status})`
-      );
-    }
-
-    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
-    if (!workspace) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
-    }
-
-    const now = Date.now();
-    const promptId = await ctx.db.insert('chatroom_pendingPrompts', {
-      harnessSessionRowId: args.harnessSessionRowId,
-      machineId: workspace.machineId,
-      workspaceId: harnessSession.workspaceId,
-      taskType: 'resume',
-      parts: [], // no parts for resume tasks
-      override: { agent: harnessSession.lastUsedConfig.agent },
-      status: 'pending',
-      requestedBy: session.userId,
-      requestedAt: now,
-      updatedAt: now,
-    });
-
-    return { promptId };
-  },
-});
-
 // ─── claimNextPendingPrompt ───────────────────────────────────────────────────
 
 /**
@@ -316,25 +256,4 @@ export const getPendingPromptsForMachine = query({
   },
 });
 
-// ─── getSessionPromptQueue ────────────────────────────────────────────────────
 
-/**
- * Get all prompts for a session (for UI subscription).
- * Shows the full history including done/error prompts.
- */
-export const getSessionPromptQueue = query({
-  args: {
-    ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
-
-    return ctx.db
-      .query('chatroom_pendingPrompts')
-      .withIndex('by_session', (q) => q.eq('harnessSessionRowId', args.harnessSessionRowId))
-      .order('asc')
-      .collect();
-  },
-});
