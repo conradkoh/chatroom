@@ -256,7 +256,7 @@ export const updateSessionConfig = mutation({
             (w) => w.workspaceId === (harnessSession.workspaceId as string)
           );
           if (wsEntry) {
-            const allAgents = wsEntry.harnesses.flatMap((h) => h.agents);
+            const allAgents = (wsEntry.harnesses ?? []).flatMap((h) => h.agents);
             if (allAgents.length === 0) {
               throw new ConvexError({
                 code: 'HARNESS_SESSION_UNKNOWN_AGENT',

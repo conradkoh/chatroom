@@ -107,7 +107,8 @@ export const publishMachineCapabilities = mutation({
 type MachineRegistryEntry = {
   workspaces: Array<{
     workspaceId: string;
-    harnesses: Array<{
+    agents?: unknown[];
+    harnesses?: Array<{
       name: string;
       displayName: string;
       agents: Array<{
@@ -186,6 +187,7 @@ export function mergeHarnessCapabilities(
   for (const entry of entries) {
     const wsEntry = entry.workspaces.find((w) => w.workspaceId === workspaceId);
     if (!wsEntry) continue;
+    if (!wsEntry.harnesses) continue;
 
     for (const harness of wsEntry.harnesses) {
       let h = harnessMap.get(harness.name);

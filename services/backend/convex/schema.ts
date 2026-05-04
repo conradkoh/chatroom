@@ -2203,32 +2203,35 @@ export default defineSchema({
         workspaceId: v.string(),
         cwd: v.string(),
         name: v.string(),
-        harnesses: v.array(
-          v.object({
-            name: v.string(),
-            displayName: v.string(),
-            agents: v.array(
-              v.object({
-                name: v.string(),
-                mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
-                model: v.optional(
-                  v.object({
-                    providerID: v.string(),
-                    modelID: v.string(),
-                  })
-                ),
-                description: v.optional(v.string()),
-              })
-            ),
-            providers: v.array(
-              v.object({
-                providerID: v.string(),
-                name: v.string(),
-                models: v.array(v.object({ modelID: v.string(), name: v.string() })),
-              })
-            ),
-            configSchema: v.optional(v.any()),
-          })
+        agents: v.optional(v.array(v.any())),
+        harnesses: v.optional(
+          v.array(
+            v.object({
+              name: v.string(),
+              displayName: v.string(),
+              agents: v.array(
+                v.object({
+                  name: v.string(),
+                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                  model: v.optional(
+                    v.object({
+                      providerID: v.string(),
+                      modelID: v.string(),
+                    })
+                  ),
+                  description: v.optional(v.string()),
+                })
+              ),
+              providers: v.array(
+                v.object({
+                  providerID: v.string(),
+                  name: v.string(),
+                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+                })
+              ),
+              configSchema: v.optional(v.any()),
+            })
+          )
         ),
       })
     ),
