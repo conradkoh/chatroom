@@ -7,7 +7,7 @@
  * - usecases/  — Domain-level use cases and business logic
  *
  * Import from this barrel for convenience:
- *   import type { Workspace, DirectHarnessSpawner } from '../domain/direct-harness/index.js';
+ *   import type { Workspace } from '../domain/direct-harness/index.js';
  */
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
@@ -27,8 +27,6 @@ export type {
   PromptInput,
   DirectHarnessSession,
 } from './entities/direct-harness-session.js';
-
-export type { OpenSessionOptions, DirectHarnessSpawner } from './entities/direct-harness-spawner.js';
 
 export type {
   BoundHarness,
@@ -54,12 +52,6 @@ export type { CapabilitiesPublisher } from './ports/capabilities-publisher.js';
 export type { SessionRepository } from './ports/session-repository.js';
 export type { OutputRepository, OutputChunk } from './ports/output-repository.js';
 export type { PromptRepository, PromptOverride } from './ports/prompt-repository.js';
-
-// ─── Legacy message-stream ports (to be removed after migration) ───────────────
-
-export type { FlushContext, FlushStrategy } from './ports/index.js';
-export type { MessageStreamChunk, MessageStreamTransport } from './ports/index.js';
-export type { MessageStreamSink, MessageStreamSinkWarning } from './ports/index.js';
 
 // ─── Use cases ──────────────────────────────────────────────────────────────────
 
