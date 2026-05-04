@@ -51,27 +51,11 @@ export type {
 
 export type { CapabilitiesPublisher } from './ports/capabilities-publisher.js';
 
-export type {
-  HarnessReplicationBus,
-  HarnessReplicationEvent,
-  HarnessEventFilter,
-  HarnessEventHandler,
-  TitleChangedEvent,
-  MessageChunkEvent,
-  UserMessageEvent,
-} from './ports/replication-bus.js';
+export type { SessionRepository } from './ports/session-repository.js';
+export type { OutputRepository, OutputChunk } from './ports/output-repository.js';
+export type { PromptRepository, PromptOverride } from './ports/prompt-repository.js';
 
-export type {
-  HarnessUserTurnPayload,
-  HarnessUserTurnIngressPort,
-  HarnessReplicationSubscriptionPort,
-  HarnessReplicationEmitPort,
-  HarnessSessionResolverPort,
-  HarnessUseCaseOrchestrationPort,
-  HarnessOrchestrationChannelPort,
-  HarnessReplicationBusAsEmitSubscribe,
-} from './ports/harness-orchestration-ports.js';
-
+// Legacy ports — still re-exported for backwards compatibility with existing infrastructure.
 export type {
   FlushContext,
   FlushStrategy,
@@ -88,7 +72,6 @@ export type {
   OpenSessionDeps,
   OpenSessionInput,
   SessionHandle,
-  SessionRepository,
   SpawnerProvider,
   SessionJournal,
   JournalFactory,
@@ -105,17 +88,12 @@ export { promptSession } from './usecases/prompt-session.js';
 export type {
   PromptSessionDeps,
   PromptSessionInput,
-  PromptOverride,
-  SessionQueryPort,
-  PromptOverrideQueryPort,
-  PromptCompletionPort,
 } from './usecases/prompt-session.js';
 
 export { closeSession } from './usecases/close-session.js';
 export type {
   CloseSessionDeps,
   CloseSessionInput,
-  SessionStatusPort,
 } from './usecases/close-session.js';
 
 export { publishCapabilities } from './usecases/publish-capabilities.js';
@@ -125,8 +103,3 @@ export type {
   CapabilitiesCollector,
   CollectorResolver,
 } from './usecases/publish-capabilities.js';
-
-export { wireSessionToBus } from './usecases/wire-session-to-bus.js';
-export type {
-  WireSessionToBusDeps,
-} from './usecases/wire-session-to-bus.js';

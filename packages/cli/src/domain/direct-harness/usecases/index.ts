@@ -10,7 +10,6 @@ export type {
   OpenSessionDeps,
   OpenSessionInput,
   SessionHandle,
-  SessionRepository,
   SpawnerProvider,
   SessionJournal,
   JournalFactory,
@@ -27,17 +26,12 @@ export { promptSession } from './prompt-session.js';
 export type {
   PromptSessionDeps,
   PromptSessionInput,
-  PromptOverride,
-  SessionQueryPort,
-  PromptOverrideQueryPort,
-  PromptCompletionPort,
 } from './prompt-session.js';
 
 export { closeSession } from './close-session.js';
 export type {
   CloseSessionDeps,
   CloseSessionInput,
-  SessionStatusPort,
 } from './close-session.js';
 
 export { publishCapabilities } from './publish-capabilities.js';
@@ -47,8 +41,3 @@ export type {
   CapabilitiesCollector,
   CollectorResolver,
 } from './publish-capabilities.js';
-
-export { wireSessionToBus } from './wire-session-to-bus.js';
-export type {
-  WireSessionToBusDeps,
-} from './wire-session-to-bus.js';

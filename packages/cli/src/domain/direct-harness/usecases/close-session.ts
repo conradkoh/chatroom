@@ -4,9 +4,7 @@
  * Orchestrates:
  *   1. Commit the journal to persist any remaining buffered chunks
  *   2. Close the harness session via DirectHarnessSession.close()
- *   3. Optionally mark the session as closed in the backend
- *
- * Idempotent — safe to call multiple times when wrapped by the caller.
+ *   3. Mark the session as closed in the backend
  *
  * This is the building block used internally by SessionHandle.close().
  * Callers that hold a SessionHandle should call handle.close() directly;
@@ -15,21 +13,15 @@
  */
 
 import type { DirectHarnessSession } from '../entities/direct-harness-session.js';
+import type { SessionRepository } from '../ports/session-repository.js';
 import type { SessionJournal } from './open-session.js';
-
-// ─── Ports ────────────────────────────────────────────────────────────────────
-
-/** Updates the session status in the backend after close. */
-export interface SessionStatusPort {
-  markClosed(harnessSessionRowId: string): Promise<void>;
-}
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
 export interface CloseSessionDeps {
   readonly session: DirectHarnessSession;
   readonly journal: SessionJournal;
-  readonly sessionStatus?: SessionStatusPort;
+  readonly sessionRepository?: SessionRepository;
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────
@@ -44,7 +36,7 @@ export async function closeSession(
   deps: CloseSessionDeps,
   input: CloseSessionInput
 ): Promise<void> {
-  const { session, journal, sessionStatus } = deps;
+  const { session, journal, sessionRepository } = deps;
   const { harnessSessionRowId } = input;
 
   // 1. Persist any remaining buffered chunks
@@ -57,10 +49,10 @@ export async function closeSession(
   // 2. Close the harness session
   await session.close();
 
-  // 3. Optionally update the backend
-  if (sessionStatus) {
+  // 3. Mark closed in the backend
+  if (sessionRepository) {
     try {
-      await sessionStatus.markClosed(harnessSessionRowId);
+      await sessionRepository.markClosed(harnessSessionRowId);
     } catch {
       // Best-effort — don't let a backend failure mask close success
     }

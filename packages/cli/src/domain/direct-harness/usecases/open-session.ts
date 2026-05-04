@@ -17,24 +17,11 @@
 import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { HarnessSessionRowId } from '../entities/harness-session.js';
+import type { SessionRepository } from '../ports/session-repository.js';
 import { closeSession } from './close-session.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 
-/** Backend persistence for session lifecycle. */
-export interface SessionRepository {
-  createSession(
-    workspaceId: string,
-    harnessName: string,
-    config: { agent: string }
-  ): Promise<{ harnessSessionRowId: string }>;
-
-  associateHarnessSessionId(
-    harnessSessionRowId: string,
-    harnessSessionId: string,
-    sessionTitle: string
-  ): Promise<void>;
-}
 
 /** Resolves a BoundHarness for a workspace (may spawn a process on first call). */
 export interface SpawnerProvider {
