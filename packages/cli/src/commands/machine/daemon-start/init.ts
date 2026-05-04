@@ -8,7 +8,8 @@ import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
+import { publishCapabilities } from '../../../domain/direct-harness/usecases/publish-capabilities.js';
+import { InMemoryCollectorRegistry } from '../../../infrastructure/repos/convex-collector-resolver.js';
 import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
@@ -254,14 +255,18 @@ async function registerCapabilities(
         machineId,
       });
       if (workspaces.length > 0) {
-        const cache = new MachineCapabilitiesCache();
+        const registry = new InMemoryCollectorRegistry();
         const publisher = new ConvexCapabilitiesPublisher({ backend: client, sessionId });
-        const workspaceMetas = workspaces.map((ws) => ({
+        const baseWorkspaces = workspaces.map((ws: { _id: string; workingDir: string }) => ({
           workspaceId: ws._id as string,
           cwd: ws.workingDir,
           name: ws.workingDir,
+          harnesses: [],
         }));
-        await publishMachineSnapshot(publisher, cache, machineId, workspaceMetas);
+        await publishCapabilities(
+          { collectorResolver: registry, publisher, machineId },
+          { workspaces: baseWorkspaces }
+        );
       }
     } catch {
       // Capability publishing is non-critical — daemon continues without it

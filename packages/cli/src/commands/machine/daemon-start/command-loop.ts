@@ -28,7 +28,6 @@ import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startPendingRefreshTaskSubscription } from './pending-refresh-task-subscription.js';
-import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
@@ -546,14 +545,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── Pending Refresh Task Subscription ────────────────────────────────
   // Subscribes to pending capability refresh tasks for this machine's workspaces.
-  // Keeps a v1 HarnessProcessRegistry for backward compat (to be migrated later).
-  const harnessRegistry = new HarnessProcessRegistry(async (_workspaceId, _cwd) => {
-    throw new Error('Direct-harness spawning is handled by v2 subscribers');
-  });
   pendingRefreshTaskSubscriptionHandle = startPendingRefreshTaskSubscription(
     ctx,
     wsClient,
-    harnessRegistry
+    harnesses
   );
 
   console.log(`\nListening for commands...`);

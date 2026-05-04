@@ -9,12 +9,14 @@
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexClient } from 'convex/browser';
 
-import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
+import { publishCapabilities } from '../../../domain/direct-harness/usecases/publish-capabilities.js';
+import type { CapabilitiesCollector } from '../../../domain/direct-harness/usecases/publish-capabilities.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import { InMemoryCollectorRegistry } from '../../../infrastructure/repos/convex-collector-resolver.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -33,7 +35,7 @@ export interface PendingRefreshTaskSubscriptionHandle {
 export function startPendingRefreshTaskSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient,
-  harnessRegistry: HarnessProcessRegistry
+  harnesses: Map<string, BoundHarness>
 ): PendingRefreshTaskSubscriptionHandle {
   if (!featureFlags.directHarnessWorkers) {
     return { stop: () => {} };
@@ -52,7 +54,7 @@ export function startPendingRefreshTaskSubscription(
       if (processing) return;
 
       processing = true;
-      void drainRefreshTasks(ctx, harnessRegistry, pendingTasks)
+      void drainRefreshTasks(ctx, harnesses, pendingTasks)
         .catch((err: unknown) => {
           console.warn(
             `[${formatTimestamp()}] [direct-harness] Refresh task processing failed: ${getErrorMessage(err)}`
@@ -81,7 +83,7 @@ export function startPendingRefreshTaskSubscription(
  */
 async function drainRefreshTasks(
   ctx: DaemonContext,
-  harnessRegistry: HarnessProcessRegistry,
+  harnesses: Map<string, BoundHarness>,
   pendingTasks: Array<{
     _id: Id<'chatroom_pendingDaemonTasks'>;
     workspaceId: Id<'chatroom_workspaces'>;
@@ -89,7 +91,7 @@ async function drainRefreshTasks(
   }>
 ): Promise<void> {
   for (const task of pendingTasks) {
-    await executeRefreshTask(ctx, harnessRegistry, task);
+    await executeRefreshTask(ctx, harnesses, task);
   }
 }
 
@@ -99,7 +101,7 @@ async function drainRefreshTasks(
  */
 async function executeRefreshTask(
   ctx: DaemonContext,
-  harnessRegistry: HarnessProcessRegistry,
+  harnesses: Map<string, BoundHarness>,
   task: {
     _id: Id<'chatroom_pendingDaemonTasks'>;
     workspaceId: Id<'chatroom_workspaces'>;
@@ -115,7 +117,7 @@ async function executeRefreshTask(
     const workspace = await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
       sessionId: ctx.sessionId,
       workspaceId: task.workspaceId,
-    });
+    }) as { workingDir: string } | null;
 
     if (!workspace) {
       console.warn(
@@ -130,65 +132,72 @@ async function executeRefreshTask(
       return;
     }
 
-    // Get or spawn the harness process for this workspace
-    const harnessProcess = await harnessRegistry
-      .getOrSpawn(task.workspaceId as string, workspace.workingDir)
-      .catch((err: unknown) => {
-        throw new Error(
-          `Failed to get harness for workspace ${task.workspaceId}: ${getErrorMessage(err)}`
-        );
-      });
-
-    // Re-discover agents and providers
-    const agents = await harnessProcess.listAgents();
-    let providers: Awaited<ReturnType<typeof harnessProcess.listProviders>> = [];
-    try {
-      providers = await harnessProcess.listProviders();
-    } catch (providerErr) {
+    // Get the running harness for this workspace (if any)
+    const harness = harnesses.get(task.workspaceId as string);
+    if (!harness) {
       console.warn(
-        `[${formatTimestamp()}] ⚠️  listProviders failed during refresh for workspace ${task.workspaceId}: ${
-          providerErr instanceof Error ? providerErr.message : String(providerErr)
-        }. Publishing with empty providers.`
+        `[${formatTimestamp()}] ⚠️  No running harness for workspace ${task.workspaceId} — publishing empty capabilities`
       );
     }
 
-    // Build a temporary cache for publishing
-    const capabilitiesCache = new MachineCapabilitiesCache();
-    const capabilitiesPublisher = new ConvexCapabilitiesPublisher({
+    // Build a temporary collector registry for publishing
+    const registry = new InMemoryCollectorRegistry();
+    if (harness) {
+      const models = await harness.models();
+
+      const collector: CapabilitiesCollector = {
+        name: 'opencode-sdk',
+        displayName: 'Opencode',
+        listAgents: async () =>
+          models.map((m) => ({
+            name: m.id,
+            mode: 'primary' as const,
+            model: { providerID: m.provider, modelID: m.id },
+          })),
+        listProviders: async () => {
+          const grouped = new Map<string, { providerID: string; name: string; models: { modelID: string; name: string }[] }>();
+          for (const m of models) {
+            if (!grouped.has(m.provider)) {
+              grouped.set(m.provider, { providerID: m.provider, name: m.provider, models: [] });
+            }
+            grouped.get(m.provider)!.models.push({ modelID: m.id, name: m.name });
+          }
+          return [...grouped.values()];
+        },
+      };
+
+      registry.register(task.workspaceId as string, {
+        workspaceId: task.workspaceId as string,
+        cwd: workspace.workingDir,
+        name: workspace.workingDir,
+        harnesses: [],
+      }, collector);
+    }
+
+    // Publish via domain use case
+    const publisher = new ConvexCapabilitiesPublisher({
       backend: ctx.deps.backend,
       sessionId: ctx.sessionId,
     });
 
-    capabilitiesCache.setHarnesses(task.workspaceId as string, [
-      {
-        name: 'opencode-sdk',
-        displayName: 'Opencode',
-        agents: [...agents],
-        providers: [...providers],
-      },
-    ]);
-
     const workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-    });
+    }) as Array<{ _id: string; workingDir: string }>;
 
-    const workspaceMetas = workspaces.map((ws: { _id: string; workingDir: string }) => ({
-      workspaceId: ws._id as string,
+    const baseWorkspaces = workspaces.map((ws) => ({
+      workspaceId: ws._id,
       cwd: ws.workingDir,
       name: ws.workingDir,
+      harnesses: [] as never[],
     }));
 
-    await publishMachineSnapshot(
-      capabilitiesPublisher,
-      capabilitiesCache,
-      ctx.machineId,
-      workspaceMetas
+    await publishCapabilities(
+      { collectorResolver: registry, publisher, machineId: ctx.machineId },
+      { workspaces: baseWorkspaces }
     );
 
-    console.log(
-      `[${formatTimestamp()}] ✅ Refresh published for workspace ${task.workspaceId} (${agents.length} agents, ${providers.length} providers)`
-    );
+    console.log(`[${formatTimestamp()}] ✅ Refresh published for workspace ${task.workspaceId}`);
 
     // Mark task as done
     await ctx.deps.backend.mutation(api.chatroom.directHarness.capabilities.completeRefreshTask, {
