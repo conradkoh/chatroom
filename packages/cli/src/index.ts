@@ -1155,42 +1155,6 @@ opencodeCommand
     const { installTool } = await import('./commands/opencode-install/index.js');
     await installTool({ checkExisting: !options.force });
   });
-
-// ─── Session commands ────────────────────────────────────────────────────
-
-const sessionCommand = program
-  .command('session')
-  .description('Open or resume direct-harness sessions (gated by directHarnessWorkers feature flag)');
-
-sessionCommand
-  .command('open')
-  .description('Open a new harness session in a registered workspace')
-  .requiredOption('--workspace-id <id>', 'Workspace Convex Id (from: workspace list)')
-  .requiredOption('--agent <role>', 'Agent role opening this session (e.g. builder, planner)')
-  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
-  .action(async (options: { workspaceId: string; agent: string; harness: string }) => {
-    const { sessionOpen } = await import('./commands/session/index.js');
-    await sessionOpen({
-      workspaceId: options.workspaceId,
-      agent: options.agent,
-      harness: options.harness,
-    });
-  });
-
-sessionCommand
-  .command('resume')
-  .description('Resume an existing harness session by reattaching to it')
-  .requiredOption('--harness-session-row-id <id>', 'Backend session row Id')
-  .requiredOption('--harness-session-id <id>', 'Harness-issued session Id')
-  .option('--harness <name>', 'Harness to use', 'opencode-sdk')
-  .action(async (options: { harnessSessionRowId: string; harnessSessionId: string; harness: string }) => {
-    const { sessionResume } = await import('./commands/session/index.js');
-    await sessionResume({
-      harnessSessionRowId: options.harnessSessionRowId,
-      harnessSessionId: options.harnessSessionId,
-      harness: options.harness,
-    });
-  });
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.
