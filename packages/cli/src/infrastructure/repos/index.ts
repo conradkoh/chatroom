@@ -19,8 +19,7 @@ export type {
   CapabilitiesTransportBackend,
 } from './convex-capabilities-publisher.js';
 
-export { ConvexCollectorResolver } from './convex-collector-resolver.js';
-export type { ConvexCollectorResolverOptions } from './convex-collector-resolver.js';
+export { InMemoryCollectorRegistry } from './convex-collector-resolver.js';
 
 export { BufferedJournalFactory } from './journal-factory.js';
 export type { BufferedJournalFactoryOptions } from './journal-factory.js';

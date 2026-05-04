@@ -33,7 +33,7 @@ export class ConvexSessionRepository implements SessionRepository {
     return backend.mutation(api.chatroom.directHarness.sessions.openSession, {
       sessionId,
       workspaceId,
-      name: harnessName,
+      harnessName,
       config,
     }) as Promise<{ harnessSessionRowId: string }>;
   }

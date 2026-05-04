@@ -14,6 +14,8 @@ type BackendCall = (endpoint: any, args: any) => Promise<any>;
 export interface ConvexPromptRepositoryOptions {
   readonly backend: { mutation: BackendCall };
   readonly sessionId: string;
+  /** Machine identifier — required by completePendingPrompt mutation. */
+  readonly machineId: string;
 }
 
 export class ConvexPromptRepository implements PromptRepository {
@@ -24,10 +26,11 @@ export class ConvexPromptRepository implements PromptRepository {
     status: 'done' | 'error',
     errorMessage?: string
   ): Promise<void> {
-    const { backend, sessionId } = this.options;
+    const { backend, sessionId, machineId } = this.options;
 
     await backend.mutation(api.chatroom.directHarness.prompts.completePendingPrompt, {
       sessionId,
+      machineId,
       promptId,
       status,
       ...(errorMessage !== undefined ? { errorMessage } : {}),
