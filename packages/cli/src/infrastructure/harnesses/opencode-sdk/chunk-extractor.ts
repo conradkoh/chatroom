@@ -11,6 +11,8 @@ interface MessagePartProps {
   part?: {
     type?: string;
     text?: string;
+    /** opencode SDK sessionID — present on every Part variant. Used for routing; not consumed here. */
+    sessionID?: string;
   };
   delta?: string;
 }
