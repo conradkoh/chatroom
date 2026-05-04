@@ -33,7 +33,7 @@ import { formatTimestamp } from './utils.js';
 import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';

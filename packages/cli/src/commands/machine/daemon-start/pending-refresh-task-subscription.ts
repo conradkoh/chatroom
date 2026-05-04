@@ -15,7 +15,7 @@ import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import type { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Handle returned by `startPendingRefreshTaskSubscription` to stop the subscription. */

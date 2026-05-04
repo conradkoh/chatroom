@@ -18,7 +18,7 @@ import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/direct-harness/convex-capabilities-publisher.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
