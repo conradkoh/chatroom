@@ -84,7 +84,11 @@ export async function promptSession(
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     // 6b. Mark error — best-effort, don't mask the original error
-    await promptRepository.complete(promptId, 'error', errorMessage).catch(() => {});
+    try {
+      await promptRepository.complete(promptId, 'error', errorMessage);
+    } catch {
+      // Best-effort — swallow so the original error is not masked
+    }
     throw err;
   }
 }
