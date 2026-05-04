@@ -36,7 +36,6 @@ function mockDeps(overrides?: Partial<PromptSessionDeps>): PromptSessionDeps {
   return {
     sessionRepository: passingSessionRepository(),
     promptRepository: {
-      getOverride: vi.fn(),
       complete: vi.fn(),
     } satisfies PromptRepository,
     session: mockSession(),
@@ -44,33 +43,25 @@ function mockDeps(overrides?: Partial<PromptSessionDeps>): PromptSessionDeps {
   };
 }
 
+const defaultOverride: PromptOverride = { agent: 'builder' };
+
 const defaultInput: PromptSessionInput = {
   harnessSessionRowId: 'row-1',
   promptId: 'prompt-1',
   parts: [{ type: 'text', text: 'Hello' }],
+  override: defaultOverride,
 };
-
-function makeOverride(overrides?: Partial<PromptOverride>): PromptOverride {
-  return {
-    agent: 'builder',
-    ...overrides,
-  };
-}
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('promptSession', () => {
-  it('reads the override, prompts the session, and completes as done', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride()),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+  it('prompts the session and completes as done', async () => {
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const session = mockSession();
     const deps = mockDeps({ promptRepository, session });
 
     await promptSession(deps, defaultInput);
 
-    expect(promptRepository.getOverride).toHaveBeenCalledWith('prompt-1');
     expect(session.prompt).toHaveBeenCalledOnce();
     expect(session.prompt).toHaveBeenCalledWith(
       expect.objectContaining({ agent: 'builder', parts: defaultInput.parts })
@@ -79,20 +70,20 @@ describe('promptSession', () => {
   });
 
   it('passes model, system, and tools from the override to session.prompt', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(
-        makeOverride({
-          model: { providerID: 'openai', modelID: 'gpt-4' },
-          system: 'Be concise.',
-          tools: { read_file: true, write_file: false },
-        })
-      ),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const session = mockSession();
     const deps = mockDeps({ promptRepository, session });
+    const input: PromptSessionInput = {
+      ...defaultInput,
+      override: {
+        agent: 'builder',
+        model: { providerID: 'openai', modelID: 'gpt-4' },
+        system: 'Be concise.',
+        tools: { read_file: true, write_file: false },
+      },
+    };
 
-    await promptSession(deps, defaultInput);
+    await promptSession(deps, input);
 
     expect(session.prompt).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -108,10 +99,7 @@ describe('promptSession', () => {
     const sessionRepository = passingSessionRepository({
       getHarnessSessionId: vi.fn().mockResolvedValue(undefined),
     });
-    const promptRepository = {
-      getOverride: vi.fn(),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const deps = mockDeps({ sessionRepository, promptRepository });
 
     await promptSession(deps, defaultInput);
@@ -124,31 +112,15 @@ describe('promptSession', () => {
     expect(deps.session.prompt).not.toHaveBeenCalled();
   });
 
-  it('completes as error when no override is found', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(undefined),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
-    const deps = mockDeps({ promptRepository });
-
-    await promptSession(deps, defaultInput);
-
-    expect(promptRepository.complete).toHaveBeenCalledWith(
-      'prompt-1',
-      'error',
-      expect.stringContaining('No override found')
-    );
-    expect(deps.session.prompt).not.toHaveBeenCalled();
-  });
-
   it('completes as error when override.agent is empty', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride({ agent: '' })),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const deps = mockDeps({ promptRepository });
+    const input: PromptSessionInput = {
+      ...defaultInput,
+      override: { agent: '' },
+    };
 
-    await promptSession(deps, defaultInput);
+    await promptSession(deps, input);
 
     expect(promptRepository.complete).toHaveBeenCalledWith(
       'prompt-1',
@@ -159,13 +131,14 @@ describe('promptSession', () => {
   });
 
   it('completes as error when override.agent is whitespace', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride({ agent: '  ' })),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const deps = mockDeps({ promptRepository });
+    const input: PromptSessionInput = {
+      ...defaultInput,
+      override: { agent: '  ' },
+    };
 
-    await promptSession(deps, defaultInput);
+    await promptSession(deps, input);
 
     expect(promptRepository.complete).toHaveBeenCalledWith(
       'prompt-1',
@@ -175,10 +148,7 @@ describe('promptSession', () => {
   });
 
   it('completes as error and throws when session.prompt fails', async () => {
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride()),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const session = mockSession();
     (session.prompt as Func).mockRejectedValue(new Error('harness failure'));
     const deps = mockDeps({ promptRepository, session });
@@ -190,7 +160,6 @@ describe('promptSession', () => {
 
   it('does not mask the original error when complete() also fails', async () => {
     const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride()),
       complete: vi.fn().mockRejectedValue(new Error('complete also fails')),
     } satisfies PromptRepository;
     const session = mockSession();
@@ -203,10 +172,7 @@ describe('promptSession', () => {
   it('queries the session repository for harness session ID', async () => {
     const sessionRepository = passingSessionRepository();
     const spy = vi.spyOn(sessionRepository, 'getHarnessSessionId');
-    const promptRepository = {
-      getOverride: vi.fn().mockResolvedValue(makeOverride()),
-      complete: vi.fn(),
-    } satisfies PromptRepository;
+    const promptRepository = { complete: vi.fn() } satisfies PromptRepository;
     const deps = mockDeps({ sessionRepository, promptRepository });
 
     await promptSession(deps, defaultInput);

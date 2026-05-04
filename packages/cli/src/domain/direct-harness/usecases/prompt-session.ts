@@ -4,16 +4,19 @@
  * Orchestrates:
  *   1. Read fresh session state from backend → get harnessSessionId
  *   2. If the session has no associated harness ID, complete with error
- *   3. Read the override stored on the pending prompt row
- *   4. Validate the override (agent must be non-empty)
- *   5. Forward the prompt via session.prompt(input)
- *   6. Complete as 'done' on success, or 'error' with message on failure
+ *   3. Validate the override (agent must be non-empty)
+ *   4. Forward the prompt via session.prompt(input)
+ *   5. Complete as 'done' on success, or 'error' with message on failure
+ *
+ * The override is provided by the caller (from claimNextPendingPrompt),
+ * not fetched by this use case — avoids an extra Convex query when
+ * the caller already has the data.
  */
 
 import type { PromptPart, PromptInput } from '../entities/direct-harness-session.js';
 import type { DirectHarnessSession } from '../entities/direct-harness-session.js';
 import type { SessionRepository } from '../ports/session-repository.js';
-import type { PromptRepository } from '../ports/prompt-repository.js';
+import type { PromptRepository, PromptOverride } from '../ports/prompt-repository.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,11 @@ export interface PromptSessionInput {
   readonly harnessSessionRowId: string;
   readonly promptId: string;
   readonly parts: readonly PromptPart[];
+  /**
+   * Per-prompt config override (agent, model, etc.) as stored on the
+   * pending prompt row. Provided by the caller from the claim result.
+   */
+  readonly override: PromptOverride;
 }
 
 // ─── Use case function ────────────────────────────────────────────────────────
@@ -39,7 +47,7 @@ export async function promptSession(
   input: PromptSessionInput
 ): Promise<void> {
   const { sessionRepository, promptRepository, session } = deps;
-  const { harnessSessionRowId, promptId, parts } = input;
+  const { harnessSessionRowId, promptId, parts, override } = input;
 
   // 1. Read fresh session state from backend
   const harnessSessionId = await sessionRepository.getHarnessSessionId(harnessSessionRowId);
@@ -54,19 +62,17 @@ export async function promptSession(
     return;
   }
 
-  // 3. Read the override from the pending prompt row
-  const override = await promptRepository.getOverride(promptId);
-
-  // 4. Validate override exists and has an agent
-  if (!override || !override.agent || override.agent.trim() === '') {
-    const msg = !override
-      ? `No override found for prompt ${promptId}`
-      : `promptSession: override.agent is required but was empty for prompt ${promptId}`;
-    await promptRepository.complete(promptId, 'error', msg);
+  // 3. Validate override has a non-empty agent
+  if (!override.agent || override.agent.trim() === '') {
+    await promptRepository.complete(
+      promptId,
+      'error',
+      `promptSession: override.agent is required but was empty for prompt ${promptId}`
+    );
     return;
   }
 
-  // 5. Build the prompt input and forward to the harness
+  // 4. Build the prompt input and forward to the harness
   const promptInput: PromptInput = {
     agent: override.agent,
     parts,
@@ -78,12 +84,12 @@ export async function promptSession(
   try {
     await session.prompt(promptInput);
 
-    // 6a. Mark done
+    // 5a. Mark done
     await promptRepository.complete(promptId, 'done');
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
-    // 6b. Mark error — best-effort, don't mask the original error
+    // 5b. Mark error — best-effort, don't mask the original error
     try {
       await promptRepository.complete(promptId, 'error', errorMessage);
     } catch {

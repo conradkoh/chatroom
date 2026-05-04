@@ -1,5 +1,8 @@
 /**
- * Repository port for prompt lifecycle (reads, completion status).
+ * Repository port for prompt completion reporting.
+ *
+ * The override is fetched by the daemon during claimNextPendingPrompt and
+ * passed directly to the promptSession use case — no separate read needed.
  */
 
 export interface PromptOverride {
@@ -10,9 +13,6 @@ export interface PromptOverride {
 }
 
 export interface PromptRepository {
-  /** Read the override stored on a pending prompt row. */
-  getOverride(promptId: string): Promise<PromptOverride | undefined>;
-
   /** Report prompt execution result back to the backend. */
   complete(promptId: string, status: 'done' | 'error', errorMessage?: string): Promise<void>;
 }
