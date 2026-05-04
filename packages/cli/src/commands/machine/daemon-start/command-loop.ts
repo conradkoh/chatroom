@@ -10,12 +10,13 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { MachineCapabilitiesCache, publishMachineSnapshot } from './capabilities-sync.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { startPendingHarnessSessionSubscription } from './pending-harness-session-subscription.js';
-import { SessionHandleRegistry } from './session-handle-registry.js';
+import { startSessionSubscriber } from './v2/session-subscriber.js';
+import { startPromptSubscriber } from './v2/prompt-subscriber.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
@@ -26,16 +27,17 @@ import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
-import { startPendingPromptSubscription } from './pending-prompt-subscription.js';
 import { startPendingRefreshTaskSubscription } from './pending-refresh-task-subscription.js';
+import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { HarnessProcessRegistry } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
+import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
+import { ConvexPromptRepository } from '../../../infrastructure/repos/convex-prompt-repository.js';
+import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
-import { createOpencodeSdkHarnessProcess } from '../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -429,96 +431,22 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
 
-  // ── Pending Prompt Subscription ─────────────────────────────────────
-  // Direct-harness prompt queue. Gated by directHarnessWorkers flag.
-  let pendingPromptSubscriptionHandle: ReturnType<typeof startPendingPromptSubscription> | null =
-    null;
-  // ── Pending Harness Session Subscription ─────────────────────────────
-  // Subscribes to pending harness sessions opened from the webapp UI.
-  // When a row appears, orchestrates harness boot + session association.
-  let pendingHarnessSessionSubscriptionHandle: ReturnType<
-    typeof startPendingHarnessSessionSubscription
-  > | null = null;
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  // Gated by directHarnessWorkers flag. Both return { stop: () => void }.
+  let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
+  let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   // ── Pending Refresh Task Subscription ────────────────────────────────
   // Subscribes to pending capability refresh tasks for this machine's workspaces.
   let pendingRefreshTaskSubscriptionHandle: ReturnType<
     typeof startPendingRefreshTaskSubscription
   > | null = null;
-  // Registry lives here so it shares the daemon process lifetime.
-  const harnessRegistry = new HarnessProcessRegistry(async (workspaceId, cwd) =>
-    createOpencodeSdkHarnessProcess(workspaceId, cwd, { cwd })
-  );
-
-  // Shared session handle registry — eliminates duplicate sinks by having
-  // both subscription modules share the same session + sink per rowId.
-  const sessionRegistry = new SessionHandleRegistry();
-
-  // ── Capabilities Sync (direct-harness) ────────────────────────────────
-  // When a harness boots, discover its agents and republish the full machine
-  // snapshot so the UI "New session" button becomes enabled.
-  if (featureFlags.directHarnessWorkers) {
-    const capabilitiesCache = new MachineCapabilitiesCache();
-    const capabilitiesPublisher = new ConvexCapabilitiesPublisher({
-      backend: ctx.deps.backend,
-      sessionId: ctx.sessionId,
-    });
-
-    harnessRegistry.setOnHarnessBooted(async (harnessProcess) => {
-      try {
-        const agents = await harnessProcess.listAgents();
-
-        // listProviders failure must not block agent publishing — log + use empty list
-        let providers: Awaited<ReturnType<typeof harnessProcess.listProviders>> = [];
-        try {
-          providers = await harnessProcess.listProviders();
-        } catch (providerErr) {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  listProviders failed for workspace ${harnessProcess.workspaceId}: ${
-              providerErr instanceof Error ? providerErr.message : String(providerErr)
-            }. Publishing with empty providers.`
-          );
-        }
-
-        capabilitiesCache.setHarnesses(harnessProcess.workspaceId, [
-          {
-            name: 'opencode-sdk',
-            displayName: 'Opencode',
-            agents: [...agents],
-            providers: [...providers],
-          },
-        ]);
-
-        const workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
-          sessionId: ctx.sessionId,
-          machineId: ctx.machineId,
-        });
-
-        const workspaceMetas = workspaces.map((ws: { _id: string; workingDir: string }) => ({
-          workspaceId: ws._id as string,
-          cwd: ws.workingDir,
-          name: ws.workingDir,
-        }));
-
-        await publishMachineSnapshot(
-          capabilitiesPublisher,
-          capabilitiesCache,
-          ctx.machineId,
-          workspaceMetas
-        );
-
-        console.log(
-          `[${formatTimestamp()}] 🔄 Capabilities published for workspace ${harnessProcess.workspaceId} (${agents.length} agents, ${providers.length} providers)`
-        );
-      } catch (err) {
-        // Fire-and-forget — swallow errors to avoid crashing the daemon
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Failed to publish capabilities for booted workspace ${harnessProcess.workspaceId}: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    });
-  }
+  // Shared state for v2 direct-harness subscribers.
+  // activeSessions: opened/resumed sessions shared by session-subscriber
+  //   and prompt-subscriber so they reuse the same DirectHarnessSession.
+  // harnesses: running BoundHarness instances per workspace, lazily spawned
+  //   on first use and killed on shutdown.
+  const activeSessions = new Map<string, SessionHandle>();
+  const harnesses = new Map<string, BoundHarness>();
 
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
@@ -545,8 +473,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (pendingRefreshTaskSubscriptionHandle) pendingRefreshTaskSubscriptionHandle.stop();
-    await sessionRegistry.closeAll();
-    await harnessRegistry.killAll();
+    // Close all active direct-harness sessions
+    for (const handle of activeSessions.values()) {
+      await handle.close().catch(() => {});
+    }
+    // Kill all running harness processes
+    for (const harness of harnesses.values()) {
+      await harness.close().catch(() => {});
+    }
 
     await onDaemonShutdown(ctx);
 
@@ -579,20 +513,43 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
   }
 
-  // ── Pending Prompt Subscription ─────────────────────────────────────
-  pendingPromptSubscriptionHandle = startPendingPromptSubscription(ctx, wsClient, harnessRegistry, sessionRegistry);
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  if (featureFlags.directHarnessWorkers) {
+    const sessionRepository = new ConvexSessionRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const outputRepository = new ConvexOutputRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const promptRepository = new ConvexPromptRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    const journalFactory = new BufferedJournalFactory({
+      outputRepository,
+    });
 
-  // ── Pending Harness Session Subscription ─────────────────────────────
-  // Subscribes to pending harness sessions created by the webapp UI.
-  pendingHarnessSessionSubscriptionHandle = startPendingHarnessSessionSubscription(
-    ctx,
-    wsClient,
-    harnessRegistry,
-    sessionRegistry
-  );
+    const sharedDeps = {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      promptRepository,
+      journalFactory,
+    };
+
+    pendingPromptSubscriptionHandle = startPromptSubscriber(ctx, wsClient, sharedDeps);
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, sharedDeps);
+  }
 
   // ── Pending Refresh Task Subscription ────────────────────────────────
   // Subscribes to pending capability refresh tasks for this machine's workspaces.
+  // Keeps a v1 HarnessProcessRegistry for backward compat (to be migrated later).
+  const harnessRegistry = new HarnessProcessRegistry(async (_workspaceId, _cwd) => {
+    throw new Error('Direct-harness spawning is handled by v2 subscribers');
+  });
   pendingRefreshTaskSubscriptionHandle = startPendingRefreshTaskSubscription(
     ctx,
     wsClient,
