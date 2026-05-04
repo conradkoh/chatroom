@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   OpencodeSdkDirectHarnessSession,
   subscribeToSessionEvents,
+  extractEventSessionId,
   type OpencodeSdkSessionClient,
 } from './session.js';
 import type { HarnessSessionId } from '../../../domain/direct-harness/index.js';
@@ -235,5 +236,150 @@ describe('subscribeToSessionEvents', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(received.map((e: any) => e.type)).toEqual(['first']);
+  });
+
+  it('emits events whose top-level sessionID matches the session', async () => {
+    const received: unknown[] = [];
+    const { client, subscribeFn } = createMockClient();
+    const { session } = createSession();
+    session.onEvent((e) => received.push(e));
+
+    subscribeFn.mockResolvedValue({
+      stream: (async function* () {
+        yield { type: 'session.idle', properties: { sessionID: HARNESS_SESSION_ID } };
+      })(),
+    });
+
+    const stop = subscribeToSessionEvents(client, session, () => 0);
+    await new Promise((r) => setTimeout(r, 20));
+    stop();
+
+    expect(received).toHaveLength(1);
+    expect((received[0] as any).type).toBe('session.idle');
+  });
+
+  it('filters out events whose top-level sessionID belongs to a different session', async () => {
+    const received: unknown[] = [];
+    const { client, subscribeFn } = createMockClient();
+    const { session } = createSession();
+    session.onEvent((e) => received.push(e));
+
+    subscribeFn.mockResolvedValue({
+      stream: (async function* () {
+        // belongs to a different session
+        yield { type: 'session.idle', properties: { sessionID: 'other-session-xyz' } };
+        // belongs to THIS session
+        yield { type: 'session.status', properties: { sessionID: HARNESS_SESSION_ID, status: { type: 'idle' } } };
+      })(),
+    });
+
+    const stop = subscribeToSessionEvents(client, session, () => 0);
+    await new Promise((r) => setTimeout(r, 20));
+    stop();
+
+    expect(received).toHaveLength(1);
+    expect((received[0] as any).type).toBe('session.status');
+  });
+
+  it('emits message.part.updated when part.sessionID matches the session', async () => {
+    const received: unknown[] = [];
+    const { client, subscribeFn } = createMockClient();
+    const { session } = createSession();
+    session.onEvent((e) => received.push(e));
+
+    subscribeFn.mockResolvedValue({
+      stream: (async function* () {
+        yield {
+          type: 'message.part.updated',
+          properties: {
+            part: { id: 'p1', type: 'text', sessionID: HARNESS_SESSION_ID, messageID: 'm1', text: 'hi' },
+          },
+        };
+      })(),
+    });
+
+    const stop = subscribeToSessionEvents(client, session, () => 0);
+    await new Promise((r) => setTimeout(r, 20));
+    stop();
+
+    expect(received).toHaveLength(1);
+    expect((received[0] as any).type).toBe('message.part.updated');
+  });
+
+  it('filters out message.part.updated when part.sessionID belongs to a different session', async () => {
+    const received: unknown[] = [];
+    const { client, subscribeFn } = createMockClient();
+    const { session } = createSession();
+    session.onEvent((e) => received.push(e));
+
+    subscribeFn.mockResolvedValue({
+      stream: (async function* () {
+        // belongs to a different session
+        yield {
+          type: 'message.part.updated',
+          properties: {
+            part: { id: 'p1', type: 'text', sessionID: 'other-session-xyz', messageID: 'm1', text: 'not mine' },
+          },
+        };
+      })(),
+    });
+
+    const stop = subscribeToSessionEvents(client, session, () => 0);
+    await new Promise((r) => setTimeout(r, 20));
+    stop();
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('emits workspace-level events (no sessionID) to all sessions', async () => {
+    const received: unknown[] = [];
+    const { client, subscribeFn } = createMockClient();
+    const { session } = createSession();
+    session.onEvent((e) => received.push(e));
+
+    subscribeFn.mockResolvedValue({
+      stream: (async function* () {
+        yield { type: 'file.edited', properties: { file: 'src/foo.ts' } };
+        yield { type: 'vcs.branch.updated', properties: { branch: 'main' } };
+      })(),
+    });
+
+    const stop = subscribeToSessionEvents(client, session, () => 0);
+    await new Promise((r) => setTimeout(r, 20));
+    stop();
+
+    expect(received).toHaveLength(2);
+    expect((received[0] as any).type).toBe('file.edited');
+    expect((received[1] as any).type).toBe('vcs.branch.updated');
+  });
+});
+
+describe('extractEventSessionId', () => {
+  it('extracts sessionID from top-level properties', () => {
+    expect(
+      extractEventSessionId({ properties: { sessionID: 'sess-1' } })
+    ).toBe('sess-1');
+  });
+
+  it('extracts sessionID from part.sessionID (message.part.updated)', () => {
+    expect(
+      extractEventSessionId({
+        properties: { part: { sessionID: 'sess-2', type: 'text' } },
+      })
+    ).toBe('sess-2');
+  });
+
+  it('extracts the session identifier from info.id (session.created/updated/deleted)', () => {
+    expect(
+      extractEventSessionId({
+        properties: { info: { id: 'sess-3', title: 'My session' } },
+      })
+    ).toBe('sess-3');
+  });
+
+  it('returns undefined for workspace-level events with no session identifier', () => {
+    expect(extractEventSessionId({ properties: { file: 'src/foo.ts' } })).toBeUndefined();
+    expect(extractEventSessionId({ properties: {} })).toBeUndefined();
+    expect(extractEventSessionId({ properties: undefined })).toBeUndefined();
   });
 });

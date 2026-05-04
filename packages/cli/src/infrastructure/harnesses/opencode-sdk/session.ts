@@ -129,9 +129,43 @@ export class OpencodeSdkDirectHarnessSession implements DirectHarnessSession {
 }
 
 /**
+ * Extract the opencode sessionID from an SSE event's properties, if present.
+ *
+ * Handles the three places the SDK embeds the session identifier:
+ *   - `properties.sessionID`             — most session-scoped events
+ *   - `properties.part.sessionID`        — message.part.updated (Part type)
+ *   - `properties.info.id`               — session.created/updated/deleted (Session type uses `id`)
+ *
+ * Returns `undefined` for workspace-level events (file.edited, vcs.branch.updated, etc.)
+ * that carry no session identifier and should be broadcast to all sessions.
+ */
+export function extractEventSessionId(event: {
+  properties?: Record<string, unknown>;
+}): string | undefined {
+  const p = event.properties;
+  if (!p || typeof p !== 'object') return undefined;
+  // Most session events: sessionID at the top level
+  if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
+  // message.part.updated: sessionID is inside the Part object
+  if ('part' in p && p.part && typeof p.part === 'object') {
+    return (p.part as { sessionID?: string }).sessionID;
+  }
+  // session.created/updated/deleted: the Session object uses `id`, not `sessionID`
+  if ('info' in p && p.info && typeof p.info === 'object') {
+    const info = p.info as { id?: string; sessionID?: string };
+    return info.id ?? info.sessionID;
+  }
+  return undefined;
+}
+
+/**
  * Subscribe to the SDK event stream and forward events to the session.
  * Returns a stop() function. The loop runs until stopped or the stream ends.
  * The subscription is started asynchronously in the background.
+ *
+ * Only events whose sessionID matches `session.harnessSessionId` are forwarded.
+ * Events with no sessionID (workspace-level: file.edited, vcs.branch.updated, etc.)
+ * are forwarded to all sessions since they cannot be attributed to a specific one.
  */
 export function subscribeToSessionEvents(
   client: OpencodeSdkSessionClient,
@@ -139,12 +173,17 @@ export function subscribeToSessionEvents(
   now: () => number = Date.now
 ): () => void {
   let stopped = false;
+  const targetSessionId = session.harnessSessionId as string;
 
   void (async () => {
     try {
       const { stream } = await client.event.subscribe();
       for await (const event of stream) {
         if (stopped) break;
+        // Filter: skip events that belong to a different opencode session.
+        // Events without a sessionID are workspace-level and are forwarded to all sessions.
+        const eventSessionId = extractEventSessionId(event);
+        if (eventSessionId !== undefined && eventSessionId !== targetSessionId) continue;
         session._emit(event.type, event.properties, now());
       }
     } catch {
