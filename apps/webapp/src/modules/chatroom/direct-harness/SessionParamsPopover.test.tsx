@@ -97,8 +97,8 @@ describe('SessionParamsPopover', () => {
     });
   });
 
-  it('blocks Apply when no agent is resolved', async () => {
-    // Return harness with no eligible agents
+  it('falls back to builder default when no eligible agents exist', async () => {
+    // Return harness with no eligible agents (mode !== primary|all)
     mockUseSessionQuery.mockReturnValue([
       { ...HARNESSES[0], agents: [{ name: 'sub', mode: 'subagent' as const }] },
     ]);
@@ -110,12 +110,14 @@ describe('SessionParamsPopover', () => {
         lastUsedConfig={{ agent: '', model: undefined, system: undefined, tools: undefined }}
       />
     );
-    // Trigger label is empty agent
+    // Trigger label shows empty agent helper text
     const trigger = screen.getByRole('button');
     fireEvent.click(trigger);
+    // When no eligible agents exist, the hook falls back to 'builder'
+    // so the Apply button stays enabled for free-text entry
     await waitFor(() => {
       const applyBtn = screen.getByText('Apply');
-      expect(applyBtn.closest('button')).toBeDisabled();
+      expect(applyBtn.closest('button')).toBeEnabled();
     });
   });
 });
