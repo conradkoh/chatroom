@@ -272,8 +272,8 @@ export const listForWorkspace = query({
       const wsEntry = registryEntry.workspaces.find(
         (w) => w.workspaceId === (args.workspaceId as string)
       );
-      if (wsEntry && wsEntry.harnesses.length > 0) {
-        return wsEntry.harnesses.map((h) => ({
+      if (wsEntry && (wsEntry.harnesses?.length ?? 0) > 0) {
+        return (wsEntry.harnesses ?? []).map((h) => ({
           name: h.name,
           displayName: h.displayName,
           configSchema: h.configSchema,
