@@ -31,10 +31,14 @@ function createSession(overrides?: { baseUrl?: string }) {
   });
 }
 
-async function* emptyStream(): AsyncGenerator<unknown> {
-  // An async generator that yields no events and completes immediately.
-  // When close() awaits the stream promise, this ensures startEventStream
-  // terminates promptly.
+function emptyStream(): AsyncGenerator<unknown> {
+  // An async generator that yields no events and completes immediately
+  return {
+    next: async () => ({ done: true as const, value: undefined }),
+    return: async () => ({ done: true as const, value: undefined }),
+    throw: async () => ({ done: true as const, value: undefined }),
+    [Symbol.asyncIterator]() { return this; },
+  };
 }
 
 function eventStream(events: unknown[]): AsyncGenerator<unknown> {
@@ -45,6 +49,8 @@ function eventStream(events: unknown[]): AsyncGenerator<unknown> {
       if (next.done) return { done: true as const, value: undefined };
       return { done: false as const, value: next.value };
     },
+    return: async () => ({ done: true as const, value: undefined }),
+    throw: async () => ({ done: true as const, value: undefined }),
     [Symbol.asyncIterator]() { return this; },
   };
 }

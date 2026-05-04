@@ -19,6 +19,7 @@ function createPublisher(backend?: ReturnType<typeof createBackend>) {
 
 const defaultCaps: MachineCapabilities = {
   machineId: 'machine-1',
+  lastSeenAt: 1000,
   workspaces: [
     {
       workspaceId: 'ws-1',
@@ -91,6 +92,7 @@ describe('ConvexCapabilitiesPublisher', () => {
 
     const caps: MachineCapabilities = {
       machineId: 'machine-2',
+      lastSeenAt: 2000,
       workspaces: [
         { workspaceId: 'ws-2', cwd: '/empty/ws', name: 'Empty', harnesses: [] },
       ],
@@ -109,11 +111,24 @@ describe('ConvexCapabilitiesPublisher', () => {
     );
   });
 
+  it('passes lastSeenAt timestamp in top-level args', async () => {
+    const { publisher, backend } = createPublisher();
+    await publisher.publish(defaultCaps);
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ machineId: 'machine-1' })
+    );
+    // lastSeenAt is in the MachineCapabilities but not passed to the mutation
+    const args = backend.mutation.mock.calls[0][1];
+    expect(args).not.toHaveProperty('lastSeenAt');
+  });
+
   it('includes optional fields (configSchema, description) when present', async () => {
     const { publisher, backend } = createPublisher();
 
     const caps: MachineCapabilities = {
       machineId: 'machine-3',
+      lastSeenAt: 3000,
       workspaces: [
         {
           workspaceId: 'ws-3',

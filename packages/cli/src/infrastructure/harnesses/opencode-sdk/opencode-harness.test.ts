@@ -32,22 +32,27 @@ vi.mock('@opencode-ai/sdk', () => ({
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(() => {
-    const emitter = new EventEmitter() as ReturnType<typeof vi.fn>;
-    Object.assign(emitter, {
-      pid: 12345,
-      exitCode: null,
-      killed: false,
-      kill: vi.fn((signal?: string) => {
-        emitter.killed = true;
-        emitter.exitCode = null; // not cleanly exited yet
-        // Signal exit after kill
-        setImmediate(() => emitter.emit('exit', null, signal ?? 'SIGTERM'));
-      }),
-      stdout: new EventEmitter() as ReturnType<typeof vi.fn>,
-      stderr: new EventEmitter() as ReturnType<typeof vi.fn>,
-      stdin: new EventEmitter() as ReturnType<typeof vi.fn>,
+    const proc = new EventEmitter() as EventEmitter & {
+      pid: number;
+      exitCode: number | null;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn>;
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      stdin: EventEmitter;
+    };
+    proc.pid = 12345;
+    proc.exitCode = null;
+    proc.killed = false;
+    proc.kill = vi.fn((signal?: string) => {
+      proc.killed = true;
+      proc.exitCode = null;
+      setImmediate(() => proc.emit('exit', null, signal ?? 'SIGTERM'));
     });
-    return emitter;
+    proc.stdout = new EventEmitter();
+    proc.stderr = new EventEmitter();
+    proc.stdin = new EventEmitter();
+    return proc;
   }),
 }));
 
@@ -60,38 +65,47 @@ import { waitForListeningUrl } from '../../../infrastructure/services/remote-age
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeProcess(overrides?: Partial<ReturnType<typeof vi.fn>>) {
-  const proc = new EventEmitter() as unknown as ReturnType<typeof vi.fn>;
-  Object.assign(proc, {
-    pid: 12345,
-    exitCode: null,
-    killed: false,
-    kill: vi.fn((signal?: string) => {
-      proc.killed = true;
-      setImmediate(() => proc.emit('exit', null, signal ?? 'SIGTERM'));
-    }),
-    stdout: new EventEmitter(),
-    stderr: new EventEmitter(),
-    stdin: new EventEmitter(),
-    ...overrides,
+interface MockProcess {
+  pid: number;
+  exitCode: number | null;
+  killed: boolean;
+  kill: ReturnType<typeof vi.fn>;
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  stdin: EventEmitter;
+}
+
+function makeProcess(overrides?: Partial<MockProcess>): MockProcess & EventEmitter {
+  const proc = new EventEmitter() as EventEmitter & MockProcess;
+  proc.pid = 12345;
+  proc.exitCode = null;
+  proc.killed = false;
+  proc.kill = vi.fn((signal?: string) => {
+    proc.killed = true;
+    proc.exitCode = null;
+    setImmediate(() => proc.emit('exit', null, signal ?? 'SIGTERM'));
   });
+  proc.stdout = new EventEmitter();
+  proc.stderr = new EventEmitter();
+  proc.stdin = new EventEmitter();
+  Object.assign(proc, overrides);
   return proc;
 }
 
 function createHarness(overrides?: {
   cwd?: string;
-  client?: unknown;
-  process?: ReturnType<typeof makeProcess>;
+  client?: Record<string, unknown>;
+  process?: MockProcess & EventEmitter;
 }) {
   const proc = overrides?.process ?? makeProcess();
   return new OpencodeSdkHarness({
     cwd: overrides?.cwd ?? '/test/workspace',
-    client: overrides?.client as ReturnType<typeof vi.fn> ?? {
+    client: (overrides?.client ?? {
       session: { create: mockCreate, get: mockGet, abort: mockAbort, prompt: mockPrompt },
       provider: { list: mockProviderList },
       event: { subscribe: mockSubscribe },
-    },
-    process: proc,
+    }) as unknown as import('@opencode-ai/sdk').OpencodeClient,
+    process: proc as unknown as import('node:child_process').ChildProcess,
   });
 }
 
