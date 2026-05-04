@@ -16,6 +16,7 @@ import {
   subscribeToSessionEvents,
   type OpencodeSdkSessionClient,
 } from './session.js';
+import { ProcessEventBus } from './process-event-bus.js';
 import type { HarnessProcess } from '../../../application/direct-harness/get-or-spawn-harness.js';
 import type {
   DirectHarnessSpawner,
@@ -53,6 +54,8 @@ export interface OpencodeSdkProcessHandle {
   readonly pid: number;
   /** The SDK client connected to this process. */
   readonly client: OpencodeSdkSessionClient;
+  /** Shared SSE event bus — one connection per process, routes events by sessionID. */
+  readonly eventBus: ProcessEventBus;
   /** Whether the process is still running. */
   isAlive(): boolean;
   /** Kill the process. Idempotent. */
@@ -80,7 +83,10 @@ async function createSessionOnClient(
   sessionStore: SessionMetadataStore,
   meta: { machineId: string; chatroomId: string; role: string; pid: number; baseUrl: string },
   nowFn: () => number,
-  title?: string
+  title?: string,
+  /** When provided, the session registers with the shared process-level bus instead
+   * of opening its own SSE subscription. This is the normal daemon path. */
+  eventBus?: ProcessEventBus
 ): Promise<DirectHarnessSession> {
   let sdkSessionId: string;
   const result = await client.session.create({
@@ -117,7 +123,18 @@ async function createSessionOnClient(
     undefined // process lifecycle managed by HarnessProcessRegistry
   );
 
-  stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+  if (eventBus) {
+    // Register with the shared process-level bus — no new SSE connection opened.
+    // The bus routes events to this session by matching part.sessionID / properties.sessionID.
+    stopEventStream = eventBus.register(
+      sdkSessionId,
+      (type, props, ts) => session._emit(type, props, ts)
+    );
+  } else {
+    // Fallback: create a per-session subscription (standalone CLI / tests without a bus).
+    stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+  }
+
   return session;
 }
 
@@ -129,6 +146,9 @@ interface ResumeClientOptions {
   readonly reuseClient?: {
     readonly baseUrl: string;
     readonly client: OpencodeSdkSessionClient;
+    /** When provided, the resumed session registers with this shared process-level bus
+     * instead of opening its own SSE subscription (Gap 8 fix). */
+    readonly eventBus?: ProcessEventBus;
   };
 }
 
@@ -159,6 +179,13 @@ export async function resumeSessionFromStore(
       ? opts.reuseClient.client
       : createOpencodeClient({ baseUrl: meta.baseUrl });
 
+  // Use the process-level bus when available (daemon path with a running process).
+  // Fall back to a per-session subscription for the standalone CLI resume path.
+  const eventBus =
+    opts.reuseClient && meta.baseUrl === opts.reuseClient.baseUrl
+      ? opts.reuseClient.eventBus
+      : undefined;
+
   let stopEventStream: () => void = () => {};
 
   const session = new OpencodeSdkDirectHarnessSession(
@@ -169,7 +196,15 @@ export async function resumeSessionFromStore(
     undefined // process lifecycle managed elsewhere
   );
 
-  stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+  if (eventBus) {
+    stopEventStream = eventBus.register(
+      harnessSessionId as string,
+      (type, props, ts) => session._emit(type, props, ts)
+    );
+  } else {
+    stopEventStream = subscribeToSessionEvents(client, session, nowFn);
+  }
+
   return session;
 }
 
@@ -224,19 +259,26 @@ export async function spawnOpencodeSdkProcess(
   const sdkClient = createOpencodeClient({ baseUrl });
   const client: OpencodeSdkSessionClient = sdkClient;
 
+  // One shared SSE subscription for the entire process lifetime.
+  // Sessions register with this bus instead of opening individual SSE connections.
+  const eventBus = new ProcessEventBus(client, _nowFn);
+
   let alive = true;
   childProcess.on('exit', () => {
     alive = false;
+    eventBus.stop(); // SSE stream is gone; stop routing
   });
 
   return {
     baseUrl,
     pid,
     client,
+    eventBus,
     isAlive: () => alive,
     async kill(): Promise<void> {
       if (!alive) return;
       alive = false;
+      eventBus.stop();
       childProcess.kill();
     },
   };
@@ -278,7 +320,8 @@ export function createBoundOpencodeSdkHarness(
           baseUrl: processHandle.baseUrl,
         },
         nowFn,
-        title
+        title,
+        processHandle.eventBus // share the process-level bus
       );
     },
 
@@ -286,7 +329,13 @@ export function createBoundOpencodeSdkHarness(
       return resumeSessionFromStore(
         harnessSessionId,
         store,
-        { reuseClient: { baseUrl: processHandle.baseUrl, client: processHandle.client } },
+        {
+          reuseClient: {
+            baseUrl: processHandle.baseUrl,
+            client: processHandle.client,
+            eventBus: processHandle.eventBus, // share the process-level bus
+          },
+        },
         nowFn
       );
     },
