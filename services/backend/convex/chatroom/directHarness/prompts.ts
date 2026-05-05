@@ -26,6 +26,8 @@ import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
  *
  * Auth: requires `requireChatroomAccess` resolved via the session's workspace.
  * Rejects if the session status is `closed` or `failed`.
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated prompt lifecycle.
  */
 export const submitPrompt = mutation({
   args: {

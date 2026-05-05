@@ -111,6 +111,8 @@ export const publishMachineCapabilities = mutation({
  * agent/provider details. Falls back to the machine's registered availableHarnesses
  * when no harness has booted yet — this lets users start a session even before
  * the first harness boots (agents/providers will be discovered during boot).
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated capability lifecycle.
  */
 export const listForWorkspace = query({
   args: {
@@ -181,6 +183,8 @@ export const listForWorkspace = query({
  * returns its ID instead of creating a new one.
  *
  * Auth: requires a valid session (same pattern as other direct-harness mutations).
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated capability lifecycle.
  */
 export const requestRefresh = mutation({
   args: {

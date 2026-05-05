@@ -35,6 +35,8 @@ import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
  * When firstPrompt is omitted (CLI path), only the session row is created.
  *
  * Returns { harnessSessionRowId, promptId? }.
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated session lifecycle.
  */
 export const openSession = mutation({
   args: {
@@ -222,6 +224,8 @@ export const closeSession = mutation({
  * - Registry entry, no workspace entry → harness not published this workspace yet → accept any
  * - Registry entry, workspace with agents=[] → misconfigured harness → reject
  * - Registry entry, workspace with agents → must be in the known list
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated session lifecycle.
  */
 export const updateSessionConfig = mutation({
   args: {
@@ -297,6 +301,8 @@ export const updateSessionConfig = mutation({
 
 /**
  * Fetch a single harness session by its backend row ID.
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated session lifecycle.
  */
 export const getSession = query({
   args: {
@@ -372,6 +378,8 @@ export const listPendingSessionsForMachine = query({
 /**
  * List all harness sessions for a workspace, ordered by creation time ascending.
  * Optionally filter by status.
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated session lifecycle.
  */
 export const listSessionsByWorkspace = query({
   args: {

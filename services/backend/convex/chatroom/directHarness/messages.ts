@@ -77,6 +77,8 @@ export const appendMessages = mutation({
  * Return messages for a harness session ordered by seq ascending.
  * When afterSeq is provided, only messages with seq > afterSeq are returned
  * (useful for cursor-based streaming without re-fetching already-seen chunks).
+ *
+ * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated message lifecycle.
  */
 export const streamSessionMessages = query({
   args: {
