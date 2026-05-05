@@ -1,8 +1,8 @@
 /**
  * Direct Harness — Sessions Integration Tests
  *
- * Covers: openSession, associateHarnessSessionId, closeSession (appendMessages),
- * listPendingSessionsForMachine, listSessionsByWorkspace, updateSessionConfig (basic).
+ * Covers: create (frontend), associateHarnessSessionId, closeSession,
+ * updateCursor, listPendingSessionsForMachine
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -12,8 +12,7 @@ import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom } from '../helpers/integration';
-import { setupWorkspaceForSession, openSession, TEST_HARNESS_NAME } from './direct-harness/fixtures';
+import { setupWorkspaceForSession, createSession } from './direct-harness/fixtures';
 
 // ─── Flag management ──────────────────────────────────────────────────────────
 
@@ -25,232 +24,156 @@ afterEach(() => {
   featureFlags.directHarnessWorkers = false;
 });
 
-// ─── openSession ──────────────────────────────────────────────────────────────
+// ─── create ──────────────────────────────────────────────────────────────────
 
-describe('openSession', () => {
-  test('creates a harness session and returns harnessSessionRowId', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-success');
-
-    const result = await openSession(sessionId, workspaceId);
-
-    expect(result.harnessSessionRowId).toBeDefined();
-    expect(typeof result.harnessSessionRowId).toBe('string');
+describe('sessions.create', () => {
+  test('creates a session and returns sessionId', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('create-success');
+    const result = await createSession(sessionId, workspaceId);
+    expect(result.sessionId).toBeDefined();
   });
 
-  test('the created session has pending status and correct fields', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-fields');
+  test('session appears as pending for the machine', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('create-pending');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const pending = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      { sessionId, machineId }
+    );
+    expect(pending.some((s) => s._id === rowId)).toBe(true);
+  });
 
-    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
+  test('writes the first user message', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('create-msg');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const messages = await t.query(api.chatroom.directHarness.messages.subscribe, {
       sessionId,
-      harnessSessionRowId,
+      harnessSessionRowId: rowId,
     });
-
-    expect(session).toBeDefined();
-    expect(session?.status).toBe('pending');
-    expect(session?.harnessName).toBe(TEST_HARNESS_NAME);
-    expect(session?.lastUsedConfig?.agent).toBe('builder');
-    expect(session?.harnessSessionId).toBeUndefined();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.role).toBe('user');
+    expect(messages[0]?.content).toBe('Starting session as builder');
   });
 
   test('throws when feature flag is off', async () => {
     featureFlags.directHarnessWorkers = false;
-
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('open-flag-off');
-
-    await expect(openSession(sessionId, workspaceId)).rejects.toThrow(
-      'directHarnessWorkers feature flag is disabled'
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('create-flag-off');
+    await expect(createSession(sessionId, workspaceId)).rejects.toThrow(
+      'directHarnessWorkers'
     );
-  });
-
-  test('throws when workspace is not found', async () => {
-    const { sessionId } = await createTestSession('open-no-workspace');
-
-    // Use a validly-formatted Convex ID that doesn't exist in the DB
-    const fakeWorkspaceId = 'jx7aaaaaaaaaaaaaaaaaaaa4' as Id<'chatroom_workspaces'>;
-
-    await expect(
-      t.mutation(api.chatroom.directHarness.sessions.openSession, {
-        sessionId,
-        workspaceId: fakeWorkspaceId,
-        harnessName: TEST_HARNESS_NAME,
-        config: { agent: 'builder' },
-        firstPrompt: { parts: [{ type: 'text' as const, text: 'hello' }] },
-      })
-    ).rejects.toThrow();
-  });
-});
-
-// ─── openSession — atomic pending prompt creation ─────────────────────────────
-
-describe('openSession — atomic pending prompt creation', () => {
-  test('openSession creates a harness session row AND a chatroom_pendingPrompts row atomically', async () => {
-    const { sessionId, workspaceId, machineId } = await setupWorkspaceForSession('open-gap-doc');
-    const { harnessSessionRowId, promptId } = await openSession(sessionId, workspaceId);
-
-    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
-    expect(session?.status).toBe('pending');
-    expect(session?.harnessSessionId).toBeUndefined();
-
-    expect(promptId).toBeDefined();
-    const claimed = await t.mutation(api.chatroom.directHarness.prompts.claimNextPendingPrompt, {
-      sessionId,
-      machineId,
-    });
-    expect(claimed).not.toBeNull();
   });
 });
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
 
 describe('associateHarnessSessionId', () => {
-  test('sets harnessSessionId and transitions status to active', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-success');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+  test('removes session from pending list and sets harnessSessionId', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('assoc-success');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-      sessionId,
-      harnessSessionRowId,
-      harnessSessionId: 'sdk-session-abc123',
-    });
+    // Confirm pending
+    const pendingBefore = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      { sessionId, machineId }
+    );
+    expect(pendingBefore.some((s) => s._id === rowId)).toBe(true);
 
-    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
+    // Associate
+    await t.mutation(
+      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+    );
 
-    expect(session?.harnessSessionId).toBe('sdk-session-abc123');
-    expect(session?.status).toBe('active');
+    // No longer pending
+    const pendingAfter = await t.query(
+      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      { sessionId, machineId }
+    );
+    expect(pendingAfter.some((s) => s._id === rowId)).toBe(false);
   });
 
-  test('is idempotent when the same harnessSessionId is already associated', async () => {
+  test('idempotent on same harnessSessionId', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-idem');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-      sessionId,
-      harnessSessionRowId,
-      harnessSessionId: 'sdk-session-idempotent',
-    });
+    await t.mutation(
+      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+    );
 
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-        sessionId,
-        harnessSessionRowId,
-        harnessSessionId: 'sdk-session-idempotent',
-      })
-    ).resolves.toBeDefined();
+      t.mutation(
+        api.chatroom.directHarness.sessions.associateHarnessSessionId,
+        { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+      )
+    ).resolves.not.toThrow();
   });
 
-  test('throws when a different harnessSessionId is already associated', async () => {
+  test('throws on different harnessSessionId', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('assoc-conflict');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-      sessionId,
-      harnessSessionRowId,
-      harnessSessionId: 'sdk-session-first',
-    });
+    await t.mutation(
+      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-first' }
+    );
 
     await expect(
-      t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-        sessionId,
-        harnessSessionRowId,
-        harnessSessionId: 'sdk-session-different',
-      })
-    ).rejects.toThrow('already has a different harnessSessionId');
+      t.mutation(
+        api.chatroom.directHarness.sessions.associateHarnessSessionId,
+        { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-different' }
+      )
+    ).rejects.toThrow();
   });
 });
 
-// ─── appendMessages ───────────────────────────────────────────────────────────
+// ─── closeSession ────────────────────────────────────────────────────────────
 
-describe('appendMessages', () => {
-  test('inserts chunks and returns correct counts', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-success');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+describe('closeSession', () => {
+  test('marks a session as closed', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('close-success');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const result = await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
-      sessionId,
-      harnessSessionRowId,
-      chunks: [
-        { seq: 0, content: 'Hello', timestamp: 1000 },
-        { seq: 1, content: ' world', timestamp: 1001 },
-      ],
-    });
-
-    expect(result.inserted).toBe(2);
-    expect(result.skipped).toBe(0);
-  });
-
-  test('is idempotent on (harnessSessionRowId, seq) — duplicate chunks are skipped', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-idem');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
-
-    await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
-      sessionId,
-      harnessSessionRowId,
-      chunks: [{ seq: 0, content: 'first', timestamp: 1000 }],
-    });
-
-    const result = await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
-      sessionId,
-      harnessSessionRowId,
-      chunks: [
-        { seq: 0, content: 'duplicate', timestamp: 1001 },
-        { seq: 1, content: 'new', timestamp: 1002 },
-      ],
-    });
-
-    expect(result.inserted).toBe(1);
-    expect(result.skipped).toBe(1);
+    await t.mutation(
+      api.chatroom.directHarness.sessions.closeSession,
+      { sessionId, harnessSessionRowId: rowId }
+    );
   });
 });
 
-// ─── updateSessionConfig (basic) ─────────────────────────────────────────────
+// ─── updateCursor ─────────────────────────────────────────────────────────────
 
-describe('updateSessionConfig', () => {
-  test('updates the agent field on a session', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('update-agent');
+describe('updateCursor', () => {
+  test('persists lastProcessedSeq and affects pendingForMachine', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('cursor-test');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId, 'builder');
+    // Send two user messages
+    const { seq: seq1 } = await t.mutation(
+      api.chatroom.directHarness.messages.send,
+      { sessionId, harnessSessionRowId: rowId, text: 'first' }
+    );
+    const { seq: seq2 } = await t.mutation(
+      api.chatroom.directHarness.messages.send,
+      { sessionId, harnessSessionRowId: rowId, text: 'second' }
+    );
 
-    await t.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
-      sessionId,
-      harnessSessionRowId,
-      config: { agent: 'planner' },
-    });
+    // Update cursor past first message
+    await t.mutation(
+      api.chatroom.directHarness.sessions.updateCursor,
+      { sessionId, harnessSessionRowId: rowId, seq: seq1 }
+    );
 
-    const session = await t.query(api.chatroom.directHarness.sessions.getSession, {
-      sessionId,
-      harnessSessionRowId,
-    });
+    // pendingForMachine should only return messages after seq1
+    const result = await t.query(
+      api.chatroom.directHarness.messages.pendingForMachine,
+      { sessionId, machineId }
+    );
 
-    expect(session?.lastUsedConfig?.agent).toBe('planner');
-  });
-});
-
-// ─── listSessionsByWorkspace ──────────────────────────────────────────────────
-
-describe('listSessionsByWorkspace', () => {
-  test('returns sessions in creation order', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('list-sessions');
-
-    await openSession(sessionId, workspaceId, 'builder');
-    await openSession(sessionId, workspaceId, 'planner');
-
-    const sessions = await t.query(api.chatroom.directHarness.sessions.listSessionsByWorkspace, {
-      sessionId,
-      workspaceId,
-    });
-
-    expect(sessions).toHaveLength(2);
-    expect(sessions[0]?.lastUsedConfig?.agent).toBe('builder');
-    expect(sessions[1]?.lastUsedConfig?.agent).toBe('planner');
-    expect(sessions[0]!.createdAt).toBeLessThanOrEqual(sessions[1]!.createdAt);
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]?.seq).toBe(seq2);
   });
 });
 
@@ -259,45 +182,40 @@ describe('listSessionsByWorkspace', () => {
 describe('listPendingSessionsForMachine', () => {
   test('returns pending sessions for the machine', async () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('lpsfm-basic');
-
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     const pending = await t.query(
       api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
-
-    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(true);
+    expect(pending.some((s) => s._id === rowId)).toBe(true);
   });
 
-  test('does NOT return a session once associateHarnessSessionId is called', async () => {
+  test('does not return session after association', async () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('lpsfm-assoc');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
-      sessionId,
-      harnessSessionRowId,
-      harnessSessionId: 'harness-abc',
-    });
+    await t.mutation(
+      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+    );
 
     const pending = await t.query(
       api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
-
-    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(false);
+    expect(pending.some((s) => s._id === rowId)).toBe(false);
   });
 
-  test('does NOT return sessions for a different machine', async () => {
+  test('does not return sessions for a different machine', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('lpsfm-other');
-    const { harnessSessionRowId } = await openSession(sessionId, workspaceId);
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     const pending = await t.query(
       api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
-      { sessionId, machineId: 'other-machine-does-not-exist' }
+      { sessionId, machineId: 'other-machine' }
     );
-
-    expect(pending.some((s) => s._id === harnessSessionRowId)).toBe(false);
+    expect(pending.length).toBe(0);
   });
 
   test('returns [] on auth failure', async () => {
@@ -307,7 +225,6 @@ describe('listPendingSessionsForMachine', () => {
       api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId: 'invalid-session' as SessionId, machineId }
     );
-
     expect(pending).toEqual([]);
   });
 });

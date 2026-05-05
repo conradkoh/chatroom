@@ -1,29 +1,98 @@
 /**
- * Daemon-facing harness session message endpoints.
+ * Harness session message endpoints.
  *
- * Called from the CLI daemon to write response chunks and query unprocessed
- * user messages. Uses role='assistant' for response chunks and filters by
- * session.lastProcessedSeq for cursor-based polling.
+ * Frontend-facing: send, subscribe
+ * Daemon-facing:  appendMessages, pendingForMachine
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getAuthenticatedUser } from '../../../auth/authenticatedUser.js';
-import { getSessionWithAccess, requireDirectHarnessWorkers } from '../helpers.js';
-import { mutation, query } from '../../../_generated/server.js';
+import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
+import { getNextMessageSeq, getSessionWithAccess, requireDirectHarnessWorkers } from './helpers.js';
+import { mutation, query } from '../../_generated/server.js';
 
-// ─── appendMessages ──────────────────────────────────────────────────────────
+// ─── send (frontend) ─────────────────────────────────────────────────────────
 
-/**
- * Append output chunks from a harness session to its message stream.
- *
- * All chunks are written with role='assistant' to distinguish them from
- * user messages. Idempotent on (harnessSessionRowId, seq) — duplicate
- * chunks are silently skipped.
- *
- * Returns { inserted, skipped } counts.
- */
+export const send = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionRowId
+    );
+
+    if (harnessSession.status === 'closed' || harnessSession.status === 'failed') {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_CLOSED',
+        message: `Cannot send message — session ${args.harnessSessionRowId} status is '${harnessSession.status}'`,
+      });
+    }
+
+    if (!args.text.trim()) {
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'Message text must not be empty',
+      });
+    }
+
+    const now = Date.now();
+    const seq = await getNextMessageSeq(ctx, args.harnessSessionRowId);
+
+    await ctx.db.insert('chatroom_harnessSessionMessages', {
+      harnessSessionRowId: args.harnessSessionRowId,
+      seq,
+      role: 'user',
+      content: args.text.trim(),
+      timestamp: now,
+    });
+
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, {
+      lastActiveAt: now,
+    });
+
+    return { seq };
+  },
+});
+
+// ─── subscribe (frontend) ────────────────────────────────────────────────────
+
+export const subscribe = query({
+  args: {
+    ...SessionIdArg,
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    afterSeq: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+
+    const messages = await ctx.db
+      .query('chatroom_harnessSessionMessages')
+      .withIndex('by_session_seq', (q) =>
+        q.eq('harnessSessionRowId', args.harnessSessionRowId)
+      )
+      .order('asc')
+      .collect();
+
+    if (args.afterSeq !== undefined) {
+      const after = args.afterSeq;
+      return messages.filter((m) => m.seq > after);
+    }
+
+    return messages;
+  },
+});
+
+// ─── appendMessages (daemon) ──────────────────────────────────────────────
+
 export const appendMessages = mutation({
   args: {
     ...SessionIdArg,
@@ -76,18 +145,8 @@ export const appendMessages = mutation({
   },
 });
 
-// ─── pendingForMachine ──────────────────────────────────────────────────────────
+// ─── pendingForMachine (daemon) ──────────────────────────────────────────────
 
-/**
- * Return all unprocessed user messages across all sessions for this machine.
- *
- * For each session owned by this machine, returns user messages where
- * seq > session.lastProcessedSeq. Also returns the session info (id,
- * workspaceId, lastProcessedSeq, lastUsedConfig) so the daemon can
- * process messages and update the cursor.
- *
- * Auth: machine ownership (same pattern as publishMachineCapabilities).
- */
 export const pendingForMachine = query({
   args: {
     ...SessionIdArg,
@@ -99,7 +158,6 @@ export const pendingForMachine = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return { sessions: [], messages: [] };
 
-    // Find all workspaces for this machine
     const workspaces = await ctx.db
       .query('chatroom_workspaces')
       .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
@@ -109,7 +167,6 @@ export const pendingForMachine = query({
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    // Find all sessions for these workspaces
     const allSessions = (
       await Promise.all(
         [...workspaceIds].map((workspaceId) =>
@@ -121,7 +178,6 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    // For each session, check for unprocessed user messages
     const sessions: Array<{
       _id: string;
       workspaceId: string;

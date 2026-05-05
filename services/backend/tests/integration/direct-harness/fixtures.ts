@@ -65,17 +65,17 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
   return { sessionId, chatroomId, machineId, workspaceId: workspace._id };
 }
 
-/** Shared helper to open a session using the workspaceId-based API. */
-export async function openSession(
+/** Shared helper to create a session using the new `create` endpoint. */
+export async function createSession(
   sessionId: SessionId,
   workspaceId: Id<'chatroom_workspaces'>,
   agent = 'builder'
 ) {
-  return t.mutation(api.chatroom.directHarness.sessions.openSession, {
+  return t.mutation(api.chatroom.directHarness.sessions.create, {
     sessionId,
     workspaceId,
     harnessName: TEST_HARNESS_NAME,
     config: { agent },
-    firstPrompt: { parts: [{ type: 'text' as const, text: `Starting session as ${agent}` }] },
+    firstMessage: `Starting session as ${agent}`,
   });
 }

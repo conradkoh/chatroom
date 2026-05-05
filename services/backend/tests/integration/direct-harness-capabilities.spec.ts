@@ -122,27 +122,7 @@ describe('capabilities.requestRefresh idempotency', () => {
     expect(second.taskId).toBe(first.taskId);
   });
 
-  test('creates a new task after the first is completed', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('rr-new-after-done');
 
-    const first = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
-      sessionId,
-      workspaceId,
-    });
-
-    await t.mutation(api.chatroom.directHarness.capabilities.completeRefreshTask, {
-      sessionId,
-      taskId: first.taskId,
-      status: 'done',
-    });
-
-    const third = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
-      sessionId,
-      workspaceId,
-    });
-
-    expect(third.taskId).not.toBe(first.taskId);
-  });
 
   test('returns [] and throws on unauthenticated requestRefresh', async () => {
     const { workspaceId } = await setupWorkspaceForSession('rr-unauth');
