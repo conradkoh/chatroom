@@ -2172,23 +2172,27 @@ export default defineSchema({
     createdBy: v.id('users'),
     createdAt: v.number(),
     lastActiveAt: v.number(),
+    /** Cursor for the daemon's message processing. Starts at 0. */
+    lastProcessedSeq: v.number(),
   })
     .index('by_workspace', ['workspaceId'])
     .index('by_workspace_status', ['workspaceId', 'status'])
     .index('by_harnessSessionId', ['harnessSessionId']),
 
   /**
-   * Buffered output chunks produced by a harness session.
-   * seq is monotonically increasing per session.
+   * Messages produced by a harness session (both user prompts and assistant
+   * response chunks). seq is monotonically increasing per session.
+   * role distinguishes user messages from assistant responses.
    */
   chatroom_harnessSessionMessages: defineTable({
     harnessSessionRowId: v.id('chatroom_harnessSessions'),
     seq: v.number(),
+    role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),
   })
     .index('by_session_seq', ['harnessSessionRowId', 'seq'])
-    .index('by_session', ['harnessSessionRowId']),
+    .index('by_session_role_seq', ['harnessSessionRowId', 'role', 'seq']),
 
   /**
    * Per-machine capability snapshot: registered workspaces + per-workspace
@@ -2264,35 +2268,4 @@ export default defineSchema({
     .index('by_status_workspaceId', ['status', 'workspaceId'])
     .index('by_machineId_status', ['machineId', 'status']),
 
-  /**
-   * Queued prompts to be executed by the daemon against a harness session.
-   * Status: pending → processing → done | error
-   */
-  chatroom_pendingPrompts: defineTable({
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
-    /** Denormalized for efficient daemon polling. */
-    machineId: v.string(),
-    workspaceId: v.id('chatroom_workspaces'),
-    /** Task type: 'prompt' sends a text prompt; 'resume' reconnects to the harness. */
-    taskType: v.union(v.literal('prompt'), v.literal('resume')),
-    parts: v.array(v.object({ type: v.literal('text'), text: v.string() })),
-    /** Per-prompt config override (agent, model, etc.) — propagated to the SDK. */
-    override: v.object({
-      agent: v.string(),
-      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
-      system: v.optional(v.string()),
-      tools: v.optional(v.record(v.string(), v.boolean())),
-    }),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('processing'),
-      v.literal('done'),
-      v.literal('error')
-    ),
-    errorMessage: v.optional(v.string()),
-    requestedBy: v.string(),
-    requestedAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index('by_machine_status', ['machineId', 'status']),
 });
