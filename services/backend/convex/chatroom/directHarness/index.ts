@@ -18,5 +18,5 @@ export {
 } from './daemon/sessions.js';
 export { appendMessages, pendingForMachine } from './daemon/messages.js';
 
-// Capabilities (daemon-facing)
+// Capabilities
 export { publishMachineCapabilities, listForWorkspace } from './capabilities.js';
