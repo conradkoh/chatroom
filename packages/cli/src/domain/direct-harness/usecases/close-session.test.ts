@@ -50,7 +50,6 @@ describe('closeSession', () => {
 
   it('calls markClosed when a sessionRepository is provided', async () => {
     const sessionRepository: SessionRepository = {
-      createSession: vi.fn(),
       associateHarnessSessionId: vi.fn(),
       getHarnessSessionId: vi.fn(),
       markClosed: vi.fn(),
@@ -84,7 +83,6 @@ describe('closeSession', () => {
 
   it('still returns successfully when markClosed fails (best-effort)', async () => {
     const sessionRepository: SessionRepository = {
-      createSession: vi.fn(),
       associateHarnessSessionId: vi.fn(),
       getHarnessSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),
@@ -100,7 +98,6 @@ describe('closeSession', () => {
     const journal = mockJournal();
     (journal.commit as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('transport down'));
     const sessionRepository: SessionRepository = {
-      createSession: vi.fn(),
       associateHarnessSessionId: vi.fn(),
       getHarnessSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),

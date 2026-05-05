@@ -174,54 +174,7 @@ export const listForWorkspace = query({
   },
 });
 
-// ─── requestRefresh ───────────────────────────────────────────────────────────
 
-/**
- * Request a capability refresh for a workspace.
- *
- * Idempotent: if a pending refresh for the same workspace already exists,
- * returns its ID instead of creating a new one.
- *
- * Auth: requires a valid session (same pattern as other direct-harness mutations).
- *
- * @deprecated Web-facing endpoint — being replaced by daemon-orchestrated capability lifecycle.
- */
-export const requestRefresh = mutation({
-  args: {
-    ...SessionIdArg,
-    workspaceId: v.id('chatroom_workspaces'),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-
-    // Idempotency check: if a pending refresh already exists for this workspace, return its ID
-    const existing = await ctx.db
-      .query('chatroom_pendingDaemonTasks')
-      .withIndex('by_status_workspaceId', (q) =>
-        q.eq('status', 'pending').eq('workspaceId', args.workspaceId)
-      )
-      .first();
-
-    if (existing) {
-      return { taskId: existing._id };
-    }
-
-    const now = Date.now();
-    const taskId = await ctx.db.insert('chatroom_pendingDaemonTasks', {
-      workspaceId: args.workspaceId,
-      taskType: 'refreshCapabilities',
-      createdAt: now,
-      status: 'pending',
-    });
-
-    return { taskId };
-  },
-});
 
 
 

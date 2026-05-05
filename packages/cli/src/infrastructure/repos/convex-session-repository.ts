@@ -2,7 +2,6 @@
  * Convex-backed SessionRepository.
  *
  * Maps the domain SessionRepository port to Convex mutations/queries:
- *   - createSession       → sessions.openSession mutation
  *   - associateHarnessSessionId → sessions.associateHarnessSessionId mutation
  *   - getHarnessSessionId → sessions.getSession query
  *   - markClosed          → sessions.closeSession mutation
@@ -23,21 +22,6 @@ export interface ConvexSessionRepositoryOptions {
 
 export class ConvexSessionRepository implements SessionRepository {
   constructor(private readonly options: ConvexSessionRepositoryOptions) {}
-
-  async createSession(
-    workspaceId: string,
-    harnessName: string,
-    config: { agent: string }
-  ): Promise<{ harnessSessionRowId: string }> {
-    const { backend, sessionId } = this.options;
-
-    return backend.mutation(api.chatroom.directHarness.sessions.openSession, {
-      sessionId,
-      workspaceId,
-      harnessName,
-      config,
-    }) as Promise<{ harnessSessionRowId: string }>;
-  }
 
   async associateHarnessSessionId(
     harnessSessionRowId: string,

@@ -174,6 +174,33 @@ export const updateCursor = mutation({
   },
 });
 
+// ─── getSession (daemon) ────────────────────────────────────────────────────
+
+/**
+ * Read a harness session by its backend row ID.
+ * Returns only the fields the daemon needs.
+ */
+export const getSession = query({
+  args: {
+    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const session = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionRowId);
+    if (!session) return null;
+
+    return {
+      _id: session._id,
+      status: session.status,
+      harnessSessionId: session.harnessSessionId,
+      lastUsedConfig: session.lastUsedConfig,
+      lastProcessedSeq: session.lastProcessedSeq,
+      workspaceId: session.workspaceId,
+    };
+  },
+});
+
 // ─── listPendingSessionsForMachine (daemon) ────────────────────────────────────
 
 export const listPendingSessionsForMachine = query({

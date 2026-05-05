@@ -22,25 +22,7 @@ function createRepo(backend?: ReturnType<typeof createBackend>) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('ConvexSessionRepository', () => {
-  it('createSession calls sessions.openSession mutation', async () => {
-    const { repo, backend } = createRepo();
-    backend.mutation.mockResolvedValue({ harnessSessionRowId: 'row-1' });
-
-    const result = await repo.createSession('ws-1', 'opencode-sdk', { agent: 'builder' });
-
-    expect(backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        sessionId: 'mock-session-id',
-        workspaceId: 'ws-1',
-        harnessName: 'opencode-sdk',
-        config: { agent: 'builder' },
-      })
-    );
-    expect(result).toEqual({ harnessSessionRowId: 'row-1' });
-  });
-
-  it('associateHarnessSessionId calls openSession mutation with title', async () => {
+  it('associateHarnessSessionId calls associate mutation with title', async () => {
     const { repo, backend } = createRepo();
 
     await repo.associateHarnessSessionId('row-1', 'sess-abc', 'My Session');

@@ -7,6 +7,7 @@
 
 export {
   create,
+  getSession,
   associateHarnessSessionId,
   closeSession,
   updateCursor,
@@ -21,3 +22,5 @@ export {
 } from './messages.js';
 
 export { publishMachineCapabilities, listForWorkspace } from './capabilities.js';
+// TODO: re-export requestRefresh once capabilities auto-publish is implemented
+// export { requestRefresh } from './capabilities.js';

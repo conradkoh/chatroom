@@ -5,7 +5,6 @@
  * requestRefresh, completeRefreshTask, getPendingRefreshTasksForMachine.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { featureFlags } from '../../config/featureFlags';
@@ -103,35 +102,4 @@ describe('publishMachineCapabilities', () => {
   });
 });
 
-// ─── requestRefresh idempotency ───────────────────────────────────────────────
 
-describe('capabilities.requestRefresh idempotency', () => {
-  test('second call for same workspace returns the same task ID as first', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('rr-idem');
-
-    const first = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
-      sessionId,
-      workspaceId,
-    });
-
-    const second = await t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
-      sessionId,
-      workspaceId,
-    });
-
-    expect(second.taskId).toBe(first.taskId);
-  });
-
-
-
-  test('returns [] and throws on unauthenticated requestRefresh', async () => {
-    const { workspaceId } = await setupWorkspaceForSession('rr-unauth');
-
-    await expect(
-      t.mutation(api.chatroom.directHarness.capabilities.requestRefresh, {
-        sessionId: 'invalid-session' as SessionId,
-        workspaceId,
-      })
-    ).rejects.toThrow();
-  });
-});

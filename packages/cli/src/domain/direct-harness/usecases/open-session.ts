@@ -77,73 +77,10 @@ export interface SessionHandle {
 
 // ─── Use case function ────────────────────────────────────────────────────────
 
+/** @deprecated Use daemon subscribers instead. */
 export async function openSession(
-  deps: OpenSessionDeps,
-  input: OpenSessionInput
+  _deps: OpenSessionDeps,
+  _input: OpenSessionInput
 ): Promise<SessionHandle> {
-  const { sessionRepository, spawnerProvider, journalFactory, chunkExtractor, nowFn = Date.now } = deps;
-  const { workspaceId, workingDir, harnessName, agent } = input;
-
-  // 1. Create backend session row
-  const { harnessSessionRowId } = await sessionRepository.createSession(
-    workspaceId,
-    harnessName,
-    { agent }
-  );
-
-  // 2. Get or spawn a BoundHarness for this workspace
-  const harness = await spawnerProvider.getSpawner(workspaceId, workingDir);
-
-  // 3. Start a session on the harness
-  const session = await harness.newSession({
-    agent,
-    harnessSessionRowId: harnessSessionRowId as HarnessSessionRowId,
-  });
-
-  // 4. Associate the harness-issued session ID with the backend row.
-  //    Roll back by closing the session if this fails.
-  try {
-    await sessionRepository.associateHarnessSessionId(
-      harnessSessionRowId,
-      session.harnessSessionId as string,
-      session.sessionTitle
-    );
-  } catch (err) {
-    await session.close().catch(() => {});
-    throw err;
-  }
-
-  // 5. Create a journal to record output chunks
-  const journal = journalFactory.create(harnessSessionRowId);
-
-  // 6. Wire session events through the chunk extractor into the journal
-  const unsubscribeEvents = session.onEvent((event) => {
-    const content = chunkExtractor(event);
-    if (content !== null) {
-      journal.record({ content, timestamp: nowFn() });
-    }
-  });
-
-  // 7. Build the idempotent close function
-  let closed = false;
-
-  return {
-    harnessSessionRowId,
-    harnessSessionId: session.harnessSessionId as string,
-    session,
-
-    async close(): Promise<void> {
-      if (closed) return;
-      closed = true;
-
-      // Stop listening so no more records are written during shutdown
-      unsubscribeEvents();
-
-      // Delegate to the closeSession use case for journal + session lifecycle
-      await closeSession(
-        { session, journal },
-        { harnessSessionRowId }
-      );
-    },
-  };
+  throw new Error('openSession is deprecated');
 }

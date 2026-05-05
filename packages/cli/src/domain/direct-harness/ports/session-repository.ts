@@ -8,13 +8,6 @@
 import type { HarnessSessionId } from '../entities/harness-session.js';
 
 export interface SessionRepository {
-  /** Create a new backend session row and return its identifier. */
-  createSession(
-    workspaceId: string,
-    harnessName: string,
-    config: { agent: string }
-  ): Promise<{ harnessSessionRowId: string }>;
-
   /** Associate a harness-issued session ID with an existing backend row. */
   associateHarnessSessionId(
     harnessSessionRowId: string,

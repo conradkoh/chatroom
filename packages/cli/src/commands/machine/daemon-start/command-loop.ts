@@ -27,7 +27,6 @@ import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
-import { startPendingRefreshTaskSubscription } from './pending-refresh-task-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
@@ -435,9 +434,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   // ── Pending Refresh Task Subscription ────────────────────────────────
   // Subscribes to pending capability refresh tasks for this machine's workspaces.
-  let pendingRefreshTaskSubscriptionHandle: ReturnType<
-    typeof startPendingRefreshTaskSubscription
-  > | null = null;
+  let pendingRefreshTaskSubscriptionHandle: { stop: () => void } | null = null;
   // Shared state for v2 direct-harness subscribers.
   // activeSessions: opened/resumed sessions shared by session-subscriber
   //   and prompt-subscriber so they reuse the same DirectHarnessSession.
@@ -542,12 +539,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   }
 
   // ── Pending Refresh Task Subscription ────────────────────────────────
-  // Subscribes to pending capability refresh tasks for this machine's workspaces.
-  pendingRefreshTaskSubscriptionHandle = startPendingRefreshTaskSubscription(
-    ctx,
-    wsClient,
-    harnesses
-  );
+  // TODO: re-enable when capabilities auto-publish is implemented
+  pendingRefreshTaskSubscriptionHandle = { stop: () => {} };
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
