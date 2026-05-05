@@ -17,7 +17,4 @@ export interface OutputRepository {
     harnessSessionRowId: string,
     chunks: readonly OutputChunk[]
   ): Promise<void>;
-
-  /** Update the display title of a session. */
-  updateTitle(harnessSessionRowId: string, newTitle: string): Promise<void>;
 }

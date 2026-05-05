@@ -8,7 +8,6 @@ import type { OutputRepository, OutputChunk } from '../../domain/direct-harness/
 function mockOutputRepository(): OutputRepository {
   return {
     appendChunks: vi.fn().mockResolvedValue(undefined),
-    updateTitle: vi.fn(),
   };
 }
 

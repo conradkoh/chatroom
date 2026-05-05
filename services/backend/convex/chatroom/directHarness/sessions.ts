@@ -362,10 +362,8 @@ export const listPendingSessionsForMachine = query({
       )
     );
 
-    // Flatten and filter to sessions that are not yet associated with a harness process
-    return sessionGroups
-      .flat()
-      .filter((s) => s.harnessSessionId === undefined || s.harnessSessionId === null);
+    // Flatten — all pending sessions are unassociated by definition
+    return sessionGroups.flat();
   },
 });
 

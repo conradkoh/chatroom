@@ -140,11 +140,7 @@ async function executeOne(
     deps.harnesses.set(prompt.workspaceId, harness);
   }
 
-  if (prompt.taskType === 'prompt') {
-    await executePromptTask(ctx, deps, harness, prompt);
-  } else {
-    await executeResumeTask(ctx, deps, harness, prompt);
-  }
+  await executePromptTask(ctx, deps, harness, prompt);
 }
 
 // ─── Prompt task ─────────────────────────────────────────────────────────────
@@ -201,50 +197,4 @@ async function executePromptTask(
   );
 }
 
-// ─── Resume task ─────────────────────────────────────────────────────────────
 
-async function executeResumeTask(
-  ctx: DaemonContext,
-  deps: PromptSubscriberDeps,
-  harness: BoundHarness,
-  prompt: KnownPendingPrompt
-): Promise<void> {
-  const rowId = prompt.harnessSessionRowId;
-
-  // Get the harness session ID from the backend row
-  const harnessSessionId = await deps.sessionRepository.getHarnessSessionId(rowId);
-
-  if (!harnessSessionId) {
-    await deps.promptRepository.complete(
-      prompt._id,
-      'error',
-      `Session ${rowId} has no harness session ID — it may not have completed spawning`
-    );
-    return;
-  }
-
-  try {
-    const handle = await resumeSession(
-      {
-        harness,
-        journalFactory: deps.journalFactory,
-        chunkExtractor: opencodeSdkChunkExtractor,
-      },
-      { harnessSessionRowId: rowId, harnessSessionId }
-    );
-
-    deps.activeSessions.set(rowId, handle);
-    await deps.promptRepository.complete(prompt._id, 'done');
-
-    console.log(`[direct-harness] Session resumed: rowId=${rowId}`);
-  } catch (err) {
-    // Mark the session as failed so the UI shows an error
-    await deps.promptRepository.complete(
-      prompt._id,
-      'error',
-      err instanceof Error ? err.message : String(err)
-    );
-    await deps.sessionRepository.markClosed(rowId).catch(() => {});
-    throw err;
-  }
-}

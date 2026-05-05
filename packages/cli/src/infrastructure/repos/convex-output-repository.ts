@@ -3,7 +3,6 @@
  *
  * Maps the domain OutputRepository port to Convex mutations:
  *   - appendChunks → messages.appendMessages mutation
- *   - updateTitle  → sessions.updateSessionConfig mutation
  */
 
 import { api } from '../../api.js';
@@ -39,13 +38,4 @@ export class ConvexOutputRepository implements OutputRepository {
     });
   }
 
-  async updateTitle(harnessSessionRowId: string, newTitle: string): Promise<void> {
-    const { backend, sessionId } = this.options;
-
-    await backend.mutation(api.chatroom.directHarness.sessions.updateSessionConfig, {
-      sessionId,
-      harnessSessionRowId,
-      sessionTitle: newTitle,
-    });
-  }
 }

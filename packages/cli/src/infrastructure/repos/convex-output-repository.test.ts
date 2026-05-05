@@ -48,19 +48,4 @@ describe('ConvexOutputRepository', () => {
     expect(backend.mutation).not.toHaveBeenCalled();
   });
 
-  it('updateTitle calls sessions.updateSessionConfig', async () => {
-    const { repo, backend } = createRepo();
-
-    await repo.updateTitle('row-1', 'New Title');
-
-    expect(backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        sessionId: 'mock-session-id',
-        harnessSessionRowId: 'row-1',
-        // Note: updateSessionConfig currently only merges config fields,
-        // not sessionTitle. This may need a dedicated mutation.
-      })
-    );
-  });
 });
