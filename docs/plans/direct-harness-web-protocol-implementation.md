@@ -52,24 +52,36 @@ Delete `chatroom_pendingPrompts` table. Daemon subscribes to sessions + messages
 
 ### Layer 5: Backend Endpoints
 
+Endpoints split into frontend-facing and daemon-facing files for clarity.
+
+#### Frontend-facing (new `frontend/` directory)
+
 | Step | File | Action |
 |------|------|--------|
-| 19 | `directHarness/sessions.ts` | Add `sessions.create` mutation: creates session row (`lastProcessedSeq: 0`), writes initial user message (`role: 'user'`), returns `{ sessionId }` |
-| 20 | `directHarness/sessions.ts` | Add `sessions.updateCursor` mutation: patches `lastProcessedSeq` on session row. Daemon-only (auth via machine ownership). |
-| 21 | `directHarness/sessions.ts` | Delete `openSession` mutation |
-| 22 | `directHarness/sessions.ts` | Delete `updateSessionConfig` mutation |
-| 23 | `directHarness/sessions.ts` | Delete `getSession` query |
-| 24 | `directHarness/sessions.ts` | Delete `listSessionsByWorkspace` query |
-| 25 | `directHarness/messages.ts` | Add `messages.send` mutation: inserts message with `role: 'user'`, seq from `getNextMessageSeq`, returns `{ seq }` |
-| 26 | `directHarness/messages.ts` | Add `messages.subscribe` query: returns messages with `seq > afterSeq` for a session (filter removed when `afterSeq` is null) |
-| 27 | `directHarness/messages.ts` | Add `messages.pendingForMachine` query: finds all sessions for this machine, returns user messages where `seq > session.lastProcessedSeq` |
-| 28 | `directHarness/messages.ts` | Update `appendMessages`: hard-code `role: 'assistant'` on inserted chunks |
-| 29 | `directHarness/messages.ts` | Delete `streamSessionMessages` query |
-| 30 | `directHarness/prompts.ts` | Delete entire file |
-| 31 | `directHarness/capabilities.ts` | Delete `listForWorkspace` query |
-| 32 | `directHarness/capabilities.ts` | Delete `requestRefresh` mutation |
-| 33 | `directHarness/index.ts` | Update barrel exports |
-| 34 | Backend tests | Update integration tests |
+| 19 | `directHarness/frontend/sessions.ts` | **Add** `sessions.create` mutation |
+| 20 | `directHarness/frontend/sessions.ts` | Move `closeSession` here |
+| 21 | `directHarness/frontend/messages.ts` | **Add** `messages.send` mutation |
+| 22 | `directHarness/frontend/messages.ts` | **Add** `messages.subscribe` query |
+
+#### Daemon-facing (new `daemon/` directory)
+
+| Step | File | Action |
+|------|------|--------|
+| 23 | `directHarness/daemon/sessions.ts` | Move `associateHarnessSessionId`, `listPendingSessionsForMachine` here |
+| 24 | `directHarness/daemon/sessions.ts` | **Add** `sessions.updateCursor` mutation |
+| 25 | `directHarness/daemon/messages.ts` | Move `appendMessages` here, update to hard-code `role='assistant'` |
+| 26 | `directHarness/daemon/messages.ts` | **Add** `messages.pendingForMachine` query |
+
+#### Cleanup (delete deprecated)
+
+| Step | File | Action |
+|------|------|--------|
+| 27 | `directHarness/sessions.ts` | Delete entire file (openSession, updateSessionConfig, getSession, listSessionsByWorkspace) |
+| 28 | `directHarness/messages.ts` | Delete entire file (streamSessionMessages) |
+| 29 | `directHarness/prompts.ts` | Delete entire file |
+| 30 | `directHarness/capabilities.ts` | Delete `listForWorkspace`, `requestRefresh` |
+| 31 | `directHarness/index.ts` | Update barrel exports |
+| 32 | Backend tests | Update integration tests |
 
 ### Frontend (separate)
 

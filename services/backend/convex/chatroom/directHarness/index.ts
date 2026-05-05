@@ -1,29 +1,22 @@
 /**
  * Barrel re-export for the direct-harness backend module.
  *
- * Uses the existing chatroom_workspaces table for workspace references —
- * harness sessions are associated with daemon-registered workspaces.
+ * Endpoints are split into frontend-facing and daemon-facing files.
+ * Uses the existing chatroom_workspaces table for workspace references.
  */
 
+// Frontend-facing (web UI calls these)
+export { create } from './frontend/sessions.js';
+export { send, subscribe } from './frontend/messages.js';
+
+// Daemon-facing (CLI daemon calls these)
 export {
-  openSession,
   associateHarnessSessionId,
   closeSession,
-  updateSessionConfig,
-  getSession,
-  listSessionsByWorkspace,
-} from './sessions.js';
+  updateCursor,
+  listPendingSessionsForMachine,
+} from './daemon/sessions.js';
+export { appendMessages, pendingForMachine } from './daemon/messages.js';
 
-export { appendMessages, streamSessionMessages } from './messages.js';
-
-export {
-  publishMachineCapabilities,
-  listForWorkspace,
-} from './capabilities.js';
-
-export {
-  submitPrompt,
-  claimNextPendingPrompt,
-  completePendingPrompt,
-  getPendingPromptsForMachine,
-} from './prompts.js';
+// Capabilities (daemon-facing)
+export { publishMachineCapabilities, listForWorkspace } from './capabilities.js';
