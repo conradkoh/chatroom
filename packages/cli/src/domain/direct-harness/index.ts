@@ -51,7 +51,6 @@ export type { CapabilitiesPublisher } from './ports/capabilities-publisher.js';
 
 export type { SessionRepository } from './ports/session-repository.js';
 export type { OutputRepository, OutputChunk } from './ports/output-repository.js';
-export type { PromptRepository, PromptOverride } from './ports/prompt-repository.js';
 
 // ─── Use cases ──────────────────────────────────────────────────────────────────
 
@@ -71,12 +70,6 @@ export type {
   ResumeSessionInput,
   ResumeSessionResult,
 } from './usecases/resume-session.js';
-
-export { promptSession } from './usecases/prompt-session.js';
-export type {
-  PromptSessionDeps,
-  PromptSessionInput,
-} from './usecases/prompt-session.js';
 
 export { closeSession } from './usecases/close-session.js';
 export type {

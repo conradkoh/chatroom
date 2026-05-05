@@ -64,6 +64,7 @@ function buildPassingDeps(): {
     associateHarnessSessionId: vi.fn().mockResolvedValue(undefined),
     getHarnessSessionId: vi.fn().mockResolvedValue('sess-1'),
     markClosed: vi.fn(),
+      updateLastProcessedSeq: vi.fn(),
   };
   const journalFactory: JournalFactory = { create: vi.fn().mockReturnValue(journal) };
   const chunkExtractor = vi.fn().mockReturnValue(null);
@@ -141,6 +142,7 @@ describe('openSession', () => {
           associateHarnessSessionId: vi.fn(),
           getHarnessSessionId: vi.fn(),
           markClosed: vi.fn(),
+      updateLastProcessedSeq: vi.fn(),
         },
         spawnerProvider: { getSpawner: vi.fn().mockResolvedValue(harness) },
         journalFactory,
@@ -181,6 +183,7 @@ describe('openSession', () => {
         associateHarnessSessionId: vi.fn().mockRejectedValue(new Error('db error')),
         getHarnessSessionId: vi.fn(),
         markClosed: vi.fn(),
+      updateLastProcessedSeq: vi.fn(),
       };
       const deps: OpenSessionDeps = {
         sessionRepository,
@@ -205,6 +208,7 @@ describe('openSession', () => {
           associateHarnessSessionId: vi.fn(),
           getHarnessSessionId: vi.fn(),
           markClosed: vi.fn(),
+      updateLastProcessedSeq: vi.fn(),
         },
         spawnerProvider: { getSpawner: vi.fn().mockResolvedValue(harness) },
         journalFactory: { create: vi.fn() },
@@ -221,6 +225,7 @@ describe('openSession', () => {
         associateHarnessSessionId: vi.fn(),
         getHarnessSessionId: vi.fn(),
         markClosed: vi.fn(),
+      updateLastProcessedSeq: vi.fn(),
       };
       const deps: OpenSessionDeps = {
         sessionRepository,

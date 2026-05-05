@@ -14,7 +14,7 @@ import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startSessionSubscriber } from './v2/session-subscriber.js';
-import { startPromptSubscriber } from './v2/prompt-subscriber.js';
+import { startMessageSubscriber } from './v2/prompt-subscriber.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import { api } from '../../../api.js';
@@ -34,7 +34,6 @@ import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.j
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
 import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
-import { ConvexPromptRepository } from '../../../infrastructure/repos/convex-prompt-repository.js';
 import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
@@ -522,11 +521,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       backend: ctx.deps.backend,
       sessionId: ctx.sessionId,
     });
-    const promptRepository = new ConvexPromptRepository({
-      backend: ctx.deps.backend,
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
     const journalFactory = new BufferedJournalFactory({
       outputRepository,
     });
@@ -535,12 +529,16 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       activeSessions,
       harnesses,
       sessionRepository,
-      promptRepository,
       journalFactory,
     };
 
-    pendingPromptSubscriptionHandle = startPromptSubscriber(ctx, wsClient, sharedDeps);
-    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, sharedDeps);
+    pendingPromptSubscriptionHandle = startMessageSubscriber(ctx, wsClient, sharedDeps);
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      journalFactory,
+    });
   }
 
   // ── Pending Refresh Task Subscription ────────────────────────────────

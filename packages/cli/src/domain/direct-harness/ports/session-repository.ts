@@ -27,4 +27,14 @@ export interface SessionRepository {
 
   /** Mark a session as closed in the backend. */
   markClosed(harnessSessionRowId: string): Promise<void>;
+
+  /**
+   * Persist the daemon's processing cursor for a session.
+   * On restart the daemon resumes from this seq to avoid re-processing
+   * already-handled user messages.
+   */
+  updateLastProcessedSeq(
+    harnessSessionRowId: string,
+    seq: number
+  ): Promise<void>;
 }

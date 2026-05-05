@@ -16,7 +16,6 @@ import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { PromptRepository } from '../../../../domain/direct-harness/ports/prompt-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
 
@@ -35,19 +34,6 @@ interface WorkspaceInfo {
   workingDir: string;
 }
 
-/** Shape of a claimed prompt from claimNextPendingPrompt. */
-interface ClaimedPrompt {
-  _id: string;
-  taskType: string;
-  parts: { type: 'text'; text: string }[];
-  override: {
-    agent: string;
-    model?: { providerID: string; modelID: string };
-    system?: string;
-    tools?: Record<string, boolean>;
-  };
-}
-
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
@@ -58,7 +44,6 @@ export interface SessionSubscriberDeps {
   readonly activeSessions: Map<string, ActiveSession>;
   readonly harnesses: Map<string, BoundHarness>;
   readonly sessionRepository: SessionRepository;
-  readonly promptRepository: PromptRepository;
   readonly journalFactory: JournalFactory;
 }
 
@@ -183,34 +168,6 @@ async function processOne(
       close,
     };
     deps.activeSessions.set(rowId, handle);
-
-    // 8. Claim and process the first pending prompt
-    const claimed = (await ctx.deps.backend.mutation(
-      api.chatroom.directHarness.prompts.claimNextPendingPrompt,
-      { sessionId: ctx.sessionId, machineId: ctx.machineId, harnessSessionRowId: rowId }
-    )) as ClaimedPrompt | null;
-
-    if (claimed && claimed.taskType === 'prompt') {
-      try {
-        await liveSession.prompt({
-          agent: claimed.override.agent,
-          parts: claimed.parts,
-          ...(claimed.override.model ? { model: claimed.override.model } : {}),
-          ...(claimed.override.system ? { system: claimed.override.system } : {}),
-          ...(claimed.override.tools ? { tools: claimed.override.tools } : {}),
-        });
-
-        await deps.promptRepository.complete(claimed._id, 'done');
-      } catch (err) {
-        await deps.promptRepository
-          .complete(claimed._id, 'error', err instanceof Error ? err.message : String(err))
-          .catch(() => {});
-        console.warn(
-          `[direct-harness] First prompt failed for session ${rowId}:`,
-          err instanceof Error ? err.message : String(err)
-        );
-      }
-    }
 
     console.log(
       `[direct-harness] Session opened: rowId=${rowId} agent=${session.lastUsedConfig.agent} workspace=${session.workspaceId}`

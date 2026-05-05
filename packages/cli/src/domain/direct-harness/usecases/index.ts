@@ -22,12 +22,6 @@ export type {
   ResumeSessionResult,
 } from './resume-session.js';
 
-export { promptSession } from './prompt-session.js';
-export type {
-  PromptSessionDeps,
-  PromptSessionInput,
-} from './prompt-session.js';
-
 export { closeSession } from './close-session.js';
 export type {
   CloseSessionDeps,

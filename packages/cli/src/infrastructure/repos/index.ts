@@ -10,9 +10,6 @@ export type { ConvexSessionRepositoryOptions } from './convex-session-repository
 export { ConvexOutputRepository } from './convex-output-repository.js';
 export type { ConvexOutputRepositoryOptions } from './convex-output-repository.js';
 
-export { ConvexPromptRepository } from './convex-prompt-repository.js';
-export type { ConvexPromptRepositoryOptions } from './convex-prompt-repository.js';
-
 export { ConvexCapabilitiesPublisher } from './convex-capabilities-publisher.js';
 export type {
   ConvexCapabilitiesPublisherOptions,

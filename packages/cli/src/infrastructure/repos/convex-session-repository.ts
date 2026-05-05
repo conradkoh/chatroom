@@ -6,6 +6,7 @@
  *   - associateHarnessSessionId → sessions.associateHarnessSessionId mutation
  *   - getHarnessSessionId → sessions.getSession query
  *   - markClosed          → sessions.closeSession mutation
+ *   - updateLastProcessedSeq → sessions.updateCursor mutation
  */
 
 import { api } from '../../api.js';
@@ -69,6 +70,19 @@ export class ConvexSessionRepository implements SessionRepository {
     await backend.mutation(api.chatroom.directHarness.sessions.closeSession, {
       sessionId,
       harnessSessionRowId,
+    });
+  }
+
+  async updateLastProcessedSeq(
+    harnessSessionRowId: string,
+    seq: number
+  ): Promise<void> {
+    const { backend, sessionId } = this.options;
+
+    await backend.mutation(api.chatroom.directHarness.sessions.updateCursor, {
+      sessionId,
+      harnessSessionRowId,
+      seq,
     });
   }
 }

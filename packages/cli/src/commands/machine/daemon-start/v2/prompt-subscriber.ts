@@ -1,14 +1,14 @@
 /**
- * Subscribes to pending prompts via Convex WS and dispatches to
- * domain promptSession or resumeSession.
+ * Subscribes to unprocessed user messages via Convex WS and dispatches them
+ * to the harness session.
  *
- * Two task types:
- *   - 'prompt': sends a text prompt to an existing harness session
- *   - 'resume': reconnects to an existing harness session
- *
- * Lazy resume contract: sessions are NOT auto-resumed on daemon
- * startup. Resume only happens when a prompt arrives for a session
- * that isn't already active (e.g. after daemon restart).
+ * No prompt lifecycle (submit/claim/complete). The daemon reads user messages
+ * directly from the message stream using cursor-based seq tracking:
+ *   1. Query `messages.pendingForMachine` for user messages with
+ *      seq > session.lastProcessedSeq
+ *   2. For each session with new messages, resolve the handle (lazy resume if
+ *      the daemon restarted) and call session.prompt()
+ *   3. Update lastProcessedSeq on the session row
  */
 
 import type { ConvexClient } from 'convex/browser';
@@ -18,27 +18,24 @@ import { opencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/
 import type { ActiveSession } from './session-subscriber.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
-import { promptSession } from '../../../../domain/direct-harness/usecases/prompt-session.js';
 import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { PromptRepository } from '../../../../domain/direct-harness/ports/prompt-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
-interface KnownPendingPrompt {
-  _id: string;
+interface PendingMessage {
   harnessSessionRowId: string;
+  content: string;
+  seq: number;
+}
+
+interface PendingSessionInfo {
+  _id: string;
   workspaceId: string;
-  taskType: 'prompt' | 'resume';
-  parts: { type: 'text'; text: string }[];
-  override: {
-    agent: string;
-    model?: { providerID: string; modelID: string };
-    system?: string;
-    tools?: Record<string, boolean>;
-  };
+  lastProcessedSeq: number;
+  lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
 }
 
 interface WorkspaceInfo {
@@ -47,25 +44,24 @@ interface WorkspaceInfo {
 
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
-export interface PromptSubscriberDeps {
+export interface MessageSubscriberDeps {
   readonly activeSessions: Map<string, ActiveSession>;
   readonly harnesses: Map<string, BoundHarness>;
   readonly sessionRepository: SessionRepository;
-  readonly promptRepository: PromptRepository;
   readonly journalFactory: JournalFactory;
 }
 
 // ─── Subscriber ──────────────────────────────────────────────────────────────
 
-export function startPromptSubscriber(
+export function startMessageSubscriber(
   ctx: DaemonContext,
   wsClient: ConvexClient,
-  deps: PromptSubscriberDeps
+  deps: MessageSubscriberDeps
 ): { stop: () => void } {
   let processing = false;
 
   const unsub = wsClient.onUpdate(
-    api.chatroom.directHarness.prompts.getPendingPromptsForMachine,
+    api.chatroom.directHarness.messages.pendingForMachine,
     { sessionId: ctx.sessionId, machineId: ctx.machineId },
     () => {
       if (processing) return;
@@ -76,7 +72,7 @@ export function startPromptSubscriber(
     },
     (err: unknown) => {
       console.warn(
-        '[direct-harness] Prompt subscription error:',
+        '[direct-harness] Message subscription error:',
         err instanceof Error ? err.message : String(err)
       );
     }
@@ -87,73 +83,58 @@ export function startPromptSubscriber(
 
 // ─── Drain loop ──────────────────────────────────────────────────────────────
 
-async function drain(ctx: DaemonContext, deps: PromptSubscriberDeps): Promise<void> {
-  while (true) {
-    const claimed = (await ctx.deps.backend.mutation(
-      api.chatroom.directHarness.prompts.claimNextPendingPrompt,
-      { sessionId: ctx.sessionId, machineId: ctx.machineId }
-    )) as KnownPendingPrompt | null;
+async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<void> {
+  // Fetch all pending user messages grouped by session
+  const pending = (await ctx.deps.backend.query(
+    api.chatroom.directHarness.messages.pendingForMachine,
+    { sessionId: ctx.sessionId, machineId: ctx.machineId }
+  )) as {
+    sessions: PendingSessionInfo[];
+    messages: PendingMessage[];
+  } | null;
 
-    if (!claimed) break;
+  if (!pending || pending.messages.length === 0) return;
 
+  // Group messages by session for batch processing
+  const bySession = new Map<string, PendingMessage[]>();
+  for (const msg of pending.messages) {
+    const list = bySession.get(msg.harnessSessionRowId);
+    if (list) {
+      list.push(msg);
+    } else {
+      bySession.set(msg.harnessSessionRowId, [msg]);
+    }
+  }
+
+  // Build a session-info lookup
+  const sessionInfo = new Map<string, PendingSessionInfo>();
+  for (const s of pending.sessions) {
+    sessionInfo.set(s._id, s);
+  }
+
+  // Process each session's messages
+  for (const [rowId, messages] of bySession) {
     try {
-      await executeOne(ctx, deps, claimed);
+      await processSessionMessages(ctx, deps, rowId, messages, sessionInfo.get(rowId));
     } catch (err) {
       console.warn(
-        `[direct-harness] Prompt ${claimed._id} failed:`,
+        `[direct-harness] Failed to process messages for session ${rowId}:`,
         err instanceof Error ? err.message : String(err)
       );
     }
   }
 }
 
-// ─── Single prompt execution ─────────────────────────────────────────────────
+// ─── Process messages for a single session ───────────────────────────────────
 
-async function executeOne(
+async function processSessionMessages(
   ctx: DaemonContext,
-  deps: PromptSubscriberDeps,
-  prompt: KnownPendingPrompt
+  deps: MessageSubscriberDeps,
+  rowId: string,
+  messages: PendingMessage[],
+  info: PendingSessionInfo | undefined
 ): Promise<void> {
-  // 1. Look up workspace to get workingDir
-  const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-    sessionId: ctx.sessionId,
-    workspaceId: prompt.workspaceId,
-  })) as WorkspaceInfo | null;
-
-  if (!workspace) {
-    await deps.promptRepository.complete(
-      prompt._id,
-      'error',
-      `Workspace ${prompt.workspaceId} not found`
-    );
-    return;
-  }
-
-  // 2. Get or create BoundHarness for this workspace
-  let harness = deps.harnesses.get(prompt.workspaceId);
-  if (!harness) {
-    harness = await startOpencodeSdkHarness({
-      type: 'opencode',
-      workingDir: workspace.workingDir,
-      workspaceId: prompt.workspaceId,
-    });
-    deps.harnesses.set(prompt.workspaceId, harness);
-  }
-
-  await executePromptTask(ctx, deps, harness, prompt);
-}
-
-// ─── Prompt task ─────────────────────────────────────────────────────────────
-
-async function executePromptTask(
-  ctx: DaemonContext,
-  deps: PromptSubscriberDeps,
-  harness: BoundHarness,
-  prompt: KnownPendingPrompt
-): Promise<void> {
-  const rowId = prompt.harnessSessionRowId;
-
-  // Resolve the active session handle
+  // 1. Resolve the session handle (lazy resume if needed)
   let handle = deps.activeSessions.get(rowId);
 
   if (!handle) {
@@ -161,12 +142,41 @@ async function executePromptTask(
     const harnessSessionId = await deps.sessionRepository.getHarnessSessionId(rowId);
 
     if (!harnessSessionId) {
-      await deps.promptRepository.complete(
-        prompt._id,
-        'error',
-        `Session ${rowId} has no harness session ID — it may not have completed spawning`
+      console.warn(
+        `[direct-harness] Cannot process messages for session ${rowId}: no harness session ID`
       );
       return;
+    }
+
+    // Find or create the harness
+    const workspaceId = info?.workspaceId;
+    if (!workspaceId) {
+      console.warn(
+        `[direct-harness] Cannot process messages for session ${rowId}: no workspace info`
+      );
+      return;
+    }
+
+    let harness = deps.harnesses.get(workspaceId);
+    if (!harness) {
+      const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
+        sessionId: ctx.sessionId,
+        workspaceId,
+      })) as WorkspaceInfo | null;
+
+      if (!workspace) {
+        console.warn(
+          `[direct-harness] Cannot resume session ${rowId}: workspace ${workspaceId} not found`
+        );
+        return;
+      }
+
+      harness = await startOpencodeSdkHarness({
+        type: 'opencode',
+        workingDir: workspace.workingDir,
+        workspaceId,
+      });
+      deps.harnesses.set(workspaceId, harness);
     }
 
     handle = await resumeSession(
@@ -181,20 +191,26 @@ async function executePromptTask(
     deps.activeSessions.set(rowId, handle);
   }
 
-  // Domain promptSession handles completion (done/error) internally
-  await promptSession(
-    {
-      sessionRepository: deps.sessionRepository,
-      promptRepository: deps.promptRepository,
-      session: handle.session,
-    },
-    {
-      harnessSessionRowId: rowId,
-      promptId: prompt._id,
-      parts: prompt.parts,
-      override: prompt.override,
+  // 2. Send each pending user message as a prompt
+  for (const msg of messages) {
+    const override = info?.lastUsedConfig ?? { agent: 'build' };
+
+    try {
+      await handle.session.prompt({
+        parts: [{ type: 'text', text: msg.content }],
+        agent: override.agent,
+        ...(override.model ? { model: override.model } : {}),
+      });
+
+      // Update cursor after each successful prompt
+      await deps.sessionRepository.updateLastProcessedSeq(rowId, msg.seq);
+    } catch (err) {
+      console.warn(
+        `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+      // Best-effort: stop processing remaining messages for this session
+      return;
     }
-  );
+  }
 }
-
-
