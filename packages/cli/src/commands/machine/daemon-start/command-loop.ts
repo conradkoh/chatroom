@@ -15,6 +15,7 @@ import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startSessionSubscriber } from './v2/session-subscriber.js';
 import { startMessageSubscriber } from './v2/prompt-subscriber.js';
+import { startCommandSubscriber } from './v2/command-subscriber.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import { api } from '../../../api.js';
@@ -429,10 +430,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     null;
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
-  // Gated by directHarnessWorkers flag. Both return { stop: () => void }.
+  // Gated by directHarnessWorkers flag. All return { stop: () => void }.
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
-  // Shared state for v2 direct-harness subscribers.
+  let commandSubscriptionHandle: { stop: () => void } | null = null;
   // Shared state for v2 direct-harness subscribers.
   // activeSessions: opened/resumed sessions shared by session-subscriber
   //   and prompt-subscriber so they reuse the same DirectHarnessSession.
@@ -465,7 +466,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
-    // Close all active direct-harness sessions
+    if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
     // Close all active direct-harness sessions
     for (const handle of activeSessions.values()) {
       await handle.close().catch(() => {});
@@ -534,6 +535,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       sessionRepository,
       journalFactory,
     });
+
+    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient);
   }
 
   console.log(`\nListening for commands...`);

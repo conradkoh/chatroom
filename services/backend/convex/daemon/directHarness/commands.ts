@@ -61,7 +61,11 @@ export const updateCommandStatus = mutation({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) throw new Error('Authentication required');
 
-    const patch: Record<string, unknown> = { status: args.status };
+    const patch: Partial<{
+      status: 'inProgress' | 'done' | 'failed';
+      completedAt: number;
+      errorMessage: string;
+    }> = { status: args.status };
     if (args.status === 'done' || args.status === 'failed') {
       patch.completedAt = Date.now();
     }
@@ -69,6 +73,6 @@ export const updateCommandStatus = mutation({
       patch.errorMessage = args.errorMessage;
     }
 
-    await ctx.db.patch(args.commandId, patch as any);
+    await ctx.db.patch(args.commandId, patch);
   },
 });

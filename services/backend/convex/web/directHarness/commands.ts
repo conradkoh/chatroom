@@ -17,7 +17,7 @@ import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation } from '../../_generated/server.js';
 
-// ─── requestRefreshCapabilities ───────────────────────────────────────────────
+// ─── refreshCapabilities ──────────────────────────────────────────────────────
 
 /**
  * Request the daemon to re-discover and re-publish its capabilities
@@ -26,11 +26,10 @@ import { mutation } from '../../_generated/server.js';
  * Creates a chatroom_directHarnessCommands row that the daemon picks up
  * via listPendingCommands.
  */
-export const requestRefreshCapabilities = mutation({
+export const refreshCapabilities = mutation({
   args: {
     ...SessionIdArg,
     workspaceId: v.id('chatroom_workspaces'),
-    machineId: v.string(),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -43,8 +42,22 @@ export const requestRefreshCapabilities = mutation({
     // Verify the caller has access to this workspace's chatroom
     const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
 
+    // Dedup: if there's already a pending refreshCapabilities for this workspace,
+    // don't create another — the daemon will pick it up
+    const existing = await ctx.db
+      .query('chatroom_directHarnessCommands')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', workspace.machineId).eq('status', 'pending')
+      )
+      .filter((q) => q.eq(q.field('type'), 'refreshCapabilities'))
+      .first();
+
+    if (existing) {
+      return;
+    }
+
     await ctx.db.insert('chatroom_directHarnessCommands', {
-      machineId: args.machineId,
+      machineId: workspace.machineId,
       workspaceId: args.workspaceId,
       type: 'refreshCapabilities',
       refreshCapabilities: { initiatedBy: session.userId },

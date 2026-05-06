@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateSession } from './hooks/useCreateSession';
 import { useWorkspaceCapabilities } from './hooks/useWorkspaceCapabilities';
 import { useHarnessConfig, type HarnessOption } from './hooks/useHarnessConfig';
+import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,15 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
 
   const capabilities = useWorkspaceCapabilities(open ? workspaceId : null);
   const { create: createSession, isCreating } = useCreateSession();
+  const { refresh: refreshCapabilities } = useRefreshCapabilities();
+
+  // Trigger a capabilities refresh when the dialog opens (only on the open transition)
+  useEffect(() => {
+    if (open) {
+      refreshCapabilities(workspaceId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const harnesses = capabilities?.harnesses;
 
