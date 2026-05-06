@@ -2,29 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { HarnessWorkspaceCapabilities } from '@workspace/backend/src/domain/direct-harness/types';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface HarnessCapability {
-  name: string;
-  displayName: string;
-  agents: Array<{
-    name: string;
-    mode: 'subagent' | 'primary' | 'all';
-    model?: { providerID: string; modelID: string };
-    description?: string;
-  }>;
-  providers: Array<{
-    providerID: string;
-    name: string;
-    models: Array<{ modelID: string; name: string }>;
-  }>;
-}
-
-export interface HarnessWorkspaceCapabilities {
-  harnesses: HarnessCapability[];
-}
+export type { HarnessWorkspaceCapabilities };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 

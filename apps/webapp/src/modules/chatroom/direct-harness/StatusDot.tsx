@@ -1,8 +1,10 @@
 import { cn } from '@/lib/utils';
 
+import type { HarnessSessionStatus } from '@workspace/backend/src/domain/direct-harness/types';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SessionStatus = 'pending' | 'spawning' | 'active' | 'idle' | 'closed' | 'failed';
+export type SessionStatus = HarnessSessionStatus;
 
 const STATUS_STYLES: Record<SessionStatus, { color: string; label: string }> = {
   pending: { color: 'bg-amber-500 dark:bg-amber-400', label: 'Pending' },

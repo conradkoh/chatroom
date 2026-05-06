@@ -7,6 +7,8 @@
  * the three consumers.
  */
 
+import type { Id } from '../../../convex/_generated/dataModel';
+
 // ─── Session status ───────────────────────────────────────────────────────────
 
 /** Canonical status union for harness sessions. */
@@ -32,6 +34,9 @@ export interface HarnessConfig {
 
 /** A single message in the harness session message stream. */
 export interface HarnessMessage {
+  _id: Id<'chatroom_harnessSessionMessages'>;
+  _creationTime: number;
+  harnessSessionRowId: Id<'chatroom_harnessSessions'>;
   seq: number;
   role: 'user' | 'assistant';
   content: string;
@@ -73,12 +78,12 @@ export interface HarnessWorkspaceCapabilities {
 // ─── Session summary (list view) ──────────────────────────────────────────────
 
 export interface HarnessSessionSummary {
-  _id: string;
+  _id: Id<'chatroom_harnessSessions'>;
   status: HarnessSessionStatus;
   harnessName: string;
   sessionTitle?: string;
   lastUsedConfig: HarnessConfig;
-  workspaceId: string;
+  workspaceId: Id<'chatroom_workspaces'>;
   createdAt: number;
   lastActiveAt: number;
 }
@@ -86,20 +91,20 @@ export interface HarnessSessionSummary {
 // ─── Create session ───────────────────────────────────────────────────────────
 
 export interface HarnessCreateInput {
-  workspaceId: string;
+  workspaceId: Id<'chatroom_workspaces'>;
   harnessName: string;
   config: HarnessConfig;
   firstMessage: string;
 }
 
 export interface HarnessCreateResult {
-  harnessSessionRowId: string;
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
 }
 
 // ─── Send message ─────────────────────────────────────────────────────────────
 
 export interface HarnessSendMessageInput {
-  harnessSessionId: string;
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
   text: string;
 }
 

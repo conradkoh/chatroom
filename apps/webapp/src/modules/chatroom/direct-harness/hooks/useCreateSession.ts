@@ -1,38 +1,29 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type {
+  HarnessCreateInput,
+  HarnessCreateResult,
+} from '@workspace/backend/src/domain/direct-harness/types';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface HarnessCreateSessionInput {
-  workspaceId: Id<'chatroom_workspaces'>;
-  harnessName: string;
-  config: {
-    agent: string;
-    model?: { providerID: string; modelID: string };
-    system?: string;
-    tools?: Record<string, boolean>;
-  };
-  firstMessage: string;
-}
-
-export interface HarnessCreateSessionResult {
-  harnessSessionId: Id<'chatroom_harnessSessions'>;
-}
+// All types imported from @workspace/backend.
+// Narrow Id types for this specific context.
+export type { HarnessCreateInput, HarnessCreateResult };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useCreateSession(): {
-  create: (input: HarnessCreateSessionInput) => Promise<HarnessCreateSessionResult>;
+  create: (input: HarnessCreateInput) => Promise<HarnessCreateResult>;
   isCreating: boolean;
 } {
   const [isCreating, setIsCreating] = useState(false);
   const createMutation = useSessionMutation(api.web.directHarness.sessions.create);
 
-  const create = async (input: HarnessCreateSessionInput): Promise<HarnessCreateSessionResult> => {
+  const create = async (input: HarnessCreateInput): Promise<HarnessCreateResult> => {
     setIsCreating(true);
     try {
       const result = await createMutation({

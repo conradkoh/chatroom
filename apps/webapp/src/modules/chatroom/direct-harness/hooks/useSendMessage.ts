@@ -1,20 +1,16 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type {
+  HarnessSendMessageInput,
+  HarnessSendMessageResult,
+} from '@workspace/backend/src/domain/direct-harness/types';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface HarnessSendMessageInput {
-  harnessSessionId: Id<'chatroom_harnessSessions'>;
-  text: string;
-}
-
-export interface HarnessSendMessageResult {
-  seq: number;
-}
+export type { HarnessSendMessageInput, HarnessSendMessageResult };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
