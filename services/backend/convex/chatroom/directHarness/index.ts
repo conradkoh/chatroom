@@ -7,7 +7,7 @@
 
 export {
   create,
-  getSession,
+  listSessions,
   associateHarnessSessionId,
   closeSession,
   updateCursor,

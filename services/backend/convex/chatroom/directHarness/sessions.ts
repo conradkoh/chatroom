@@ -174,6 +174,39 @@ export const updateCursor = mutation({
   },
 });
 
+// ─── listSessions (frontend) ─────────────────────────────────────────────────
+
+/**
+ * List all sessions for a workspace.
+ * Returns only the fields the frontend needs for the session list and detail view.
+ */
+export const listSessions = query({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const sessions = await ctx.db
+      .query('chatroom_harnessSessions')
+      .withIndex('by_workspace', (q) => q.eq('workspaceId', args.workspaceId))
+      .order('desc')
+      .collect();
+
+    return sessions.map((s) => ({
+      _id: s._id,
+      status: s.status,
+      harnessName: s.harnessName,
+      sessionTitle: s.sessionTitle,
+      lastUsedConfig: s.lastUsedConfig,
+      workspaceId: s.workspaceId,
+      createdAt: s.createdAt,
+      lastActiveAt: s.lastActiveAt,
+    }));
+  },
+});
+
 // ─── getSession (daemon) ────────────────────────────────────────────────────
 
 /**
