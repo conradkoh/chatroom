@@ -17,6 +17,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import type { OpencodeClient } from '@opencode-ai/sdk';
 
 import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
+import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { HarnessSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 import { OpencodeSdkSession } from './opencode-session.js';
@@ -42,10 +43,11 @@ export interface OpencodeSdkHarnessOptions {
 
 export class OpencodeSdkHarness implements BoundHarness {
   readonly type = 'opencode-sdk' as const;
+  readonly displayName = 'Opencode';
 
   private readonly client: OpencodeClient;
   private readonly childProcess: ChildProcess;
-  private readonly cwd: string;
+  readonly cwd: string;
   private closed = false;
 
   constructor(options: OpencodeSdkHarnessOptions) {
@@ -70,6 +72,38 @@ export class OpencodeSdkHarness implements BoundHarness {
       }
     }
     return models;
+  }
+
+  /** List agents configured in this opencode workspace. */
+  async listAgents(): Promise<readonly PublishedAgent[]> {
+    const result = await this.client.config.get();
+    const agentMap = result.data?.agent ?? {};
+
+    return Object.entries(agentMap)
+      .filter(([, cfg]) => cfg !== undefined && cfg.disable !== true)
+      .map(([name, cfg]) => ({
+        name,
+        mode: (cfg?.mode as PublishedAgent['mode']) ?? 'all',
+        ...(cfg?.description ? { description: cfg.description } : {}),
+      }));
+  }
+
+  /** List connected providers and their models. */
+  async listProviders(): Promise<readonly PublishedProvider[]> {
+    const result = await this.client.provider.list();
+    const all = result.data?.all ?? [];
+    const connected = new Set(result.data?.connected ?? []);
+
+    return all
+      .filter((p) => connected.has(p.id))
+      .map((p) => ({
+        providerID: p.id,
+        name: p.name,
+        models: Object.entries(p.models ?? {}).map(([modelID, m]) => ({
+          modelID,
+          name: m.name,
+        })),
+      }));
   }
 
   /** Create a new SDK session. */

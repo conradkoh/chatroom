@@ -13,6 +13,9 @@
 
 import type { ConvexClient } from 'convex/browser';
 
+import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
+import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
 
@@ -42,11 +45,21 @@ interface RefreshCapabilitiesPayload {
   initiatedBy: string;
 }
 
+// ─── Deps ────────────────────────────────────────────────────────────────────
+
+export interface CommandSubscriberDeps {
+  /** Running BoundHarness instances keyed by workspaceId. */
+  readonly harnesses: Map<string, BoundHarness>;
+  /** Publishes capability snapshots to the machine registry. */
+  readonly publisher: CapabilitiesPublisher;
+}
+
 // ─── Subscriber ──────────────────────────────────────────────────────────────
 
 export function startCommandSubscriber(
   ctx: DaemonContext,
-  wsClient: ConvexClient
+  wsClient: ConvexClient,
+  deps: CommandSubscriberDeps
 ): { stop: () => void } {
   /** Dedup set of command _id values already processed or in-flight. */
   const processed = new Set<string>();
@@ -55,15 +68,13 @@ export function startCommandSubscriber(
 
   const runDrain = () => {
     if (processing) {
-      // A drain is already running; schedule another pass when it finishes
       pendingDrain = true;
       return;
     }
     processing = true;
     pendingDrain = false;
-    void drain(ctx, processed).finally(() => {
+    void drain(ctx, deps, processed).finally(() => {
       processing = false;
-      // If a notification arrived while we were draining, run again immediately
       if (pendingDrain) runDrain();
     });
   };
@@ -92,6 +103,7 @@ export function startCommandSubscriber(
  */
 async function drain(
   ctx: DaemonContext,
+  deps: CommandSubscriberDeps,
   processed: Set<string>
 ): Promise<void> {
   const pending = (await ctx.deps.backend.query(
@@ -121,7 +133,7 @@ async function drain(
       // Process based on type
       switch (cmd.type) {
         case 'refreshCapabilities':
-          await handleRefreshCapabilities(ctx, cmd);
+          await handleRefreshCapabilities(ctx, deps, cmd);
           break;
         default:
           await markFailed(ctx, cmd._id, `Unknown command type: ${cmd.type}`);
@@ -136,14 +148,9 @@ async function drain(
 
 // ─── Command handlers ─────────────────────────────────────────────────────────
 
-/**
- * Handle a refreshCapabilities command.
- *
- * TODO: wire into the real capabilities publish flow once implemented.
- * Currently just marks the command as done.
- */
 async function handleRefreshCapabilities(
   ctx: DaemonContext,
+  deps: CommandSubscriberDeps,
   cmd: PendingCommand
 ): Promise<void> {
   const payload = cmd.refreshCapabilities as RefreshCapabilitiesPayload | undefined;
@@ -152,16 +159,33 @@ async function handleRefreshCapabilities(
       (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
   );
 
-  // TODO: collect and publish capabilities from running harnesses
-  // For now, just mark as done to acknowledge the command.
-  await ctx.deps.backend.mutation(
-    api.daemon.directHarness.commands.updateCommandStatus,
+  const harness = deps.harnesses.get(cmd.workspaceId);
+  if (!harness) {
+    console.warn(
+      `[direct-harness] No running harness for workspace=${cmd.workspaceId} — skipping capabilities publish`
+    );
+    await markFailed(ctx, cmd._id, 'No running harness for workspace');
+    return;
+  }
+
+  await updateCapabilities(
+    { publisher: deps.publisher, machineId: ctx.machineId },
     {
-      sessionId: ctx.sessionId,
-      commandId: cmd._id,
-      status: 'done',
+      harness,
+      workspace: {
+        workspaceId: cmd.workspaceId,
+        cwd: harness.cwd,
+        name: harness.cwd,
+      },
     }
   );
+
+  await ctx.deps.backend.mutation(
+    api.daemon.directHarness.commands.updateCommandStatus,
+    { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
+  );
+
+  console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

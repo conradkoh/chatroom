@@ -34,7 +34,11 @@ function mockJournal(): SessionJournal {
 function mockBoundHarness(): BoundHarness {
   return {
     type: 'opencode-sdk',
+    displayName: 'Opencode',
+    cwd: '/test/workspace',
     models: vi.fn(),
+    listAgents: vi.fn().mockResolvedValue([]),
+    listProviders: vi.fn().mockResolvedValue([]),
     newSession: vi.fn(),
     resumeSession: vi.fn(),
     isAlive: vi.fn().mockReturnValue(true),

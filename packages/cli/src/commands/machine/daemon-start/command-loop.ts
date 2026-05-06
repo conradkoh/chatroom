@@ -16,6 +16,7 @@ import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startSessionSubscriber } from './v2/session-subscriber.js';
 import { startMessageSubscriber } from './v2/prompt-subscriber.js';
 import { startCommandSubscriber } from './v2/command-subscriber.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import { api } from '../../../api.js';
@@ -536,7 +537,13 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       journalFactory,
     });
 
-    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient);
+    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
+      harnesses,
+      publisher: new ConvexCapabilitiesPublisher({
+        backend: ctx.deps.backend,
+        sessionId: ctx.sessionId,
+      }),
+    });
   }
 
   console.log(`\nListening for commands...`);

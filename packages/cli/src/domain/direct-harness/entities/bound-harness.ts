@@ -18,6 +18,7 @@
 
 import type { HarnessSessionId, HarnessSessionRowId } from './harness-session.js';
 import type { DirectHarnessSession, PromptInput } from './direct-harness-session.js';
+import type { PublishedAgent, PublishedProvider } from './machine-capabilities.js';
 
 // ─── BoundHarness ─────────────────────────────────────────────────────────────
 
@@ -31,8 +32,20 @@ export interface BoundHarness {
   /** Harness implementation identifier, e.g. 'opencode-sdk'. */
   readonly type: string;
 
+  /** Human-readable display name, e.g. 'Opencode'. */
+  readonly displayName: string;
+
+  /** Working directory this harness is bound to. */
+  readonly cwd: string;
+
   /** List available models for this workspace. */
   models(): Promise<readonly ModelInfo[]>;
+
+  /** List agents available on this harness. */
+  listAgents(): Promise<readonly PublishedAgent[]>;
+
+  /** List providers (and their models) available on this harness. */
+  listProviders(): Promise<readonly PublishedProvider[]>;
 
   /** Create a new session with the given configuration. */
   newSession(config: NewSessionConfig): Promise<DirectHarnessSession>;

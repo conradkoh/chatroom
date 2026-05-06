@@ -5,7 +5,12 @@
  * without depending on concrete infrastructure.
  */
 
-export { openSession } from './open-session.js';
+export { updateCapabilities } from './update-capabilities.js';
+export type {
+  UpdateCapabilitiesDeps,
+  UpdateCapabilitiesInput,
+} from './update-capabilities.js';
+
 export type {
   OpenSessionDeps,
   OpenSessionInput,
