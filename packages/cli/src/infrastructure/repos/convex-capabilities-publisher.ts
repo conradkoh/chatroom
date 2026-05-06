@@ -37,7 +37,7 @@ export class ConvexCapabilitiesPublisher implements CapabilitiesPublisher {
   async publish(caps: MachineCapabilities): Promise<void> {
     const { backend, sessionId } = this.options;
 
-    await backend.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+    await backend.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId: caps.machineId,
       workspaces: caps.workspaces.map((ws) => ({
