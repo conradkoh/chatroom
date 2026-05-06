@@ -61,7 +61,7 @@ export function startMessageSubscriber(
   let processing = false;
 
   const unsub = wsClient.onUpdate(
-    api.chatroom.directHarness.messages.pendingForMachine,
+    api.daemon.directHarness.messages.pendingForMachine,
     { sessionId: ctx.sessionId, machineId: ctx.machineId },
     () => {
       if (processing) return;
@@ -86,7 +86,7 @@ export function startMessageSubscriber(
 async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<void> {
   // Fetch all pending user messages grouped by session
   const pending = (await ctx.deps.backend.query(
-    api.chatroom.directHarness.messages.pendingForMachine,
+    api.daemon.directHarness.messages.pendingForMachine,
     { sessionId: ctx.sessionId, machineId: ctx.machineId }
   )) as {
     sessions: PendingSessionInfo[];

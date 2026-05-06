@@ -27,7 +27,7 @@ export class ConvexOutputRepository implements OutputRepository {
 
     if (chunks.length === 0) return;
 
-    await backend.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    await backend.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId,
       chunks: chunks.map((c) => ({
