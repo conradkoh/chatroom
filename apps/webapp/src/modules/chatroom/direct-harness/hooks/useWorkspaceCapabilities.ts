@@ -29,7 +29,7 @@ export interface HarnessWorkspaceCapabilities {
 
 export function useWorkspaceCapabilities(
   workspaceId: Id<'chatroom_workspaces'> | null
-): WorkspaceCapabilities | undefined {
+): HarnessWorkspaceCapabilities | undefined {
   // TODO: implement
   throw new Error('Not implemented');
 }

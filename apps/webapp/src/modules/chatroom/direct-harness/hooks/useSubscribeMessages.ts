@@ -23,8 +23,8 @@ export interface HarnessSubscribeInput {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSubscribeMessages(
-  input: UseSubscribeMessagesInput
-): Message[] | undefined {
+  input: HarnessSubscribeInput
+): HarnessMessage[] | undefined {
   // TODO: implement
   throw new Error('Not implemented');
 }

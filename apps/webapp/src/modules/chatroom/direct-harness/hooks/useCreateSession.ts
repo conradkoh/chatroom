@@ -25,7 +25,7 @@ export interface HarnessCreateSessionResult {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useCreateSession(): {
-  create: (input: CreateSessionInput) => Promise<CreateSessionResult>;
+  create: (input: HarnessCreateSessionInput) => Promise<HarnessCreateSessionResult>;
   isCreating: boolean;
 } {
   // TODO: implement

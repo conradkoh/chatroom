@@ -17,7 +17,7 @@ export interface HarnessSendMessageResult {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSendMessage(): {
-  send: (input: SendMessageInput) => Promise<SendMessageResult>;
+  send: (input: HarnessSendMessageInput) => Promise<HarnessSendMessageResult>;
   isSending: boolean;
 } {
   // TODO: implement

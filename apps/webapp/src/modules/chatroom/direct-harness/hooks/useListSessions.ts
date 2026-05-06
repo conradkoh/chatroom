@@ -21,7 +21,7 @@ export interface HarnessSessionSummary {
 
 export function useListSessions(
   workspaceId: Id<'chatroom_workspaces'> | null
-): SessionSummary[] | undefined {
+): HarnessSessionSummary[] | undefined {
   // TODO: implement
   throw new Error('Not implemented');
 }
