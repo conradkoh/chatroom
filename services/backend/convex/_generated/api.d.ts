@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
@@ -18,8 +19,6 @@ import type * as auth_cliSessionAuth from "../auth/cliSessionAuth.js";
 import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
-import type * as chatroom_directHarness_helpers from "../chatroom/directHarness/helpers.js";
-import type * as chatroom_directHarness_index from "../chatroom/directHarness/index.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
 import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
 import type * as chatrooms from "../chatrooms.js";
@@ -31,6 +30,7 @@ import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as daemon_directHarness_capabilities from "../daemon/directHarness/capabilities.js";
+import type * as daemon_directHarness_commands from "../daemon/directHarness/commands.js";
 import type * as daemon_directHarness_messages from "../daemon/directHarness/messages.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
 import type * as dev from "../dev.js";
@@ -71,6 +71,7 @@ import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as utils_types from "../utils/types.js";
 import type * as web_directHarness_capabilities from "../web/directHarness/capabilities.js";
+import type * as web_directHarness_commands from "../web/directHarness/commands.js";
 import type * as web_directHarness_messages from "../web/directHarness/messages.js";
 import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
 import type * as workflows from "../workflows.js";
@@ -84,6 +85,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;
   attendance: typeof attendance;
@@ -94,8 +96,6 @@ declare const fullApi: ApiFromModules<{
   "auth/google": typeof auth_google;
   backlog: typeof backlog;
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
-  "chatroom/directHarness/helpers": typeof chatroom_directHarness_helpers;
-  "chatroom/directHarness/index": typeof chatroom_directHarness_index;
   chatroomCleanup: typeof chatroomCleanup;
   chatroomSkillCustomizations: typeof chatroomSkillCustomizations;
   chatrooms: typeof chatrooms;
@@ -107,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   crypto: typeof crypto;
   "daemon/directHarness/capabilities": typeof daemon_directHarness_capabilities;
+  "daemon/directHarness/commands": typeof daemon_directHarness_commands;
   "daemon/directHarness/messages": typeof daemon_directHarness_messages;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
   dev: typeof dev;
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   "utils/types": typeof utils_types;
   "web/directHarness/capabilities": typeof web_directHarness_capabilities;
+  "web/directHarness/commands": typeof web_directHarness_commands;
   "web/directHarness/messages": typeof web_directHarness_messages;
   "web/directHarness/sessions": typeof web_directHarness_sessions;
   workflows: typeof workflows;

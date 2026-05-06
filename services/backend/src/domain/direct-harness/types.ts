@@ -111,3 +111,34 @@ export interface HarnessSendMessageInput {
 export interface HarnessSendMessageResult {
   seq: number;
 }
+
+// ─── Direct-Harness Commands ────────────────────────────────────────────────
+
+/** Discriminated union of all direct-harness command types. */
+export type DirectHarnessCommandType = 'refreshCapabilities';
+
+/** Payload for a refreshCapabilities command. */
+export interface DirectHarnessRefreshCapabilitiesPayload {
+  initiatedBy: string;
+}
+
+/**
+ * A command issued by the web UI for the daemon to execute.
+ *
+ * Uses a tagged-union pattern: `type` discriminates the command kind, and
+ * a field matching the type name holds the type-specific payload (e.g.
+ * when type is 'refreshCapabilities', `refreshCapabilities` is the payload).
+ * This keeps the schema extensible — new types add a new optional field.
+ */
+export interface DirectHarnessCommand {
+  _id: Id<'chatroom_directHarnessCommands'>;
+  _creationTime: number;
+  machineId: string;
+  workspaceId: Id<'chatroom_workspaces'>;
+  type: DirectHarnessCommandType;
+  refreshCapabilities?: DirectHarnessRefreshCapabilitiesPayload;
+  status: 'pending' | 'inProgress' | 'done' | 'failed';
+  createdAt: number;
+  completedAt?: number;
+  errorMessage?: string;
+}

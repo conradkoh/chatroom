@@ -8,7 +8,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
-import { getNextMessageSeq, requireDirectHarnessWorkers } from '../../chatroom/directHarness/helpers.js';
+import { getNextMessageSeq, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── create ───────────────────────────────────────────────────────────────────

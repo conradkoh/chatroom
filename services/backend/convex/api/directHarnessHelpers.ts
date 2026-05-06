@@ -8,11 +8,11 @@
 
 import { ConvexError } from 'convex/values';
 
-import { featureFlags } from '../../../config/featureFlags.js';
-import type { Doc, Id } from '../../_generated/dataModel.js';
-import type { MutationCtx, QueryCtx } from '../../_generated/server.js';
-import type { AuthenticatedChatroomAccess } from '../../auth/cliSessionAuth.js';
-import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
+import { featureFlags } from '../../config/featureFlags.js';
+import type { Doc, Id } from '../_generated/dataModel.js';
+import type { MutationCtx, QueryCtx } from '../_generated/server.js';
+import type { AuthenticatedChatroomAccess } from '../auth/cliSessionAuth.js';
+import { requireChatroomAccess } from '../auth/cliSessionAuth.js';
 
 // ─── Feature flag guard ──────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getNextMessageSeq, getSessionWithAccess, requireDirectHarnessWorkers } from '../../chatroom/directHarness/helpers.js';
+import { getNextMessageSeq, getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── send ─────────────────────────────────────────────────────────────────────

@@ -2241,4 +2241,38 @@ export default defineSchema({
     ),
   }).index('by_machineId', ['machineId']),
 
+  /**
+   * Commands issued by the web UI for the daemon to execute.
+   *
+   * Uses a tagged-union pattern: `type` discriminates the command kind, and
+   * a field matching the type name holds the type-specific payload (e.g.
+   * when type is 'refreshCapabilities', `refreshCapabilities` holds the
+   * payload). This keeps the schema extensible — new types add a new optional
+   * field without changing the existing structure.
+   *
+   * Indexed by (machineId, status) for daemon polling.
+   */
+  chatroom_directHarnessCommands: defineTable({
+    /** The machine (daemon) that should execute this command. */
+    machineId: v.string(),
+    /** Workspace context the command applies to. */
+    workspaceId: v.id('chatroom_workspaces'),
+    /** Discriminated union: selects the command kind. */
+    type: v.union(v.literal('refreshCapabilities')),
+    /** Payload for refreshCapabilities commands. */
+    refreshCapabilities: v.optional(
+      v.object({ initiatedBy: v.string() })
+    ),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('inProgress'),
+      v.literal('done'),
+      v.literal('failed')
+    ),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_machineId_status', ['machineId', 'status']),
+
 });

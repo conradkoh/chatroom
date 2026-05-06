@@ -9,7 +9,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
-import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../chatroom/directHarness/helpers.js';
+import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
