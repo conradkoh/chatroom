@@ -1,47 +1,33 @@
 /**
- * Trimmed representation of an opencode agent for publishing to the backend.
+ * Capabilities published by a daemon machine.
  *
- * Only identity fields are published — no permission maps, tool configs,
- * or prompts. The UI needs just enough to render an agent picker.
+ * Uses shared types from @workspace/backend for agent, provider, and harness
+ * shapes. The MachineCapabilities wrapper is CLI-specific.
  */
-export interface PublishedAgent {
-  /** The agent's unique name within the opencode server (e.g. 'build'). */
-  readonly name: string;
-  /** The agent's interaction mode. */
-  readonly mode: 'subagent' | 'primary' | 'all';
-  /** The model this agent uses, if explicitly configured. */
-  readonly model?: {
-    readonly providerID: string;
-    readonly modelID: string;
-  };
-  /** Optional human-readable description from the agent config. */
-  readonly description?: string;
-}
+
+import type {
+  HarnessAgent,
+  HarnessCapability,
+  HarnessProvider,
+} from '@workspace/backend/src/domain/direct-harness/types';
 
 /**
  * A published provider and its available models.
+ * Alias for shared HarnessAgent to maintain CLI naming convention.
  */
-export interface PublishedProvider {
-  readonly providerID: string;
-  readonly name: string;
-  readonly models: readonly { readonly modelID: string; readonly name: string }[];
-}
+export type PublishedAgent = HarnessAgent;
+
+/**
+ * A published provider and its available models.
+ * Alias for shared HarnessProvider.
+ */
+export type PublishedProvider = HarnessProvider;
 
 /**
  * A snapshot of one harness type's capabilities.
+ * Alias for shared HarnessCapability.
  */
-export interface HarnessCapabilities {
-  /** Harness identifier (e.g. 'opencode-sdk'). */
-  readonly name: string;
-  /** Human-readable display name (e.g. 'Opencode'). */
-  readonly displayName: string;
-  /** Agents available in this harness. */
-  readonly agents: readonly PublishedAgent[];
-  /** Providers and their models. */
-  readonly providers: readonly PublishedProvider[];
-  /** Optional JSON schema for harness-specific config. */
-  readonly configSchema?: unknown;
-}
+export type HarnessCapabilities = HarnessCapability;
 
 /**
  * A snapshot of one workspace's entry in the machine registry.

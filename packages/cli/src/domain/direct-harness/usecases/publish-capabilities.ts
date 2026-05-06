@@ -78,8 +78,8 @@ export async function publishCapabilities(
     const harness: HarnessCapabilities = {
       name: collector.name,
       displayName: collector.displayName,
-      agents,
-      providers,
+      agents: [...agents],
+      providers: [...providers],
       ...(collector.configSchema !== undefined ? { configSchema: collector.configSchema } : {}),
     };
 

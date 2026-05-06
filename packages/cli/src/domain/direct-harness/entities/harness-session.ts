@@ -4,6 +4,7 @@
  * resumable across daemon restarts.
  */
 
+import type { HarnessSessionStatus } from '@workspace/backend/src/domain/direct-harness/types';
 import type { WorkspaceId } from './workspace.js';
 
 /**
@@ -17,15 +18,6 @@ export type HarnessSessionRowId = string & { readonly __brand: 'HarnessSessionRo
  * External and real — must be preserved across daemon restarts for resume().
  */
 export type HarnessSessionId = string & { readonly __brand: 'HarnessSessionId' };
-
-/** Lifecycle state of a harness session. */
-export type HarnessSessionStatus =
-  | 'pending'
-  | 'spawning'
-  | 'active'
-  | 'idle'
-  | 'closed'
-  | 'failed';
 
 /**
  * Represents a single harness session and its current state.
