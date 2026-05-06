@@ -30,7 +30,7 @@ export class ConvexSessionRepository implements SessionRepository {
   ): Promise<void> {
     const { backend, sessionId } = this.options;
 
-    await backend.mutation(api.chatroom.directHarness.sessions.associateHarnessSessionId, {
+    await backend.mutation(api.daemon.directHarness.sessions.associateHarnessSessionId, {
       sessionId,
       harnessSessionRowId,
       harnessSessionId,
@@ -41,7 +41,7 @@ export class ConvexSessionRepository implements SessionRepository {
   async getHarnessSessionId(harnessSessionRowId: string): Promise<HarnessSessionId | undefined> {
     const { backend } = this.options;
 
-    const result = await backend.query(api.chatroom.directHarness.sessions.getSession, {
+    const result = await backend.query(api.daemon.directHarness.sessions.getSession, {
       harnessSessionRowId,
     }) as { harnessSessionId?: string } | null;
 
@@ -51,7 +51,7 @@ export class ConvexSessionRepository implements SessionRepository {
   async markClosed(harnessSessionRowId: string): Promise<void> {
     const { backend, sessionId } = this.options;
 
-    await backend.mutation(api.chatroom.directHarness.sessions.closeSession, {
+    await backend.mutation(api.daemon.directHarness.sessions.closeSession, {
       sessionId,
       harnessSessionRowId,
     });
@@ -63,7 +63,7 @@ export class ConvexSessionRepository implements SessionRepository {
   ): Promise<void> {
     const { backend, sessionId } = this.options;
 
-    await backend.mutation(api.chatroom.directHarness.sessions.updateCursor, {
+    await backend.mutation(api.daemon.directHarness.sessions.updateCursor, {
       sessionId,
       harnessSessionRowId,
       seq,

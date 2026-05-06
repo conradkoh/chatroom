@@ -61,7 +61,7 @@ export function startSessionSubscriber(
   const inFlight = new Set<string>();
 
   const unsub = wsClient.onUpdate(
-    api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+    api.daemon.directHarness.sessions.listPendingSessionsForMachine,
     {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
