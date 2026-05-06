@@ -18,15 +18,10 @@ import { internalMutation } from './_generated/server.js';
 // ─── cleanup ──────────────────────────────────────────────────────────────────
 
 /**
- * Clean up internal state that may have been left behind by in-flight
- * development or old implementations.
+ * Clean up internal state from deprecated implementations.
  *
- * Currently a no-op. Add cleanup logic here as needed during development.
- *
- * Example cleanup tasks:
- *   - Delete orphaned machine registry entries
- *   - Reset session states that are stuck
- *   - Remove deprecated table rows after schema migrations
+ * Run this after schema migrations or when old data needs purging:
+ *   cd services/backend && npx convex run dev:cleanup
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
