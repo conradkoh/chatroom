@@ -33,6 +33,7 @@ import type * as crypto from "../crypto.js";
 import type * as daemon_directHarness_capabilities from "../daemon/directHarness/capabilities.js";
 import type * as daemon_directHarness_messages from "../daemon/directHarness/messages.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
+import type * as dev from "../dev.js";
 import type * as discussions from "../discussions.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
@@ -108,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/directHarness/capabilities": typeof daemon_directHarness_capabilities;
   "daemon/directHarness/messages": typeof daemon_directHarness_messages;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
+  dev: typeof dev;
   discussions: typeof discussions;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
