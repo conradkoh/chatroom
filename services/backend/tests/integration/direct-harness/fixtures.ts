@@ -71,7 +71,7 @@ export async function createSession(
   workspaceId: Id<'chatroom_workspaces'>,
   agent = 'builder'
 ) {
-  return t.mutation(api.chatroom.directHarness.sessions.create, {
+  return t.mutation(api.web.directHarness.sessions.create, {
     sessionId,
     workspaceId,
     harnessName: TEST_HARNESS_NAME,

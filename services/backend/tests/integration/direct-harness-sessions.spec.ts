@@ -38,7 +38,7 @@ describe('sessions.create', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     const pending = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
     expect(pending.some((s) => s._id === rowId)).toBe(true);
@@ -48,7 +48,7 @@ describe('sessions.create', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('create-msg');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const messages = await t.query(api.chatroom.directHarness.messages.subscribe, {
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionRowId: rowId,
     });
@@ -75,20 +75,20 @@ describe('associateHarnessSessionId', () => {
 
     // Confirm pending
     const pendingBefore = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
     expect(pendingBefore.some((s) => s._id === rowId)).toBe(true);
 
     // Associate
     await t.mutation(
-      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      api.daemon.directHarness.sessions.associateHarnessSessionId,
       { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
     );
 
     // No longer pending
     const pendingAfter = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
     expect(pendingAfter.some((s) => s._id === rowId)).toBe(false);
@@ -99,13 +99,13 @@ describe('associateHarnessSessionId', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await t.mutation(
-      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      api.daemon.directHarness.sessions.associateHarnessSessionId,
       { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
     );
 
     await expect(
       t.mutation(
-        api.chatroom.directHarness.sessions.associateHarnessSessionId,
+        api.daemon.directHarness.sessions.associateHarnessSessionId,
         { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
       )
     ).resolves.not.toThrow();
@@ -116,13 +116,13 @@ describe('associateHarnessSessionId', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await t.mutation(
-      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      api.daemon.directHarness.sessions.associateHarnessSessionId,
       { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-first' }
     );
 
     await expect(
       t.mutation(
-        api.chatroom.directHarness.sessions.associateHarnessSessionId,
+        api.daemon.directHarness.sessions.associateHarnessSessionId,
         { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-different' }
       )
     ).rejects.toThrow();
@@ -137,7 +137,7 @@ describe('closeSession', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await t.mutation(
-      api.chatroom.directHarness.sessions.closeSession,
+      api.daemon.directHarness.sessions.closeSession,
       { sessionId, harnessSessionRowId: rowId }
     );
   });
@@ -152,23 +152,23 @@ describe('updateCursor', () => {
 
     // Send two user messages
     const { seq: seq1 } = await t.mutation(
-      api.chatroom.directHarness.messages.send,
+      api.web.directHarness.messages.send,
       { sessionId, harnessSessionRowId: rowId, text: 'first' }
     );
     const { seq: seq2 } = await t.mutation(
-      api.chatroom.directHarness.messages.send,
+      api.web.directHarness.messages.send,
       { sessionId, harnessSessionRowId: rowId, text: 'second' }
     );
 
     // Update cursor past first message
     await t.mutation(
-      api.chatroom.directHarness.sessions.updateCursor,
+      api.daemon.directHarness.sessions.updateCursor,
       { sessionId, harnessSessionRowId: rowId, seq: seq1 }
     );
 
     // pendingForMachine should only return messages after seq1
     const result = await t.query(
-      api.chatroom.directHarness.messages.pendingForMachine,
+      api.daemon.directHarness.messages.pendingForMachine,
       { sessionId, machineId }
     );
 
@@ -185,7 +185,7 @@ describe('listPendingSessionsForMachine', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     const pending = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
     expect(pending.some((s) => s._id === rowId)).toBe(true);
@@ -196,12 +196,12 @@ describe('listPendingSessionsForMachine', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await t.mutation(
-      api.chatroom.directHarness.sessions.associateHarnessSessionId,
+      api.daemon.directHarness.sessions.associateHarnessSessionId,
       { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
     );
 
     const pending = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId }
     );
     expect(pending.some((s) => s._id === rowId)).toBe(false);
@@ -212,7 +212,7 @@ describe('listPendingSessionsForMachine', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     const pending = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId, machineId: 'other-machine' }
     );
     expect(pending.length).toBe(0);
@@ -222,7 +222,7 @@ describe('listPendingSessionsForMachine', () => {
     const { machineId } = await setupWorkspaceForSession('lpsfm-auth');
 
     const pending = await t.query(
-      api.chatroom.directHarness.sessions.listPendingSessionsForMachine,
+      api.daemon.directHarness.sessions.listPendingSessionsForMachine,
       { sessionId: 'invalid-session' as SessionId, machineId }
     );
     expect(pending).toEqual([]);

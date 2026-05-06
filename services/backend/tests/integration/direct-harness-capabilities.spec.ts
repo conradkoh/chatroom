@@ -29,7 +29,7 @@ describe('publishMachineCapabilities', () => {
     const { sessionId, machineId, workspaceId } =
       await setupWorkspaceForSession('pub-success');
 
-    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+    await t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
       workspaces: [
@@ -54,7 +54,7 @@ describe('publishMachineCapabilities', () => {
     const { sessionId, machineId, workspaceId } =
       await setupWorkspaceForSession('pub-upsert');
 
-    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+    await t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
       workspaces: [
@@ -62,7 +62,7 @@ describe('publishMachineCapabilities', () => {
       ],
     });
 
-    await t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+    await t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
       machineId,
       workspaces: [
@@ -91,7 +91,7 @@ describe('publishMachineCapabilities', () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pub-flag-off');
 
     await expect(
-      t.mutation(api.chatroom.directHarness.capabilities.publishMachineCapabilities, {
+      t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
         sessionId,
         machineId,
         workspaces: [

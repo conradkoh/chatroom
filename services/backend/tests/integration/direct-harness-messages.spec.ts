@@ -29,7 +29,7 @@ describe('messages.send', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('send-success');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const result = await t.mutation(api.chatroom.directHarness.messages.send, {
+    const result = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'hello',
@@ -42,13 +42,13 @@ describe('messages.send', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('send-visible');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.messages.send, {
+    await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'hello',
     });
 
-    const messages = await t.query(api.chatroom.directHarness.messages.subscribe, {
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionRowId: rowId,
     });
@@ -62,13 +62,13 @@ describe('messages.send', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('send-closed');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.sessions.closeSession, {
+    await t.mutation(api.daemon.directHarness.sessions.closeSession, {
       sessionId,
       harnessSessionRowId: rowId,
     });
 
     await expect(
-      t.mutation(api.chatroom.directHarness.messages.send, {
+      t.mutation(api.web.directHarness.messages.send, {
         sessionId,
         harnessSessionRowId: rowId,
         text: 'too late',
@@ -81,7 +81,7 @@ describe('messages.send', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await expect(
-      t.mutation(api.chatroom.directHarness.messages.send, {
+      t.mutation(api.web.directHarness.messages.send, {
         sessionId,
         harnessSessionRowId: rowId,
         text: '',
@@ -97,18 +97,18 @@ describe('messages.subscribe', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('sub-all');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.messages.send, {
+    await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'msg1',
     });
-    await t.mutation(api.chatroom.directHarness.messages.send, {
+    await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'msg2',
     });
 
-    const messages = await t.query(api.chatroom.directHarness.messages.subscribe, {
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionRowId: rowId,
     });
@@ -120,19 +120,19 @@ describe('messages.subscribe', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('sub-delta');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const { seq } = await t.mutation(api.chatroom.directHarness.messages.send, {
+    const { seq } = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'before',
     });
 
-    const after = await t.mutation(api.chatroom.directHarness.messages.send, {
+    const after = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'after',
     });
 
-    const deltas = await t.query(api.chatroom.directHarness.messages.subscribe, {
+    const deltas = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionRowId: rowId,
       afterSeq: seq,
@@ -150,7 +150,7 @@ describe('messages.appendMessages', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('append-success');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const result = await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    const result = await t.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId: rowId,
       chunks: [
@@ -167,13 +167,13 @@ describe('messages.appendMessages', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('append-role');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId: rowId,
       chunks: [{ seq: 10, content: 'response', timestamp: 1000 }],
     });
 
-    const messages = await t.query(api.chatroom.directHarness.messages.subscribe, {
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionRowId: rowId,
     });
@@ -187,13 +187,13 @@ describe('messages.appendMessages', () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('append-idem');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId: rowId,
       chunks: [{ seq: 1, content: 'first', timestamp: 1000 }],
     });
 
-    const result = await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    const result = await t.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId: rowId,
       chunks: [
@@ -214,13 +214,13 @@ describe('messages.pendingForMachine', () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pfm-basic');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    await t.mutation(api.chatroom.directHarness.messages.send, {
+    await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'hello',
     });
 
-    const result = await t.query(api.chatroom.directHarness.messages.pendingForMachine, {
+    const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
       sessionId,
       machineId,
     });
@@ -233,25 +233,25 @@ describe('messages.pendingForMachine', () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pfm-cursor');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    const { seq } = await t.mutation(api.chatroom.directHarness.messages.send, {
+    const { seq } = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'before',
     });
 
-    await t.mutation(api.chatroom.directHarness.sessions.updateCursor, {
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, {
       sessionId,
       harnessSessionRowId: rowId,
       seq,
     });
 
-    await t.mutation(api.chatroom.directHarness.messages.send, {
+    await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
       harnessSessionRowId: rowId,
       text: 'after',
     });
 
-    const result = await t.query(api.chatroom.directHarness.messages.pendingForMachine, {
+    const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
       sessionId,
       machineId,
     });
@@ -265,13 +265,13 @@ describe('messages.pendingForMachine', () => {
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     // Write an assistant response
-    await t.mutation(api.chatroom.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
       harnessSessionRowId: rowId,
       chunks: [{ seq: 10, content: 'assistant reply', timestamp: 1000 }],
     });
 
-    const result = await t.query(api.chatroom.directHarness.messages.pendingForMachine, {
+    const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
       sessionId,
       machineId,
     });
