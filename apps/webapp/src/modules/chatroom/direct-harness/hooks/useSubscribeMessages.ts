@@ -2,11 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface HarnessMessage {
-  _id: string;
+  _id: Id<'chatroom_harnessSessions'>;
   _creationTime: number;
   harnessSessionId: Id<'chatroom_harnessSessions'>;
   seq: number;
@@ -25,6 +26,8 @@ export interface HarnessSubscribeInput {
 export function useSubscribeMessages(
   input: HarnessSubscribeInput
 ): HarnessMessage[] | undefined {
-  // TODO: implement
-  throw new Error('Not implemented');
+  return useSessionQuery(api.web.directHarness.messages.subscribe, {
+    harnessSessionRowId: input.harnessSessionId,
+    afterSeq: input.afterSeq,
+  });
 }

@@ -22,6 +22,8 @@ export interface HarnessSessionSummary {
 export function useListSessions(
   workspaceId: Id<'chatroom_workspaces'> | null
 ): HarnessSessionSummary[] | undefined {
-  // TODO: implement
-  throw new Error('Not implemented');
+  return useSessionQuery(
+    api.web.directHarness.sessions.listSessions,
+    workspaceId ? { workspaceId } : 'skip'
+  );
 }

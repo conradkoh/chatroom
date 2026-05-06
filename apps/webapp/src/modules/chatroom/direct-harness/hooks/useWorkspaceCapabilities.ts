@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,8 @@ export interface HarnessWorkspaceCapabilities {
 export function useWorkspaceCapabilities(
   workspaceId: Id<'chatroom_workspaces'> | null
 ): HarnessWorkspaceCapabilities | undefined {
-  // TODO: implement
-  throw new Error('Not implemented');
+  return useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
 }
