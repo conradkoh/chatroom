@@ -18,7 +18,6 @@ import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entitie
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { HarnessSessionRowId } from '../entities/harness-session.js';
 import type { SessionRepository } from '../ports/session-repository.js';
-import { closeSession } from './close-session.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 

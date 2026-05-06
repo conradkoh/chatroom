@@ -432,9 +432,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Gated by directHarnessWorkers flag. Both return { stop: () => void }.
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
-  // ── Pending Refresh Task Subscription ────────────────────────────────
-  // Subscribes to pending capability refresh tasks for this machine's workspaces.
-  let pendingRefreshTaskSubscriptionHandle: { stop: () => void } | null = null;
+  // Shared state for v2 direct-harness subscribers.
   // Shared state for v2 direct-harness subscribers.
   // activeSessions: opened/resumed sessions shared by session-subscriber
   //   and prompt-subscriber so they reuse the same DirectHarnessSession.
@@ -467,7 +465,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
-    if (pendingRefreshTaskSubscriptionHandle) pendingRefreshTaskSubscriptionHandle.stop();
+    // Close all active direct-harness sessions
     // Close all active direct-harness sessions
     for (const handle of activeSessions.values()) {
       await handle.close().catch(() => {});
@@ -537,10 +535,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       journalFactory,
     });
   }
-
-  // ── Pending Refresh Task Subscription ────────────────────────────────
-  // TODO: re-enable when capabilities auto-publish is implemented
-  pendingRefreshTaskSubscriptionHandle = { stop: () => {} };
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
