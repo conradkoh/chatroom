@@ -6,9 +6,11 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type HarnessSessionStatus = 'pending' | 'spawning' | 'active' | 'idle' | 'closed' | 'failed';
+
 export interface HarnessSessionSummary {
   _id: Id<'chatroom_harnessSessions'>;
-  status: string;
+  status: HarnessSessionStatus;
   harnessName: string;
   sessionTitle?: string;
   lastUsedConfig: { agent: string };

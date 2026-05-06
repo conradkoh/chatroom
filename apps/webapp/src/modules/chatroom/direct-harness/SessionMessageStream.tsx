@@ -1,8 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSubscribeMessages } from './hooks/useSubscribeMessages';
 import { useEffect, useRef } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -14,9 +13,7 @@ interface SessionMessageStreamProps {
 // ─── SessionMessageStream ─────────────────────────────────────────────────────
 
 export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps) {
-  const messages = useSessionQuery(api.chatroom.directHarness.messages.streamSessionMessages, {
-    harnessSessionRowId: sessionRowId,
-  });
+  const messages = useSubscribeMessages({ harnessSessionId: sessionRowId });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledRef = useRef(false);

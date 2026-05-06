@@ -4,7 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Send } from 'lucide-react';
 import { useState } from 'react';
 
-import { useSubmitPrompt } from './hooks/useSubmitPrompt';
+import { useSendMessage } from './hooks/useSendMessage';
 import type { SessionStatus } from './StatusDot';
 
 import { Button } from '@/components/ui/button';
@@ -23,9 +23,7 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { submit, isSubmitting: isSending } = useSubmitPrompt({
-    harnessSessionRowId: sessionRowId,
-  });
+  const { send, isSending } = useSendMessage();
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isInputDisabled =
@@ -38,7 +36,7 @@ export function SessionComposer({ sessionRowId, status }: SessionComposerProps) 
     const toSend = trimmed;
     setError(null);
     try {
-      await submit({ parts: [{ type: 'text', text: toSend }] });
+      await send({ harnessSessionId: sessionRowId, text: toSend });
       setText('');
     } catch (err) {
       console.error('Failed to send prompt:', err);

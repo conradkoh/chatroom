@@ -1,11 +1,10 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { memo } from 'react';
 
 
+import { useListSessions } from './hooks/useListSessions';
 import { StatusDot } from './StatusDot';
 import { relativeTime } from './utils';
 
@@ -27,9 +26,7 @@ export const SessionList = memo(function SessionList({
   selectedSessionId,
   onSelect,
 }: SessionListProps) {
-  const sessions = useSessionQuery(api.chatroom.directHarness.sessions.listSessionsByWorkspace, {
-    workspaceId,
-  });
+  const sessions = useListSessions(workspaceId);
 
   if (sessions === undefined) {
     return (

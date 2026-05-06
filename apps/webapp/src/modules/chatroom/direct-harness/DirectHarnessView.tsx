@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { useListSessions } from './hooks/useListSessions';
 import { NewSessionForm } from './NewSessionForm';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
@@ -24,6 +25,36 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 interface DirectHarnessViewProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
+
+// ─── SelectedSessionDetail ───────────────────────────────────────────────────
+
+function SelectedSessionDetail({
+  selectedSessionId,
+  workspaceId,
+}: {
+  selectedSessionId: Id<'chatroom_harnessSessions'>;
+  workspaceId: Id<'chatroom_workspaces'> | null;
+}) {
+  const sessions = useListSessions(workspaceId);
+  const sessionSummary = sessions?.find((s) => s._id === selectedSessionId);
+
+  if (!sessionSummary) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+        Loading session…
+      </div>
+    );
+  }
+
+  return (
+    <SessionDetail
+      sessionRowId={selectedSessionId}
+      sessionSummary={sessionSummary}
+    />
+  );
+}
+
+// ─── DirectHarnessView ────────────────────────────────────────────────────────
 
 export const DirectHarnessView = memo(function DirectHarnessView({
   chatroomId,
@@ -169,7 +200,10 @@ export const DirectHarnessView = memo(function DirectHarnessView({
       {/* Right pane — session detail */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {selectedSessionId ? (
-          <SessionDetail sessionRowId={selectedSessionId} />
+          <SelectedSessionDetail
+            selectedSessionId={selectedSessionId}
+            workspaceId={selectedWorkspaceId}
+          />
         ) : (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
             {selectedWorkspaceId ? 'Select a session.' : 'No workspace selected.'}

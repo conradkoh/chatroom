@@ -1,8 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
+import type { HarnessSessionSummary } from './hooks/useListSessions';
 
 import { SessionComposer } from './SessionComposer';
 import { SessionMessageStream } from './SessionMessageStream';
@@ -14,30 +13,14 @@ import { relativeTime } from './utils';
 
 interface SessionDetailProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
+  sessionSummary: HarnessSessionSummary;
 }
 
 // ─── SessionDetail ────────────────────────────────────────────────────────────
 
-export function SessionDetail({ sessionRowId }: SessionDetailProps) {
-  const session = useSessionQuery(api.chatroom.directHarness.sessions.getSession, {
-    harnessSessionRowId: sessionRowId,
-  });
+export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailProps) {
+  const session = sessionSummary;
 
-  if (session === undefined) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        Loading session…
-      </div>
-    );
-  }
-
-  if (session === null) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        Session unavailable.
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">

@@ -1,10 +1,8 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Loader2, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,9 +22,9 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+import { useCreateSession } from './hooks/useCreateSession';
+import { useWorkspaceCapabilities } from './hooks/useWorkspaceCapabilities';
 import { useHarnessConfig, type HarnessOption } from './hooks/useHarnessConfig';
-import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
-import { CapabilitiesRefreshButton } from './components/CapabilitiesRefreshButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,16 +50,10 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
   const [error, setError] = useState<string | null>(null);
   const [showLoadingBanner, setShowLoadingBanner] = useState(false);
 
-  const harnesses = useSessionQuery(api.chatroom.directHarness.capabilities.listForWorkspace, {
-    workspaceId,
-  });
-  const openSession = useSessionMutation(api.chatroom.directHarness.sessions.openSession);
+  const capabilities = useWorkspaceCapabilities(open ? workspaceId : null);
+  const { create: createSession, isCreating } = useCreateSession();
 
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-
-  const { refresh } = useRefreshCapabilities({
-    onError: (err) => setRefreshError(err.message),
-  });
+  const harnesses = capabilities?.harnesses;
 
   // Show loading banner 500ms after open if harnesses still empty
   useEffect(() => {
@@ -96,31 +88,21 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
     modelOptions,
   } = useHarnessConfig({ harnesses: harnessOptions, harnessName: currentHarness?.name ?? '' });
 
-  const handleRefresh = useCallback(() => {
-    refresh(workspaceId);
-  }, [refresh, workspaceId]);
-
   const resetForm = () => {
     setSelectedHarness('');
     setSelectedAgent('');
     setSelectedModel('');
     setFirstMessage('');
     setError(null);
-    setRefreshError(null);
   };
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) {
-      // Auto-fire refresh on open
-      handleRefresh();
-    } else {
-      resetForm();
-    }
+    if (!next) resetForm();
   };
 
   const trimmedMessage = firstMessage.trim();
-  const canSubmit = !isSubmitting && !!resolvedAgent && !!trimmedMessage && !!currentHarness;
+  const canSubmit = !isSubmitting && !isCreating && !!resolvedAgent && !!trimmedMessage && !!currentHarness;
 
   const handleSubmit = async () => {
     if (!canSubmit || !currentHarness) return;
@@ -133,21 +115,21 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
         if (providerID && modelID) model = { providerID, modelID };
       }
 
-      const result = await openSession({
+      const result = await createSession({
         workspaceId,
         harnessName: currentHarness.name,
         config: {
           agent: resolvedAgent,
           ...(model ? { model } : {}),
         },
-        firstPrompt: { parts: [{ type: 'text', text: trimmedMessage }] },
+        firstMessage: trimmedMessage,
       });
 
-      onSessionCreated(result.harnessSessionRowId);
+      onSessionCreated(result.harnessSessionId);
       handleOpenChange(false);
     } catch (err) {
-      console.error('Failed to open harness session:', err);
-      setError(err instanceof Error ? err.message : 'Failed to open session.');
+      console.error('Failed to create harness session:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create session.');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,19 +151,12 @@ export function NewSessionForm({ workspaceId, onSessionCreated }: NewSessionForm
         <DialogHeader>
           <div className="flex items-center justify-between pr-8">
             <DialogTitle className="text-sm font-semibold">New session</DialogTitle>
-            <CapabilitiesRefreshButton workspaceId={workspaceId} />
           </div>
         </DialogHeader>
 
         {showLoadingBanner && (!harnesses || harnesses.length === 0) && (
           <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-            Capabilities still loading — defaults shown. Click Refresh to retry.
-          </div>
-        )}
-
-        {refreshError && (
-          <div className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 px-3 py-2 text-xs text-red-600 dark:text-red-400">
-            Refresh failed: {refreshError}
+            Capabilities still loading — defaults shown.
           </div>
         )}
 
