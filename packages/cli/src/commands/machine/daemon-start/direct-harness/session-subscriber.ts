@@ -131,18 +131,6 @@ async function processOne(
       harnessSessionId: rowId as unknown as HarnessSessionId,
     });
 
-    // 4. Associate the harness-issued session ID with the existing backend row.
-    try {
-      await deps.sessionRepository.associateOpenCodeSessionId(
-        rowId,
-        liveSession.opencodeSessionId as string,
-        liveSession.sessionTitle
-      );
-    } catch (err) {
-      await liveSession.close().catch(() => {});
-      throw err;
-    }
-
     // 5. Create journal + wire session events → journal
     const journal = deps.journalFactory.create(rowId);
     const unsubscribeEvents = liveSession.onEvent((event) => {
@@ -163,7 +151,9 @@ async function processOne(
       await deps.sessionRepository.markClosed(rowId);
     };
 
-    // 7. Store in shared registry so prompt-subscriber can find it
+    // 7. Store in shared registry BEFORE patching the DB so that
+    //    prompt-subscriber can never observe the opencodeSessionId without
+    //    also finding the handle (prevents a second competing connection).
     const handle: SessionHandle = {
       harnessSessionId: rowId,
       opencodeSessionId: liveSession.opencodeSessionId as string,
@@ -172,6 +162,22 @@ async function processOne(
       close,
     };
     deps.activeSessions.set(rowId, handle);
+
+    // 8. Associate the harness-issued session ID with the existing backend row.
+    //    This DB patch triggers pendingForMachine to re-fire — by this point
+    //    activeSessions already has the handle so prompt-subscriber finds it
+    //    directly without lazy-resuming.
+    try {
+      await deps.sessionRepository.associateOpenCodeSessionId(
+        rowId,
+        liveSession.opencodeSessionId as string,
+        liveSession.sessionTitle
+      );
+    } catch (err) {
+      deps.activeSessions.delete(rowId);
+      await liveSession.close().catch(() => {});
+      throw err;
+    }
 
     console.log(
       `[direct-harness] Session opened: rowId=${rowId} agent=${session.opencode?.lastUsedConfig.agent ?? 'build'} workspace=${session.workspaceId}`
