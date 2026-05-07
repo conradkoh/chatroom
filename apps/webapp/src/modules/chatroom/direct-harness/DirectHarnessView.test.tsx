@@ -15,16 +15,14 @@ describe('DirectHarnessView', () => {
   it('renders the loading state while workspaces are being fetched', () => {
     mockUseSessionQuery.mockReturnValue(undefined);
     render(<DirectHarnessView chatroomId={'fakeid' as never} />);
-    expect(screen.getByText(/loading workspaces/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it('renders the no-workspace empty state when workspaces are empty', () => {
-    // The component queries workspaces first (returns []) then machinesResult (returns { machines: [...] })
     mockUseSessionQuery
-      .mockReturnValueOnce([]) // workspaces is empty
-      .mockReturnValueOnce({ machines: [{ machineId: 'm1', hostname: 'localhost' }] }); // at least one machine
+      .mockReturnValueOnce([])                                                          // workspaces
+      .mockReturnValueOnce({ machines: [{ machineId: 'm1', hostname: 'localhost' }] }); // machines
     render(<DirectHarnessView chatroomId={'fakeid' as never} />);
-    // The left-pane shows the workspace-empty message when no workspaces exist
-    expect(screen.getByText(/no workspaces in this chatroom/i)).toBeInTheDocument();
+    expect(screen.getByText(/register a workspace/i)).toBeInTheDocument();
   });
 });

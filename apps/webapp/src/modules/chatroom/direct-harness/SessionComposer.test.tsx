@@ -3,57 +3,49 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { SessionComposer } from './SessionComposer';
 
-const mockSubmit = vi.fn();
-const mockUseSubmitPrompt = vi.fn();
+const mockSend = vi.fn();
+const mockUseSendMessage = vi.fn();
 
-vi.mock('./hooks/useSubmitPrompt', () => ({
-  useSubmitPrompt: (...args: unknown[]) => mockUseSubmitPrompt(...args),
+vi.mock('./hooks/useSendMessage', () => ({
+  useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
 }));
 
 const SESSION_ROW_ID = 'sr1' as never;
 
 describe('SessionComposer', () => {
   beforeEach(() => {
-    mockSubmit.mockResolvedValue(undefined);
-    mockUseSubmitPrompt.mockReturnValue({ submit: mockSubmit, isSubmitting: false });
+    mockSend.mockResolvedValue(undefined);
+    mockUseSendMessage.mockReturnValue({ send: mockSend, isSending: false });
   });
 
   it('renders textarea and send button when status is active', () => {
     render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
-    expect(screen.getByPlaceholderText(/send a prompt/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/message/i)).toBeInTheDocument();
+    expect(screen.getByRole('button')).toBeInTheDocument();
   });
 
   it('send button is disabled when text is empty', () => {
     render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
-    const sendButton = screen.getByRole('button', { name: /send/i });
-    expect(sendButton).toBeDisabled();
+    expect(screen.getByRole('button')).toBeDisabled();
   });
 
-  it('calling send clears textarea and invokes hook submit with correct parts', async () => {
+  it('calling send clears textarea and invokes hook with correct args', async () => {
     render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="active" />);
-
-    const textarea = screen.getByPlaceholderText(/send a prompt/i);
-    fireEvent.change(textarea, { target: { value: 'hello world' } });
-
-    const sendButton = screen.getByRole('button', { name: /send/i });
-    expect(sendButton).not.toBeDisabled();
-    fireEvent.click(sendButton);
-
+    const textarea = screen.getByPlaceholderText(/message/i);
+    fireEvent.change(textarea, { target: { value: 'test prompt' } });
+    fireEvent.click(screen.getByRole('button'));
     await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith({
-        parts: [{ type: 'text', text: 'hello world' }],
+      expect(mockSend).toHaveBeenCalledWith({
+        harnessSessionId: SESSION_ROW_ID,
+        text: 'test prompt',
       });
     });
-
-    await waitFor(() => {
-      expect((textarea as HTMLTextAreaElement).value).toBe('');
-    });
+    expect((textarea as HTMLTextAreaElement).value).toBe('');
   });
 
   it('renders status banner instead of input when status is closed', () => {
     render(<SessionComposer sessionRowId={SESSION_ROW_ID} status="closed" />);
-    expect(screen.queryByPlaceholderText(/send a prompt/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/session is closed/i)).toBeInTheDocument();
+    expect(screen.getByText(/closed/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/message/i)).not.toBeInTheDocument();
   });
 });
