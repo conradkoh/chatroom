@@ -21,7 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startOpencodeSdkHarness } from './index.js';
-import { opencodeSdkChunkExtractor } from './event-extractor.js';
+import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 
 // ─── Skip guard ───────────────────────────────────────────────────────────────
@@ -99,13 +99,14 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     const chunks: string[] = [];
     const eventTypes: string[] = [];
     let promptSent = false;
+    const extractChunk = createOpencodeSdkChunkExtractor();
 
     const done = new Promise<void>((resolve) => {
       const unsub = session.onEvent((event) => {
         eventTypes.push(event.type);
 
-        const text = opencodeSdkChunkExtractor(event);
-        if (text) chunks.push(text);
+        const extracted = extractChunk(event);
+        if (extracted) chunks.push(extracted.content);
 
         // Only treat session.idle/ready as "done" after the prompt has been
         // sent — the initial session.idle fires before any prompt and would

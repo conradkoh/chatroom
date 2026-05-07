@@ -11,7 +11,12 @@ export const appendMessages = mutation({
   args: {
     ...SessionIdArg,
     harnessSessionId: v.id('chatroom_harnessSessions'),
-    chunks: v.array(v.object({ content: v.string(), timestamp: v.number() })),
+    chunks: v.array(v.object({
+      content: v.string(),
+      timestamp: v.number(),
+      messageId: v.optional(v.string()),
+      partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
+    })),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -34,6 +39,8 @@ export const appendMessages = mutation({
         role: 'assistant',
         content: chunk.content,
         timestamp: chunk.timestamp,
+        messageId: chunk.messageId,
+        partType: chunk.partType,
       });
     }
 

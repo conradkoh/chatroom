@@ -8,6 +8,10 @@
 export interface OutputChunk {
   readonly content: string;
   readonly timestamp: number;
+  /** The opencode SDK messageID — groups tokens into an agent turn. */
+  readonly messageId?: string;
+  /** Whether this chunk is reasoning (thinking) or regular text output. */
+  readonly partType?: 'text' | 'reasoning';
 }
 
 export interface OutputRepository {

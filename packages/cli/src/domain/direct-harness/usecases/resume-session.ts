@@ -7,7 +7,7 @@
 import type { OpenCodeSessionId, HarnessSessionId } from '../entities/harness-session.js';
 import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { SessionHandle, SessionJournal, JournalFactory } from './open-session.js';
+import type { SessionHandle, SessionJournal, JournalFactory, ExtractedChunk } from './open-session.js';
 import { closeSession } from './close-session.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ import { closeSession } from './close-session.js';
 export interface ResumeSessionDeps {
   readonly harness: BoundHarness;
   readonly journalFactory: JournalFactory;
-  readonly chunkExtractor: (event: DirectHarnessSessionEvent) => string | null;
+  readonly chunkExtractor: (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
   readonly nowFn?: () => number;
 }
 
@@ -48,9 +48,14 @@ export async function resumeSession(
 
   // 3. Wire session events through the chunk extractor into the journal
   const unsubscribeEvents = session.onEvent((event) => {
-    const content = chunkExtractor(event);
-    if (content !== null) {
-      journal.record({ content, timestamp: nowFn() });
+    const chunk = chunkExtractor(event);
+    if (chunk !== null) {
+      journal.record({
+        content: chunk.content,
+        timestamp: nowFn(),
+        messageId: chunk.messageId,
+        partType: chunk.partType,
+      });
     }
   });
 

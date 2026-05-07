@@ -54,10 +54,12 @@ export class BufferedJournalFactory implements JournalFactory {
     }
 
     return {
-      record(chunk: { content: string; timestamp: number }): void {
+      record(chunk: { content: string; timestamp: number; messageId?: string; partType?: 'text' | 'reasoning' }): void {
         buffer.push({
           content: chunk.content,
           timestamp: chunk.timestamp,
+          messageId: chunk.messageId,
+          partType: chunk.partType,
         });
       },
 

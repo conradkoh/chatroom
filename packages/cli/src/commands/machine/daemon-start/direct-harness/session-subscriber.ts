@@ -11,7 +11,7 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { opencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
+import { createOpencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
@@ -140,10 +140,16 @@ async function processOne(
 
     // 5. Create journal + wire session events → journal
     const journal = deps.journalFactory.create(rowId);
+    const extractChunk = createOpencodeSdkChunkExtractor(); // one stateful instance per session
     const unsubscribeEvents = liveSession.onEvent((event) => {
-      const content = opencodeSdkChunkExtractor(event);
-      if (content !== null) {
-        journal.record({ content, timestamp: Date.now() });
+      const chunk = extractChunk(event);
+      if (chunk !== null) {
+        journal.record({
+          content: chunk.content,
+          timestamp: Date.now(),
+          messageId: chunk.messageId,
+          partType: chunk.partType,
+        });
       }
     });
 

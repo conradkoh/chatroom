@@ -208,6 +208,59 @@ describe('messages.appendMessages', () => {
     // 1 user + 2 assistant = 3 total
     expect(messages.length).toBe(3);
   });
+
+  test('messageId and partType are stored and returned by subscribe', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-metadata');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [
+        { content: 'thinking...', timestamp: 1000, messageId: 'msg-1', partType: 'reasoning' },
+        { content: 'Hello!',      timestamp: 1001, messageId: 'msg-1', partType: 'text' },
+      ],
+    });
+
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
+      sessionId,
+      harnessSessionId: rowId,
+    });
+
+    const assistant = messages.filter((m) => m.role === 'assistant');
+    expect(assistant).toHaveLength(2);
+
+    const thinking = assistant.find((m) => m.partType === 'reasoning');
+    expect(thinking).toBeDefined();
+    expect(thinking?.content).toBe('thinking...');
+    expect(thinking?.messageId).toBe('msg-1');
+
+    const text = assistant.find((m) => m.partType === 'text');
+    expect(text).toBeDefined();
+    expect(text?.content).toBe('Hello!');
+    expect(text?.messageId).toBe('msg-1');
+  });
+
+  test('chunks without messageId/partType are stored with those fields absent', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-no-metadata');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [{ content: 'legacy', timestamp: 1000 }],
+    });
+
+    const messages = await t.query(api.web.directHarness.messages.subscribe, {
+      sessionId,
+      harnessSessionId: rowId,
+    });
+
+    const assistant = messages.find((m) => m.role === 'assistant');
+    expect(assistant).toBeDefined();
+    expect(assistant?.messageId).toBeUndefined();
+    expect(assistant?.partType).toBeUndefined();
+  });
 });
 
 // ─── pendingForMachine ───────────────────────────────────────────────────────

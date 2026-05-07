@@ -2200,6 +2200,10 @@ export default defineSchema({
     role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),
+    /** opencode SDK messageID — groups all tokens of one agent turn. Absent on user messages. */
+    messageId: v.optional(v.string()),
+    /** Distinguishes reasoning (thinking) tokens from regular text output. */
+    partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
   })
     .index('by_session_seq', ['harnessSessionId', 'seq'])
     .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq']),

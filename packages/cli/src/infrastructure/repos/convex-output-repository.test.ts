@@ -23,8 +23,8 @@ describe('ConvexOutputRepository', () => {
     const { repo, backend } = createRepo();
 
     await repo.appendChunks('row-1', [
-      { content: 'hello', timestamp: 100 },
-      { content: 'world', timestamp: 200 },
+      { content: 'hello', timestamp: 100, messageId: 'msg-1', partType: 'text' },
+      { content: 'world', timestamp: 200, messageId: 'msg-1', partType: 'text' },
     ]);
 
     expect(backend.mutation).toHaveBeenCalledWith(
@@ -33,8 +33,25 @@ describe('ConvexOutputRepository', () => {
         sessionId: 'mock-session-id',
         harnessSessionId: 'row-1',
         chunks: [
-          { content: 'hello', timestamp: 100 },
-          { content: 'world', timestamp: 200 },
+          { content: 'hello', timestamp: 100, messageId: 'msg-1', partType: 'text' },
+          { content: 'world', timestamp: 200, messageId: 'msg-1', partType: 'text' },
+        ],
+      })
+    );
+  });
+
+  it('forwards chunks without messageId/partType as-is (legacy path)', async () => {
+    const { repo, backend } = createRepo();
+
+    await repo.appendChunks('row-1', [
+      { content: 'legacy', timestamp: 100 },
+    ]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        chunks: [
+          { content: 'legacy', timestamp: 100, messageId: undefined, partType: undefined },
         ],
       })
     );

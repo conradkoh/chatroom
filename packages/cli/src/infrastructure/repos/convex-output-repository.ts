@@ -33,6 +33,8 @@ export class ConvexOutputRepository implements OutputRepository {
       chunks: chunks.map((c) => ({
         content: c.content,
         timestamp: c.timestamp,
+        messageId: c.messageId,
+        partType: c.partType,
       })),
     });
   }

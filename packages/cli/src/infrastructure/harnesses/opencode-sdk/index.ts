@@ -8,4 +8,5 @@ export type { OpencodeSdkHarnessOptions } from './opencode-harness.js';
 export { OpencodeSdkSession } from './opencode-session.js';
 export type { OpencodeSdkSessionOptions } from './opencode-session.js';
 
-export { opencodeSdkChunkExtractor } from './event-extractor.js';
+export { createOpencodeSdkChunkExtractor } from './event-extractor.js';
+export type { ExtractedChunk } from './event-extractor.js';

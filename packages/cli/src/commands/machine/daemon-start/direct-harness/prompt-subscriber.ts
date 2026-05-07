@@ -14,7 +14,7 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { opencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
+import { createOpencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
 import type { ActiveSession } from './session-subscriber.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
@@ -191,7 +191,7 @@ async function processSessionMessages(
     }
 
     handle = await resumeSession(
-      { harness, journalFactory: deps.journalFactory, chunkExtractor: opencodeSdkChunkExtractor },
+      { harness, journalFactory: deps.journalFactory, chunkExtractor: createOpencodeSdkChunkExtractor() },
       { harnessSessionId: rowId, opencodeSessionId, workspaceId }
     );
     deps.activeSessions.set(rowId, handle);

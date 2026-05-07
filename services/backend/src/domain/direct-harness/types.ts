@@ -41,6 +41,10 @@ export interface HarnessMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  /** opencode SDK messageID — groups all tokens of one agent turn. */
+  messageId?: string;
+  /** Whether this token is reasoning (thinking) or regular text output. */
+  partType?: 'text' | 'reasoning';
 }
 
 // ─── Capabilities ─────────────────────────────────────────────────────────────
