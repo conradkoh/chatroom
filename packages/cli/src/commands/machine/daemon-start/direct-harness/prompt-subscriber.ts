@@ -166,6 +166,11 @@ async function processSessionMessages(
     }
 
     let harness = deps.harnesses.get(workspaceId);
+    if (harness && !harness.isAlive()) {
+      harness.close().catch(() => {});
+      deps.harnesses.delete(workspaceId);
+      harness = undefined;
+    }
     if (!harness) {
       const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
         sessionId: ctx.sessionId,

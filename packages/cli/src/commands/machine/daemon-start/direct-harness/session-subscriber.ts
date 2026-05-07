@@ -116,6 +116,13 @@ async function processOne(
 
     // 2. Get or create BoundHarness for this workspace
     let harness = deps.harnesses.get(session.workspaceId);
+    if (harness && !harness.isAlive()) {
+      // Process died since it was last used — evict so we start fresh
+      console.warn(`[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`);
+      harness.close().catch(() => {});
+      deps.harnesses.delete(session.workspaceId);
+      harness = undefined;
+    }
     if (!harness) {
       harness = await startOpencodeSdkHarness({
         type: 'opencode',
