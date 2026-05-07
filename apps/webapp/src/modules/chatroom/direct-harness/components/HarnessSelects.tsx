@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -8,6 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,33 +90,78 @@ export function HarnessAgentSelect({ agents, value, onValueChange }: HarnessAgen
 // ─── HarnessModelSelect ───────────────────────────────────────────────────────
 
 export function HarnessModelSelect({ providers, value, onValueChange }: HarnessModelSelectProps) {
-  const modelOptions: { value: string; label: string }[] = [];
-  for (const provider of providers) {
-    for (const model of provider.models) {
-      modelOptions.push({
-        value: `${provider.providerID}::${model.modelID}`,
-        label: `${provider.name} · ${model.name}`,
-      });
-    }
-  }
+  const [open, setOpen] = useState(false);
 
-  if (modelOptions.length === 0) {
-    return <div className="text-xs text-muted-foreground py-1">No models available.</div>;
-  }
+  // Build a flat display label from the selected key
+  const selectedLabel = (() => {
+    if (!value) return null;
+    const [providerID, modelID] = value.split('::');
+    const provider = providers.find((p) => p.providerID === providerID);
+    const model = provider?.models.find((m) => m.modelID === modelID);
+    if (!provider || !model) return null;
+    return `${provider.name} / ${model.name}`;
+  })();
+
+  const hasProviders = providers.length > 0;
 
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="h-8 text-xs bg-background border-border">
-        <SelectValue placeholder="Use agent default" />
-      </SelectTrigger>
-      <SelectContent className="bg-card border-border text-foreground">
-        {modelOptions.map((m) => (
-          <SelectItem key={m.value} value={m.value} className="text-xs">
-            {m.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
+      <PopoverTrigger asChild className="flex-1">
+        <button
+          type="button"
+          disabled={!hasProviders}
+          className={cn(
+            'flex items-center justify-between w-full h-full gap-2 px-3 text-xs rounded-md border border-input bg-transparent',
+            'shadow-xs whitespace-nowrap transition-[color,box-shadow]',
+            'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+          title="Select model"
+        >
+          <span className="truncate text-left">
+            {selectedLabel ?? (
+              <span className="text-muted-foreground">Default model</span>
+            )}
+          </span>
+          <ChevronDown size={12} className="ml-1 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0 w-72"
+        align="start"
+      >
+        <Command>
+          <CommandInput placeholder="Search models…" className="text-xs h-8" />
+          <CommandList className="max-h-60">
+            <CommandEmpty className="text-xs text-muted-foreground py-3 text-center">
+              No models found.
+            </CommandEmpty>
+            {providers.map((provider) => (
+              <CommandGroup key={provider.providerID} heading={provider.name}>
+                {provider.models.map((model) => {
+                  const key = `${provider.providerID}::${model.modelID}`;
+                  const isSelected = value === key;
+                  return (
+                    <CommandItem
+                      key={key}
+                      value={`${provider.name} ${model.name}`}
+                      onSelect={() => {
+                        onValueChange(isSelected ? '' : key);
+                        setOpen(false);
+                      }}
+                      className="text-xs flex items-center justify-between"
+                    >
+                      <span className="truncate">{model.name}</span>
+                      {isSelected && <Check size={12} className="ml-2 shrink-0 text-primary" />}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
