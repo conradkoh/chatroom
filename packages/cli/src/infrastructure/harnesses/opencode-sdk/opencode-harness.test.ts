@@ -93,6 +93,7 @@ function makeProcess(overrides?: Partial<MockProcess>): MockProcess & EventEmitt
 }
 
 function createHarness(overrides?: {
+  baseUrl?: string;
   cwd?: string;
   client?: Record<string, unknown>;
   process?: MockProcess & EventEmitter;
