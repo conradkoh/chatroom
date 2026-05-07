@@ -1,18 +1,15 @@
-/**
- * Daemon-facing harness session endpoints.
- *
- * Called from the CLI daemon to associate SDK sessions, persist processing
- * cursors, close sessions, and list pending sessions for machine-level polling.
- */
-
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
-import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import {
+  getSessionWithAccess,
+  requireDirectHarnessWorkers,
+  requireOpencodeSession,
+} from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
-// ─── associateOpenCodeSessionId ───────────────────────────────────────────────
+// ─── associateHarnessSessionId ────────────────────────────────────────────────
 
 export const associateHarnessSessionId = mutation({
   args: {
@@ -24,8 +21,9 @@ export const associateHarnessSessionId = mutation({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
     const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const s = requireOpencodeSession(harnessSession);
 
-    const existing = harnessSession.opencodeSessionId;
+    const existing = s.opencode.opencodeSessionId;
     if (existing === args.opencodeSessionId) return;
     if (existing !== undefined && existing !== null) {
       throw new ConvexError({
@@ -35,9 +33,12 @@ export const associateHarnessSessionId = mutation({
     }
 
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
-      opencodeSessionId: args.opencodeSessionId,
       status: 'active',
-      ...(args.sessionTitle ? { sessionTitle: args.sessionTitle } : {}),
+      opencode: {
+        ...s.opencode,
+        opencodeSessionId: args.opencodeSessionId,
+        ...(args.sessionTitle ? { sessionTitle: args.sessionTitle } : {}),
+      },
     });
   },
 });
@@ -99,13 +100,15 @@ export const getSession = query({
     requireDirectHarnessWorkers();
     const session = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
     if (!session) return null;
+    const s = requireOpencodeSession(session);
     return {
-      _id: session._id,
-      status: session.status,
-      opencodeSessionId: session.opencodeSessionId,
-      lastUsedConfig: session.lastUsedConfig,
-      lastProcessedSeq: session.lastProcessedSeq,
-      workspaceId: session.workspaceId,
+      _id: s._id,
+      type: s.type,
+      status: s.status,
+      opencodeSessionId: s.opencode.opencodeSessionId,
+      lastUsedConfig: s.opencode.lastUsedConfig,
+      lastProcessedSeq: s.lastProcessedSeq,
+      workspaceId: s.workspaceId,
     };
   },
 });

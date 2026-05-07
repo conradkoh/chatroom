@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
-import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { getSessionWithAccess, requireDirectHarnessWorkers, requireOpencodeSession } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ export const pendingForMachine = query({
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
           lastProcessedSeq: cursor,
-          lastUsedConfig: session.lastUsedConfig,
+          lastUsedConfig: requireOpencodeSession(session).opencode.lastUsedConfig,
         });
         for (const msg of pending) {
           allMessages.push({

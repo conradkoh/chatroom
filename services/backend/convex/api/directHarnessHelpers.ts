@@ -52,7 +52,26 @@ export async function getNextMessageSeq(
   return (lastMessage?.seq ?? 0) + 1;
 }
 
-// ─── Session access guard ────────────────────────────────────────────────────
+// ─── Harness session type narrowing ─────────────────────────────────────────
+
+/**
+ * Narrows a harness session doc to the 'opencode' variant.
+ * Throws if the session is in the legacy flat format (pre-migration).
+ * After dev:cleanup migration all sessions have type='opencode'.
+ */
+export function requireOpencodeSession(
+  s: Doc<'chatroom_harnessSessions'>
+): Extract<Doc<'chatroom_harnessSessions'>, { type: 'opencode' }> {
+  if (!('type' in s) || (s as { type: unknown }).type !== 'opencode') {
+    throw new ConvexError({
+      code: 'UNSUPPORTED_HARNESS_TYPE',
+      message: `Expected opencode session but got type='${
+        'type' in s ? (s as { type: unknown }).type : 'legacy'
+      }'`,
+    });
+  }
+  return s as Extract<Doc<'chatroom_harnessSessions'>, { type: 'opencode' }>;
+}
 
 export interface SessionAccess extends AuthenticatedChatroomAccess {
   harnessSession: Doc<'chatroom_harnessSessions'>;

@@ -25,8 +25,11 @@ import type { HarnessSessionId } from '../../../../domain/direct-harness/entitie
 interface PendingSession {
   _id: string;
   workspaceId: string;
-  harnessName: string;
-  lastUsedConfig: { agent: string };
+  type: string;
+  opencode?: {
+    harnessName: string;
+    lastUsedConfig: { agent: string };
+  };
 }
 
 /** Shape of the workspace lookup result. */
@@ -124,7 +127,7 @@ async function processOne(
 
     // 3. Open a session on the harness
     const liveSession = await harness.newSession({
-      agent: session.lastUsedConfig.agent,
+      agent: session.opencode?.lastUsedConfig.agent ?? 'build',
       harnessSessionId: rowId as unknown as HarnessSessionId,
     });
 
@@ -171,7 +174,7 @@ async function processOne(
     deps.activeSessions.set(rowId, handle);
 
     console.log(
-      `[direct-harness] Session opened: rowId=${rowId} agent=${session.lastUsedConfig.agent} workspace=${session.workspaceId}`
+      `[direct-harness] Session opened: rowId=${rowId} agent=${session.opencode?.lastUsedConfig.agent ?? 'build'} workspace=${session.workspaceId}`
     );
   } catch (err) {
     console.warn(

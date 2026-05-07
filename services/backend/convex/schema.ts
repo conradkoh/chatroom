@@ -2143,40 +2143,51 @@ export default defineSchema({
 
   /**
    * A HarnessSession represents one conversation with a harness process.
-   * Sessions are associated with an existing chatroom_workspaces entry and
-   * are resumable across daemon restarts.
+   * Uses a discriminated union on `type` — each harness type groups its own
+   * fields under a matching sub-object (e.g. type='opencode' → opencode:{...}).
+   *
+   * Currently only 'opencode' is supported; new types are added as union members.
    */
-  chatroom_harnessSessions: defineTable({
-    workspaceId: v.id('chatroom_workspaces'),
-    harnessName: v.string(),
-    /** OpenCode SDK session identifier (set after spawning). */
-    opencodeSessionId: v.optional(v.string()),
-    /** Display title synced from the opencode SDK session (auto-generated or user-renamed). */
-    sessionTitle: v.optional(v.string()),
-    /** The last-used configuration for this session (agent, model, etc.). */
-    lastUsedConfig: v.object({
-      agent: v.string(),
-      model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
-      system: v.optional(v.string()),
-      tools: v.optional(v.record(v.string(), v.boolean())),
-    }),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('spawning'),
-      v.literal('active'),
-      v.literal('idle'),
-      v.literal('closed'),
-      v.literal('failed')
-    ),
-    createdBy: v.id('users'),
-    createdAt: v.number(),
-    lastActiveAt: v.number(),
-    /** Cursor for the daemon’s message processing. Starts at 0. */
-    lastProcessedSeq: v.number(),
-  })
+  chatroom_harnessSessions: defineTable(
+    v.union(
+      // ── opencode ────────────────────────────────────────────────
+      v.object({
+        type: v.literal('opencode'),
+        workspaceId: v.id('chatroom_workspaces'),
+        status: v.union(
+          v.literal('pending'),
+          v.literal('spawning'),
+          v.literal('active'),
+          v.literal('idle'),
+          v.literal('closed'),
+          v.literal('failed')
+        ),
+        createdBy: v.id('users'),
+        createdAt: v.number(),
+        lastActiveAt: v.number(),
+        /** Cursor for the daemon’s message processing. Starts at 0. */
+        lastProcessedSeq: v.number(),
+        /** OpenCode-specific session state. */
+        opencode: v.object({
+          harnessName: v.string(),
+          /** OpenCode SDK session identifier (set after spawning). */
+          opencodeSessionId: v.optional(v.string()),
+          /** Display title synced from the opencode SDK session. */
+          sessionTitle: v.optional(v.string()),
+          /** The last-used configuration for this session. */
+          lastUsedConfig: v.object({
+            agent: v.string(),
+            model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+            system: v.optional(v.string()),
+            tools: v.optional(v.record(v.string(), v.boolean())),
+          }),
+        }),
+      })
+      // Add new harness types here as additional union members.
+    )
+  )
     .index('by_workspace', ['workspaceId'])
-    .index('by_workspace_status', ['workspaceId', 'status'])
-    .index('by_opencodeSessionId', ['opencodeSessionId']),
+    .index('by_workspace_status', ['workspaceId', 'status']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

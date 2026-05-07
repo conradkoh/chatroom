@@ -8,7 +8,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
-import { getNextMessageSeq, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { getNextMessageSeq, requireDirectHarnessWorkers, requireOpencodeSession } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── create ───────────────────────────────────────────────────────────────────
@@ -39,16 +39,19 @@ export const create = mutation({
 
     const now = Date.now();
     const harnessSessionId = await ctx.db.insert('chatroom_harnessSessions', {
+      type: 'opencode',
       workspaceId: args.workspaceId,
-      harnessName: args.harnessName,
-      opencodeSessionId: undefined,
-      sessionTitle: undefined,
-      lastUsedConfig: args.config,
       status: 'pending',
       lastProcessedSeq: 0,
       createdBy: session.userId,
       createdAt: now,
       lastActiveAt: now,
+      opencode: {
+        harnessName: args.harnessName,
+        opencodeSessionId: undefined,
+        sessionTitle: undefined,
+        lastUsedConfig: args.config,
+      },
     });
 
     const firstSeq = await getNextMessageSeq(ctx, harnessSessionId);
@@ -80,15 +83,18 @@ export const listSessions = query({
       .order('desc')
       .collect();
 
-    return sessions.map((s) => ({
-      _id: s._id,
-      status: s.status,
-      harnessName: s.harnessName,
-      sessionTitle: s.sessionTitle,
-      lastUsedConfig: s.lastUsedConfig,
-      workspaceId: s.workspaceId,
-      createdAt: s.createdAt,
-      lastActiveAt: s.lastActiveAt,
-    }));
+    return sessions.map((s) => {
+      const o = requireOpencodeSession(s);
+      return {
+        _id: s._id,
+        status: s.status,
+        harnessName: o.opencode.harnessName,
+        sessionTitle: o.opencode.sessionTitle,
+        lastUsedConfig: o.opencode.lastUsedConfig,
+        workspaceId: s.workspaceId,
+        createdAt: s.createdAt,
+        lastActiveAt: s.lastActiveAt,
+      };
+    });
   },
 });
