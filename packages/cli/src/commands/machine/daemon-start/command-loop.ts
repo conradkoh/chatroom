@@ -13,9 +13,10 @@ import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { startSessionSubscriber } from './v2/session-subscriber.js';
-import { startMessageSubscriber } from './v2/prompt-subscriber.js';
-import { startCommandSubscriber } from './v2/command-subscriber.js';
+import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
+import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
+import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
+import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
@@ -435,6 +436,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
+  let lifecycleManager: HarnessLifecycleManager | null = null;
   // Shared state for v2 direct-harness subscribers.
   // activeSessions: opened/resumed sessions shared by session-subscriber
   //   and prompt-subscriber so they reuse the same DirectHarnessSession.
@@ -468,6 +470,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
+    if (lifecycleManager) lifecycleManager.stopMonitoring();
     // Close all active direct-harness sessions
     for (const handle of activeSessions.values()) {
       await handle.close().catch(() => {});
@@ -537,8 +540,19 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       journalFactory,
     });
 
-    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
+    lifecycleManager = new HarnessLifecycleManager(
       harnesses,
+      activeSessions,
+      async (workspaceId) =>
+        ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
+          sessionId: ctx.sessionId,
+          workspaceId,
+        })
+    );
+    lifecycleManager.startMonitoring();
+
+    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
+      lifecycleManager,
       publisher: new ConvexCapabilitiesPublisher({
         backend: ctx.deps.backend,
         sessionId: ctx.sessionId,

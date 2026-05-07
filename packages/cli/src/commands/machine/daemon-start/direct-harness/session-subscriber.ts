@@ -164,6 +164,7 @@ async function processOne(
     const handle: SessionHandle = {
       harnessSessionRowId: rowId,
       harnessSessionId: liveSession.harnessSessionId as string,
+      workspaceId: session.workspaceId,
       session: liveSession,
       close,
     };

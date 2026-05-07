@@ -13,9 +13,9 @@
 
 import type { ConvexClient } from 'convex/browser';
 
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
 import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
+import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
 
@@ -48,8 +48,8 @@ interface RefreshCapabilitiesPayload {
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
 export interface CommandSubscriberDeps {
-  /** Running BoundHarness instances keyed by workspaceId. */
-  readonly harnesses: Map<string, BoundHarness>;
+  /** Manages harness lifecycle: auto-start and inactivity-based shutdown. */
+  readonly lifecycleManager: HarnessLifecycleManager;
   /** Publishes capability snapshots to the machine registry. */
   readonly publisher: CapabilitiesPublisher;
 }
@@ -159,14 +159,7 @@ async function handleRefreshCapabilities(
       (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
   );
 
-  const harness = deps.harnesses.get(cmd.workspaceId);
-  if (!harness) {
-    console.warn(
-      `[direct-harness] No running harness for workspace=${cmd.workspaceId} — skipping capabilities publish`
-    );
-    await markFailed(ctx, cmd._id, 'No running harness for workspace');
-    return;
-  }
+  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
 
   await updateCapabilities(
     { publisher: deps.publisher, machineId: ctx.machineId },

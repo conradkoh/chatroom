@@ -30,6 +30,7 @@ export interface ResumeSessionDeps {
 export interface ResumeSessionInput {
   readonly harnessSessionRowId: string;
   readonly harnessSessionId: string;
+  readonly workspaceId?: string;
 }
 
 export type ResumeSessionResult = SessionHandle;
@@ -65,6 +66,7 @@ export async function resumeSession(
   return {
     harnessSessionRowId,
     harnessSessionId,
+    workspaceId: input.workspaceId ?? '',
     session,
 
     async close(): Promise<void> {

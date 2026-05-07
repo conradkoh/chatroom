@@ -69,6 +69,8 @@ export interface OpenSessionInput {
 export interface SessionHandle {
   readonly harnessSessionRowId: string;
   readonly harnessSessionId: string;
+  /** The workspace this session belongs to — used for inactivity tracking. */
+  readonly workspaceId: string;
   readonly session: DirectHarnessSession;
   /** Flush remaining chunks and close the harness session. Idempotent. */
   close(): Promise<void>;

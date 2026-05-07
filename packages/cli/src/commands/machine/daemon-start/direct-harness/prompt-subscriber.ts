@@ -185,7 +185,7 @@ async function processSessionMessages(
         journalFactory: deps.journalFactory,
         chunkExtractor: opencodeSdkChunkExtractor,
       },
-      { harnessSessionRowId: rowId, harnessSessionId }
+      { harnessSessionRowId: rowId, harnessSessionId, workspaceId }
     );
 
     deps.activeSessions.set(rowId, handle);
