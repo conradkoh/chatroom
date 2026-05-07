@@ -31,10 +31,13 @@ interface PendingMessage {
   seq: number;
 }
 
+/** Shape of a pending session from pendingForMachine. */
 interface PendingSessionInfo {
   _id: string;
   workspaceId: string;
   lastProcessedSeq: number;
+  /** Set once the daemon has associated the SDK session. Undefined while still pending. */
+  opencodeSessionId: string | undefined;
   lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
 }
 
@@ -134,26 +137,31 @@ async function processSessionMessages(
   messages: PendingMessage[],
   info: PendingSessionInfo | undefined
 ): Promise<void> {
-  // 1. Resolve the session handle (lazy resume if needed)
+  // 1. Resolve the session handle
   let handle = deps.activeSessions.get(rowId);
 
   if (!handle) {
-    // Daemon may have restarted — resume the session
-    const harnessSessionId = await deps.sessionRepository.getOpenCodeSessionId(rowId);
+    // No in-memory handle. Two sub-cases:
+    //   a) Session just opened by session-subscriber but opencodeSessionId not
+    //      yet in DB (genuine pending) — info.opencodeSessionId is undefined.
+    //      We skip and wait for the subscription to re-fire once the ID is set.
+    //   b) Daemon restarted — session is active, opencodeSessionId is in DB.
+    //      We lazy-resume.
+    const opencodeSessionId = info?.opencodeSessionId;
 
-    if (!harnessSessionId) {
+    if (!opencodeSessionId) {
+      // Case (a): session not yet opened — subscription will re-fire when
+      // pendingForMachine's opencodeSessionId field changes undefined → string.
       console.warn(
-        `[direct-harness] Cannot process messages for session ${rowId}: no opencodeSessionId — skipping`
+        `[direct-harness] Session ${rowId} not yet open — waiting for session-subscriber`
       );
       return;
     }
 
-    // Find or create the harness
+    // Case (b): lazy-resume after daemon restart
     const workspaceId = info?.workspaceId;
     if (!workspaceId) {
-      console.warn(
-        `[direct-harness] Cannot process messages for session ${rowId}: no workspace info`
-      );
+      console.warn(`[direct-harness] Cannot resume session ${rowId}: no workspace info`);
       return;
     }
 
@@ -165,9 +173,7 @@ async function processSessionMessages(
       })) as WorkspaceInfo | null;
 
       if (!workspace) {
-        console.warn(
-          `[direct-harness] Cannot resume session ${rowId}: workspace ${workspaceId} not found`
-        );
+        console.warn(`[direct-harness] Cannot resume session ${rowId}: workspace not found`);
         return;
       }
 
@@ -180,14 +186,9 @@ async function processSessionMessages(
     }
 
     handle = await resumeSession(
-      {
-        harness,
-        journalFactory: deps.journalFactory,
-        chunkExtractor: opencodeSdkChunkExtractor,
-      },
-      { harnessSessionId: rowId, opencodeSessionId: harnessSessionId, workspaceId }
+      { harness, journalFactory: deps.journalFactory, chunkExtractor: opencodeSdkChunkExtractor },
+      { harnessSessionId: rowId, opencodeSessionId, workspaceId }
     );
-
     deps.activeSessions.set(rowId, handle);
   }
 
@@ -206,9 +207,12 @@ async function processSessionMessages(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`);
-      // Mark the session closed so it stops being retried.
+      // Clean up: mark session closed and remove stale handle.
+      // Also evict the harness — if the process crashed (fetch failed),
+      // the next session must start a fresh one.
       await deps.sessionRepository.markClosed(rowId).catch(() => {});
       deps.activeSessions.delete(rowId);
+      if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
       return;
     }
   }

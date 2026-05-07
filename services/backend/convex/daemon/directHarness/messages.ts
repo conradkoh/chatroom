@@ -86,6 +86,7 @@ export const pendingForMachine = query({
       _id: string;
       workspaceId: string;
       lastProcessedSeq: number;
+      opencodeSessionId: string | undefined;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
     }> = [];
     const allMessages: Array<{ harnessSessionId: string; content: string; seq: number }> = [];
@@ -101,11 +102,16 @@ export const pendingForMachine = query({
         .collect();
 
       if (pending.length > 0) {
+        const s = requireOpencodeSession(session);
         sessions.push({
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
           lastProcessedSeq: cursor,
-          lastUsedConfig: requireOpencodeSession(session).opencode.lastUsedConfig,
+          // Include opencodeSessionId so the subscriber can detect when
+          // the session transitions pending→active without a separate query.
+          // When this changes (undefined→string), the subscription re-fires.
+          opencodeSessionId: s.opencode.opencodeSessionId,
+          lastUsedConfig: s.opencode.lastUsedConfig,
         });
         for (const msg of pending) {
           allMessages.push({
