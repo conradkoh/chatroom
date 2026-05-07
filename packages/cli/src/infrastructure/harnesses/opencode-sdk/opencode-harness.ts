@@ -31,6 +31,8 @@ const SERVE_STARTUP_TIMEOUT_MS = 10_000;
 // ─── Options ──────────────────────────────────────────────────────────────────
 
 export interface OpencodeSdkHarnessOptions {
+  /** Base URL of the running opencode server (e.g. http://127.0.0.1:15432). */
+  readonly baseUrl: string;
   /** Working directory for the harness process. */
   readonly cwd: string;
   /** OpenCode SDK client instance, already connected to a running server. */
@@ -48,12 +50,14 @@ export class OpencodeSdkHarness implements BoundHarness {
   private readonly client: OpencodeClient;
   private readonly childProcess: ChildProcess;
   readonly cwd: string;
+  private readonly baseUrl: string;
   private closed = false;
 
   constructor(options: OpencodeSdkHarnessOptions) {
     this.client = options.client;
     this.childProcess = options.process;
     this.cwd = options.cwd;
+    this.baseUrl = options.baseUrl;
   }
 
   /** List available models via the opencode provider list. */
@@ -136,7 +140,7 @@ export class OpencodeSdkHarness implements BoundHarness {
     }
 
     return new OpencodeSdkSession({
-      baseUrl: this.extractBaseUrl(),
+      baseUrl: this.getBaseUrl(),
       opencodeSessionId: sessionId,
       sessionTitle,
     });
@@ -161,7 +165,7 @@ export class OpencodeSdkHarness implements BoundHarness {
     }
 
     return new OpencodeSdkSession({
-      baseUrl: this.extractBaseUrl(),
+      baseUrl: this.getBaseUrl(),
       opencodeSessionId: sessionId,
       sessionTitle,
     });
@@ -196,13 +200,9 @@ export class OpencodeSdkHarness implements BoundHarness {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  /** Extract the base URL from the opencode client's config. */
-  private extractBaseUrl(): string {
-    // The client stores the base URL we provided; reconstruct it from the
-    // internal config. This is a workaround since we don't export the baseUrl
-    // separately. An alternative is to store it ourselves during construction.
-    return (this.client as unknown as { config?: { baseUrl?: string } }).config
-      ?.baseUrl ?? 'http://127.0.0.1:15432';
+  /** Return the base URL of the running opencode server. */
+  private getBaseUrl(): string {
+    return this.baseUrl;
   }
 }
 
@@ -236,6 +236,7 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
     const client = createOpencodeClient({ baseUrl });
 
     return new OpencodeSdkHarness({
+      baseUrl,
       cwd: config.workingDir,
       client: client as unknown as OpencodeClient,
       process: childProcess,

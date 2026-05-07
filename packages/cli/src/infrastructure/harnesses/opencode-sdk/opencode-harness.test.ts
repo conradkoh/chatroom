@@ -99,6 +99,7 @@ function createHarness(overrides?: {
 }) {
   const proc = overrides?.process ?? makeProcess();
   return new OpencodeSdkHarness({
+    baseUrl: overrides?.baseUrl ?? 'http://127.0.0.1:19999',
     cwd: overrides?.cwd ?? '/test/workspace',
     client: (overrides?.client ?? {
       session: { create: mockCreate, get: mockGet, abort: mockAbort, prompt: mockPrompt },
