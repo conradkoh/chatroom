@@ -2,24 +2,17 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { memo } from 'react';
-
-
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useListSessions } from './hooks/useListSessions';
 import { StatusDot } from './StatusDot';
 import { relativeTime } from './utils';
-
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SessionListProps {
   workspaceId: Id<'chatroom_workspaces'>;
   selectedSessionId: Id<'chatroom_harnessSessions'> | null;
   onSelect: (id: Id<'chatroom_harnessSessions'>) => void;
 }
-
-// ─── SessionList ──────────────────────────────────────────────────────────────
 
 export const SessionList = memo(function SessionList({
   workspaceId,
@@ -28,49 +21,38 @@ export const SessionList = memo(function SessionList({
 }: SessionListProps) {
   const sessions = useListSessions(workspaceId);
 
-  if (sessions === undefined) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4">
-        Loading sessions…
-      </div>
-    );
+  if (!sessions || sessions.length === 0) {
+    return <div className="flex-1" />;
   }
 
-  if (sessions.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
-        No sessions yet — click New Session to start one.
-      </div>
-    );
-  }
-
-  // Reverse so newest (highest createdAt) is on top
   const sorted = [...sessions].reverse();
 
   return (
     <ScrollArea className="flex-1 min-h-0">
-      <div className="flex flex-col">
-        {sorted.map((s) => (
-          <button
-            key={s._id}
-            className={cn(
-              'px-3 py-2 flex items-center gap-2 cursor-pointer w-full text-left',
-              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-              s._id === selectedSessionId
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent/50'
-            )}
-            onClick={() => onSelect(s._id)}
-          >
-            <StatusDot status={s.status} />
-            <span className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground block truncate">
-                {s.sessionTitle ?? s.lastUsedConfig.agent}
+      <div className="flex flex-col py-1">
+        {sorted.map((s) => {
+          const label = s.sessionTitle ?? s.lastUsedConfig.agent;
+          const isSelected = s._id === selectedSessionId;
+          return (
+            <button
+              key={s._id}
+              onClick={() => onSelect(s._id)}
+              className={cn(
+                'w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isSelected
+                  ? 'bg-accent text-accent-foreground'
+                  : 'hover:bg-accent/40 text-foreground'
+              )}
+            >
+              <StatusDot status={s.status} className="mt-0.5 shrink-0" />
+              <span className="flex-1 min-w-0">
+                <span className="text-sm block truncate">{label}</span>
+                <span className="text-xs text-muted-foreground">{relativeTime(s.lastActiveAt)}</span>
               </span>
-              <span className="text-xs text-muted-foreground">{relativeTime(s.lastActiveAt)}</span>
-            </span>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </ScrollArea>
   );

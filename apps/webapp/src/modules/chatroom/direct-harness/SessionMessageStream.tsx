@@ -1,49 +1,42 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSubscribeMessages } from './hooks/useSubscribeMessages';
 import { useEffect, useRef } from 'react';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { cn } from '@/lib/utils';
+import { useSubscribeMessages } from './hooks/useSubscribeMessages';
 
 interface SessionMessageStreamProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
 }
 
-// ─── SessionMessageStream ─────────────────────────────────────────────────────
-
 export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps) {
   const messages = useSubscribeMessages({ harnessSessionId: sessionRowId });
-
+  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledRef = useRef(false);
 
-  // Reset auto-scroll when session changes
+  // Reset scroll-lock when session changes
   useEffect(() => {
     isUserScrolledRef.current = false;
   }, [sessionRowId]);
 
-  // Track manual scrolling
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
-    const threshold = 50;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-    isUserScrolledRef.current = !isAtBottom;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    isUserScrolledRef.current = !atBottom;
   };
 
-  // Auto-scroll to bottom when new messages arrive (unless user scrolled up)
+  // Auto-scroll on new messages unless user scrolled up
   useEffect(() => {
     if (isUserScrolledRef.current) return;
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages?.length]);
 
   if (messages === undefined) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        Loading messages…
+        Loading…
       </div>
     );
   }
@@ -51,7 +44,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        No messages yet.
+        Waiting for response…
       </div>
     );
   }
@@ -60,16 +53,29 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2"
+      className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4"
     >
-      {messages.map((m) => (
-        <div key={m._id} className="px-3 py-2 rounded-md bg-muted text-foreground text-sm whitespace-pre-wrap break-words">
-          <div className="text-xs text-muted-foreground mb-1">
-            {new Date(m.timestamp).toLocaleTimeString()}
+      {messages.map((m) => {
+        const isUser = m.role === 'user';
+        return (
+          <div
+            key={m._id}
+            className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
+          >
+            <div
+              className={cn(
+                'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words',
+                isUser
+                  ? 'bg-primary text-primary-foreground rounded-br-sm'
+                  : 'bg-muted text-foreground rounded-bl-sm'
+              )}
+            >
+              {m.content}
+            </div>
           </div>
-          {m.content}
-        </div>
-      ))}
+        );
+      })}
+      <div ref={bottomRef} />
     </div>
   );
 }
