@@ -2151,8 +2151,6 @@ export default defineSchema({
     harnessName: v.string(),
     /** OpenCode SDK session identifier (set after spawning). */
     opencodeSessionId: v.optional(v.string()),
-    /** @deprecated — kept optional so old rows pass validation; use opencodeSessionId. */
-    harnessSessionId: v.optional(v.string()),
     /** Display title synced from the opencode SDK session (auto-generated or user-renamed). */
     sessionTitle: v.optional(v.string()),
     /** The last-used configuration for this session (agent, model, etc.). */
@@ -2186,8 +2184,6 @@ export default defineSchema({
    * role distinguishes user messages from assistant responses.
    */
   chatroom_harnessSessionMessages: defineTable({
-    /** @deprecated — removed after migration; field kept optional for old rows */
-    harnessSessionRowId: v.optional(v.id('chatroom_harnessSessions')),
     harnessSessionId: v.id('chatroom_harnessSessions'),
     seq: v.number(),
     role: v.union(v.literal('user'), v.literal('assistant')),
