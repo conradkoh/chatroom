@@ -18,7 +18,6 @@ import { useSendMessage } from './hooks/useSendMessage';
 import { useWorkspaceCapabilities } from './hooks/useWorkspaceCapabilities';
 import {
   HarnessModelSelect,
-  buildModelKey,
   parseModelKey,
 } from './components/HarnessSelects';
 import type { SessionStatus } from './StatusDot';

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { NewSessionComposer, SessionComposer } from './SessionComposer';
+import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
