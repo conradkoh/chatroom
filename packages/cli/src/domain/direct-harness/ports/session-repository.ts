@@ -1,33 +1,19 @@
-/**
- * Repository port for harness session persistence.
- *
- * Covers session lifecycle (create, associate, close) and queries
- * needed by the domain use cases.
- */
-
-import type { HarnessSessionId } from '../entities/harness-session.js';
+import type { OpenCodeSessionId } from '../entities/harness-session.js';
 
 export interface SessionRepository {
-  /** Associate a harness-issued session ID with an existing backend row. */
-  associateHarnessSessionId(
-    harnessSessionRowId: string,
+  /** Associate the OpenCode-issued session ID with an existing backend row. */
+  associateOpenCodeSessionId(
     harnessSessionId: string,
+    opencodeSessionId: string,
     sessionTitle: string
   ): Promise<void>;
 
-  /** Read the harness-issued session ID for a given backend row. */
-  getHarnessSessionId(harnessSessionRowId: string): Promise<HarnessSessionId | undefined>;
+  /** Read the OpenCode session ID for a given backend row. */
+  getOpenCodeSessionId(harnessSessionId: string): Promise<OpenCodeSessionId | undefined>;
 
   /** Mark a session as closed in the backend. */
-  markClosed(harnessSessionRowId: string): Promise<void>;
+  markClosed(harnessSessionId: string): Promise<void>;
 
-  /**
-   * Persist the daemon's processing cursor for a session.
-   * On restart the daemon resumes from this seq to avoid re-processing
-   * already-handled user messages.
-   */
-  updateLastProcessedSeq(
-    harnessSessionRowId: string,
-    seq: number
-  ): Promise<void>;
+  /** Persist the daemon's processing cursor for a session. */
+  updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void>;
 }

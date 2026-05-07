@@ -22,40 +22,40 @@ function createRepo(backend?: ReturnType<typeof createBackend>) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('ConvexSessionRepository', () => {
-  it('associateHarnessSessionId calls associate mutation with title', async () => {
+  it('associateOpenCodeSessionId calls associate mutation with title', async () => {
     const { repo, backend } = createRepo();
 
-    await repo.associateHarnessSessionId('row-1', 'sess-abc', 'My Session');
+    await repo.associateOpenCodeSessionId('row-1', 'sess-abc', 'My Session');
 
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         sessionId: 'mock-session-id',
-        harnessSessionRowId: 'row-1',
-        harnessSessionId: 'sess-abc',
+        harnessSessionId: 'row-1',
+        opencodeSessionId: 'sess-abc',
         sessionTitle: 'My Session',
       })
     );
   });
 
-  it('getHarnessSessionId returns the harness session ID from the query', async () => {
+  it('getOpenCodeSessionId returns the harness session ID from the query', async () => {
     const { repo, backend } = createRepo();
-    backend.query.mockResolvedValue({ harnessSessionId: 'sess-abc' });
+    backend.query.mockResolvedValue({ opencodeSessionId: 'sess-abc' });
 
-    const result = await repo.getHarnessSessionId('row-1');
+    const result = await repo.getOpenCodeSessionId('row-1');
 
     expect(backend.query).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ harnessSessionRowId: 'row-1' })
+      expect.objectContaining({ harnessSessionId: 'row-1' })
     );
     expect(result).toBe('sess-abc');
   });
 
-  it('getHarnessSessionId returns undefined when session not found', async () => {
+  it('getOpenCodeSessionId returns undefined when session not found', async () => {
     const { repo, backend } = createRepo();
     backend.query.mockResolvedValue(null);
 
-    const result = await repo.getHarnessSessionId('row-missing');
+    const result = await repo.getOpenCodeSessionId('row-missing');
 
     expect(result).toBeUndefined();
   });
@@ -69,7 +69,7 @@ describe('ConvexSessionRepository', () => {
       expect.anything(),
       expect.objectContaining({
         sessionId: 'mock-session-id',
-        harnessSessionRowId: 'row-1',
+        harnessSessionId: 'row-1',
       })
     );
   });

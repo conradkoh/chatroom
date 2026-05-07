@@ -17,7 +17,7 @@ import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
-import type { HarnessSessionRowId } from '../../../../domain/direct-harness/entities/harness-session.js';
+import type { HarnessSessionId } from '../../../../domain/direct-harness/entities/harness-session.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -125,14 +125,14 @@ async function processOne(
     // 3. Open a session on the harness
     const liveSession = await harness.newSession({
       agent: session.lastUsedConfig.agent,
-      harnessSessionRowId: rowId as unknown as HarnessSessionRowId,
+      harnessSessionId: rowId as unknown as HarnessSessionId,
     });
 
     // 4. Associate the harness-issued session ID with the existing backend row.
     try {
-      await deps.sessionRepository.associateHarnessSessionId(
+      await deps.sessionRepository.associateOpenCodeSessionId(
         rowId,
-        liveSession.harnessSessionId as string,
+        liveSession.opencodeSessionId as string,
         liveSession.sessionTitle
       );
     } catch (err) {
@@ -162,8 +162,8 @@ async function processOne(
 
     // 7. Store in shared registry so prompt-subscriber can find it
     const handle: SessionHandle = {
-      harnessSessionRowId: rowId,
-      harnessSessionId: liveSession.harnessSessionId as string,
+      harnessSessionId: rowId,
+      opencodeSessionId: liveSession.opencodeSessionId as string,
       workspaceId: session.workspaceId,
       session: liveSession,
       close,

@@ -16,10 +16,6 @@ import { requireChatroomAccess } from '../auth/cliSessionAuth.js';
 
 // ─── Feature flag guard ──────────────────────────────────────────────────────
 
-/**
- * Throws a ConvexError if the directHarnessWorkers feature flag is disabled.
- * Call at the top of every mutation and query in this module.
- */
 export function requireDirectHarnessWorkers(): void {
   if (!featureFlags.directHarnessWorkers) {
     throw new ConvexError('directHarnessWorkers feature flag is disabled');
@@ -28,10 +24,6 @@ export function requireDirectHarnessWorkers(): void {
 
 // ─── Agent validation ────────────────────────────────────────────────────────
 
-/**
- * Asserts that the given agent string is non-empty. Throws a ConvexError with
- * code HARNESS_SESSION_INVALID_AGENT if the assertion fails.
- */
 export function assertAgentNonEmpty(agent: string): void {
   if (!agent || agent.trim().length === 0) {
     throw new ConvexError({
@@ -42,49 +34,41 @@ export function assertAgentNonEmpty(agent: string): void {
   }
 }
 
-// ─── Message sequencing ─────────────────────────────────────────────────────
+// ─── Message sequencing ──────────────────────────────────────────────────────
 
 /**
- * Compute the next monotonically-increasing sequence number for a session's
- * messages. Convex mutations are serialized, so this is race-free: no two
- * mutations can interleave between the read and write.
- *
- * Falls back to Date.now() if no messages exist yet (first message).
+ * Returns the next monotonically-increasing seq for a session's messages.
+ * Starts at 1. Convex mutations are serialised so this is race-free.
  */
 export async function getNextMessageSeq(
   ctx: { db: MutationCtx['db'] },
-  harnessSessionRowId: Id<'chatroom_harnessSessions'>
+  harnessSessionId: Id<'chatroom_harnessSessions'>
 ): Promise<number> {
   const lastMessage = await ctx.db
     .query('chatroom_harnessSessionMessages')
-    .withIndex('by_session_seq', (q) => q.eq('harnessSessionRowId', harnessSessionRowId))
+    .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', harnessSessionId))
     .order('desc')
     .first();
-  return lastMessage ? lastMessage.seq + 1 : Date.now();
+  return (lastMessage?.seq ?? 0) + 1;
 }
 
 // ─── Session access guard ────────────────────────────────────────────────────
 
-/** The authenticated context returned when a session access check passes. */
 export interface SessionAccess extends AuthenticatedChatroomAccess {
   harnessSession: Doc<'chatroom_harnessSessions'>;
   workspace: Doc<'chatroom_workspaces'>;
 }
 
-/**
- * Fetch the harness session document and verify that the calling session has
- * access to the session's workspace's chatroom. Throws on not found or unauthorized.
- */
 export async function getSessionWithAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
-  harnessSessionRowId: Id<'chatroom_harnessSessions'>
+  harnessSessionId: Id<'chatroom_harnessSessions'>
 ): Promise<SessionAccess> {
-  const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionRowId);
+  const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
   if (!harnessSession) {
     throw new ConvexError({
       code: 'NOT_FOUND',
-      message: `HarnessSession ${harnessSessionRowId} not found`,
+      message: `HarnessSession ${harnessSessionId} not found`,
     });
   }
 
@@ -97,6 +81,5 @@ export async function getSessionWithAccess(
   }
 
   const chatroomAccess = await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
-
   return { ...chatroomAccess, harnessSession, workspace };
 }

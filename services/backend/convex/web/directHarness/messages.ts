@@ -15,12 +15,12 @@ import { mutation, query } from '../../_generated/server.js';
 export const send = mutation({
   args: {
     ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
     text: v.string(),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
 
     if (harnessSession.status === 'closed' || harnessSession.status === 'failed') {
       throw new ConvexError({
@@ -33,11 +33,11 @@ export const send = mutation({
     }
 
     const now = Date.now();
-    const seq = await getNextMessageSeq(ctx, args.harnessSessionRowId);
+    const seq = await getNextMessageSeq(ctx, args.harnessSessionId);
     await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionRowId: args.harnessSessionRowId, seq, role: 'user', content: args.text.trim(), timestamp: now,
+      harnessSessionId: args.harnessSessionId, seq, role: 'user', content: args.text.trim(), timestamp: now,
     });
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, { lastActiveAt: now });
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, { lastActiveAt: now });
     return { seq };
   },
 });
@@ -47,16 +47,16 @@ export const send = mutation({
 export const subscribe = query({
   args: {
     ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
     afterSeq: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
 
     const messages = await ctx.db
       .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) => q.eq('harnessSessionRowId', args.harnessSessionRowId))
+      .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', args.harnessSessionId))
       .order('asc')
       .collect();
 

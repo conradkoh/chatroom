@@ -38,10 +38,10 @@ export const create = mutation({
     }
 
     const now = Date.now();
-    const harnessSessionRowId = await ctx.db.insert('chatroom_harnessSessions', {
+    const harnessSessionId = await ctx.db.insert('chatroom_harnessSessions', {
       workspaceId: args.workspaceId,
       harnessName: args.harnessName,
-      harnessSessionId: undefined,
+      opencodeSessionId: undefined,
       sessionTitle: undefined,
       lastUsedConfig: args.config,
       status: 'pending',
@@ -51,16 +51,16 @@ export const create = mutation({
       lastActiveAt: now,
     });
 
-    const firstSeq = await getNextMessageSeq(ctx, harnessSessionRowId);
+    const firstSeq = await getNextMessageSeq(ctx, harnessSessionId);
     await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionRowId,
+      harnessSessionId,
       seq: firstSeq,
       role: 'user',
       content: args.firstMessage.trim(),
       timestamp: now,
     });
 
-    return { sessionId: harnessSessionRowId };
+    return { sessionId: harnessSessionId };
   },
 });
 

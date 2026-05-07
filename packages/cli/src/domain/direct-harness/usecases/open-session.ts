@@ -16,7 +16,7 @@
 
 import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { HarnessSessionRowId } from '../entities/harness-session.js';
+import type { HarnessSessionId } from '../entities/harness-session.js';
 import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ export interface OpenSessionInput {
  * resources. Close is idempotent.
  */
 export interface SessionHandle {
-  readonly harnessSessionRowId: string;
   readonly harnessSessionId: string;
+  readonly opencodeSessionId: string;
   /** The workspace this session belongs to — used for inactivity tracking. */
   readonly workspaceId: string;
   readonly session: DirectHarnessSession;

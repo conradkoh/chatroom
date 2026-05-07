@@ -50,7 +50,7 @@ describe('sessions.create', () => {
 
     const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
-      harnessSessionRowId: rowId,
+      harnessSessionId: rowId,
     });
     expect(messages).toHaveLength(1);
     expect(messages[0]?.role).toBe('user');
@@ -83,7 +83,7 @@ describe('associateHarnessSessionId', () => {
     // Associate
     await t.mutation(
       api.daemon.directHarness.sessions.associateHarnessSessionId,
-      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+      { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-abc' }
     );
 
     // No longer pending
@@ -100,13 +100,13 @@ describe('associateHarnessSessionId', () => {
 
     await t.mutation(
       api.daemon.directHarness.sessions.associateHarnessSessionId,
-      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+      { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-abc' }
     );
 
     await expect(
       t.mutation(
         api.daemon.directHarness.sessions.associateHarnessSessionId,
-        { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+        { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-abc' }
       )
     ).resolves.not.toThrow();
   });
@@ -117,13 +117,13 @@ describe('associateHarnessSessionId', () => {
 
     await t.mutation(
       api.daemon.directHarness.sessions.associateHarnessSessionId,
-      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-first' }
+      { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-first' }
     );
 
     await expect(
       t.mutation(
         api.daemon.directHarness.sessions.associateHarnessSessionId,
-        { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-different' }
+        { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-different' }
       )
     ).rejects.toThrow();
   });
@@ -138,7 +138,7 @@ describe('closeSession', () => {
 
     await t.mutation(
       api.daemon.directHarness.sessions.closeSession,
-      { sessionId, harnessSessionRowId: rowId }
+      { sessionId, harnessSessionId: rowId }
     );
   });
 });
@@ -153,17 +153,17 @@ describe('updateCursor', () => {
     // Send two user messages
     const { seq: seq1 } = await t.mutation(
       api.web.directHarness.messages.send,
-      { sessionId, harnessSessionRowId: rowId, text: 'first' }
+      { sessionId, harnessSessionId: rowId, text: 'first' }
     );
     const { seq: seq2 } = await t.mutation(
       api.web.directHarness.messages.send,
-      { sessionId, harnessSessionRowId: rowId, text: 'second' }
+      { sessionId, harnessSessionId: rowId, text: 'second' }
     );
 
     // Update cursor past first message
     await t.mutation(
       api.daemon.directHarness.sessions.updateCursor,
-      { sessionId, harnessSessionRowId: rowId, seq: seq1 }
+      { sessionId, harnessSessionId: rowId, seq: seq1 }
     );
 
     // pendingForMachine should only return messages after seq1
@@ -197,7 +197,7 @@ describe('listPendingSessionsForMachine', () => {
 
     await t.mutation(
       api.daemon.directHarness.sessions.associateHarnessSessionId,
-      { sessionId, harnessSessionRowId: rowId, harnessSessionId: 'sdk-abc' }
+      { sessionId, harnessSessionId: rowId, opencodeSessionId: 'sdk-abc' }
     );
 
     const pending = await t.query(

@@ -6,7 +6,6 @@
  */
 
 export interface OutputChunk {
-  readonly seq: number;
   readonly content: string;
   readonly timestamp: number;
 }

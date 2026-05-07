@@ -19,7 +19,7 @@ import type { OpencodeClient } from '@opencode-ai/sdk';
 import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 import { OpencodeSdkSession } from './opencode-session.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 
@@ -137,14 +137,14 @@ export class OpencodeSdkHarness implements BoundHarness {
 
     return new OpencodeSdkSession({
       baseUrl: this.extractBaseUrl(),
-      harnessSessionId: sessionId,
+      opencodeSessionId: sessionId,
       sessionTitle,
     });
   }
 
   /** Resume an existing SDK session by its harness session ID. */
   async resumeSession(
-    sessionId: HarnessSessionId,
+    sessionId: OpenCodeSessionId,
     _options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
@@ -162,7 +162,7 @@ export class OpencodeSdkHarness implements BoundHarness {
 
     return new OpencodeSdkSession({
       baseUrl: this.extractBaseUrl(),
-      harnessSessionId: sessionId,
+      opencodeSessionId: sessionId,
       sessionTitle,
     });
   }

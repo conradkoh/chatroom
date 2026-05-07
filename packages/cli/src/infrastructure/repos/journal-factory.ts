@@ -28,7 +28,7 @@ export interface BufferedJournalFactoryOptions {
 export class BufferedJournalFactory implements JournalFactory {
   constructor(private readonly options: BufferedJournalFactoryOptions) {}
 
-  create(harnessSessionRowId: string): SessionJournal {
+  create(harnessSessionId: string): SessionJournal {
     const { outputRepository, flushIntervalMs = 500, logger = console } = this.options;
     const buffer: OutputChunk[] = [];
     let flushInProgress = false;
@@ -39,7 +39,7 @@ export class BufferedJournalFactory implements JournalFactory {
       flushInProgress = true;
 
       const batch = buffer.splice(0);
-      outputRepository.appendChunks(harnessSessionRowId, batch).catch((err) => {
+      outputRepository.appendChunks(harnessSessionId, batch).catch((err) => {
         // Re-queue failed chunks so they are not lost
         buffer.unshift(...batch);
         logger.warn('Journal flush failed, re-queued %d chunks: %s', batch.length, err instanceof Error ? err.message : String(err));
@@ -58,7 +58,6 @@ export class BufferedJournalFactory implements JournalFactory {
         buffer.push({
           content: chunk.content,
           timestamp: chunk.timestamp,
-          seq: buffer.length + 1,
         });
       },
 
@@ -70,7 +69,7 @@ export class BufferedJournalFactory implements JournalFactory {
         if (buffer.length === 0) return;
 
         const batch = buffer.splice(0);
-        await outputRepository.appendChunks(harnessSessionRowId, batch);
+        await outputRepository.appendChunks(harnessSessionId, batch);
       },
     };
   }

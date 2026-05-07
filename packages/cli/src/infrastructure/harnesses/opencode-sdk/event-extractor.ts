@@ -1,25 +1,25 @@
 /**
- * Extracts text content from opencode SDK harness session events.
+ * Extracts incremental text content from opencode SDK session events.
  *
- * Returns the text for message.part.updated events, and null for all others
- * (tool calls, status updates, etc.). Callers use this as the chunkExtractor
- * in openSession / resumeSession deps.
+ * For message.part.updated events with a text part, returns the `delta`
+ * string (the incremental chunk). Returns null for all other event types
+ * (tool calls, status updates, etc.).
  */
 
 import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 
-/**
- * Extracts text content from a DirectHarnessSessionEvent.
- * Returns the text string for content events, or null if the event
- * does not carry displayable content.
- */
 export function opencodeSdkChunkExtractor(event: DirectHarnessSessionEvent): string | null {
-  if (event.type === 'message.part.updated') {
-    const payload = event.payload as { content?: string } | undefined;
-    const text = payload?.content;
-    if (text && text.length > 0) {
-      return text;
-    }
-  }
+  if (event.type !== 'message.part.updated') return null;
+
+  const payload = event.payload as {
+    part?: { type?: string };
+    delta?: string;
+  } | undefined;
+
+  if (payload?.part?.type !== 'text') return null;
+
+  const delta = payload.delta;
+  if (delta && delta.length > 0) return delta;
+
   return null;
 }

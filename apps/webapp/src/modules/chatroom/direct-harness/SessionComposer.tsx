@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Send } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -47,8 +47,18 @@ export function NewSessionComposer({
   const selectedHarness = harnesses.find((h) => h.name === harnessName) ?? harnesses[0];
   const providers = selectedHarness?.providers ?? [];
 
+  // Auto-select the first available model when providers load
+  useEffect(() => {
+    if (modelKey) return;
+    const firstProvider = providers[0];
+    const firstModel = firstProvider?.models[0];
+    if (firstProvider && firstModel) {
+      setModelKey(`${firstProvider.providerID}::${firstModel.modelID}`);
+    }
+  }, [providers, modelKey]);
+
   const trimmed = text.trim();
-  const canSend = !!trimmed && !isCreating;
+  const canSend = !!trimmed && !isCreating && !!modelKey;
 
   const handleSend = async () => {
     if (!canSend) return;

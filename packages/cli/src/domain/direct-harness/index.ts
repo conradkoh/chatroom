@@ -15,8 +15,8 @@
 export type { ChatroomId, WorkspaceId, Workspace } from './entities/workspace.js';
 
 export type {
-  HarnessSessionRowId,
   HarnessSessionId,
+  OpenCodeSessionId,
   HarnessSession,
 } from './entities/harness-session.js';
 

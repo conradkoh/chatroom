@@ -12,30 +12,30 @@ import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
-// ─── associateHarnessSessionId ────────────────────────────────────────────────
+// ─── associateOpenCodeSessionId ───────────────────────────────────────────────
 
 export const associateHarnessSessionId = mutation({
   args: {
     ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
-    harnessSessionId: v.string(),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    opencodeSessionId: v.string(),
     sessionTitle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
 
-    const existingId = harnessSession.harnessSessionId;
-    if (existingId === args.harnessSessionId) return;
-    if (existingId !== undefined && existingId !== null) {
+    const existing = harnessSession.opencodeSessionId;
+    if (existing === args.opencodeSessionId) return;
+    if (existing !== undefined && existing !== null) {
       throw new ConvexError({
         code: 'HARNESS_SESSION_ALREADY_ASSOCIATED',
-        message: `Session ${args.harnessSessionRowId} already has harnessSessionId '${existingId}'.`,
+        message: `Session ${args.harnessSessionId} already has opencodeSessionId '${existing}'.`,
       });
     }
 
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, {
-      harnessSessionId: args.harnessSessionId,
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      opencodeSessionId: args.opencodeSessionId,
       status: 'active',
       ...(args.sessionTitle ? { sessionTitle: args.sessionTitle } : {}),
     });
@@ -47,13 +47,13 @@ export const associateHarnessSessionId = mutation({
 export const closeSession = mutation({
   args: {
     ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionRowId);
+    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
     if (harnessSession.status === 'closed') return;
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, {
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
       status: 'closed',
       lastActiveAt: Date.now(),
     });
@@ -65,7 +65,7 @@ export const closeSession = mutation({
 export const updateCursor = mutation({
   args: {
     ...SessionIdArg,
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
     seq: v.number(),
   },
   handler: async (ctx, args) => {
@@ -73,7 +73,7 @@ export const updateCursor = mutation({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) throw new Error('Authentication required');
 
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionRowId);
+    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
     if (!harnessSession) throw new Error('Session not found');
 
     const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
@@ -85,7 +85,7 @@ export const updateCursor = mutation({
       .first();
     if (!machine || machine.userId !== auth.user._id) throw new Error('Unauthorized');
 
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionRowId, { lastProcessedSeq: args.seq });
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, { lastProcessedSeq: args.seq });
   },
 });
 
@@ -93,16 +93,16 @@ export const updateCursor = mutation({
 
 export const getSession = query({
   args: {
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const session = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionRowId);
+    const session = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
     if (!session) return null;
     return {
       _id: session._id,
       status: session.status,
-      harnessSessionId: session.harnessSessionId,
+      opencodeSessionId: session.opencodeSessionId,
       lastUsedConfig: session.lastUsedConfig,
       lastProcessedSeq: session.lastProcessedSeq,
       workspaceId: session.workspaceId,
@@ -133,7 +133,9 @@ export const listPendingSessionsForMachine = query({
       [...workspaceIds].map((workspaceId) =>
         ctx.db
           .query('chatroom_harnessSessions')
-          .withIndex('by_workspace_status', (q) => q.eq('workspaceId', workspaceId).eq('status', 'pending'))
+          .withIndex('by_workspace_status', (q) =>
+            q.eq('workspaceId', workspaceId).eq('status', 'pending')
+          )
           .collect()
       )
     );

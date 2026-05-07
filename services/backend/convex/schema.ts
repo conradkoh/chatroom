@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-/** Canonical harness validator — add new harnesses here. */
+/** Canonical harness validator - add new harnesses here. */
 export const agentHarnessValidator = v.union(
   v.literal('opencode'),
   v.literal('opencode-sdk'),
@@ -294,7 +294,7 @@ export default defineSchema({
     nextQueuePosition: v.optional(v.number()),
     // Current active context for this chatroom (explicit context management)
     currentContextId: v.optional(v.id('chatroom_contexts')),
-    // @deprecated — legacy field kept for backward compatibility with existing documents
+    // @deprecated - legacy field kept for backward compatibility with existing documents
     messageCount: v.optional(v.number()),
   })
     .index('by_status', ['status'])
@@ -334,15 +334,15 @@ export default defineSchema({
     // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
-    // Agent type — 'custom' or 'remote'
+    // Agent type - 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
     // Timestamp of the last check-in received from this participant.
     // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
     // The name of the CLI command last run by this participant.
     // For get-next-task (persistent connection), two distinct action names are used:
-    //   "get-next-task:started" — written when the loop begins
-    //   "get-next-task:stopped" — written just before the loop exits
+    //   "get-next-task:started" - written when the loop begins
+    //   "get-next-task:stopped" - written just before the loop exits
     lastSeenAction: v.optional(v.string()),
     // @deprecated No longer used for stuck detection. The daemon's task monitor now uses
     // spawnedAgentPid to determine if an agent is running, not token timestamps.
@@ -374,7 +374,7 @@ export default defineSchema({
     // For broadcast messages, this gets set when the message is claimed
     claimedByRole: v.optional(v.string()),
     // Source platform for messages from external integrations (e.g. "telegram")
-    // Used for loop prevention — messages with a sourcePlatform are not re-forwarded.
+    // Used for loop prevention - messages with a sourcePlatform are not re-forwarded.
     sourcePlatform: v.optional(v.string()),
     type: v.union(
       v.literal('message'),
@@ -467,7 +467,7 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // Message content
     content: v.string(),
-    // Always 'message' — only user messages get staged
+    // Always 'message' - only user messages get staged
     type: v.literal('message'),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
@@ -506,11 +506,11 @@ export default defineSchema({
       v.literal('in_progress'), // Agent actively working on it
       v.literal('completed'), // Finished successfully
 
-      // @deprecated — legacy backlog-origin statuses; exist in old records, remove after cleanup migration
-      v.literal('closed'), // @deprecated — was terminal status for backlog tasks; now handled by chatroom_backlog
-      v.literal('backlog'), // @deprecated — was initial status for backlog items; now handled by chatroom_backlog
-      v.literal('pending_user_review'), // @deprecated — was intermediate backlog status; now handled by chatroom_backlog
-      v.literal('backlog_acknowledged') // @deprecated — transitional status, migrated via migrateBacklogAcknowledgedToBacklog
+      // @deprecated - legacy backlog-origin statuses; exist in old records, remove after cleanup migration
+      v.literal('closed'), // @deprecated - was terminal status for backlog tasks; now handled by chatroom_backlog
+      v.literal('backlog'), // @deprecated - was initial status for backlog items; now handled by chatroom_backlog
+      v.literal('pending_user_review'), // @deprecated - was intermediate backlog status; now handled by chatroom_backlog
+      v.literal('backlog_acknowledged') // @deprecated - transitional status, migrated via migrateBacklogAcknowledgedToBacklog
     ),
 
     // Assignment
@@ -520,24 +520,24 @@ export default defineSchema({
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
     // Backlog attachment tracking
-    // @deprecated — backlog-specific field; use chatroom_backlog references instead
+    // @deprecated - backlog-specific field; use chatroom_backlog references instead
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
 
-    // @deprecated — origin was used to distinguish backlog vs chat tasks; all backlog items
+    // @deprecated - origin was used to distinguish backlog vs chat tasks; all backlog items
     // are now in chatroom_backlog. Remove after running the reference cleanup migration.
     origin: v.optional(
       v.union(
-        v.literal('backlog'), // @deprecated — all backlog items are now in chatroom_backlog table
+        v.literal('backlog'), // @deprecated - all backlog items are now in chatroom_backlog table
         v.literal('chat') // Created from chat message
       )
     ),
 
-    // @deprecated — backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
+    // @deprecated - backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     priority: v.optional(v.number()),
 
-    // @deprecated — bidirectional link to parent backlog task. Remove after reference cleanup migration.
+    // @deprecated - bidirectional link to parent backlog task. Remove after reference cleanup migration.
     parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
     // Timestamps
@@ -593,12 +593,12 @@ export default defineSchema({
     // Priority: numeric priority for flexible ordering (higher = more important)
     priority: v.optional(v.number()),
 
-    // Close reason — mandatory when closing via CLI, for audit trail
+    // Close reason - mandatory when closing via CLI, for audit trail
     closeReason: v.optional(v.string()),
 
-    // Legacy reference — set during migration from chatroom_tasks
+    // Legacy reference - set during migration from chatroom_tasks
     // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
-    // @deprecated — migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
+    // @deprecated - migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
     legacyTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
@@ -756,7 +756,7 @@ export default defineSchema({
    *
    * This is separate from chatroom_teamAgentConfigs, which is the authoritative
    * active config used by auto-restart logic. agentPreferences are purely
-   * informational/UI hints — they do not drive any backend behavior.
+   * informational/UI hints - they do not drive any backend behavior.
    *
    * Written by: the UI's "Start Agent" action (via saveAgentPreference mutation).
    * Read by: the Remote tab UI to pre-populate fields as defaults.
@@ -831,7 +831,7 @@ export default defineSchema({
     ),
     // Available AI models discovered per harness (dynamic, per-machine)
     // Shape: { opencode: [...], pi: [...] }
-    // DEPRECATED SHAPE: v.array(v.string()) — kept to pass validation until
+    // DEPRECATED SHAPE: v.array(v.string()) - kept to pass validation until
     // migration.migrateAvailableModelsToPerHarness has run. Remove after migration.
     availableModels: v.optional(
       v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
@@ -852,7 +852,7 @@ export default defineSchema({
     .index('by_userId', ['userId']),
 
   /**
-   * Machine liveness data — volatile fields separated from the main machine record
+   * Machine liveness data - volatile fields separated from the main machine record
    * to prevent heartbeat-triggered cascading re-evaluations.
    *
    * Updated by daemonHeartbeat on every heartbeat. Queries that only need static
@@ -880,7 +880,7 @@ export default defineSchema({
 
   /**
    * Model visibility filters for a machine's harness.
-   * Machine-level — shared across all users and chatrooms.
+   * Machine-level - shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.
    */
   chatroom_machineModelFilters: defineTable({
@@ -1141,7 +1141,7 @@ export default defineSchema({
         type: v.literal('daemon.refreshCapabilities'),
         machineId: v.string(),
         timestamp: v.number(),
-        /** Present for new requests — daemons report outcomes against this batch. */
+        /** Present for new requests - daemons report outcomes against this batch. */
         batchId: v.optional(v.id('chatroom_capabilities_refresh_batches')),
       }),
       // Daemon response to a daemon.ping event
@@ -1197,7 +1197,7 @@ export default defineSchema({
         workflowId: v.id('chatroom_workflows'),
         createdBy: v.string(),
         stepCount: v.number(),
-        // Optional for backward compatibility — existing events in the DB may not have this field.
+        // Optional for backward compatibility - existing events in the DB may not have this field.
         // New events always include steps.
         steps: v.optional(
           v.array(
@@ -1344,7 +1344,7 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     workingDir: v.string(),
     model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
-    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" — optional for backward compat
+    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" - optional for backward compat
 
     // Time bucket (start of the hour in ms UTC)
     hourBucket: v.number(),
@@ -1493,7 +1493,7 @@ export default defineSchema({
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
-    // Pipeline mode — 'full' (heartbeat) or 'slim' (observed sync)
+    // Pipeline mode - 'full' (heartbeat) or 'slim' (observed sync)
     pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
 
     // Timestamp
@@ -1575,7 +1575,7 @@ export default defineSchema({
     ])
     // Tight index for the requestPRDiff idempotency check: a single point-lookup
     // for `(machineId, workingDir, requestType='pr_diff', prNumber, status='pending')`
-    // — every equality is index-covered, no scan.
+    // - every equality is index-covered, no scan.
     .index('by_machine_workingDir_type_pr_status', [
       'machineId',
       'workingDir',
@@ -1590,7 +1590,7 @@ export default defineSchema({
    * Keyed by machineId + workingDir + prNumber so each PR has its own cache row.
    *
    * `prNumber` is `v.optional` for backward compatibility with documents written
-   * before the per-PR cache (PR #427) shipped — such rows are effectively orphaned
+   * before the per-PR cache (PR #427) shipped - such rows are effectively orphaned
    * (they won't match any indexed lookup) and the daemon repopulates with prNumber
    * on the next request.
    */
@@ -1818,13 +1818,13 @@ export default defineSchema({
   // DAG-based workflows that agents create and execute step-by-step.
   // Workflows block user handoff until completed or explicitly exited.
 
-  /** Workflow definitions — one per workflowKey per chatroom. */
+  /** Workflow definitions - one per workflowKey per chatroom. */
   chatroom_workflows: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     workflowKey: v.string(), // User-provided unique key within chatroom
     status: v.union(
       v.literal('draft'), // Created but not yet started
-      v.literal('active'), // In progress — steps are being executed
+      v.literal('active'), // In progress - steps are being executed
       v.literal('completed'), // All steps completed or cancelled
       v.literal('cancelled') // Manually exited early
     ),
@@ -1839,7 +1839,7 @@ export default defineSchema({
     .index('by_chatroom_workflowKey', ['chatroomId', 'workflowKey'])
     .index('by_chatroom_status', ['chatroomId', 'status']),
 
-  /** Steps within a workflow — nodes of the DAG. */
+  /** Steps within a workflow - nodes of the DAG. */
   chatroom_workflow_steps: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     workflowId: v.id('chatroom_workflows'),
@@ -1879,7 +1879,7 @@ export default defineSchema({
     platform: v.string(),
     /** Platform-specific configuration (bot token, chat ID, etc.) */
     config: v.object({
-      /** Bot token or API key — sensitive, stored encrypted at rest by Convex */
+      /** Bot token or API key - sensitive, stored encrypted at rest by Convex */
       botToken: v.optional(v.string()),
       /** Platform-specific chat/channel ID to bridge */
       chatId: v.optional(v.string()),
@@ -1962,15 +1962,15 @@ export default defineSchema({
   }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
 
   // ═══════════════════════════════════════════════════════════════════════════════
-  // V2 Workspace Tables — Compressed-Only
+  // V2 Workspace Tables - Compressed-Only
   // ═══════════════════════════════════════════════════════════════════════════════
   // These tables replace their v1 counterparts with clean, compressed-only schemas.
-  // All `data` fields are base64-encoded gzip — no optional raw/compressed split.
+  // All `data` fields are base64-encoded gzip - no optional raw/compressed split.
   // v1 tables are preserved for migration but should not be used in new code.
   // ═══════════════════════════════════════════════════════════════════════════════
 
   /**
-   * V2 workspace file tree — compressed only.
+   * V2 workspace file tree - compressed only.
    * `data` is always a base64-encoded gzip of the FileTree JSON.
    * `dataHash` is used for server-side dedup (skip write if unchanged).
    */
@@ -1993,7 +1993,7 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * V2 workspace full diff — compressed only.
+   * V2 workspace full diff - compressed only.
    * `data` is a discriminated union object containing compression format and content.
    */
   chatroom_workspaceFullDiffV2: defineTable({
@@ -2018,7 +2018,7 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * V2 workspace commit detail — compressed only.
+   * V2 workspace commit detail - compressed only.
    * Uses discriminated status field. `data` (compressed object)
    * is only present when status === 'available'.
    */
@@ -2060,7 +2060,7 @@ export default defineSchema({
   }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
 
   /**
-   * V2 workspace file content — compressed only.
+   * V2 workspace file content - compressed only.
    * `data` is a discriminated union object containing compression format and content.
    */
   chatroom_workspaceFileContentV2: defineTable({
@@ -2145,12 +2145,13 @@ export default defineSchema({
    * A HarnessSession represents one conversation with a harness process.
    * Sessions are associated with an existing chatroom_workspaces entry and
    * are resumable across daemon restarts.
-   * harnessSessionRowId is the Convex-issued _id.
    */
   chatroom_harnessSessions: defineTable({
     workspaceId: v.id('chatroom_workspaces'),
     harnessName: v.string(),
-    /** Opencode-server-issued session identifier (set after spawning). */
+    /** OpenCode SDK session identifier (set after spawning). */
+    opencodeSessionId: v.optional(v.string()),
+    /** @deprecated — kept optional so old rows pass validation; use opencodeSessionId. */
     harnessSessionId: v.optional(v.string()),
     /** Display title synced from the opencode SDK session (auto-generated or user-renamed). */
     sessionTitle: v.optional(v.string()),
@@ -2172,12 +2173,12 @@ export default defineSchema({
     createdBy: v.id('users'),
     createdAt: v.number(),
     lastActiveAt: v.number(),
-    /** Cursor for the daemon's message processing. Starts at 0. */
+    /** Cursor for the daemon’s message processing. Starts at 0. */
     lastProcessedSeq: v.number(),
   })
     .index('by_workspace', ['workspaceId'])
     .index('by_workspace_status', ['workspaceId', 'status'])
-    .index('by_harnessSessionId', ['harnessSessionId']),
+    .index('by_opencodeSessionId', ['opencodeSessionId']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant
@@ -2185,14 +2186,16 @@ export default defineSchema({
    * role distinguishes user messages from assistant responses.
    */
   chatroom_harnessSessionMessages: defineTable({
-    harnessSessionRowId: v.id('chatroom_harnessSessions'),
+    /** @deprecated — removed after migration; field kept optional for old rows */
+    harnessSessionRowId: v.optional(v.id('chatroom_harnessSessions')),
+    harnessSessionId: v.id('chatroom_harnessSessions'),
     seq: v.number(),
     role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),
   })
-    .index('by_session_seq', ['harnessSessionRowId', 'seq'])
-    .index('by_session_role_seq', ['harnessSessionRowId', 'role', 'seq']),
+    .index('by_session_seq', ['harnessSessionId', 'seq'])
+    .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq']),
 
   /**
    * Per-machine capability snapshot: registered workspaces + per-workspace
@@ -2247,7 +2250,7 @@ export default defineSchema({
    * Uses a tagged-union pattern: `type` discriminates the command kind, and
    * a field matching the type name holds the type-specific payload (e.g.
    * when type is 'refreshCapabilities', `refreshCapabilities` holds the
-   * payload). This keeps the schema extensible — new types add a new optional
+   * payload). This keeps the schema extensible - new types add a new optional
    * field without changing the existing structure.
    *
    * Indexed by (machineId, status) for daemon polling.

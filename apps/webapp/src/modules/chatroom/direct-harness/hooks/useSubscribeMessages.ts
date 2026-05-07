@@ -20,7 +20,7 @@ export function useSubscribeMessages(
   input: HarnessSubscribeInput
 ): HarnessMessage[] | undefined {
   return useSessionQuery(api.web.directHarness.messages.subscribe, {
-    harnessSessionRowId: input.harnessSessionId,
+    harnessSessionId: input.harnessSessionId,
     afterSeq: input.afterSeq,
   });
 }

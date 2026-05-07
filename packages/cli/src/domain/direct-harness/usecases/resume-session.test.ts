@@ -5,7 +5,7 @@ import type { ResumeSessionDeps, ResumeSessionInput } from './resume-session.js'
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { SessionJournal, JournalFactory } from './open-session.js';
-import type { HarnessSessionId } from '../entities/harness-session.js';
+import type { OpenCodeSessionId } from '../entities/harness-session.js';
 import type { CloseSessionDeps, CloseSessionInput } from './close-session.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -14,7 +14,7 @@ type Func = ReturnType<typeof vi.fn>;
 
 function mockSession(overrides?: Partial<DirectHarnessSession>): DirectHarnessSession {
   return {
-    harnessSessionId: 'sess-1',
+    opencodeSessionId: 'sess-1',
     sessionTitle: 'test',
     prompt: vi.fn(),
     onEvent: vi.fn().mockReturnValue(() => {}),
@@ -47,8 +47,8 @@ function mockBoundHarness(): BoundHarness {
 }
 
 const defaultInput: ResumeSessionInput = {
-  harnessSessionRowId: 'row-1',
-  harnessSessionId: 'sess-1',
+  harnessSessionId: 'row-1',
+  opencodeSessionId: 'sess-1',
 };
 
 describe('resumeSession', () => {
@@ -70,13 +70,13 @@ describe('resumeSession', () => {
 
     const result = await resumeSession(deps, defaultInput);
 
-    expect(harness.resumeSession).toHaveBeenCalledWith('sess-1' as HarnessSessionId, {
-      harnessSessionRowId: 'row-1',
+    expect(harness.resumeSession).toHaveBeenCalledWith('sess-1' as OpenCodeSessionId, {
+      harnessSessionId: 'row-1',
     });
     expect(journalFactory.create).toHaveBeenCalledWith('row-1');
     expect(session.onEvent).toHaveBeenCalledOnce();
-    expect(result.harnessSessionRowId).toBe('row-1');
-    expect(result.harnessSessionId).toBe('sess-1');
+    expect(result.harnessSessionId).toBe('row-1');
+    expect(result.opencodeSessionId).toBe('sess-1');
     expect(result.session).toBe(session);
   });
 

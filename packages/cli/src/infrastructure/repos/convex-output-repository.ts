@@ -20,7 +20,7 @@ export class ConvexOutputRepository implements OutputRepository {
   constructor(private readonly options: ConvexOutputRepositoryOptions) {}
 
   async appendChunks(
-    harnessSessionRowId: string,
+    harnessSessionId: string,
     chunks: readonly OutputChunk[]
   ): Promise<void> {
     const { backend, sessionId } = this.options;
@@ -29,11 +29,10 @@ export class ConvexOutputRepository implements OutputRepository {
 
     await backend.mutation(api.daemon.directHarness.messages.appendMessages, {
       sessionId,
-      harnessSessionRowId,
+      harnessSessionId,
       chunks: chunks.map((c) => ({
         content: c.content,
         timestamp: c.timestamp,
-        seq: c.seq,
       })),
     });
   }

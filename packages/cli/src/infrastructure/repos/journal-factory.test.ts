@@ -145,7 +145,7 @@ describe('BufferedJournalFactory', () => {
     expect(repo.appendChunks).not.toHaveBeenCalled();
   });
 
-  it('assigns sequential seq numbers to chunks', async () => {
+  it('passes chunk content and timestamp to the output repository', async () => {
     const repo = mockOutputRepository();
     const factory = new BufferedJournalFactory({ outputRepository: repo, flushIntervalMs: 1000, logger: { warn: warnSpy } });
 
@@ -156,8 +156,9 @@ describe('BufferedJournalFactory', () => {
     await journal.commit();
 
     const chunks: OutputChunk[] = (repo.appendChunks as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(chunks[0].seq).toBe(1);
-    expect(chunks[1].seq).toBe(2);
-    expect(chunks[2].seq).toBe(3);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toMatchObject({ content: 'a', timestamp: 1 });
+    expect(chunks[1]).toMatchObject({ content: 'b', timestamp: 2 });
+    expect(chunks[2]).toMatchObject({ content: 'c', timestamp: 3 });
   });
 });

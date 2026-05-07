@@ -33,7 +33,7 @@ function mockDeps(overrides?: Partial<CloseSessionDeps>): CloseSessionDeps {
 }
 
 const defaultInput: CloseSessionInput = {
-  harnessSessionRowId: 'row-1',
+  harnessSessionId: 'row-1',
 };
 
 describe('closeSession', () => {
@@ -50,8 +50,8 @@ describe('closeSession', () => {
 
   it('calls markClosed when a sessionRepository is provided', async () => {
     const sessionRepository: SessionRepository = {
-      associateHarnessSessionId: vi.fn(),
-      getHarnessSessionId: vi.fn(),
+      associateOpenCodeSessionId: vi.fn(),
+      getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn(),
       updateLastProcessedSeq: vi.fn(),
     };
@@ -83,8 +83,8 @@ describe('closeSession', () => {
 
   it('still returns successfully when markClosed fails (best-effort)', async () => {
     const sessionRepository: SessionRepository = {
-      associateHarnessSessionId: vi.fn(),
-      getHarnessSessionId: vi.fn(),
+      associateOpenCodeSessionId: vi.fn(),
+      getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),
       updateLastProcessedSeq: vi.fn(),
     };
@@ -98,8 +98,8 @@ describe('closeSession', () => {
     const journal = mockJournal();
     (journal.commit as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('transport down'));
     const sessionRepository: SessionRepository = {
-      associateHarnessSessionId: vi.fn(),
-      getHarnessSessionId: vi.fn(),
+      associateOpenCodeSessionId: vi.fn(),
+      getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),
       updateLastProcessedSeq: vi.fn(),
     };

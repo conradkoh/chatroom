@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
-import type { HarnessSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ describe('OpencodeSdkHarness', () => {
     // Fetches the title from the harness
     expect(mockGet).toHaveBeenCalledWith({ path: { id: 'sess-456' } });
 
-    expect(session.harnessSessionId).toBe('sess-456');
+    expect(session.opencodeSessionId).toBe('sess-456');
     expect(session.sessionTitle).toBe('My Session');
   });
 
@@ -177,7 +177,7 @@ describe('OpencodeSdkHarness', () => {
       query: { directory: '/test/workspace' },
     });
 
-    expect(session.harnessSessionId).toBe('sess-789');
+    expect(session.opencodeSessionId).toBe('sess-789');
     expect(session.sessionTitle).toBe('Auto-generated');
   });
 
@@ -210,10 +210,10 @@ describe('OpencodeSdkHarness', () => {
     mockGet.mockResolvedValue({ data: { title: 'Existing Session' } });
 
     const harness = createHarness();
-    const session = await harness.resumeSession('sess-existing' as HarnessSessionId);
+    const session = await harness.resumeSession('sess-existing' as OpenCodeSessionId);
 
     expect(mockGet).toHaveBeenCalledWith({ path: { id: 'sess-existing' } });
-    expect(session.harnessSessionId).toBe('sess-existing');
+    expect(session.opencodeSessionId).toBe('sess-existing');
     expect(session.sessionTitle).toBe('Existing Session');
   });
 
@@ -221,7 +221,7 @@ describe('OpencodeSdkHarness', () => {
     mockGet.mockRejectedValue(new Error('not found'));
 
     const harness = createHarness();
-    await expect(harness.resumeSession('sess-gone' as HarnessSessionId)).rejects.toThrow(
+    await expect(harness.resumeSession('sess-gone' as OpenCodeSessionId)).rejects.toThrow(
       'Session sess-gone not found on the harness'
     );
   });
@@ -229,7 +229,7 @@ describe('OpencodeSdkHarness', () => {
   it('throws when resuming session on closed harness', async () => {
     const harness = createHarness();
     await harness.close();
-    await expect(harness.resumeSession('sess-any' as HarnessSessionId)).rejects.toThrow(
+    await expect(harness.resumeSession('sess-any' as OpenCodeSessionId)).rejects.toThrow(
       'Harness is closed'
     );
   });

@@ -26,7 +26,7 @@ vi.mock('@opencode-ai/sdk', () => ({
 function createSession(overrides?: { baseUrl?: string }) {
   return new OpencodeSdkSession({
     baseUrl: overrides?.baseUrl ?? 'http://127.0.0.1:15432',
-    harnessSessionId: 'sess-123',
+    opencodeSessionId: 'sess-123',
     sessionTitle: 'Test Session',
   });
 }
@@ -270,9 +270,9 @@ describe('OpencodeSdkSession', () => {
 
   // ── properties ──────────────────────────────────────────────────────────────
 
-  it('exposes harnessSessionId and sessionTitle', () => {
+  it('exposes opencodeSessionId and sessionTitle', () => {
     const session = createSession();
-    expect(session.harnessSessionId).toBe('sess-123');
+    expect(session.opencodeSessionId).toBe('sess-123');
     expect(session.sessionTitle).toBe('Test Session');
   });
 });

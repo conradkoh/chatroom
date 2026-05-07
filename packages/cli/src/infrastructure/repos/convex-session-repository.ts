@@ -1,16 +1,6 @@
-/**
- * Convex-backed SessionRepository.
- *
- * Maps the domain SessionRepository port to Convex mutations/queries:
- *   - associateHarnessSessionId → sessions.associateHarnessSessionId mutation
- *   - getHarnessSessionId → sessions.getSession query
- *   - markClosed          → sessions.closeSession mutation
- *   - updateLastProcessedSeq → sessions.updateCursor mutation
- */
-
 import { api } from '../../api.js';
 import type { SessionRepository } from '../../domain/direct-harness/ports/session-repository.js';
-import type { HarnessSessionId } from '../../domain/direct-harness/entities/harness-session.js';
+import type { OpenCodeSessionId } from '../../domain/direct-harness/entities/harness-session.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BackendCall = (endpoint: any, args: any) => Promise<any>;
@@ -23,49 +13,41 @@ export interface ConvexSessionRepositoryOptions {
 export class ConvexSessionRepository implements SessionRepository {
   constructor(private readonly options: ConvexSessionRepositoryOptions) {}
 
-  async associateHarnessSessionId(
-    harnessSessionRowId: string,
+  async associateOpenCodeSessionId(
     harnessSessionId: string,
+    opencodeSessionId: string,
     sessionTitle: string
   ): Promise<void> {
     const { backend, sessionId } = this.options;
-
     await backend.mutation(api.daemon.directHarness.sessions.associateHarnessSessionId, {
       sessionId,
-      harnessSessionRowId,
       harnessSessionId,
+      opencodeSessionId,
       sessionTitle,
     });
   }
 
-  async getHarnessSessionId(harnessSessionRowId: string): Promise<HarnessSessionId | undefined> {
-    const { backend } = this.options;
-
-    const result = await backend.query(api.daemon.directHarness.sessions.getSession, {
-      harnessSessionRowId,
-    }) as { harnessSessionId?: string } | null;
-
-    return result?.harnessSessionId as HarnessSessionId | undefined;
+  async getOpenCodeSessionId(harnessSessionId: string): Promise<OpenCodeSessionId | undefined> {
+    const result = await this.options.backend.query(
+      api.daemon.directHarness.sessions.getSession,
+      { harnessSessionId }
+    ) as { opencodeSessionId?: string } | null;
+    return result?.opencodeSessionId as OpenCodeSessionId | undefined;
   }
 
-  async markClosed(harnessSessionRowId: string): Promise<void> {
+  async markClosed(harnessSessionId: string): Promise<void> {
     const { backend, sessionId } = this.options;
-
     await backend.mutation(api.daemon.directHarness.sessions.closeSession, {
       sessionId,
-      harnessSessionRowId,
+      harnessSessionId,
     });
   }
 
-  async updateLastProcessedSeq(
-    harnessSessionRowId: string,
-    seq: number
-  ): Promise<void> {
+  async updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void> {
     const { backend, sessionId } = this.options;
-
     await backend.mutation(api.daemon.directHarness.sessions.updateCursor, {
       sessionId,
-      harnessSessionRowId,
+      harnessSessionId,
       seq,
     });
   }

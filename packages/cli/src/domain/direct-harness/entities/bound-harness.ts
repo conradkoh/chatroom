@@ -16,7 +16,7 @@
  *   `HarnessProcess.listAgents()` / `.listProviders()`    → Use the `CapabilitiesCollector` port instead
  */
 
-import type { HarnessSessionId, HarnessSessionRowId } from './harness-session.js';
+import type { OpenCodeSessionId, HarnessSessionId } from './harness-session.js';
 import type { DirectHarnessSession, PromptInput } from './direct-harness-session.js';
 import type { PublishedAgent, PublishedProvider } from './machine-capabilities.js';
 
@@ -52,7 +52,7 @@ export interface BoundHarness {
 
   /** Resume an existing session by its harness session ID. */
   resumeSession(
-    sessionId: HarnessSessionId,
+    sessionId: OpenCodeSessionId,
     options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession>;
 
@@ -83,7 +83,7 @@ export interface ResumeHarnessSessionOptions {
    * `chatroom_harnessSessions` document id when it differs from the opencode
    * SDK session id. Omit only when replication is off or ids are 1:1.
    */
-  readonly harnessSessionRowId?: HarnessSessionRowId;
+  readonly harnessSessionId?: HarnessSessionId;
 }
 
 // ─── NewSessionConfig ─────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ export interface NewSessionConfig {
    * backend row exists before the harness session (typical daemon flow). If
    * omitted, the SDK session id is used as the replication key (tests / 1:1).
    */
-  readonly harnessSessionRowId?: HarnessSessionRowId;
+  readonly harnessSessionId?: HarnessSessionId;
 }
 
 // ─── startBoundHarness ────────────────────────────────────────────────────────

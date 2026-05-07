@@ -26,7 +26,7 @@ import type { JournalFactory } from '../../../../domain/direct-harness/usecases/
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
 interface PendingMessage {
-  harnessSessionRowId: string;
+  harnessSessionId: string;
   content: string;
   seq: number;
 }
@@ -98,11 +98,11 @@ async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<v
   // Group messages by session for batch processing
   const bySession = new Map<string, PendingMessage[]>();
   for (const msg of pending.messages) {
-    const list = bySession.get(msg.harnessSessionRowId);
+    const list = bySession.get(msg.harnessSessionId);
     if (list) {
       list.push(msg);
     } else {
-      bySession.set(msg.harnessSessionRowId, [msg]);
+      bySession.set(msg.harnessSessionId, [msg]);
     }
   }
 
@@ -139,11 +139,11 @@ async function processSessionMessages(
 
   if (!handle) {
     // Daemon may have restarted — resume the session
-    const harnessSessionId = await deps.sessionRepository.getHarnessSessionId(rowId);
+    const harnessSessionId = await deps.sessionRepository.getOpenCodeSessionId(rowId);
 
     if (!harnessSessionId) {
       console.warn(
-        `[direct-harness] Cannot process messages for session ${rowId}: no harness session ID`
+        `[direct-harness] Cannot process messages for session ${rowId}: no opencodeSessionId — skipping`
       );
       return;
     }
@@ -185,7 +185,7 @@ async function processSessionMessages(
         journalFactory: deps.journalFactory,
         chunkExtractor: opencodeSdkChunkExtractor,
       },
-      { harnessSessionRowId: rowId, harnessSessionId, workspaceId }
+      { harnessSessionId: rowId, opencodeSessionId: harnessSessionId, workspaceId }
     );
 
     deps.activeSessions.set(rowId, handle);
@@ -202,14 +202,13 @@ async function processSessionMessages(
         ...(override.model ? { model: override.model } : {}),
       });
 
-      // Update cursor after each successful prompt
       await deps.sessionRepository.updateLastProcessedSeq(rowId, msg.seq);
     } catch (err) {
-      console.warn(
-        `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}:`,
-        err instanceof Error ? err.message : String(err)
-      );
-      // Best-effort: stop processing remaining messages for this session
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`);
+      // Mark the session closed so it stops being retried.
+      await deps.sessionRepository.markClosed(rowId).catch(() => {});
+      deps.activeSessions.delete(rowId);
       return;
     }
   }

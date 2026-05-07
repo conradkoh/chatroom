@@ -2,7 +2,7 @@
  * Interface for an active session with a running harness process.
  */
 
-import type { HarnessSessionId } from './harness-session.js';
+import type { OpenCodeSessionId } from './harness-session.js';
 
 /** A single event emitted by a harness process during a session. */
 export interface DirectHarnessSessionEvent {
@@ -35,7 +35,7 @@ export interface PromptInput {
 /** Represents an open, bidirectional session with a harness process. */
 export interface DirectHarnessSession {
   /** The session identifier assigned by the harness on spawn. */
-  readonly harnessSessionId: HarnessSessionId;
+  readonly opencodeSessionId: OpenCodeSessionId;
   /** Display title synced from the harness (e.g. opencode session title). */
   readonly sessionTitle: string;
   /**

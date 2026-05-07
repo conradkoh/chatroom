@@ -1,16 +1,10 @@
 /**
  * Domain use case: resume an existing harness session after a daemon restart.
  *
- * Orchestrates:
- *   1. Reconnect to the running harness process via BoundHarness.resumeSession()
- *   2. Create a SessionJournal via JournalFactory
- *   3. Wire session events through the chunk extractor into the journal
- *   4. Return a SessionHandle for prompt / close operations
- *
  * Does NOT create a new backend row or re-associate — the session already exists.
  */
 
-import type { HarnessSessionId, HarnessSessionRowId } from '../entities/harness-session.js';
+import type { OpenCodeSessionId, HarnessSessionId } from '../entities/harness-session.js';
 import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
 import type { SessionHandle, SessionJournal, JournalFactory } from './open-session.js';
@@ -28,8 +22,8 @@ export interface ResumeSessionDeps {
 // ─── Input / Result ───────────────────────────────────────────────────────────
 
 export interface ResumeSessionInput {
-  readonly harnessSessionRowId: string;
   readonly harnessSessionId: string;
+  readonly opencodeSessionId: string;
   readonly workspaceId?: string;
 }
 
@@ -42,15 +36,15 @@ export async function resumeSession(
   input: ResumeSessionInput
 ): Promise<ResumeSessionResult> {
   const { harness, journalFactory, chunkExtractor, nowFn = Date.now } = deps;
-  const { harnessSessionRowId, harnessSessionId } = input;
+  const { harnessSessionId, opencodeSessionId } = input;
 
   // 1. Reconnect to the harness session
-  const session = await harness.resumeSession(harnessSessionId as HarnessSessionId, {
-    harnessSessionRowId: harnessSessionRowId as HarnessSessionRowId,
+  const session = await harness.resumeSession(opencodeSessionId as OpenCodeSessionId, {
+    harnessSessionId: harnessSessionId as HarnessSessionId,
   });
 
   // 2. Create a journal to record output chunks
-  const journal = journalFactory.create(harnessSessionRowId);
+  const journal = journalFactory.create(harnessSessionId);
 
   // 3. Wire session events through the chunk extractor into the journal
   const unsubscribeEvents = session.onEvent((event) => {
@@ -64,23 +58,16 @@ export async function resumeSession(
   let closed = false;
 
   return {
-    harnessSessionRowId,
     harnessSessionId,
+    opencodeSessionId,
     workspaceId: input.workspaceId ?? '',
     session,
 
     async close(): Promise<void> {
       if (closed) return;
       closed = true;
-
-      // Stop listening so no more records are written during shutdown
       unsubscribeEvents();
-
-      // Delegate to closeSession for journal + session lifecycle
-      await closeSession(
-        { session, journal },
-        { harnessSessionRowId }
-      );
+      await closeSession({ session, journal }, { harnessSessionId });
     },
   };
 }

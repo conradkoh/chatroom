@@ -27,7 +27,7 @@ export interface CloseSessionDeps {
 // ─── Input ────────────────────────────────────────────────────────────────────
 
 export interface CloseSessionInput {
-  readonly harnessSessionRowId: string;
+  readonly harnessSessionId: string;
 }
 
 // ─── Use case function ────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ export async function closeSession(
   input: CloseSessionInput
 ): Promise<void> {
   const { session, journal, sessionRepository } = deps;
-  const { harnessSessionRowId } = input;
+  const { harnessSessionId } = input;
 
   // 1. Persist any remaining buffered chunks
   try {
@@ -52,7 +52,7 @@ export async function closeSession(
   // 3. Mark closed in the backend
   if (sessionRepository) {
     try {
-      await sessionRepository.markClosed(harnessSessionRowId);
+      await sessionRepository.markClosed(harnessSessionId);
     } catch {
       // Best-effort — don't let a backend failure mask close success
     }

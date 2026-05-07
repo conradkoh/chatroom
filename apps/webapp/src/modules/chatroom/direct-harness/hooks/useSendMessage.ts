@@ -25,7 +25,7 @@ export function useSendMessage(): {
     setIsSending(true);
     try {
       const result = await sendMutation({
-        harnessSessionRowId: input.harnessSessionId,
+        harnessSessionId: input.harnessSessionId,
         text: input.text,
       });
       return { seq: result.seq };

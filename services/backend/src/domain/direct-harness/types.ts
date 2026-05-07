@@ -36,7 +36,7 @@ export interface HarnessConfig {
 export interface HarnessMessage {
   _id: Id<'chatroom_harnessSessionMessages'>;
   _creationTime: number;
-  harnessSessionRowId: Id<'chatroom_harnessSessions'>;
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
   seq: number;
   role: 'user' | 'assistant';
   content: string;

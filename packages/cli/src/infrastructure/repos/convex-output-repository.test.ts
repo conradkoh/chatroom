@@ -23,18 +23,18 @@ describe('ConvexOutputRepository', () => {
     const { repo, backend } = createRepo();
 
     await repo.appendChunks('row-1', [
-      { content: 'hello', timestamp: 100, seq: 1 },
-      { content: 'world', timestamp: 200, seq: 2 },
+      { content: 'hello', timestamp: 100 },
+      { content: 'world', timestamp: 200 },
     ]);
 
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         sessionId: 'mock-session-id',
-        harnessSessionRowId: 'row-1',
+        harnessSessionId: 'row-1',
         chunks: [
-          { content: 'hello', timestamp: 100, seq: 1 },
-          { content: 'world', timestamp: 200, seq: 2 },
+          { content: 'hello', timestamp: 100 },
+          { content: 'world', timestamp: 200 },
         ],
       })
     );
