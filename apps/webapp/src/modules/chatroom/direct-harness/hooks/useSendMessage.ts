@@ -28,7 +28,7 @@ export function useSendMessage(): {
         harnessSessionId: input.harnessSessionId,
         text: input.text,
       });
-      return { seq: result.seq };
+      return result;
     } finally {
       setIsSending(false);
     }

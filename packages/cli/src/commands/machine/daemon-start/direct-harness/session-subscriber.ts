@@ -12,6 +12,7 @@ import type { ConvexClient } from 'convex/browser';
 
 import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { createOpencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
+import { handleSessionIdle } from './idle-handler.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
@@ -28,7 +29,7 @@ interface PendingSession {
   type: string;
   opencode?: {
     harnessName: string;
-    lastUsedConfig: { agent: string };
+    lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
   };
 }
 
@@ -141,6 +142,10 @@ async function processOne(
     // 5. Create journal + wire session events → journal
     const journal = deps.journalFactory.create(rowId);
     const extractChunk = createOpencodeSdkChunkExtractor(); // one stateful instance per session
+    const idleConfig = {
+      agent: session.opencode?.lastUsedConfig.agent ?? 'build',
+      model: session.opencode?.lastUsedConfig.model,
+    };
     const unsubscribeEvents = liveSession.onEvent((event) => {
       const chunk = extractChunk(event);
       if (chunk !== null) {
@@ -150,6 +155,11 @@ async function processOne(
           messageId: chunk.messageId,
           partType: chunk.partType,
         });
+      }
+      if (event.type === 'session.idle') {
+        void handleSessionIdle(rowId, liveSession, idleConfig, deps.sessionRepository).catch(
+          (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
+        );
       }
     });
 

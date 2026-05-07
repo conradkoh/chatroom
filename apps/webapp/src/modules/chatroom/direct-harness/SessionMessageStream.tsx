@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useSubscribeMessages } from './hooks/useSubscribeMessages';
 import type { HarnessMessage } from './hooks/useSubscribeMessages';
+import { useQueuedMessages } from './hooks/useQueuedMessages';
 import { ThinkingBlock } from './ThinkingBlock';
 
 interface SessionMessageStreamProps {
@@ -94,6 +95,7 @@ function buildTurnGroups(messages: HarnessMessage[]): TurnGroup[] {
 
 export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps) {
   const messages = useSubscribeMessages({ harnessSessionId: sessionRowId });
+  const queuedMessages = useQueuedMessages(sessionRowId);
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledRef = useRef(false);
@@ -124,7 +126,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
     );
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && (queuedMessages?.length ?? 0) === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
         Waiting for response…
@@ -133,6 +135,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
   }
 
   const turns = buildTurnGroups(messages);
+  const hasQueue = (queuedMessages?.length ?? 0) > 0;
 
   return (
     <div
@@ -151,16 +154,13 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
           );
         }
 
-        // Assistant turn — may have a thinking block, text, or both
         const hasThinking = turn.thinkingContent.length > 0;
         const hasText = turn.textContent.length > 0;
 
         return (
           <div key={turn.key} className="flex justify-start">
             <div className={cn('max-w-[75%] flex flex-col gap-2')}>
-              {hasThinking && (
-                <ThinkingBlock content={turn.thinkingContent} />
-              )}
+              {hasThinking && <ThinkingBlock content={turn.thinkingContent} />}
               {hasText && (
                 <div className="rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-muted text-foreground">
                   {turn.textContent}
@@ -170,6 +170,22 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
           </div>
         );
       })}
+
+      {/* Queued messages — held while work is in flight */}
+      {hasQueue && (
+        <div className="flex flex-col gap-2">
+          {queuedMessages!.map((qm) => (
+            <div key={qm._id} className="flex justify-end">
+              <div className="max-w-[75%] flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">Queued</span>
+                <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-primary/40 text-primary-foreground/70">
+                  {qm.content}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div ref={bottomRef} />
     </div>
   );

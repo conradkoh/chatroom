@@ -51,4 +51,21 @@ export class ConvexSessionRepository implements SessionRepository {
       seq,
     });
   }
+
+  async setGenerating(harnessSessionId: string, isGenerating: boolean): Promise<void> {
+    const { backend, sessionId } = this.options;
+    await backend.mutation(api.daemon.directHarness.queue.setGenerating, {
+      sessionId,
+      harnessSessionId,
+      isGenerating,
+    });
+  }
+
+  async dequeueNext(harnessSessionId: string): Promise<{ content: string; seq: number } | null> {
+    const { backend, sessionId } = this.options;
+    return backend.mutation(api.daemon.directHarness.queue.dequeueNext, {
+      sessionId,
+      harnessSessionId,
+    }) as Promise<{ content: string; seq: number } | null>;
+  }
 }

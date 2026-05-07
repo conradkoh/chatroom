@@ -150,20 +150,25 @@ describe('updateCursor', () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('cursor-test');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
-    // Send two user messages
+    // Advance past the initial message from createSession so subsequent sends
+    // go to the main table (not the queue).
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor,
+      { sessionId, harnessSessionId: rowId, seq: 1 });
+
+    // Send two user messages, advancing cursor between them so both go to main table
     const { seq: seq1 } = await t.mutation(
       api.web.directHarness.messages.send,
       { sessionId, harnessSessionId: rowId, text: 'first' }
     );
-    const { seq: seq2 } = await t.mutation(
-      api.web.directHarness.messages.send,
-      { sessionId, harnessSessionId: rowId, text: 'second' }
-    );
-
-    // Update cursor past first message
+    // Advancing cursor to seq1 is also what the test is validating — do it now
+    // so the second send goes to the main table, then assert below.
     await t.mutation(
       api.daemon.directHarness.sessions.updateCursor,
       { sessionId, harnessSessionId: rowId, seq: seq1 }
+    );
+    const { seq: seq2 } = await t.mutation(
+      api.web.directHarness.messages.send,
+      { sessionId, harnessSessionId: rowId, text: 'second' }
     );
 
     // pendingForMachine should only return messages after seq1

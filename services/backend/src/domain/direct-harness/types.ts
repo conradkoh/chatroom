@@ -47,6 +47,16 @@ export interface HarnessMessage {
   partType?: 'text' | 'reasoning';
 }
 
+/** A user message waiting in the queue while work is in flight. */
+export interface QueuedMessage {
+  _id: Id<'chatroom_harnessMessageQueue'>;
+  _creationTime: number;
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
+  content: string;
+  timestamp: number;
+  status: 'queued' | 'delivered';
+}
+
 // ─── Capabilities ─────────────────────────────────────────────────────────────
 
 /** Published agent definition from a harness. */
@@ -112,9 +122,9 @@ export interface HarnessSendMessageInput {
   text: string;
 }
 
-export interface HarnessSendMessageResult {
-  seq: number;
-}
+export type HarnessSendMessageResult =
+  | { seq: number; queued?: never }
+  | { queued: true; seq?: never };
 
 // ─── Direct-Harness Commands ────────────────────────────────────────────────
 

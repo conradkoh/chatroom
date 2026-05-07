@@ -22,12 +22,26 @@ afterEach(() => {
   featureFlags.directHarnessWorkers = false;
 });
 
+// Helper: simulate the daemon having processed the initial message from createSession.
+// This unblocks subsequent web sends so they route to the main table instead of the queue.
+async function advancePastInitial(
+  sessionId: Parameters<typeof t.mutation>[1]['sessionId'],
+  rowId: Parameters<typeof t.mutation>[1]['harnessSessionId']
+) {
+  await t.mutation(api.daemon.directHarness.sessions.updateCursor, {
+    sessionId,
+    harnessSessionId: rowId,
+    seq: 1, // initial message from createSession is always seq=1
+  });
+}
+
 // ─── send ────────────────────────────────────────────────────────────────────
 
 describe('messages.send', () => {
   test('appends a user message and returns seq', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('send-success');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
 
     const result = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
@@ -41,6 +55,7 @@ describe('messages.send', () => {
   test('message appears in subscribe', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('send-visible');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
 
     await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
@@ -96,41 +111,30 @@ describe('messages.subscribe', () => {
   test('returns all messages without afterSeq', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('sub-all');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
 
-    await t.mutation(api.web.directHarness.messages.send, {
-      sessionId,
-      harnessSessionId: rowId,
-      text: 'msg1',
-    });
-    await t.mutation(api.web.directHarness.messages.send, {
-      sessionId,
-      harnessSessionId: rowId,
-      text: 'msg2',
-    });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'msg1' });
+    // Advance cursor so msg2 also goes to the main table
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, { sessionId, harnessSessionId: rowId, seq: 2 });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'msg2' });
 
     const messages = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
       harnessSessionId: rowId,
     });
 
-    expect(messages.length).toBeGreaterThanOrEqual(3); // first msg + 2 sends
+    expect(messages.length).toBeGreaterThanOrEqual(3); // initial + msg1 + msg2
   });
 
   test('returns only deltas after afterSeq', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('sub-delta');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
 
-    const { seq } = await t.mutation(api.web.directHarness.messages.send, {
-      sessionId,
-      harnessSessionId: rowId,
-      text: 'before',
-    });
-
-    const after = await t.mutation(api.web.directHarness.messages.send, {
-      sessionId,
-      harnessSessionId: rowId,
-      text: 'after',
-    });
+    const { seq } = await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'before' });
+    // Advance cursor so 'after' also goes to the main table
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, { sessionId, harnessSessionId: rowId, seq });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'after' });
 
     const deltas = await t.query(api.web.directHarness.messages.subscribe, {
       sessionId,
@@ -288,6 +292,7 @@ describe('messages.pendingForMachine', () => {
   test('does not return messages before lastProcessedSeq', async () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pfm-cursor');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
 
     const { seq } = await t.mutation(api.web.directHarness.messages.send, {
       sessionId,
@@ -335,5 +340,97 @@ describe('messages.pendingForMachine', () => {
     // Only the initial user message and assistant reply — but assistant shouldn't appear
     const assistantInResult = result.messages.some((m) => m.content === 'assistant reply');
     expect(assistantInResult).toBe(false);
+  });
+});
+
+// ─── Message queue ────────────────────────────────────────────────────────────
+
+describe('message queue — routing', () => {
+  test('routes to queue when isGenerating is true', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('queue-generating');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    await t.mutation(api.daemon.directHarness.queue.setGenerating, {
+      sessionId, harnessSessionId: rowId, isGenerating: true,
+    });
+
+    const result = await t.mutation(api.web.directHarness.messages.send, {
+      sessionId, harnessSessionId: rowId, text: 'while generating',
+    });
+    expect(result).toEqual({ queued: true });
+  });
+
+  test('routes to queue when queue already has items', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('queue-backlog');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    // First send → main table (no work in flight)
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'A' });
+    // Second send → queue (A is unprocessed)
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'B' });
+    // Third send → queue (B is queued)
+    const r3 = await t.mutation(api.web.directHarness.messages.send, {
+      sessionId, harnessSessionId: rowId, text: 'C',
+    });
+    expect(r3).toEqual({ queued: true });
+
+    const queue = await t.query(api.web.directHarness.messageQueue.subscribe, {
+      sessionId, harnessSessionId: rowId,
+    });
+    expect(queue.map((q) => q.content)).toEqual(['B', 'C']);
+  });
+});
+
+describe('message queue — dequeueNext', () => {
+  test('promotes oldest queued item to main stream (FIFO)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('dequeue-fifo');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    // A goes to main table; B and C queue because A is unprocessed
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'A' });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'B' });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'C' });
+
+    // Simulate daemon: processed A, then started generating
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, { sessionId, harnessSessionId: rowId, seq: 2 });
+    await t.mutation(api.daemon.directHarness.queue.setGenerating, { sessionId, harnessSessionId: rowId, isGenerating: true });
+
+    const r1 = await t.mutation(api.daemon.directHarness.queue.dequeueNext, { sessionId, harnessSessionId: rowId });
+    expect(r1?.content).toBe('B');
+
+    const r2 = await t.mutation(api.daemon.directHarness.queue.dequeueNext, { sessionId, harnessSessionId: rowId });
+    expect(r2?.content).toBe('C');
+
+    const r3 = await t.mutation(api.daemon.directHarness.queue.dequeueNext, { sessionId, harnessSessionId: rowId });
+    expect(r3).toBeNull();
+
+    // isGenerating cleared after empty dequeue
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, { harnessSessionId: rowId });
+    expect(session?.isGenerating).toBeFalsy();
+  });
+
+  test('dequeued item appears in main stream and disappears from queue', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('dequeue-promotes');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'first' });
+    await t.mutation(api.web.directHarness.messages.send, { sessionId, harnessSessionId: rowId, text: 'second' });
+    // 'first' is in main table (seq=2), 'second' is queued
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, { sessionId, harnessSessionId: rowId, seq: 2 });
+    await t.mutation(api.daemon.directHarness.queue.setGenerating, { sessionId, harnessSessionId: rowId, isGenerating: true });
+
+    await t.mutation(api.daemon.directHarness.queue.dequeueNext, { sessionId, harnessSessionId: rowId });
+
+    const messages = await t.query(api.web.directHarness.messages.subscribe, { sessionId, harnessSessionId: rowId });
+    expect(messages.filter((m) => m.role === 'user').map((m) => m.content)).toEqual(
+      expect.arrayContaining(['first', 'second'])
+    );
+
+    const queue = await t.query(api.web.directHarness.messageQueue.subscribe, { sessionId, harnessSessionId: rowId });
+    expect(queue).toHaveLength(0);
   });
 });

@@ -2143,7 +2143,7 @@ export default defineSchema({
 
   /**
    * A HarnessSession represents one conversation with a harness process.
-   * Uses a discriminated union on `type` — each harness type groups its own
+   * Uses a discriminated union on `type` - each harness type groups its own
    * fields under a matching sub-object (e.g. type='opencode' → opencode:{...}).
    *
    * Currently only 'opencode' is supported; new types are added as union members.
@@ -2165,8 +2165,17 @@ export default defineSchema({
         createdBy: v.id('users'),
         createdAt: v.number(),
         lastActiveAt: v.number(),
-        /** Cursor for the daemon’s message processing. Starts at 0. */
+        /** Cursor for the daemon's message processing. Starts at 0. */
         lastProcessedSeq: v.number(),
+        /**
+         * True while the agent is actively generating a response.
+         * Combined with the unprocessed-message and queue-item checks in
+         * web/messages.send, this ensures messages sent while work is in
+         * flight are held in chatroom_harnessMessageQueue instead of
+         * landing mid-stream in the main message table.
+         * Owned exclusively by the daemon.
+         */
+        isGenerating: v.optional(v.boolean()),
         /** OpenCode-specific session state. */
         opencode: v.object({
           harnessName: v.string(),
@@ -2200,13 +2209,28 @@ export default defineSchema({
     role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),
-    /** opencode SDK messageID — groups all tokens of one agent turn. Absent on user messages. */
+    /** opencode SDK messageID - groups all tokens of one agent turn. Absent on user messages. */
     messageId: v.optional(v.string()),
     /** Distinguishes reasoning (thinking) tokens from regular text output. */
     partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
   })
     .index('by_session_seq', ['harnessSessionId', 'seq'])
     .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq']),
+
+  /**
+   * User messages held in reserve while work is in flight for a session.
+   * The web send mutation routes here instead of the main message table
+   * whenever isGenerating is true, unprocessed user messages exist, or
+   * the queue already has items. The daemon promotes items one-by-one
+   * (FIFO by _creationTime) after each session.idle event.
+   */
+  chatroom_harnessMessageQueue: defineTable({
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    content: v.string(),
+    timestamp: v.number(),
+    status: v.union(v.literal('queued'), v.literal('delivered')),
+  })
+    .index('by_session_status', ['harnessSessionId', 'status']),
 
   /**
    * Per-machine capability snapshot: registered workspaces + per-workspace

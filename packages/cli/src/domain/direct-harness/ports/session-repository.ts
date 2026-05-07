@@ -16,4 +16,14 @@ export interface SessionRepository {
 
   /** Persist the daemon's processing cursor for a session. */
   updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void>;
+
+  /** Set the isGenerating flag so the web send mutation routes to the queue. */
+  setGenerating(harnessSessionId: string, isGenerating: boolean): Promise<void>;
+
+  /**
+   * Atomically promote the oldest queued message into the main message table.
+   * Returns the promoted message or null when the queue is empty
+   * (also clears isGenerating on the session).
+   */
+  dequeueNext(harnessSessionId: string): Promise<{ content: string; seq: number } | null>;
 }

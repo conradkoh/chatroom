@@ -54,6 +54,8 @@ describe('closeSession', () => {
       getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn(),
       updateLastProcessedSeq: vi.fn(),
+      setGenerating: vi.fn(),
+      dequeueNext: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
     const spy = vi.spyOn(sessionRepository, 'markClosed');
@@ -87,6 +89,8 @@ describe('closeSession', () => {
       getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),
       updateLastProcessedSeq: vi.fn(),
+      setGenerating: vi.fn(),
+      dequeueNext: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
 
@@ -102,6 +106,8 @@ describe('closeSession', () => {
       getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn().mockRejectedValue(new Error('backend error')),
       updateLastProcessedSeq: vi.fn(),
+      setGenerating: vi.fn(),
+      dequeueNext: vi.fn(),
     };
     const deps = mockDeps({ session, journal, sessionRepository });
 

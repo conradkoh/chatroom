@@ -105,6 +105,7 @@ export const getSession = query({
       _id: s._id,
       type: s.type,
       status: s.status,
+      isGenerating: s.isGenerating ?? false,
       opencodeSessionId: s.opencode.opencodeSessionId,
       lastUsedConfig: s.opencode.lastUsedConfig,
       lastProcessedSeq: s.lastProcessedSeq,

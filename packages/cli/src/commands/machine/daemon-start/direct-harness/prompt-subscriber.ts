@@ -15,6 +15,7 @@ import type { ConvexClient } from 'convex/browser';
 
 import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { createOpencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
+import { handleSessionIdle } from './idle-handler.js';
 import type { ActiveSession } from './session-subscriber.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
@@ -195,6 +196,19 @@ async function processSessionMessages(
       { harnessSessionId: rowId, opencodeSessionId, workspaceId }
     );
     deps.activeSessions.set(rowId, handle);
+
+    // Wire session.idle so queued messages are drained after a daemon restart.
+    const idleConfig = {
+      agent: info?.lastUsedConfig.agent ?? 'build',
+      model: info?.lastUsedConfig.model,
+    };
+    handle.session.onEvent((event) => {
+      if (event.type === 'session.idle') {
+        void handleSessionIdle(rowId, handle!.session, idleConfig, deps.sessionRepository).catch(
+          (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
+        );
+      }
+    });
   }
 
   // 2. Send each pending user message as a prompt
@@ -202,6 +216,7 @@ async function processSessionMessages(
     const override = info?.lastUsedConfig ?? { agent: 'build' };
 
     try {
+      await deps.sessionRepository.setGenerating(rowId, true);
       await handle.session.prompt({
         parts: [{ type: 'text', text: msg.content }],
         agent: override.agent,
