@@ -57,6 +57,26 @@ export interface QueuedMessage {
   status: 'queued' | 'delivered';
 }
 
+// ─── Turns ────────────────────────────────────────────────────────────────────
+
+/**
+ * Domain representation of a turn from chatroom_harnessSessionTurns.
+ * Mirrors the schema — keep the field set in sync.
+ */
+export interface HarnessTurn {
+  _id: Id<'chatroom_harnessSessionTurns'>;
+  _creationTime: number;
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
+  turnSeq: number;
+  role: 'user' | 'assistant';
+  status: 'pending' | 'streaming' | 'complete' | 'failed';
+  messageId?: string;
+  textContent: string;
+  reasoningContent: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
 // ─── Capabilities ─────────────────────────────────────────────────────────────
 
 /** Published agent definition from a harness. */

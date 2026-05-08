@@ -2218,6 +2218,47 @@ export default defineSchema({
     .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq']),
 
   /**
+   * Long-term, source-of-truth turn-level message store.
+   *
+   * One row per logical turn (one user message OR one complete agent response).
+   * Assistant turns are eagerly created with status='pending' at session start,
+   * transition to 'streaming' on the first chunk, and to 'complete' on session.idle
+   * once the daemon flushes the consolidated content. User turns are inserted
+   * directly with status='complete' (no chunk phase).
+   *
+   * The companion chunk table (chatroom_harnessSessionMessages) is treated as
+   * ephemeral — chunks are streamed in for live UI updates and purged ~1 hour
+   * after their turn finalizes via a cron job.
+   *
+   * messageId on assistant turns matches the messageId on chunks belonging to
+   * that turn — the join key for both finalization and TTL cleanup.
+   */
+  chatroom_harnessSessionTurns: defineTable({
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    /** Monotonic, unique per session. 1-based. */
+    turnSeq: v.number(),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    status: v.union(
+      v.literal('pending'), // eagerly created, agent not yet streaming
+      v.literal('streaming'), // first chunk arrived, more incoming
+      v.literal('complete'), // finalized with consolidated content
+      v.literal('failed') // daemon crashed mid-stream, recovered as 'interrupted'
+    ),
+    /** SDK messageId — joins this turn to its chunks. Absent on user turns. */
+    messageId: v.optional(v.string()),
+    /** Concatenated regular text content. Empty until status='complete'. Empty for user role unless content is present (user turns are 'complete' on insert with full content here). */
+    textContent: v.string(),
+    /** Concatenated reasoning (thinking) content. Empty for user role and pending/streaming assistant. */
+    reasoningContent: v.string(),
+    startedAt: v.number(),
+    /** Set when status transitions to 'complete' or 'failed'. */
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_session_turnSeq', ['harnessSessionId', 'turnSeq'])
+    .index('by_session_status', ['harnessSessionId', 'status'])
+    .index('by_messageId', ['messageId']),
+
+  /**
    * User messages held in reserve while work is in flight for a session.
    * The web send mutation routes here instead of the main message table
    * whenever isGenerating is true, unprocessed user messages exist, or
@@ -2312,5 +2353,4 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
   })
     .index('by_machineId_status', ['machineId', 'status']),
-
 });
