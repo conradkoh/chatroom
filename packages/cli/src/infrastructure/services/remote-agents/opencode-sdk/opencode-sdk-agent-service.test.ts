@@ -32,11 +32,7 @@ const sharedAppAgentsFn = vi.fn();
  * shape returned by `client.app.agents()` while keeping per-test overrides
  * focused on the fields a given test actually cares about (name, mode, prompt).
  */
-function makeAgent(
-  name: string,
-  mode: 'subagent' | 'primary' | 'all',
-  prompt?: string
-) {
+function makeAgent(name: string, mode: 'subagent' | 'primary' | 'all', prompt?: string) {
   return {
     name,
     mode,
@@ -493,9 +489,7 @@ describe('OpenCodeSdkAgentService', () => {
       );
       const service = new OpenCodeSdkAgentService(deps);
 
-      const spawnPromise = service.spawn(
-        spawnOptions({ prompt: 'hello', systemPrompt: 'sys' })
-      );
+      const spawnPromise = service.spawn(spawnOptions({ prompt: 'hello', systemPrompt: 'sys' }));
       child.stdout.emit(
         'data',
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
@@ -514,10 +508,7 @@ describe('OpenCodeSdkAgentService', () => {
       const sdk = stubSdkClient();
       sharedAppAgentsFn.mockImplementation(() =>
         Promise.resolve({
-          data: [
-            makeAgent('sub', 'subagent', 'X'),
-            makeAgent('general', 'primary', 'G'),
-          ],
+          data: [makeAgent('sub', 'subagent', 'X'), makeAgent('general', 'primary', 'G')],
         })
       );
       const service = new OpenCodeSdkAgentService(deps);

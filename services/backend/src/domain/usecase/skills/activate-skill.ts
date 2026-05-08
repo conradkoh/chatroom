@@ -49,9 +49,7 @@ export async function activateSkill(
     const customization = await ctx.db
       .query('chatroom_skillCustomizations')
       .withIndex('by_chatroomId_type', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .eq('type', customizationType)
+        q.eq('chatroomId', args.chatroomId).eq('type', customizationType)
       )
       .first();
 

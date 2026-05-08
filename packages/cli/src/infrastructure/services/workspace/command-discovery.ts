@@ -168,7 +168,11 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     if (pkg.scripts && typeof pkg.scripts === 'object') {
       const rootSw: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
       for (const [name, script] of Object.entries(pkg.scripts)) {
-        if (typeof script === 'string' && name.length <= MAX_NAME_LENGTH && script.length <= MAX_SCRIPT_LENGTH) {
+        if (
+          typeof script === 'string' &&
+          name.length <= MAX_NAME_LENGTH &&
+          script.length <= MAX_SCRIPT_LENGTH
+        ) {
           commands.push({
             name: `${pm}: ${name}`,
             script: `${scriptPrefix} ${name}`,

@@ -43,11 +43,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   prActionLoading,
 }: WorkspacePRReviewProps) {
   const prNumber = activePR.prNumber!;
-  const { state: prDiffState, request: requestPRDiff } = usePRDiff(
-    machineId,
-    workingDir,
-    prNumber
-  );
+  const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
 
   // Auto-request PR diff when component mounts or PR number changes
   useEffect(() => {

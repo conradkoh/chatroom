@@ -427,7 +427,12 @@ backlogCommand
   .requiredOption('--backlog-item-id <id>', 'Backlog item ID to update')
   .option('--content-file <path>', 'Path to file containing new content (or use stdin/heredoc)')
   .action(
-    async (options: { chatroomId: string; role: string; backlogItemId: string; contentFile?: string }) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      backlogItemId: string;
+      contentFile?: string;
+    }) => {
       await maybeRequireAuth();
 
       let content: string;
@@ -446,17 +451,25 @@ backlogCommand
       }
 
       if (!content || content.trim().length === 0) {
-        console.error('❌ Content is empty. Provide content via --content-file or stdin (heredoc).');
+        console.error(
+          '❌ Content is empty. Provide content via --content-file or stdin (heredoc).'
+        );
         console.error('');
         console.error('   Example with heredoc:');
-        console.error("   chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'EOF'");
+        console.error(
+          "   chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'EOF'"
+        );
         console.error('   New content here');
         console.error('   EOF');
         process.exit(1);
       }
 
       const { updateBacklog } = await import('./commands/backlog/index.js');
-      await updateBacklog(options.chatroomId, { role: options.role, backlogItemId: options.backlogItemId, content });
+      await updateBacklog(options.chatroomId, {
+        role: options.role,
+        backlogItemId: options.backlogItemId,
+        content,
+      });
     }
   );
 

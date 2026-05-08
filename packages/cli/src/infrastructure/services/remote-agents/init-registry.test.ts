@@ -24,8 +24,6 @@ describe('initHarnessRegistry', () => {
     const ids = getAllHarnesses()
       .map((s) => s.id)
       .sort();
-    expect(ids).toEqual(
-      ['claude', 'copilot', 'cursor', 'opencode', 'opencode-sdk', 'pi'].sort()
-    );
+    expect(ids).toEqual(['claude', 'copilot', 'cursor', 'opencode', 'opencode-sdk', 'pi'].sort());
   });
 });

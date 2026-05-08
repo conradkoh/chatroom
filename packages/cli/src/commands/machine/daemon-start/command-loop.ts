@@ -157,7 +157,9 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
     // Log only after a successful sync so transient failures do not re-print
     // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
     if (Object.keys(modelDiff.added).length > 0) {
-      console.log(`[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`);
+      console.log(
+        `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
+      );
     }
     if (Object.keys(modelDiff.removed).length > 0) {
       console.log(
@@ -320,8 +322,7 @@ export async function dispatchCommandEvent(
     const outcome = await refreshModels(ctx);
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
 
-    const batchId =
-      'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
+    const batchId = 'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
     if (!batchId) {
       return;
     }
@@ -443,11 +444,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
 
     await onDaemonShutdown(ctx);
-
-    // Stop the local API server if it was started
-    if (ctx.stopLocalApi) {
-      await ctx.stopLocalApi().catch(() => {});
-    }
 
     releaseLock();
     process.exit(0);

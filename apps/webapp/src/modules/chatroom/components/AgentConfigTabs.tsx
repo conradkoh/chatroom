@@ -28,7 +28,11 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { getHarnessDisplayName, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
+import {
+  getHarnessDisplayName,
+  getModelDisplayLabel,
+  getMachineDisplayName,
+} from '../types/machine';
 
 import {
   Command,
@@ -259,7 +263,12 @@ export function useAgentControls({
     if (isInitialized || connectedMachines.length === 0) return;
 
     const pref = initialPreferenceRef.current;
-    const machine = deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig, pref);
+    const machine = deriveInitialMachineId(
+      connectedMachines,
+      roleConfigs,
+      runningAgentConfig,
+      pref
+    );
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
@@ -408,8 +417,7 @@ export function useAgentControls({
 
   const handleStartAgent = useCallback(() => {
     if (!selectedMachineId || !selectedHarness) return;
-    const isRehome =
-      teamConfigMachineId != null && selectedMachineId !== teamConfigMachineId;
+    const isRehome = teamConfigMachineId != null && selectedMachineId !== teamConfigMachineId;
     if (isRehome) {
       setRehomeConfirmOpen(true);
       return;
@@ -839,7 +847,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                 >
                                   <span className="truncate">{label}</span>
                                   {displayHarness === harness && (
-                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">
+                                      ✓
+                                    </span>
                                   )}
                                 </CommandItem>
                               );
@@ -1083,14 +1093,21 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           >
             <AlertDialogContent className="bg-card border-border">
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-foreground">Move agent to another machine?</AlertDialogTitle>
+                <AlertDialogTitle className="text-foreground">
+                  Move agent to another machine?
+                </AlertDialogTitle>
                 <AlertDialogDescription className="text-muted-foreground">
                   {rehomeDialogLabels ? (
                     <>
                       Starting this agent will move the role from{' '}
-                      <span className="font-semibold text-foreground">{rehomeDialogLabels.previous}</span> to{' '}
-                      <span className="font-semibold text-foreground">{rehomeDialogLabels.next}</span>. Existing
-                      work on the old machine will continue until it exits. Continue?
+                      <span className="font-semibold text-foreground">
+                        {rehomeDialogLabels.previous}
+                      </span>{' '}
+                      to{' '}
+                      <span className="font-semibold text-foreground">
+                        {rehomeDialogLabels.next}
+                      </span>
+                      . Existing work on the old machine will continue until it exits. Continue?
                     </>
                   ) : (
                     'Existing work on the old machine will continue until it exits. Continue?'

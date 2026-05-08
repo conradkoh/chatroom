@@ -107,10 +107,8 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
     const data = JSON.parse(raw) as Record<string, unknown>;
     if (!data || typeof data !== 'object') return { ...defaultPersistedState };
 
-    const activeTabPath =
-      typeof data.activeTabPath === 'string' ? data.activeTabPath : null;
-    const expandedTabPath =
-      typeof data.expandedTabPath === 'string' ? data.expandedTabPath : null;
+    const activeTabPath = typeof data.activeTabPath === 'string' ? data.activeTabPath : null;
+    const expandedTabPath = typeof data.expandedTabPath === 'string' ? data.expandedTabPath : null;
     const activeRightTabKey =
       typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
 

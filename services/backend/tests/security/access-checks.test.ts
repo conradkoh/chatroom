@@ -84,22 +84,42 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
     'updateSessionActivity', // PRE-EXISTING: uses internal session lookup
   ],
   // artifacts.ts: PRE-EXISTING — chatroom-scoped, no access checks
-  'artifacts.ts': ['create', 'update', 'get', 'getMany', 'listByChatroom', 'getVersions', 'validateArtifactIds'],
+  'artifacts.ts': [
+    'create',
+    'update',
+    'get',
+    'getMany',
+    'listByChatroom',
+    'getVersions',
+    'validateArtifactIds',
+  ],
   // attendance.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'attendance.ts': ['recordAttendance', 'deleteAttendanceRecord', 'getAttendanceData'],
   // checklists.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'checklists.ts': [
-    'getChecklistState', 'getChecklistItems',
-    'createChecklist', 'addChecklistItem', 'toggleChecklistItem',
-    'deleteChecklistItem', 'concludeChecklist', 'reopenChecklist',
-    'clearCompletedItems', 'reorderChecklistItems',
+    'getChecklistState',
+    'getChecklistItems',
+    'createChecklist',
+    'addChecklistItem',
+    'toggleChecklistItem',
+    'deleteChecklistItem',
+    'concludeChecklist',
+    'reopenChecklist',
+    'clearCompletedItems',
+    'reorderChecklistItems',
   ],
   // discussions.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'discussions.ts': [
-    'getDiscussionState', 'getDiscussionMessages', 'getDiscussionConclusion',
+    'getDiscussionState',
+    'getDiscussionMessages',
+    'getDiscussionConclusion',
     'getDiscussionsForPresentation',
-    'createDiscussion', 'addDiscussionMessage', 'concludeDiscussion',
-    'reopenDiscussion', 'deleteDiscussionMessage', 'updateConclusions',
+    'createDiscussion',
+    'addDiscussionMessage',
+    'concludeDiscussion',
+    'reopenDiscussion',
+    'deleteDiscussionMessage',
+    'updateConclusions',
   ],
   // guidelines.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'guidelines.ts': ['getGuidelines', 'listGuidelineTypes'],
@@ -108,7 +128,12 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   // messages.ts: PRE-EXISTING — chatroom-scoped, agent-facing, no access checks on some endpoints
   'messages.ts': ['send', 'sendHandoff', 'sendMessage', 'handoff'],
   // presentations.ts: PRE-EXISTING — chatroom-scoped, no access checks
-  'presentations.ts': ['getPresentationState', 'setCurrentSlide', 'startPresenting', 'stopPresenting'],
+  'presentations.ts': [
+    'getPresentationState',
+    'setCurrentSlide',
+    'startPresenting',
+    'stopPresenting',
+  ],
   // tasks.ts: PRE-EXISTING — getTaskLimits is a public config query
   'tasks.ts': ['getTaskLimits'],
   // workspaceFiles.ts: deprecated v1 mutations — throw immediately, no data written

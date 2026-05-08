@@ -108,9 +108,7 @@ async function getParticipant(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', role)
-      )
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
       .unique();
   });
 }

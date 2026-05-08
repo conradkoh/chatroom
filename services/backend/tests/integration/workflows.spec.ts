@@ -143,9 +143,7 @@ describe('workflows.createWorkflow', () => {
         chatroomId,
         workflowKey: 'dangle',
         createdBy: 'planner',
-        steps: [
-          { stepKey: 'a', description: 'A', dependsOn: ['nonexistent'], order: 1 },
-        ],
+        steps: [{ stepKey: 'a', description: 'A', dependsOn: ['nonexistent'], order: 1 }],
       })
     ).rejects.toThrow('does not exist');
   });
@@ -694,9 +692,7 @@ describe('workflows — event stream emissions', () => {
       chatroomId,
       workflowKey: 'es-step-complete',
       createdBy: 'planner',
-      steps: [
-        { stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1, },
-      ],
+      steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
     });
 
     await specifyStepHelper(sessionId, chatroomId, 'es-step-complete', 'a');
@@ -911,7 +907,6 @@ describe('workflows — event stream emissions', () => {
   });
 });
 
-
 describe('workflows.getWorkflowStatus', () => {
   test('computes available next steps correctly', async () => {
     const { sessionId } = await createTestSession('test-wf-status-1');
@@ -1072,7 +1067,9 @@ describe('workflows.getStepView', () => {
       chatroomId,
       workflowKey: 'view-wf-nospec',
       createdBy: 'planner',
-      steps: [{ stepKey: 'x', description: 'Unspecified step', dependsOn: [] as string[], order: 1 }],
+      steps: [
+        { stepKey: 'x', description: 'Unspecified step', dependsOn: [] as string[], order: 1 },
+      ],
     });
 
     const result = await t.query(api.workflows.getStepView, {

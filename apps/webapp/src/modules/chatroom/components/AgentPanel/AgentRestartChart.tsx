@@ -9,11 +9,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } 
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
-  'var(--chatroom-status-info)',      // blue — adapts per mode
-  'var(--chatroom-status-success)',   // green — adapts per mode
-  'var(--chatroom-status-warning)',   // amber — adapts per mode
-  'var(--chatroom-status-purple)',    // purple — adapts per mode
-  'var(--chatroom-status-error)',     // red — adapts per mode
+  'var(--chatroom-status-info)', // blue — adapts per mode
+  'var(--chatroom-status-success)', // green — adapts per mode
+  'var(--chatroom-status-warning)', // amber — adapts per mode
+  'var(--chatroom-status-purple)', // purple — adapts per mode
+  'var(--chatroom-status-error)', // red — adapts per mode
 ];
 
 function getModelColor(index: number): string {
@@ -41,8 +41,18 @@ function formatDateInput(date: Date): string {
 }
 
 const SHORT_MONTH = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 function formatDayLabel(date: Date): string {
@@ -106,7 +116,9 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
                 flexShrink: 0,
               }}
             />
-            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{entry.name}</span>
+            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {entry.name}
+            </span>
             <span style={{ fontWeight: 600 }}>{entry.value}</span>
           </div>
         ) : null
@@ -154,27 +166,21 @@ export function AgentRestartChart({
     setSelectedPreset(preset);
   }, []);
 
-  const handleStartChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = new Date(e.target.value + 'T00:00:00');
-      if (!isNaN(parsed.getTime())) {
-        setDateRange((prev) => ({ ...prev, start: parsed }));
-        setSelectedPreset('custom');
-      }
-    },
-    []
-  );
+  const handleStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = new Date(e.target.value + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) {
+      setDateRange((prev) => ({ ...prev, start: parsed }));
+      setSelectedPreset('custom');
+    }
+  }, []);
 
-  const handleEndChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = new Date(e.target.value + 'T23:59:59');
-      if (!isNaN(parsed.getTime())) {
-        setDateRange((prev) => ({ ...prev, end: parsed }));
-        setSelectedPreset('custom');
-      }
-    },
-    []
-  );
+  const handleEndChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = new Date(e.target.value + 'T23:59:59');
+    if (!isNaN(parsed.getTime())) {
+      setDateRange((prev) => ({ ...prev, end: parsed }));
+      setSelectedPreset('custom');
+    }
+  }, []);
 
   const data = useSessionQuery(
     api.machines.getAgentRestartMetrics,
@@ -262,7 +268,9 @@ export function AgentRestartChart({
     setSelectedModels((prev) => {
       if (prev.size === modelKeys.length) {
         // All selected → select only default or first
-        return new Set([defaultModel && modelKeys.includes(defaultModel) ? defaultModel : modelKeys[0]]);
+        return new Set([
+          defaultModel && modelKeys.includes(defaultModel) ? defaultModel : modelKeys[0],
+        ]);
       }
       return new Set(modelKeys);
     });
@@ -280,7 +288,7 @@ export function AgentRestartChart({
         const filtered: Record<string, unknown> = { day: day.day };
         let total = 0;
         for (const model of filteredModelKeys) {
-          const val = (day as Record<string, unknown>)[model] as number ?? 0;
+          const val = ((day as Record<string, unknown>)[model] as number) ?? 0;
           filtered[model] = val;
           total += val;
         }

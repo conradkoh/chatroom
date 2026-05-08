@@ -39,7 +39,8 @@ function createFakeDeps(
       },
       appendFile: async (p: string, content: string) => {
         const existing = store.get(p) ?? '';
-        const value = typeof existing === 'string' ? existing + content : existing.toString() + content;
+        const value =
+          typeof existing === 'string' ? existing + content : existing.toString() + content;
         store.set(p, value);
       },
       // ParsePdfFsOps-specific methods
@@ -139,13 +140,16 @@ describe('parsePdf', () => {
     });
 
     it('returns error when URL download fails', async () => {
-      const { deps } = createFakeDeps({}, {
-        http: {
-          download: async () => {
-            throw new Error('HTTP 404: Not Found');
+      const { deps } = createFakeDeps(
+        {},
+        {
+          http: {
+            download: async () => {
+              throw new Error('HTTP 404: Not Found');
+            },
           },
-        },
-      });
+        }
+      );
 
       const result = await parsePdf('https://example.com/missing.pdf', '/project', deps);
 

@@ -33,10 +33,7 @@ export type StopReason =
  * 2. Clean exit (code 0) — unexpected natural completion
  * 3. Non-zero exit — crash or error
  */
-export function resolveStopReason(
-  code: number | null,
-  signal: string | null
-): StopReason {
+export function resolveStopReason(code: number | null, signal: string | null): StopReason {
   if (signal !== null) return 'agent_process.signal';
   if (code === 0) return 'agent_process.exited_clean';
   return 'agent_process.crashed';

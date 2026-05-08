@@ -18,11 +18,15 @@ interface FileContentResult {
  * The `data` field from the v2 query is always base64-encoded gzip — we always decompress.
  * Pass `'skip'` to skip the query.
  */
-export function useFileContent(args: {
-  machineId: string;
-  workingDir: string;
-  filePath: string;
-} | 'skip'): FileContentResult | null | undefined {
+export function useFileContent(
+  args:
+    | {
+        machineId: string;
+        workingDir: string;
+        filePath: string;
+      }
+    | 'skip'
+): FileContentResult | null | undefined {
   const rawResult = useSessionQuery(
     api.workspaceFiles.getFileContentV2,
     args === 'skip' ? 'skip' : args

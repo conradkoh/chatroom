@@ -275,11 +275,7 @@ describe('chatroomSkillCustomizations.copyTo', () => {
     // chatroomB is owned by sessionB — sessionA has no access
     const foreignChatroomId = await createChatroom(sessionB);
 
-    const sourceCustomizationId = await createCustomization(
-      sessionA,
-      sourceChatroomId,
-      'content'
-    );
+    const sourceCustomizationId = await createCustomization(sessionA, sourceChatroomId, 'content');
 
     await expect(
       t.mutation(api.chatroomSkillCustomizations.copyTo, {

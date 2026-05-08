@@ -92,7 +92,7 @@ describe('updateBacklogItem', () => {
     const { sessionId } = await createTestSession('test-update-backlog-notfound');
     await createPairTeamChatroom(sessionId as any);
 
-    const fakeId = 'k' + 'a'.repeat(15) as Id<'chatroom_backlog'>;
+    const fakeId = ('k' + 'a'.repeat(15)) as Id<'chatroom_backlog'>;
 
     await expect(
       t.run(async (ctx) => {

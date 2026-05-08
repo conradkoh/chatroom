@@ -26,9 +26,7 @@ import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '.
  * Preserves `null` (valid stored value for some fields).
  */
 function omitUndefinedRecord<T extends Record<string, unknown>>(obj: T): T {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, value]) => value !== undefined)
-  ) as T;
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as T;
 }
 
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────

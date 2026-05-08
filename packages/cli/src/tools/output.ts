@@ -41,10 +41,7 @@ export function resolveChatroomDir(workingDir: string): string {
  * Ensure the `.chatroom/` directory exists under the given working directory.
  * Creates it recursively if it doesn't exist.
  */
-export async function ensureChatroomDir(
-  deps: OutputDeps,
-  workingDir: string
-): Promise<string> {
+export async function ensureChatroomDir(deps: OutputDeps, workingDir: string): Promise<string> {
   const dir = resolveChatroomDir(workingDir);
   await deps.fs.mkdir(dir, { recursive: true });
   return dir;
@@ -54,10 +51,7 @@ export async function ensureChatroomDir(
  * Ensure `.chatroom/` is listed in the working directory's `.gitignore`.
  * Appends the entry if the file doesn't exist or doesn't already include it.
  */
-export async function ensureGitignore(
-  deps: OutputDeps,
-  workingDir: string
-): Promise<void> {
+export async function ensureGitignore(deps: OutputDeps, workingDir: string): Promise<void> {
   const gitignorePath = join(workingDir, '.gitignore');
   const entry = CHATROOM_DIR;
 
@@ -70,9 +64,7 @@ export async function ensureGitignore(
 
   // Check if .chatroom is already listed (as a whole line)
   const lines = content.split('\n');
-  const alreadyIgnored = lines.some(
-    (line) => line.trim() === entry || line.trim() === `${entry}/`
-  );
+  const alreadyIgnored = lines.some((line) => line.trim() === entry || line.trim() === `${entry}/`);
 
   if (!alreadyIgnored) {
     const separator = content.length > 0 && !content.endsWith('\n') ? '\n' : '';

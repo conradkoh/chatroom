@@ -48,7 +48,7 @@ import {
   shutdownAllCommands,
   evictStalePendingStops,
   runningProcesses, // @internal
-  pendingStops,     // @internal
+  pendingStops, // @internal
 } from './command-runner.js';
 import type { DaemonContext } from '../types.js';
 
@@ -141,7 +141,9 @@ beforeEach(() => {
   // Spy on process.kill to prevent actually sending OS signals
   killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
   // Default spawn implementation — returns a new fake child per call
-  vi.mocked(spawn).mockImplementation((): any => createFakeChild(Math.floor(Math.random() * 90000) + 10000));
+  vi.mocked(spawn).mockImplementation((): any =>
+    createFakeChild(Math.floor(Math.random() * 90000) + 10000)
+  );
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -270,9 +272,9 @@ describe('pending-stop race (stop-before-run)', () => {
     // and retries on the next subscription update.
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('Convex disconnect'));
 
-    await expect(
-      onCommandStop(ctx, { runId: 'run-orphan-fail' as any })
-    ).rejects.toThrow('Convex disconnect');
+    await expect(onCommandStop(ctx, { runId: 'run-orphan-fail' as any })).rejects.toThrow(
+      'Convex disconnect'
+    );
 
     // Pending stop must still be registered (set before the mutation throw)
     // so the next onCommandRun for this runId is skipped (stop-before-run safety).

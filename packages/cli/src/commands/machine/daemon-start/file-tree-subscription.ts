@@ -63,9 +63,7 @@ export function startFileTreeSubscription(
     }
   );
 
-  console.log(
-    `[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`
-  );
+  console.log(`[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`);
 
   return {
     stop: () => {

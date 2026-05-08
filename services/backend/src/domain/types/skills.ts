@@ -18,10 +18,10 @@
  *   or null if the skill does not support customization.
  */
 const SKILLS = {
-  'backlog':              { customizationType: null },
+  backlog: { customizationType: null },
   'software-engineering': { customizationType: null },
-  'code-review':          { customizationType: null },
-  'workflow':             { customizationType: null },
+  'code-review': { customizationType: null },
+  workflow: { customizationType: null },
   'development-workflow': { customizationType: 'development_workflow' as const },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
@@ -41,9 +41,7 @@ export function isSkillId(value: string): value is SkillId {
 // ─── Skill Customization Types ───────────────────────────────────────────
 
 /** Union type of all skill customization types (DB-stored, snake_case). */
-export type SkillCustomizationType = NonNullable<
-  (typeof SKILLS)[SkillId]['customizationType']
->;
+export type SkillCustomizationType = NonNullable<(typeof SKILLS)[SkillId]['customizationType']>;
 
 /** Named constant for the development workflow customization type. */
 export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE =

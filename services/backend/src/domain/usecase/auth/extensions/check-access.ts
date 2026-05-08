@@ -74,7 +74,8 @@ export async function checkAccess(
   }
 
   // Exhaustive check — TypeScript will error if a resource type is unhandled
-  const _exhaustive: never = resource; void _exhaustive;
+  const _exhaustive: never = resource;
+  void _exhaustive;
   return { ok: false, reason: `Unknown resource type` };
 }
 

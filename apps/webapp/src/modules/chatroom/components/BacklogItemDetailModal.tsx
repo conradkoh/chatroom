@@ -2,7 +2,15 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Check, CornerUpLeft, Paperclip, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
+import {
+  Check,
+  CornerUpLeft,
+  Paperclip,
+  ListChecks,
+  MoreHorizontal,
+  Pencil,
+  X,
+} from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';

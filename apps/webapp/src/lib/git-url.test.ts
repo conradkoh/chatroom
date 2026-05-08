@@ -13,7 +13,9 @@ describe('toRepoHttpsUrl', () => {
     });
 
     it('parses Bitbucket SSH URL', () => {
-      expect(toRepoHttpsUrl('git@bitbucket.org:owner/repo')).toBe('https://bitbucket.org/owner/repo');
+      expect(toRepoHttpsUrl('git@bitbucket.org:owner/repo')).toBe(
+        'https://bitbucket.org/owner/repo'
+      );
     });
 
     it('parses SSH URL with .git suffix', () => {
@@ -49,9 +51,7 @@ describe('toRepoHttpsUrl', () => {
   // HTTPS format
   describe('HTTPS format', () => {
     it('parses GitHub HTTPS URL', () => {
-      expect(toRepoHttpsUrl('https://github.com/owner/repo')).toBe(
-        'https://github.com/owner/repo'
-      );
+      expect(toRepoHttpsUrl('https://github.com/owner/repo')).toBe('https://github.com/owner/repo');
     });
 
     it('parses GitLab HTTPS URL', () => {
@@ -80,9 +80,7 @@ describe('toRepoHttpsUrl', () => {
   // HTTP format
   describe('HTTP format', () => {
     it('parses HTTP URL', () => {
-      expect(toRepoHttpsUrl('http://github.com/owner/repo')).toBe(
-        'http://github.com/owner/repo'
-      );
+      expect(toRepoHttpsUrl('http://github.com/owner/repo')).toBe('http://github.com/owner/repo');
     });
 
     it('parses HTTP URL with .git suffix', () => {
@@ -95,9 +93,7 @@ describe('toRepoHttpsUrl', () => {
   // Edge cases
   describe('Edge cases', () => {
     it('trims whitespace', () => {
-      expect(toRepoHttpsUrl('  git@github.com:owner/repo  ')).toBe(
-        'https://github.com/owner/repo'
-      );
+      expect(toRepoHttpsUrl('  git@github.com:owner/repo  ')).toBe('https://github.com/owner/repo');
       expect(toRepoHttpsUrl('\thttps://github.com/owner/repo\n')).toBe(
         'https://github.com/owner/repo'
       );

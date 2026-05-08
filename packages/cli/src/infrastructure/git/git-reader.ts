@@ -330,17 +330,11 @@ export async function getPRDiff(
  * Returns the diff for a specific PR by number using `gh pr diff <number>`.
  * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
  */
-export async function getPRDiffByNumber(
-  cwd: string,
-  prNumber: number
-): Promise<GitFullDiffResult> {
+export async function getPRDiffByNumber(cwd: string, prNumber: number): Promise<GitFullDiffResult> {
   const repoSlug = await getOriginRepoSlug(cwd);
   const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
-  const result = await runCommand(
-    `gh pr diff ${prNumber}${repoFlag}`,
-    cwd
-  );
+  const result = await runCommand(`gh pr diff ${prNumber}${repoFlag}`, cwd);
 
   if ('error' in result) {
     return { status: 'error', message: result.error.message };
@@ -555,10 +549,7 @@ export async function getOriginRepoSlug(cwd: string): Promise<string | null> {
  * - There are no open PRs for the branch
  * - Any error occurs (graceful degradation)
  */
-export async function getOpenPRsForBranch(
-  cwd: string,
-  branch: string
-): Promise<GitPullRequest[]> {
+export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<GitPullRequest[]> {
   // Resolve the origin repo slug to target the correct repository
   const repoSlug = await getOriginRepoSlug(cwd);
   const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
@@ -584,7 +575,16 @@ export async function getOpenPRsForBranch(
 
     return parsed
       .filter(
-        (item: unknown): item is { number: number; title: string; url: string; headRefName: string; state: string; headRepositoryOwner?: { login?: string } } =>
+        (
+          item: unknown
+        ): item is {
+          number: number;
+          title: string;
+          url: string;
+          headRefName: string;
+          state: string;
+          headRepositoryOwner?: { login?: string };
+        } =>
           typeof item === 'object' &&
           item !== null &&
           typeof (item as Record<string, unknown>).number === 'number' &&
@@ -641,9 +641,7 @@ function isGHPRItem(item: unknown): item is GHPRItem {
  * Get all pull requests (open, closed, merged) for the repository using `gh pr list`.
  * Returns up to 20 most recent PRs.
  */
-export async function getAllPRs(
-  cwd: string
-): Promise<GitPullRequest[]> {
+export async function getAllPRs(cwd: string): Promise<GitPullRequest[]> {
   const repoSlug = await getOriginRepoSlug(cwd);
   const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
@@ -663,27 +661,26 @@ export async function getAllPRs(
     const parsed: unknown = JSON.parse(output);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed
-      .filter(isGHPRItem)
-      .map((item): GitPullRequest => {
-        const author = typeof item.author === 'object' && item.author !== null
+    return parsed.filter(isGHPRItem).map((item): GitPullRequest => {
+      const author =
+        typeof item.author === 'object' && item.author !== null
           ? (item.author as { login?: string }).login
           : undefined;
-        return {
-          prNumber: item.number,
-          title: item.title,
-          url: item.url ?? '',
-          headRefName: item.headRefName ?? '',
-          baseRefName: item.baseRefName ?? 'main',
-          state: item.state ?? 'OPEN',
-          author,
-          createdAt: item.createdAt ?? undefined,
-          updatedAt: item.updatedAt ?? undefined,
-          mergedAt: item.mergedAt ?? null,
-          closedAt: item.closedAt ?? null,
-          isDraft: item.isDraft ?? false,
-        };
-      });
+      return {
+        prNumber: item.number,
+        title: item.title,
+        url: item.url ?? '',
+        headRefName: item.headRefName ?? '',
+        baseRefName: item.baseRefName ?? 'main',
+        state: item.state ?? 'OPEN',
+        author,
+        createdAt: item.createdAt ?? undefined,
+        updatedAt: item.updatedAt ?? undefined,
+        mergedAt: item.mergedAt ?? null,
+        closedAt: item.closedAt ?? null,
+        isDraft: item.isDraft ?? false,
+      };
+    });
   } catch {
     return [];
   }
@@ -702,17 +699,11 @@ export interface PRCommitEntry {
  * Get the list of commits for a specific PR number.
  * Uses `gh pr view <number> --json commits`.
  */
-export async function getPRCommits(
-  cwd: string,
-  prNumber: number
-): Promise<PRCommitEntry[]> {
+export async function getPRCommits(cwd: string, prNumber: number): Promise<PRCommitEntry[]> {
   const repoSlug = await getOriginRepoSlug(cwd);
   const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
-  const result = await runCommand(
-    `gh pr view ${prNumber} --json commits${repoFlag}`,
-    cwd
-  );
+  const result = await runCommand(`gh pr view ${prNumber} --json commits${repoFlag}`, cwd);
 
   if ('error' in result) {
     return [];
@@ -736,7 +727,12 @@ export async function getPRCommits(
       let authorLogin = '';
       if (Array.isArray(commit.authors) && commit.authors.length > 0) {
         const first = commit.authors[0] as Record<string, unknown>;
-        authorLogin = typeof first.login === 'string' ? first.login : (typeof first.name === 'string' ? first.name : '');
+        authorLogin =
+          typeof first.login === 'string'
+            ? first.login
+            : typeof first.name === 'string'
+              ? first.name
+              : '';
       }
       return {
         sha: oid,
@@ -822,7 +818,7 @@ export async function getCommitsAhead(workingDir: string): Promise<number> {
 /** A single CI/CD check run. */
 export interface CommitStatusCheckRun {
   name: string;
-  status: string;           // 'completed', 'in_progress', 'queued'
+  status: string; // 'completed', 'in_progress', 'queued'
   conclusion: string | null; // 'success', 'failure', 'skipped', 'cancelled', etc.
 }
 
@@ -909,10 +905,7 @@ export async function getDefaultBranch(cwd: string): Promise<string | null> {
   if (!repoSlug) return null;
 
   try {
-    const result = await runCommand(
-      `gh api repos/${repoSlug} --jq '.default_branch'`,
-      cwd
-    );
+    const result = await runCommand(`gh api repos/${repoSlug} --jq '.default_branch'`, cwd);
     if ('error' in result) return null;
     const branch = result.stdout.trim();
     return branch || null;

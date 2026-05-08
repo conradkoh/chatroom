@@ -68,9 +68,8 @@ function renderWorkflowStartedCell(event: WorkflowStartedEvent, isSelected: bool
 }
 
 function renderWorkflowStartedDetails(event: WorkflowStartedEvent) {
-  const mermaidChart = event.steps && event.steps.length > 0
-    ? buildWorkflowMermaid(event.steps)
-    : null;
+  const mermaidChart =
+    event.steps && event.steps.length > 0 ? buildWorkflowMermaid(event.steps) : null;
 
   return (
     <EventDetails
@@ -211,9 +210,8 @@ function renderWorkflowCreatedCell(event: WorkflowCreatedEvent, isSelected: bool
 }
 
 function renderWorkflowCreatedDetails(event: WorkflowCreatedEvent) {
-  const mermaidChart = event.steps && event.steps.length > 0
-    ? buildWorkflowMermaid(event.steps)
-    : null;
+  const mermaidChart =
+    event.steps && event.steps.length > 0 ? buildWorkflowMermaid(event.steps) : null;
 
   return (
     <EventDetails

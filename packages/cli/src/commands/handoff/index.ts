@@ -197,10 +197,14 @@ export async function handoff(
       console.error('Create one before handing off:');
       console.error('');
       console.error('  1. Activate the workflow skill:');
-      console.error(`     ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomId} --role=${role}`);
+      console.error(
+        `     ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomId} --role=${role}`
+      );
       console.error('');
       console.error('  2. Create a workflow:');
-      console.error(`     ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomId} --role=${role} ...`);
+      console.error(
+        `     ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomId} --role=${role} ...`
+      );
       console.error('');
     } else if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
@@ -257,8 +261,7 @@ export async function handoff(
                   ? '❌'
                   : '⏳';
           const roleLabel = step.assigneeRole ? ` [${step.assigneeRole}]` : '';
-          const deps =
-            step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
+          const deps = step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
           console.log(
             `   ${prefix} ${step.stepKey}${roleLabel} ${statusEmoji} ${step.status}${deps}`
           );

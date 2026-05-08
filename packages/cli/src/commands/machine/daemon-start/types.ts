@@ -127,10 +127,4 @@ export interface DaemonContext {
    * does not require another push unless models also changed.
    */
   lastPushedHarnessFingerprint: string | null;
-  /**
-   * Stops the local API HTTP server.
-   * Populated after `startLocalApi()` returns successfully.
-   * May be undefined if the local API failed to start (e.g. port conflict).
-   */
-  stopLocalApi?: () => Promise<void>;
 }

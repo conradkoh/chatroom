@@ -353,7 +353,9 @@ describe('viewStep', () => {
     expect(allOutput).toContain('Implement REST endpoints');
     expect(allOutput).toContain('Must handle errors');
     expect(allOutput).toContain('Do not break existing clients');
-    expect(allOutput).toContain('chatroom skill activate software-engineering --chatroom-id=<id> --role=builder');
+    expect(allOutput).toContain(
+      'chatroom skill activate software-engineering --chatroom-id=<id> --role=builder'
+    );
 
     logSpy.mockRestore();
   });

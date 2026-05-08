@@ -127,7 +127,11 @@ export function parseSections(
   let match: RegExpExecArray | null;
   while ((match = regex.exec(input)) !== null) {
     const sectionName = match[1]!.replace(/^---/, '').replace(/---$/, '');
-    markers.push({ section: sectionName, index: match.index + match[0].length, matchStart: match.index });
+    markers.push({
+      section: sectionName,
+      index: match.index + match[0].length,
+      matchStart: match.index,
+    });
   }
 
   // Extract content between markers
@@ -147,7 +151,9 @@ export function parseSections(
       for (const s of allSections) {
         const isRequired = requiredSections.includes(s);
         console.error(`   ---${s}---`);
-        console.error(`   [${s.toLowerCase()} content here${isRequired ? ' (required)' : ' (optional)'}]`);
+        console.error(
+          `   [${s.toLowerCase()} content here${isRequired ? ' (required)' : ' (optional)'}]`
+        );
       }
       process.exit(1);
     }
@@ -334,10 +340,15 @@ export async function specifyWorkflowStep(
 
   // Soft validation: warn on unrecognized skill names
   if (skills) {
-    const skillList = skills.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+    const skillList = skills
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     const invalid = skillList.filter((s) => !VALID_CHATROOM_SKILLS.includes(s));
     if (invalid.length > 0) {
-      console.warn(`⚠️  Unknown skills: ${invalid.join(', ')}. Valid skills: ${VALID_CHATROOM_SKILLS.join(', ')}`);
+      console.warn(
+        `⚠️  Unknown skills: ${invalid.join(', ')}. Valid skills: ${VALID_CHATROOM_SKILLS.join(', ')}`
+      );
     }
   }
 
@@ -423,7 +434,9 @@ export async function getWorkflowStatus(
 
     console.log('');
     console.log('══════════════════════════════════════════════════');
-    console.log(`${getWorkflowStatusEmoji(wf.status as WorkflowStatus)} WORKFLOW: ${wf.workflowKey}`);
+    console.log(
+      `${getWorkflowStatusEmoji(wf.status as WorkflowStatus)} WORKFLOW: ${wf.workflowKey}`
+    );
     console.log('══════════════════════════════════════════════════');
     console.log(`Status: ${wf.status.toUpperCase()}`);
     console.log(`Created by: ${wf.createdBy}`);
@@ -483,7 +496,12 @@ export async function getWorkflowStatus(
 
         // Show specification details if present
         if (step.specification) {
-          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
+          const spec = step.specification as {
+            goal?: string;
+            requirements?: string;
+            warnings?: string;
+            skills?: string;
+          };
           if (spec.goal) {
             console.log(`   📎 Goal: ${spec.goal}`);
           }
@@ -512,7 +530,9 @@ export async function getWorkflowStatus(
       console.log('🔜 AVAILABLE NEXT STEPS');
       console.log('──────────────────────────────────────────────────');
       for (const stepKey of result.availableNextSteps) {
-        const step = result.steps.find((s: { stepKey: string; description: string }) => s.stepKey === stepKey);
+        const step = result.steps.find(
+          (s: { stepKey: string; description: string }) => s.stepKey === stepKey
+        );
         if (step) {
           console.log(`   → ${stepKey}: ${step.description}`);
         }
@@ -665,7 +685,12 @@ export async function viewStep(
 
     // Show specification
     if (step.specification) {
-      const spec = step.specification as { goal?: string; requirements?: string; warnings?: string; skills?: string };
+      const spec = step.specification as {
+        goal?: string;
+        requirements?: string;
+        warnings?: string;
+        skills?: string;
+      };
       console.log('');
       console.log('──────────────────────────────────────────────────');
       console.log('📋 SPECIFICATION');

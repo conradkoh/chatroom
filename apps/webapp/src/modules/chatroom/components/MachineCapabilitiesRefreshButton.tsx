@@ -4,14 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, RefreshCw } from 'lucide-react';
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useReducer,
-  useRef,
-  useState,
-} from 'react';
+import React, { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 /** Success check visibility — see docs/design/theme.md (industrial / restrained feedback). */
 const SUCCESS_TICK_MS = 1000;
@@ -31,9 +24,8 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
   daemonConnected: boolean;
   linkedToChatroom: boolean;
 }) {
-  const [activeBatchId, setActiveBatchId] = useState<Id<'chatroom_capabilities_refresh_batches'> | null>(
-    null
-  );
+  const [activeBatchId, setActiveBatchId] =
+    useState<Id<'chatroom_capabilities_refresh_batches'> | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [isRequesting, setIsRequesting] = useState(false);
   const [hint, setHint] = useState<{ tone: 'muted' | 'warn' | 'err'; text: string } | null>(null);
