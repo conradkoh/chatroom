@@ -1,7 +1,13 @@
 /**
  * Web-facing harness session message endpoints.
  *
- * Called from the web UI to send user messages and subscribe to the message stream.
+ * Called from the web UI to send user messages.
+ *
+ * NOTE: The chunk-table reading endpoints (subscribe, getLatestMessages,
+ * getMessagesSince, getOlderMessages) have been removed in favour of the
+ * turn-based endpoints in web/directHarness/turns.ts. Chunk rows are now
+ * only read by (a) the daemon's finalizeAssistantTurn aggregation and
+ * (b) the frontend's getStreamingTurnChunks for the in-flight streaming turn.
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -12,7 +18,7 @@ import {
   requireDirectHarnessWorkers,
 } from '../../api/directHarnessHelpers.js';
 import { insertUserTurn } from '../../daemon/directHarness/turns.js';
-import { mutation, query } from '../../_generated/server.js';
+import { mutation } from '../../_generated/server.js';
 
 // ─── send ─────────────────────────────────────────────────────────────────────
 
@@ -102,133 +108,5 @@ export const send = mutation({
 
     const { turnSeq } = await insertUserTurn(ctx, args.harnessSessionId, args.text, now);
     return { turnSeq };
-  },
-});
-
-// ─── subscribe ────────────────────────────────────────────────────────────────
-// Kept for legacy integration tests. No frontend caller — getLatestMessages /
-// getMessagesSince / getOlderMessages are the live path.
-
-export const subscribe = query({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    afterSeq: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
-
-    const messages = await ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', args.harnessSessionId))
-      .order('asc')
-      .collect();
-
-    if (args.afterSeq !== undefined) {
-      const after = args.afterSeq;
-      return messages.filter((m) => m.seq > after);
-    }
-    return messages;
-  },
-});
-
-// ─── getLatestMessages ────────────────────────────────────────────────────────
-
-/**
- * One-shot initial load: returns the last `limit` messages for a session,
- * ordered oldest-to-newest, plus metadata for the tail cursor and pagination.
- *
- * Called imperatively (not via useQuery) so it never sets up a reactive
- * subscription — the tail subscription (getMessagesSince) handles live updates.
- */
-export const getLatestMessages = query({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
-
-    const limit = args.limit ?? 50;
-
-    // Fetch the last `limit` messages by descending seq, then reverse so the
-    // result is oldest-to-newest for display.
-    const rows = await ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', args.harnessSessionId))
-      .order('desc')
-      .take(limit + 1); // +1 to detect whether there are more older messages
-
-    const hasMore = rows.length > limit;
-    const messages = rows.slice(0, limit).reverse();
-    const newestSeq = messages.length > 0 ? messages[messages.length - 1].seq : null;
-
-    return { messages, hasMore, newestSeq };
-  },
-});
-
-// ─── getMessagesSince ─────────────────────────────────────────────────────────
-
-/**
- * Reactive tail subscription: returns all messages with seq > afterSeq.
- *
- * `afterSeq` is pinned to the newest seq from the initial load and never
- * changes, so Convex only re-evaluates this query when new rows are inserted
- * rather than re-sending the full history on every insert.
- */
-export const getMessagesSince = query({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    afterSeq: v.number(),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
-
-    return ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) =>
-        q.eq('harnessSessionId', args.harnessSessionId).gt('seq', args.afterSeq)
-      )
-      .order('asc')
-      .collect();
-  },
-});
-
-// ─── getOlderMessages ─────────────────────────────────────────────────────────
-
-/**
- * On-demand pagination: returns the `limit` messages immediately before
- * `beforeSeq`, oldest-to-newest, for "load more history" scroll-up UX.
- */
-export const getOlderMessages = query({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    beforeSeq: v.number(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
-
-    const limit = args.limit ?? 50;
-
-    const rows = await ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) =>
-        q.eq('harnessSessionId', args.harnessSessionId).lt('seq', args.beforeSeq)
-      )
-      .order('desc')
-      .take(limit + 1);
-
-    const hasMore = rows.length > limit;
-    const messages = rows.slice(0, limit).reverse();
-
-    return { messages, hasMore };
   },
 });

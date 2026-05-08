@@ -3,8 +3,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
-import { useHarnessMessageStore } from './hooks/useHarnessMessageStore';
-import type { HarnessMessage } from './hooks/useHarnessMessageStore';
+import { useHarnessTurnStore } from './hooks/useHarnessTurnStore';
 import { useQueuedMessages } from './hooks/useQueuedMessages';
 import { ThinkingBlock } from './ThinkingBlock';
 
@@ -17,108 +16,17 @@ interface SessionMessageStreamProps {
 
 const SCROLL_THRESHOLD = 100;
 
-// ─── Turn grouping ─────────────────────────────────────────────────────────────
-
-type UserTurn = {
-  key: string;
-  role: 'user';
-  minSeq: number;
-  content: string;
-};
-
-type AssistantTurn = {
-  key: string;
-  role: 'assistant';
-  minSeq: number;
-  /** Concatenated reasoning (thinking) tokens for this turn. */
-  thinkingContent: string;
-  /** Concatenated regular text tokens for this turn. */
-  textContent: string;
-};
-
-type TurnGroup = UserTurn | AssistantTurn;
-
-/**
- * Groups the flat per-token message rows into display turns.
- *
- * - User rows: one turn each.
- * - Assistant rows with a messageId: all rows sharing the same messageId
- *   are merged into one turn, split by partType (text vs. reasoning).
- * - Assistant rows without a messageId (legacy): consecutive rows are merged
- *   together, matching the pre-Phase-2 behaviour.
- *
- * Turns are sorted by their minimum seq so an agent turn that started before
- * a user message always sorts before that user message, even if some of the
- * agent's tokens were flushed after the user message was stored.
- */
-function buildTurnGroups(messages: HarnessMessage[]): TurnGroup[] {
-  const groups: TurnGroup[] = [];
-  // Deduplicates assistant turns by messageId
-  const seenMessageIds = new Map<string, AssistantTurn>();
-  // Tracks the current run of legacy (no-messageId) assistant rows
-  let legacyRun: AssistantTurn | null = null;
-
-  for (const msg of messages) {
-    if (msg.role === 'user') {
-      legacyRun = null;
-      groups.push({ key: msg._id, role: 'user', minSeq: msg.seq, content: msg.content });
-    } else if (msg.messageId) {
-      // Named assistant turn — group by messageId across the whole stream
-      legacyRun = null;
-      let turn = seenMessageIds.get(msg.messageId);
-      if (!turn) {
-        turn = {
-          key: msg.messageId,
-          role: 'assistant',
-          minSeq: msg.seq,
-          thinkingContent: '',
-          textContent: '',
-        };
-        seenMessageIds.set(msg.messageId, turn);
-        groups.push(turn);
-      }
-      // Keep the minimum seq so sorting works correctly when tokens are interleaved
-      if (msg.seq < turn.minSeq) turn.minSeq = msg.seq;
-      if (msg.partType === 'reasoning') {
-        turn.thinkingContent += msg.content;
-      } else {
-        turn.textContent += msg.content;
-      }
-    } else {
-      // Legacy assistant row (no messageId) — consecutive merge
-      if (!legacyRun) {
-        legacyRun = {
-          key: `legacy-${msg._id}`,
-          role: 'assistant',
-          minSeq: msg.seq,
-          thinkingContent: '',
-          textContent: '',
-        };
-        groups.push(legacyRun);
-      }
-      if (msg.seq < legacyRun.minSeq) legacyRun.minSeq = msg.seq;
-      legacyRun.textContent += msg.content;
-    }
-  }
-
-  // Sort by minSeq so named turns that started early sort before later user
-  // messages even when their trailing tokens arrived after those user messages.
-  groups.sort((a, b) => a.minSeq - b.minSeq);
-
-  return groups;
-}
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps) {
-  const { messages, isLoading, hasMoreOlder, isLoadingOlder, loadOlderMessages } =
-    useHarnessMessageStore(sessionRowId);
+  const { turns, isLoading, hasMoreOlder, isLoadingOlder, loadOlderMessages, streamingOverlay } =
+    useHarnessTurnStore(sessionRowId);
   const queuedMessages = useQueuedMessages(sessionRowId);
 
   const { controller } = useScrollController();
   const feedRef = useRef<HTMLDivElement | null>(null);
   const prevScrollHeightRef = useRef(0);
-  const prevMessageCountRef = useRef(0);
+  const prevTurnCountRef = useRef(0);
   const wasLoadingMoreRef = useRef(false);
 
   // Ref callback — attach scroll controller to the DOM element
@@ -139,24 +47,24 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
     wasLoadingMoreRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
 
-  // Preserve scroll position when loading older messages prepend content at top
+  // Preserve scroll position when loading older turns prepend content at top
   useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
-      const messagesAdded = messages.length > prevMessageCountRef.current;
+      const turnsAdded = turns.length > prevTurnCountRef.current;
 
-      if (messagesAdded && heightDiff > 0) {
+      if (turnsAdded && heightDiff > 0) {
         const wasNearTop = feedRef.current.scrollTop < 200;
         controller.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, wasNearTop);
       }
 
       prevScrollHeightRef.current = newScrollHeight;
     }
-    prevMessageCountRef.current = messages.length;
-  }, [messages.length, controller]);
+    prevTurnCountRef.current = turns.length;
+  }, [turns.length, controller]);
 
-  // Auto-fill: load older messages when content doesn't fill the container
+  // Auto-fill: load older turns when content doesn't fill the container
   useEffect(() => {
     if (feedRef.current && hasMoreOlder && !isLoadingOlder) {
       const { scrollHeight, clientHeight } = feedRef.current;
@@ -164,9 +72,9 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
         loadOlderMessages();
       }
     }
-  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages, messages.length]);
+  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages, turns.length]);
 
-  // Scroll handler — load older messages when near the top
+  // Scroll handler — load older turns when near the top
   const handleScroll = useCallback(() => {
     const pos = controller.current.getScrollPosition();
     if (pos && hasMoreOlder && !isLoadingOlder && pos.scrollTop < SCROLL_THRESHOLD) {
@@ -182,7 +90,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
     );
   }
 
-  if (messages.length === 0 && (queuedMessages?.length ?? 0) === 0) {
+  if (turns.length === 0 && (queuedMessages?.length ?? 0) === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
         Waiting for response…
@@ -190,7 +98,6 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
     );
   }
 
-  const turns = buildTurnGroups(messages);
   const hasQueue = (queuedMessages?.length ?? 0) > 0;
 
   return (
@@ -202,24 +109,39 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
       {turns.map((turn) => {
         if (turn.role === 'user') {
           return (
-            <div key={turn.key} className="flex justify-end">
+            <div key={turn._id} className="flex justify-end">
               <div className="max-w-[75%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-primary text-primary-foreground">
-                {turn.content}
+                {turn.textContent}
               </div>
             </div>
           );
         }
 
-        const hasThinking = turn.thinkingContent.length > 0;
-        const hasText = turn.textContent.length > 0;
+        // Assistant turn — check for streaming overlay
+        const isStreaming = streamingOverlay !== null && streamingOverlay.turnId === turn._id;
+
+        // Pending turn with no messageId yet — nothing to show
+        if (turn.status === 'pending' && !turn.messageId && !isStreaming) {
+          return null;
+        }
+
+        const textContent = isStreaming ? streamingOverlay!.textContent : turn.textContent;
+        const thinkingContent = isStreaming
+          ? streamingOverlay!.reasoningContent
+          : turn.reasoningContent;
+
+        const hasThinking = thinkingContent.length > 0;
+        const hasText = textContent.length > 0;
+
+        if (!hasThinking && !hasText) return null;
 
         return (
-          <div key={turn.key} className="flex justify-start">
+          <div key={turn._id} className="flex justify-start">
             <div className={cn('max-w-[75%] flex flex-col gap-2')}>
-              {hasThinking && <ThinkingBlock content={turn.thinkingContent} />}
+              {hasThinking && <ThinkingBlock content={thinkingContent} />}
               {hasText && (
                 <div className="rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-muted text-foreground">
-                  {turn.textContent}
+                  {textContent}
                 </div>
               )}
             </div>

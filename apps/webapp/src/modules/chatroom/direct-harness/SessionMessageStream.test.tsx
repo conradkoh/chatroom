@@ -4,12 +4,12 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 import { SessionMessageStream } from './SessionMessageStream';
 
-// Mock the data hooks directly so each can return independent values.
-const mockUseHarnessMessageStore = vi.fn();
+// Mock the data hooks directly.
+const mockUseHarnessTurnStore = vi.fn();
 const mockUseQueuedMessages = vi.fn().mockReturnValue([]);
 
-vi.mock('./hooks/useHarnessMessageStore', () => ({
-  useHarnessMessageStore: (...args: unknown[]) => mockUseHarnessMessageStore(...args),
+vi.mock('./hooks/useHarnessTurnStore', () => ({
+  useHarnessTurnStore: (...args: unknown[]) => mockUseHarnessTurnStore(...args),
 }));
 
 vi.mock('./hooks/useQueuedMessages', () => ({
@@ -18,7 +18,6 @@ vi.mock('./hooks/useQueuedMessages', () => ({
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-// ResizeObserver is not available in jsdom — provide a no-op stub
 beforeAll(() => {
   global.ResizeObserver = class {
     observe() {}
@@ -31,21 +30,26 @@ const SESSION_ROW_ID = 'sr1' as never;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function msg(
+function turn(
   id: string,
   role: 'user' | 'assistant',
-  content: string,
-  seq: number,
-  extras: { messageId?: string; partType?: 'text' | 'reasoning' } = {}
+  textContent: string,
+  turnSeq: number,
+  extras: {
+    status?: 'pending' | 'streaming' | 'complete' | 'failed';
+    reasoningContent?: string;
+    messageId?: string;
+  } = {}
 ) {
   return {
     _id: id as never,
     role,
-    content,
-    seq,
-    timestamp: seq * 1000,
-    harnessSessionId: SESSION_ROW_ID,
-    ...extras,
+    textContent,
+    reasoningContent: extras.reasoningContent ?? '',
+    turnSeq,
+    status: extras.status ?? 'complete',
+    startedAt: turnSeq * 1000,
+    messageId: extras.messageId,
   };
 }
 
@@ -61,22 +65,22 @@ function queuedMsg(id: string, content: string) {
 }
 
 type MockStoreShape = {
-  messages: ReturnType<typeof msg>[];
+  turns: ReturnType<typeof turn>[];
   isLoading: boolean;
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderMessages: ReturnType<typeof vi.fn>;
+  streamingOverlay: null | { turnId: unknown; textContent: string; reasoningContent: string };
 };
 
-type StoreOverrides = Partial<MockStoreShape>;
-
-function mockStore(messages: ReturnType<typeof msg>[], overrides: StoreOverrides = {}) {
-  mockUseHarnessMessageStore.mockReturnValue({
-    messages,
+function mockStore(turns: ReturnType<typeof turn>[], overrides: Partial<MockStoreShape> = {}) {
+  mockUseHarnessTurnStore.mockReturnValue({
+    turns,
     isLoading: false,
     hasMoreOlder: false,
     isLoadingOlder: false,
     loadOlderMessages: vi.fn(),
+    streamingOverlay: null,
     ...overrides,
   });
 }
@@ -86,7 +90,7 @@ function mockStore(messages: ReturnType<typeof msg>[], overrides: StoreOverrides
 describe('SessionMessageStream', () => {
   // ── Loading / empty states ──────────────────────────────────────────────────
 
-  it('renders loading state when query returns undefined', () => {
+  it('renders loading state when isLoading=true', () => {
     mockStore([], { isLoading: true });
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
@@ -101,66 +105,64 @@ describe('SessionMessageStream', () => {
 
   // ── Basic rendering ─────────────────────────────────────────────────────────
 
-  it('renders user and assistant messages', () => {
-    mockStore([msg('m1', 'user', 'Hello', 1), msg('m2', 'assistant', 'Hi there', 2)]);
+  it('renders user and assistant turns', () => {
+    mockStore([turn('t1', 'user', 'Hello', 1), turn('t2', 'assistant', 'Hi there', 2)]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByText('Hello')).toBeInTheDocument();
     expect(screen.getByText('Hi there')).toBeInTheDocument();
   });
 
-  // ── Token merging ───────────────────────────────────────────────────────────
-
-  it('merges assistant tokens with the same messageId into one bubble', () => {
-    mockStore([
-      msg('m1', 'user', 'Hi', 1),
-      msg('m2', 'assistant', 'Hel', 2, { messageId: 'msg-a', partType: 'text' }),
-      msg('m3', 'assistant', 'lo!', 3, { messageId: 'msg-a', partType: 'text' }),
-    ]);
+  it('renders turn.textContent for user turn', () => {
+    mockStore([turn('t1', 'user', 'User message text', 1)]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('Hello!')).toBeInTheDocument();
-    expect(screen.queryByText('Hel')).not.toBeInTheDocument();
+    expect(screen.getByText('User message text')).toBeInTheDocument();
   });
 
-  it('merges legacy assistant tokens (no messageId) consecutively', () => {
-    mockStore([msg('m1', 'assistant', 'foo', 1), msg('m2', 'assistant', 'bar', 2)]);
+  // ── Streaming overlay ───────────────────────────────────────────────────────
+
+  it('uses streamingOverlay content for the matching assistant turn', () => {
+    mockStore(
+      [turn('t1', 'assistant', 'old content', 1, { status: 'streaming', messageId: 'msg-a' })],
+      {
+        streamingOverlay: {
+          turnId: 't1' as never,
+          textContent: 'live streamed text',
+          reasoningContent: '',
+        },
+      }
+    );
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('foobar')).toBeInTheDocument();
+    expect(screen.getByText('live streamed text')).toBeInTheDocument();
+    expect(screen.queryByText('old content')).not.toBeInTheDocument();
   });
 
-  // ── Turn isolation ──────────────────────────────────────────────────────────
-
-  it('does not split an agent turn when a user message arrives mid-stream', () => {
-    mockStore([
-      msg('m1', 'user', 'First', 1),
-      msg('m2', 'assistant', 'A', 2, { messageId: 'msg-a', partType: 'text' }),
-      msg('m3', 'user', 'Second', 3),
-      msg('m4', 'assistant', 'B', 4, { messageId: 'msg-a', partType: 'text' }),
-      msg('m5', 'assistant', 'C', 5, { messageId: 'msg-a', partType: 'text' }),
-    ]);
+  it('renders ThinkingBlock when streamingOverlay has reasoningContent', () => {
+    mockStore([turn('t1', 'assistant', '', 1, { status: 'streaming', messageId: 'msg-a' })], {
+      streamingOverlay: {
+        turnId: 't1' as never,
+        textContent: 'answer',
+        reasoningContent: 'reasoning thoughts',
+      },
+    });
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('ABC')).toBeInTheDocument();
-    expect(screen.getByText('Second')).toBeInTheDocument();
-    expect(screen.queryByText('A')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /thinking/i })).toBeInTheDocument();
   });
 
-  it('renders two distinct agent turns for different messageIds', () => {
+  it('uses turn.textContent and turn.reasoningContent for finalized assistant turns', () => {
     mockStore([
-      msg('m1', 'user', 'Q1', 1),
-      msg('m2', 'assistant', 'R1', 2, { messageId: 'msg-a', partType: 'text' }),
-      msg('m3', 'user', 'Q2', 3),
-      msg('m4', 'assistant', 'R2', 4, { messageId: 'msg-b', partType: 'text' }),
+      turn('t1', 'assistant', 'finalized text', 1, { reasoningContent: 'finalized reasoning' }),
     ]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('R1')).toBeInTheDocument();
-    expect(screen.getByText('R2')).toBeInTheDocument();
+    expect(screen.getByText('finalized text')).toBeInTheDocument();
+    // ThinkingBlock should be present (collapsed)
+    expect(screen.getByRole('button', { name: /thinking/i })).toBeInTheDocument();
   });
 
   // ── Thinking blocks ─────────────────────────────────────────────────────────
 
-  it('renders a collapsed ThinkingBlock when reasoning tokens are present', () => {
+  it('renders a collapsed ThinkingBlock when reasoningContent is present', () => {
     mockStore([
-      msg('m1', 'assistant', 'Let me think...', 1, { messageId: 'msg-a', partType: 'reasoning' }),
-      msg('m2', 'assistant', 'The answer is 42', 2, { messageId: 'msg-a', partType: 'text' }),
+      turn('t1', 'assistant', 'The answer is 42', 1, { reasoningContent: 'Let me think...' }),
     ]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByRole('button', { name: /thinking/i })).toBeInTheDocument();
@@ -170,27 +172,32 @@ describe('SessionMessageStream', () => {
 
   it('expands ThinkingBlock on click', async () => {
     const user = userEvent.setup();
-    mockStore([
-      msg('m1', 'assistant', 'inner thoughts', 1, { messageId: 'msg-a', partType: 'reasoning' }),
-      msg('m2', 'assistant', 'response', 2, { messageId: 'msg-a', partType: 'text' }),
-    ]);
+    mockStore([turn('t1', 'assistant', 'response', 1, { reasoningContent: 'inner thoughts' })]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     await user.click(screen.getByRole('button', { name: /thinking/i }));
     expect(screen.getByText('inner thoughts')).toBeInTheDocument();
   });
 
-  it('does not render ThinkingBlock when there are no reasoning tokens', () => {
-    mockStore([
-      msg('m1', 'assistant', 'plain response', 1, { messageId: 'msg-a', partType: 'text' }),
-    ]);
+  it('does not render ThinkingBlock when reasoningContent is empty', () => {
+    mockStore([turn('t1', 'assistant', 'plain response', 1)]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.queryByRole('button', { name: /thinking/i })).not.toBeInTheDocument();
+  });
+
+  // ── Pending turns ────────────────────────────────────────────────────────────
+
+  it('renders nothing for a pending assistant turn with no messageId', () => {
+    mockStore([turn('t1', 'assistant', '', 1, { status: 'pending' })]);
+    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    // The scroll container is rendered but has no visible child content
+    const scrollEl = container.firstChild as HTMLElement;
+    expect(scrollEl.children).toHaveLength(0);
   });
 
   // ── Queued messages ─────────────────────────────────────────────────────────
 
   it('shows queued messages with a Queued badge below the main stream', () => {
-    mockStore([msg('m1', 'user', 'First', 1)]);
+    mockStore([turn('t1', 'user', 'First', 1)]);
     mockUseQueuedMessages.mockReturnValue([queuedMsg('q1', 'Queued follow-up')]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByText('First')).toBeInTheDocument();
@@ -199,7 +206,7 @@ describe('SessionMessageStream', () => {
   });
 
   it('does not show the queued zone when the queue is empty', () => {
-    mockStore([msg('m1', 'user', 'Hello', 1)]);
+    mockStore([turn('t1', 'user', 'Hello', 1)]);
     mockUseQueuedMessages.mockReturnValue([]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.queryByText('Queued')).not.toBeInTheDocument();
@@ -214,14 +221,14 @@ describe('SessionMessageStream', () => {
     expect(items[1]?.textContent).toBe('Beta');
   });
 
-  it('shows placeholder when only the queue is empty and messages are empty', () => {
+  it('shows placeholder when only the queue is empty and turns are empty', () => {
     mockStore([]);
     mockUseQueuedMessages.mockReturnValue([]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.getByText(/waiting for response/i)).toBeInTheDocument();
   });
 
-  it('does not show placeholder when messages are empty but queue has items', () => {
+  it('does not show placeholder when turns are empty but queue has items', () => {
     mockStore([]);
     mockUseQueuedMessages.mockReturnValue([queuedMsg('q1', 'Waiting')]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
@@ -229,298 +236,17 @@ describe('SessionMessageStream', () => {
     expect(screen.getByText('Waiting')).toBeInTheDocument();
   });
 
-  // ── Load older messages (scroll-driven) ────────────────────────────────────
+  // ── Load older turns (scroll-driven) ───────────────────────────────────────
 
   it('does not show a "load older messages" button (loading is scroll-driven)', () => {
-    mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: true });
+    mockStore([turn('t1', 'user', 'Hello', 1)], { hasMoreOlder: true });
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.queryByRole('button', { name: /load older messages/i })).not.toBeInTheDocument();
   });
 
   it('calls loadOlderMessages when scrolled near the top and hasMoreOlder is true', () => {
     const loadOlderMessages = vi.fn();
-    mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: true, loadOlderMessages });
-    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    const scrollEl = container.firstChild as HTMLElement;
-    // Simulate scroll near top (scrollTop < 100)
-    Object.defineProperty(scrollEl, 'scrollTop', { value: 50, configurable: true });
-    fireEvent.scroll(scrollEl);
-    expect(loadOlderMessages).toHaveBeenCalled();
-  });
-
-  it('does not call loadOlderMessages on scroll when hasMoreOlder is false', () => {
-    const loadOlderMessages = vi.fn();
-    mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: false, loadOlderMessages });
-    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    const scrollEl = container.firstChild as HTMLElement;
-    // scrollTop > threshold, far from top
-    Object.defineProperty(scrollEl, 'scrollTop', { value: 500, configurable: true });
-    fireEvent.scroll(scrollEl);
-    expect(loadOlderMessages).not.toHaveBeenCalled();
-  });
-});
-
-// ─── Tests ─────────────────────────────────────────────────────────────────────
-
-describe('SessionMessageStream', () => {
-  // ── Loading / empty states ──────────────────────────────────────────────────
-
-  it('renders loading state when query returns undefined', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [],
-      isLoading: true,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
-  });
-
-  it('renders empty placeholder when both streams are empty', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText(/waiting for response/i)).toBeInTheDocument();
-  });
-
-  // ── Basic rendering ─────────────────────────────────────────────────────────
-
-  it('renders user and assistant messages', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1), msg('m2', 'assistant', 'Hi there', 2)],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('Hello')).toBeInTheDocument();
-    expect(screen.getByText('Hi there')).toBeInTheDocument();
-  });
-
-  // ── Token merging ───────────────────────────────────────────────────────────
-
-  it('merges assistant tokens with the same messageId into one bubble', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'user', 'Hi', 1),
-        msg('m2', 'assistant', 'Hel', 2, { messageId: 'msg-a', partType: 'text' }),
-        msg('m3', 'assistant', 'lo!', 3, { messageId: 'msg-a', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('Hello!')).toBeInTheDocument();
-    expect(screen.queryByText('Hel')).not.toBeInTheDocument();
-  });
-
-  it('merges legacy assistant tokens (no messageId) consecutively', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'assistant', 'foo', 1), msg('m2', 'assistant', 'bar', 2)],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('foobar')).toBeInTheDocument();
-  });
-
-  // ── Turn isolation ──────────────────────────────────────────────────────────
-
-  it('does not split an agent turn when a user message arrives mid-stream', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'user', 'First', 1),
-        msg('m2', 'assistant', 'A', 2, { messageId: 'msg-a', partType: 'text' }),
-        msg('m3', 'user', 'Second', 3),
-        msg('m4', 'assistant', 'B', 4, { messageId: 'msg-a', partType: 'text' }),
-        msg('m5', 'assistant', 'C', 5, { messageId: 'msg-a', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('ABC')).toBeInTheDocument();
-    expect(screen.getByText('Second')).toBeInTheDocument();
-    expect(screen.queryByText('A')).not.toBeInTheDocument();
-  });
-
-  it('renders two distinct agent turns for different messageIds', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'user', 'Q1', 1),
-        msg('m2', 'assistant', 'R1', 2, { messageId: 'msg-a', partType: 'text' }),
-        msg('m3', 'user', 'Q2', 3),
-        msg('m4', 'assistant', 'R2', 4, { messageId: 'msg-b', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('R1')).toBeInTheDocument();
-    expect(screen.getByText('R2')).toBeInTheDocument();
-  });
-
-  // ── Thinking blocks ─────────────────────────────────────────────────────────
-
-  it('renders a collapsed ThinkingBlock when reasoning tokens are present', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'assistant', 'Let me think...', 1, { messageId: 'msg-a', partType: 'reasoning' }),
-        msg('m2', 'assistant', 'The answer is 42', 2, { messageId: 'msg-a', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByRole('button', { name: /thinking/i })).toBeInTheDocument();
-    expect(screen.queryByText('Let me think...')).not.toBeInTheDocument();
-    expect(screen.getByText('The answer is 42')).toBeInTheDocument();
-  });
-
-  it('expands ThinkingBlock on click', async () => {
-    const user = userEvent.setup();
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'assistant', 'inner thoughts', 1, { messageId: 'msg-a', partType: 'reasoning' }),
-        msg('m2', 'assistant', 'response', 2, { messageId: 'msg-a', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    await user.click(screen.getByRole('button', { name: /thinking/i }));
-    expect(screen.getByText('inner thoughts')).toBeInTheDocument();
-  });
-
-  it('does not render ThinkingBlock when there are no reasoning tokens', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [
-        msg('m1', 'assistant', 'plain response', 1, { messageId: 'msg-a', partType: 'text' }),
-      ],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.queryByRole('button', { name: /thinking/i })).not.toBeInTheDocument();
-  });
-
-  // ── Queued messages ─────────────────────────────────────────────────────────
-
-  it('shows queued messages with a Queued badge below the main stream', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'First', 1)],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([queuedMsg('q1', 'Queued follow-up')]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText('First')).toBeInTheDocument();
-    expect(screen.getByText('Queued follow-up')).toBeInTheDocument();
-    expect(screen.getByText('Queued')).toBeInTheDocument();
-  });
-
-  it('does not show the queued zone when the queue is empty', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1)],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.queryByText('Queued')).not.toBeInTheDocument();
-  });
-
-  it('renders multiple queued messages in FIFO order', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([queuedMsg('q1', 'Alpha'), queuedMsg('q2', 'Beta')]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    const items = screen.getAllByText(/^(Alpha|Beta)$/);
-    expect(items[0]?.textContent).toBe('Alpha');
-    expect(items[1]?.textContent).toBe('Beta');
-  });
-
-  it('shows placeholder when only the queue is empty and messages are empty', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByText(/waiting for response/i)).toBeInTheDocument();
-  });
-
-  it('does not show placeholder when messages are empty but queue has items', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    mockUseQueuedMessages.mockReturnValue([queuedMsg('q1', 'Waiting')]);
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.queryByText(/waiting for response/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Waiting')).toBeInTheDocument();
-  });
-
-  // ── Load older messages (scroll-driven) ────────────────────────────────────
-
-  it('does not show a "load older messages" button (loading is scroll-driven)', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1)],
-      isLoading: false,
-      hasMoreOlder: true,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.queryByRole('button', { name: /load older messages/i })).not.toBeInTheDocument();
-  });
-
-  it('calls loadOlderMessages when scrolled near the top and hasMoreOlder is true', () => {
-    const loadOlderMessages = vi.fn();
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1)],
-      isLoading: false,
-      hasMoreOlder: true,
-      isLoadingOlder: false,
-      loadOlderMessages,
-    });
+    mockStore([turn('t1', 'user', 'Hello', 1)], { hasMoreOlder: true, loadOlderMessages });
     const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     const scrollEl = container.firstChild as HTMLElement;
     Object.defineProperty(scrollEl, 'scrollTop', { value: 50, configurable: true });
@@ -530,16 +256,9 @@ describe('SessionMessageStream', () => {
 
   it('does not call loadOlderMessages on scroll when hasMoreOlder is false', () => {
     const loadOlderMessages = vi.fn();
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1)],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderMessages,
-    });
+    mockStore([turn('t1', 'user', 'Hello', 1)], { hasMoreOlder: false, loadOlderMessages });
     const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     const scrollEl = container.firstChild as HTMLElement;
-    // scrollTop > threshold, far from top
     Object.defineProperty(scrollEl, 'scrollTop', { value: 500, configurable: true });
     fireEvent.scroll(scrollEl);
     expect(loadOlderMessages).not.toHaveBeenCalled();

@@ -71,6 +71,21 @@ export interface HarnessTurn {
   completedAt?: number;
 }
 
+/**
+ * Wire shape returned by web turn endpoints (harnessSessionId omitted — caller knows it).
+ */
+export interface HarnessTurnView {
+  _id: Id<'chatroom_harnessSessionTurns'>;
+  turnSeq: number;
+  role: 'user' | 'assistant';
+  status: 'pending' | 'streaming' | 'complete' | 'failed';
+  messageId?: string;
+  textContent: string;
+  reasoningContent: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
 // ─── Capabilities ─────────────────────────────────────────────────────────────
 
 /** Published agent definition from a harness. */
