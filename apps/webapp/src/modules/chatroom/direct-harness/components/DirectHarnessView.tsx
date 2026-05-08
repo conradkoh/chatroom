@@ -19,7 +19,7 @@ import {
 import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
 import { useListSessions } from '../hooks/useListSessions';
 import { useRefreshCapabilities } from '../hooks/useRefreshCapabilities';
 
@@ -151,7 +151,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
           <div className="shrink-0 p-2 border-b border-border flex items-center gap-1.5">
             <div className="flex-1 min-w-0">
               {workspaces.length > 0 ? (
-                <WorkspaceSwitcher
+                <HarnessWorkspaceSwitcher
                   workspaces={workspaces}
                   selectedWorkspaceId={selectedWorkspaceId}
                   onSelect={setSelectedWorkspaceId}

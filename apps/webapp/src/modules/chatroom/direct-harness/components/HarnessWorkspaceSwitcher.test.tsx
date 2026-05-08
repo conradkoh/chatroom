@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -17,10 +17,10 @@ const ws = (id: string, alias: string, dir: string) => ({
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('WorkspaceSwitcher', () => {
+describe('HarnessWorkspaceSwitcher', () => {
   it('renders the empty-state pill when workspaces is empty', () => {
     render(
-      <WorkspaceSwitcher workspaces={[]} selectedWorkspaceId={null} onSelect={vi.fn()} />
+      <HarnessWorkspaceSwitcher workspaces={[]} selectedWorkspaceId={null} onSelect={vi.fn()} />
     );
     expect(screen.getByText(/no workspaces in this chatroom/i)).toBeInTheDocument();
   });
@@ -28,7 +28,7 @@ describe('WorkspaceSwitcher', () => {
   it('renders the trigger with the selected workspace display label', () => {
     const workspaces = [ws('ws1', 'My Machine', '/home/user/project')];
     render(
-      <WorkspaceSwitcher
+      <HarnessWorkspaceSwitcher
         workspaces={workspaces}
         selectedWorkspaceId={'ws1' as never}
         onSelect={vi.fn()}
@@ -45,7 +45,7 @@ describe('WorkspaceSwitcher', () => {
     ];
     const onSelect = vi.fn();
     render(
-      <WorkspaceSwitcher
+      <HarnessWorkspaceSwitcher
         workspaces={workspaces}
         selectedWorkspaceId={'ws1' as never}
         onSelect={onSelect}

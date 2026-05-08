@@ -14,7 +14,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface WorkspaceSwitcherProps {
+export interface HarnessWorkspaceSwitcherProps {
   workspaces: WorkspaceForChatroomView[];
   selectedWorkspaceId: Id<'chatroom_workspaces'> | null;
   onSelect: (id: Id<'chatroom_workspaces'>) => void;
@@ -30,13 +30,13 @@ function workspaceLabel(ws: WorkspaceForChatroomView): string {
   return `${ws.machineAlias ?? ws.hostname} — ${basename(ws.workingDir)}`;
 }
 
-// ─── WorkspaceSwitcher ────────────────────────────────────────────────────────
+// ─── HarnessWorkspaceSwitcher ────────────────────────────────────────────────────────
 
-export const WorkspaceSwitcher = memo(function WorkspaceSwitcher({
+export const HarnessWorkspaceSwitcher = memo(function HarnessWorkspaceSwitcher({
   workspaces,
   selectedWorkspaceId,
   onSelect,
-}: WorkspaceSwitcherProps) {
+}: HarnessWorkspaceSwitcherProps) {
   if (workspaces.length === 0) {
     return (
       <div className="text-xs text-muted-foreground px-2 py-1.5">
