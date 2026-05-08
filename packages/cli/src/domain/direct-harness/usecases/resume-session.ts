@@ -7,7 +7,12 @@
 import type { OpenCodeSessionId, HarnessSessionId } from '../entities/harness-session.js';
 import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { SessionHandle, SessionJournal, JournalFactory, ExtractedChunk } from './open-session.js';
+import type {
+  SessionHandle,
+  SessionJournal,
+  JournalFactory,
+  ExtractedChunk,
+} from './open-session.js';
 import { closeSession } from './close-session.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
@@ -56,17 +61,24 @@ export async function resumeSession(
         messageId: chunk.messageId,
         partType: chunk.partType,
       });
+      // Set messageId on the current pending turn so the infrastructure layer
+      // can call bindTurnMessageId (domain layer has no sessionRepository dep).
+      if (handle.currentTurn && handle.currentTurn.messageId === null) {
+        handle.currentTurn.messageId = chunk.messageId;
+      }
     }
   });
 
   // 4. Build the idempotent close function
   let closed = false;
 
-  return {
+  const handle: SessionHandle = {
     harnessSessionId,
     opencodeSessionId,
     workspaceId: input.workspaceId ?? '',
     session,
+    journal,
+    currentTurn: null,
 
     async close(): Promise<void> {
       if (closed) return;
@@ -75,4 +87,6 @@ export async function resumeSession(
       await closeSession({ session, journal }, { harnessSessionId });
     },
   };
+
+  return handle;
 }

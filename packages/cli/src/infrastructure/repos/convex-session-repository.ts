@@ -28,10 +28,9 @@ export class ConvexSessionRepository implements SessionRepository {
   }
 
   async getOpenCodeSessionId(harnessSessionId: string): Promise<OpenCodeSessionId | undefined> {
-    const result = await this.options.backend.query(
-      api.daemon.directHarness.sessions.getSession,
-      { harnessSessionId }
-    ) as { opencodeSessionId?: string } | null;
+    const result = (await this.options.backend.query(api.daemon.directHarness.sessions.getSession, {
+      harnessSessionId,
+    })) as { opencodeSessionId?: string } | null;
     return result?.opencodeSessionId as OpenCodeSessionId | undefined;
   }
 
@@ -91,5 +90,30 @@ export class ConvexSessionRepository implements SessionRepository {
       sessionId,
       harnessSessionId,
     }) as Promise<{ content: string; seq: number } | null>;
+  }
+
+  async beginAssistantTurn(harnessSessionId: string): Promise<{ turnId: string; turnSeq: number }> {
+    const { backend, sessionId } = this.options;
+    return backend.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+      sessionId,
+      harnessSessionId,
+    }) as Promise<{ turnId: string; turnSeq: number }>;
+  }
+
+  async bindTurnMessageId(turnId: string, messageId: string): Promise<void> {
+    const { backend, sessionId } = this.options;
+    await backend.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
+      sessionId,
+      turnId,
+      messageId,
+    });
+  }
+
+  async finalizeAssistantTurn(turnId: string): Promise<void> {
+    const { backend, sessionId } = this.options;
+    await backend.mutation(api.daemon.directHarness.turns.finalizeAssistantTurn, {
+      sessionId,
+      turnId,
+    });
   }
 }

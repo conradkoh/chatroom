@@ -34,6 +34,7 @@ import type * as daemon_directHarness_commands from "../daemon/directHarness/com
 import type * as daemon_directHarness_messages from "../daemon/directHarness/messages.js";
 import type * as daemon_directHarness_queue from "../daemon/directHarness/queue.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
+import type * as daemon_directHarness_turns from "../daemon/directHarness/turns.js";
 import type * as dev from "../dev.js";
 import type * as discussions from "../discussions.js";
 import type * as eventCleanup from "../eventCleanup.js";
@@ -113,6 +114,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/directHarness/messages": typeof daemon_directHarness_messages;
   "daemon/directHarness/queue": typeof daemon_directHarness_queue;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
+  "daemon/directHarness/turns": typeof daemon_directHarness_turns;
   dev: typeof dev;
   discussions: typeof discussions;
   eventCleanup: typeof eventCleanup;

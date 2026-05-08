@@ -14,7 +14,10 @@
  * to avoid leaking processes.
  */
 
-import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
+import type {
+  DirectHarnessSession,
+  DirectHarnessSessionEvent,
+} from '../entities/direct-harness-session.js';
 
 // ─── Extracted chunk ─────────────────────────────────────────────────────────
 
@@ -38,7 +41,6 @@ import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 
-
 /** Resolves a BoundHarness for a workspace (may spawn a process on first call). */
 export interface SpawnerProvider {
   getSpawner(workspaceId: string, workingDir: string): Promise<BoundHarness>;
@@ -50,7 +52,14 @@ export interface SpawnerProvider {
  * and `commit()` to persist all recorded chunks (typically on close).
  */
 export interface SessionJournal {
-  record(chunk: { content: string; timestamp: number; messageId?: string; partType?: 'text' | 'reasoning' }): void;
+  record(chunk: {
+    content: string;
+    timestamp: number;
+    messageId?: string;
+    partType?: 'text' | 'reasoning';
+  }): void;
+  /** Drain any buffered chunks now. Resolves once all currently-buffered chunks are persisted. */
+  flush(): Promise<void>;
   commit(): Promise<void>;
 }
 
@@ -89,6 +98,13 @@ export interface SessionHandle {
   /** The workspace this session belongs to — used for inactivity tracking. */
   readonly workspaceId: string;
   readonly session: DirectHarnessSession;
+  /** The journal bound to this session — needed for flush() before finalize. */
+  journal: SessionJournal;
+  /**
+   * The current pending/streaming assistant turn for this session.
+   * Set by dispatchPrompt on begin, bound on first chunk, cleared on finalize.
+   */
+  currentTurn: { turnId: string; messageId: string | null } | null;
   /** Flush remaining chunks and close the harness session. Idempotent. */
   close(): Promise<void>;
 }

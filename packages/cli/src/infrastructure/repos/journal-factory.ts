@@ -14,8 +14,14 @@
  * is internal to this class and can be swapped later.
  */
 
-import type { SessionJournal, JournalFactory } from '../../domain/direct-harness/usecases/open-session.js';
-import type { OutputRepository, OutputChunk } from '../../domain/direct-harness/ports/output-repository.js';
+import type {
+  SessionJournal,
+  JournalFactory,
+} from '../../domain/direct-harness/usecases/open-session.js';
+import type {
+  OutputRepository,
+  OutputChunk,
+} from '../../domain/direct-harness/ports/output-repository.js';
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;
@@ -39,13 +45,20 @@ export class BufferedJournalFactory implements JournalFactory {
       flushInProgress = true;
 
       const batch = buffer.splice(0);
-      outputRepository.appendChunks(harnessSessionId, batch).catch((err) => {
-        // Re-queue failed chunks so they are not lost
-        buffer.unshift(...batch);
-        logger.warn('Journal flush failed, re-queued %d chunks: %s', batch.length, err instanceof Error ? err.message : String(err));
-      }).finally(() => {
-        flushInProgress = false;
-      });
+      outputRepository
+        .appendChunks(harnessSessionId, batch)
+        .catch((err) => {
+          // Re-queue failed chunks so they are not lost
+          buffer.unshift(...batch);
+          logger.warn(
+            'Journal flush failed, re-queued %d chunks: %s',
+            batch.length,
+            err instanceof Error ? err.message : String(err)
+          );
+        })
+        .finally(() => {
+          flushInProgress = false;
+        });
     }, flushIntervalMs);
 
     // Allow the interval to keep the process alive
@@ -54,13 +67,52 @@ export class BufferedJournalFactory implements JournalFactory {
     }
 
     return {
-      record(chunk: { content: string; timestamp: number; messageId?: string; partType?: 'text' | 'reasoning' }): void {
+      record(chunk: {
+        content: string;
+        timestamp: number;
+        messageId?: string;
+        partType?: 'text' | 'reasoning';
+      }): void {
         buffer.push({
           content: chunk.content,
           timestamp: chunk.timestamp,
           messageId: chunk.messageId,
           partType: chunk.partType,
         });
+      },
+
+      async flush(): Promise<void> {
+        if (buffer.length === 0) return;
+
+        // Wait for any in-progress flush to settle
+        const waitForInProgress = (): Promise<void> => {
+          if (!flushInProgress) return Promise.resolve();
+          return new Promise((resolve) => {
+            const check = () => {
+              if (!flushInProgress) resolve();
+              else setTimeout(check, 10);
+            };
+            setTimeout(check, 10);
+          });
+        };
+        await waitForInProgress();
+
+        if (buffer.length === 0) return;
+        flushInProgress = true;
+        const batch = buffer.splice(0);
+        try {
+          await outputRepository.appendChunks(harnessSessionId, batch);
+        } catch (err) {
+          buffer.unshift(...batch);
+          logger.warn(
+            'Journal flush (explicit) failed, re-queued %d chunks: %s',
+            batch.length,
+            err instanceof Error ? err.message : String(err)
+          );
+          throw err;
+        } finally {
+          flushInProgress = false;
+        }
       },
 
       async commit(): Promise<void> {

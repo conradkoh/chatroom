@@ -20,6 +20,7 @@ function mockSession(): DirectHarnessSession {
 function mockJournal(): SessionJournal {
   return {
     record: vi.fn(),
+    flush: vi.fn().mockResolvedValue(undefined),
     commit: vi.fn(),
   };
 }
@@ -59,6 +60,9 @@ describe('closeSession', () => {
       updateLastProcessedSeq: vi.fn(),
       setGenerating: vi.fn(),
       dequeueNext: vi.fn(),
+      beginAssistantTurn: vi.fn(),
+      bindTurnMessageId: vi.fn(),
+      finalizeAssistantTurn: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
     const spy = vi.spyOn(sessionRepository, 'markClosed');
@@ -97,6 +101,9 @@ describe('closeSession', () => {
       markIdle: vi.fn(),
       markFailed: vi.fn(),
       markActive: vi.fn(),
+      beginAssistantTurn: vi.fn(),
+      bindTurnMessageId: vi.fn(),
+      finalizeAssistantTurn: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
 
@@ -117,6 +124,9 @@ describe('closeSession', () => {
       markIdle: vi.fn(),
       markFailed: vi.fn(),
       markActive: vi.fn(),
+      beginAssistantTurn: vi.fn(),
+      bindTurnMessageId: vi.fn(),
+      finalizeAssistantTurn: vi.fn(),
     };
     const deps = mockDeps({ session, journal, sessionRepository });
 

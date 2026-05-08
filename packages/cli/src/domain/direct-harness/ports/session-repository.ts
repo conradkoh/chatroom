@@ -45,4 +45,25 @@ export interface SessionRepository {
    * (also clears isGenerating on the session).
    */
   dequeueNext(harnessSessionId: string): Promise<{ content: string; seq: number } | null>;
+
+  // ─── Turn lifecycle ──────────────────────────────────────────────────────────
+
+  /**
+   * Eagerly insert an assistant turn row with status='pending'.
+   * Returns the new turn ID and its sequence number.
+   */
+  beginAssistantTurn(harnessSessionId: string): Promise<{ turnId: string; turnSeq: number }>;
+
+  /**
+   * Bind the SDK messageId to a pending turn, flipping it to status='streaming'.
+   * Idempotent: no-op if the turn is already streaming/complete.
+   */
+  bindTurnMessageId(turnId: string, messageId: string): Promise<void>;
+
+  /**
+   * Finalize an assistant turn by aggregating chunk content.
+   * Sets status='complete' with concatenated textContent/reasoningContent.
+   * Idempotent: no-op if the turn is already complete.
+   */
+  finalizeAssistantTurn(turnId: string): Promise<void>;
 }

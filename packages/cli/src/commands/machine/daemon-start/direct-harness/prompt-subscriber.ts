@@ -193,7 +193,11 @@ async function processSessionMessages(
 
     try {
       handle = await resumeSession(
-        { harness, journalFactory: deps.journalFactory, chunkExtractor: createOpencodeSdkChunkExtractor() },
+        {
+          harness,
+          journalFactory: deps.journalFactory,
+          chunkExtractor: createOpencodeSdkChunkExtractor(),
+        },
         { harnessSessionId: rowId, opencodeSessionId, workspaceId }
       );
     } catch (err) {
@@ -209,13 +213,30 @@ async function processSessionMessages(
     await deps.sessionRepository.markActive(rowId).catch(() => {});
 
     // Wire session.idle so queued messages are drained after a daemon restart.
+    // Wire first-chunk → bindTurnMessageId for the resumed session.
     const idleConfig = {
       agent: info?.lastUsedConfig.agent ?? 'build',
       model: info?.lastUsedConfig.model,
     };
+    // Track which (turnId, messageId) pair we've already dispatched a bind for
+    let lastBoundKey: string | null = null;
     handle.session.onEvent((event) => {
+      // First-chunk bind: resumeSession sets currentTurn.messageId on chunk events.
+      // We watch for when it becomes non-null and call bind (idempotent on backend).
+      const turn = handle!.currentTurn;
+      if (turn?.messageId !== null && turn?.messageId !== undefined) {
+        const key = `${turn.turnId}:${turn.messageId}`;
+        if (key !== lastBoundKey) {
+          lastBoundKey = key;
+          deps.sessionRepository
+            .bindTurnMessageId(turn.turnId, turn.messageId)
+            .catch((err: unknown) =>
+              console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
+            );
+        }
+      }
       if (event.type === 'session.idle') {
-        void handleSessionIdle(rowId, handle!.session, idleConfig, deps.sessionRepository).catch(
+        void handleSessionIdle(handle!, handle!.journal, idleConfig, deps.sessionRepository).catch(
           (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
         );
       }
@@ -228,6 +249,11 @@ async function processSessionMessages(
 
     try {
       await deps.sessionRepository.setGenerating(rowId, true);
+
+      // Begin assistant turn eagerly before sending the prompt
+      const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
+      handle.currentTurn = { turnId, messageId: null };
+
       await handle.session.prompt({
         parts: [{ type: 'text', text: msg.content }],
         agent: override.agent,
@@ -237,7 +263,9 @@ async function processSessionMessages(
       await deps.sessionRepository.updateLastProcessedSeq(rowId, msg.seq);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`);
+      console.warn(
+        `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
+      );
       // The prompt failed — likely the harness process crashed. The opencode
       // session is still on disk, so mark idle (resumable) rather than closed.
       await deps.sessionRepository.markIdle(rowId).catch(() => {});

@@ -2215,7 +2215,8 @@ export default defineSchema({
     partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
   })
     .index('by_session_seq', ['harnessSessionId', 'seq'])
-    .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq']),
+    .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq'])
+    .index('by_messageId', ['messageId']),
 
   /**
    * Long-term, source-of-truth turn-level message store.
@@ -2270,8 +2271,7 @@ export default defineSchema({
     content: v.string(),
     timestamp: v.number(),
     status: v.union(v.literal('queued'), v.literal('delivered')),
-  })
-    .index('by_session_status', ['harnessSessionId', 'status']),
+  }).index('by_session_status', ['harnessSessionId', 'status']),
 
   /**
    * Per-machine capability snapshot: registered workspaces + per-workspace
@@ -2339,9 +2339,7 @@ export default defineSchema({
     /** Discriminated union: selects the command kind. */
     type: v.union(v.literal('refreshCapabilities')),
     /** Payload for refreshCapabilities commands. */
-    refreshCapabilities: v.optional(
-      v.object({ initiatedBy: v.string() })
-    ),
+    refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
     status: v.union(
       v.literal('pending'),
       v.literal('inProgress'),
@@ -2351,6 +2349,5 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
-  })
-    .index('by_machineId_status', ['machineId', 'status']),
+  }).index('by_machineId_status', ['machineId', 'status']),
 });

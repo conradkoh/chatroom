@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { resumeSession } from './resume-session.js';
 import type { ResumeSessionDeps, ResumeSessionInput } from './resume-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { DirectHarnessSession, DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
+import type {
+  DirectHarnessSession,
+  DirectHarnessSessionEvent,
+} from '../entities/direct-harness-session.js';
 import type { SessionJournal, JournalFactory, ExtractedChunk } from './open-session.js';
 import type { OpenCodeSessionId } from '../entities/harness-session.js';
 import type { CloseSessionDeps, CloseSessionInput } from './close-session.js';
@@ -27,6 +30,7 @@ function mockSession(overrides?: Partial<DirectHarnessSession>): DirectHarnessSe
 function mockJournal(): SessionJournal {
   return {
     record: vi.fn(),
+    flush: vi.fn().mockResolvedValue(undefined),
     commit: vi.fn(),
   };
 }
@@ -83,22 +87,36 @@ describe('resumeSession', () => {
   it('wires events through chunk extractor into the journal', async () => {
     const session = mockSession();
     let onEventHandler: ((event: DirectHarnessSessionEvent) => void) | undefined;
-    (session.onEvent as Func).mockImplementation((handler: (event: DirectHarnessSessionEvent) => void) => {
-      onEventHandler = handler;
-      return () => {};
-    });
+    (session.onEvent as Func).mockImplementation(
+      (handler: (event: DirectHarnessSessionEvent) => void) => {
+        onEventHandler = handler;
+        return () => {};
+      }
+    );
     const harness = mockBoundHarness();
     (harness.resumeSession as Func).mockResolvedValue(session);
     const journal = mockJournal();
     const journalFactory: JournalFactory = {
       create: vi.fn().mockReturnValue(journal),
     };
-    const chunkExtractor = vi.fn()
-      .mockReturnValueOnce(null)   // first event, no content
-      .mockReturnValueOnce({ content: 'hello', messageId: 'msg-1', partType: 'text' } satisfies ExtractedChunk)
-      .mockReturnValueOnce({ content: 'world', messageId: 'msg-1', partType: 'text' } satisfies ExtractedChunk);
+    const chunkExtractor = vi
+      .fn()
+      .mockReturnValueOnce(null) // first event, no content
+      .mockReturnValueOnce({
+        content: 'hello',
+        messageId: 'msg-1',
+        partType: 'text',
+      } satisfies ExtractedChunk)
+      .mockReturnValueOnce({
+        content: 'world',
+        messageId: 'msg-1',
+        partType: 'text',
+      } satisfies ExtractedChunk);
     const deps: ResumeSessionDeps = {
-      harness, journalFactory, chunkExtractor, nowFn: () => 1000,
+      harness,
+      journalFactory,
+      chunkExtractor,
+      nowFn: () => 1000,
     };
 
     await resumeSession(deps, defaultInput);
@@ -106,13 +124,32 @@ describe('resumeSession', () => {
     expect(onEventHandler).toBeDefined();
 
     // Simulate some events
-    onEventHandler!({ type: 'message.part.updated', properties: { content: '' } } as unknown as DirectHarnessSessionEvent);
-    onEventHandler!({ type: 'message.part.updated', properties: { content: 'hello' } } as unknown as DirectHarnessSessionEvent);
-    onEventHandler!({ type: 'message.part.updated', properties: { content: 'world' } } as unknown as DirectHarnessSessionEvent);
+    onEventHandler!({
+      type: 'message.part.updated',
+      properties: { content: '' },
+    } as unknown as DirectHarnessSessionEvent);
+    onEventHandler!({
+      type: 'message.part.updated',
+      properties: { content: 'hello' },
+    } as unknown as DirectHarnessSessionEvent);
+    onEventHandler!({
+      type: 'message.part.updated',
+      properties: { content: 'world' },
+    } as unknown as DirectHarnessSessionEvent);
 
     expect(journal.record).toHaveBeenCalledTimes(2);
-    expect(journal.record).toHaveBeenCalledWith({ content: 'hello', timestamp: 1000, messageId: 'msg-1', partType: 'text' });
-    expect(journal.record).toHaveBeenCalledWith({ content: 'world', timestamp: 1000, messageId: 'msg-1', partType: 'text' });
+    expect(journal.record).toHaveBeenCalledWith({
+      content: 'hello',
+      timestamp: 1000,
+      messageId: 'msg-1',
+      partType: 'text',
+    });
+    expect(journal.record).toHaveBeenCalledWith({
+      content: 'world',
+      timestamp: 1000,
+      messageId: 'msg-1',
+      partType: 'text',
+    });
   });
 
   it('close() is idempotent and delegates to closeSession', async () => {
@@ -124,7 +161,8 @@ describe('resumeSession', () => {
       create: vi.fn().mockReturnValue(journal),
     };
     const deps: ResumeSessionDeps = {
-      harness, journalFactory,
+      harness,
+      journalFactory,
       chunkExtractor: vi.fn().mockReturnValue(null),
       nowFn: () => 1000,
     };
@@ -145,7 +183,8 @@ describe('resumeSession', () => {
     (harness.resumeSession as Func).mockRejectedValue(new Error('harness not found'));
     const journalFactory: JournalFactory = { create: vi.fn() };
     const deps: ResumeSessionDeps = {
-      harness, journalFactory,
+      harness,
+      journalFactory,
       chunkExtractor: vi.fn(),
       nowFn: () => 1000,
     };
@@ -157,17 +196,27 @@ describe('resumeSession', () => {
   it('uses Date.now when nowFn is not provided', async () => {
     let onEventHandler: ((event: DirectHarnessSessionEvent) => void) | undefined;
     const session = mockSession();
-    (session.onEvent as Func).mockImplementation((h: (event: DirectHarnessSessionEvent) => void) => {
-      onEventHandler = h;
-      return () => {};
-    });
+    (session.onEvent as Func).mockImplementation(
+      (h: (event: DirectHarnessSessionEvent) => void) => {
+        onEventHandler = h;
+        return () => {};
+      }
+    );
     const harness = mockBoundHarness();
     (harness.resumeSession as Func).mockResolvedValue(session);
     const journal = mockJournal();
     const journalFactory: JournalFactory = { create: vi.fn().mockReturnValue(journal) };
-    const chunkExtractor = vi.fn().mockReturnValue({ content: 'content', messageId: 'msg-x', partType: 'text' } satisfies ExtractedChunk);
+    const chunkExtractor = vi
+      .fn()
+      .mockReturnValue({
+        content: 'content',
+        messageId: 'msg-x',
+        partType: 'text',
+      } satisfies ExtractedChunk);
     const deps: ResumeSessionDeps = {
-      harness, journalFactory, chunkExtractor,
+      harness,
+      journalFactory,
+      chunkExtractor,
       // no nowFn — should use Date.now
     };
 

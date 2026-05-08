@@ -102,10 +102,10 @@ async function processOne(
 
   try {
     // 1. Look up workspace to get workingDir
-    const workspace = (await ctx.deps.backend.query(
-      api.workspaces.getWorkspaceById,
-      { sessionId: ctx.sessionId, workspaceId: session.workspaceId }
-    )) as WorkspaceInfo | null;
+    const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
+      sessionId: ctx.sessionId,
+      workspaceId: session.workspaceId,
+    })) as WorkspaceInfo | null;
 
     if (!workspace) {
       console.warn(
@@ -119,7 +119,9 @@ async function processOne(
     let harness = deps.harnesses.get(session.workspaceId);
     if (harness && !harness.isAlive()) {
       // Process died since it was last used — evict so we start fresh
-      console.warn(`[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`);
+      console.warn(
+        `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
+      );
       harness.close().catch(() => {});
       deps.harnesses.delete(session.workspaceId);
       harness = undefined;
@@ -146,22 +148,11 @@ async function processOne(
       agent: session.opencode?.lastUsedConfig.agent ?? 'build',
       model: session.opencode?.lastUsedConfig.model,
     };
-    const unsubscribeEvents = liveSession.onEvent((event) => {
-      const chunk = extractChunk(event);
-      if (chunk !== null) {
-        journal.record({
-          content: chunk.content,
-          timestamp: Date.now(),
-          messageId: chunk.messageId,
-          partType: chunk.partType,
-        });
-      }
-      if (event.type === 'session.idle') {
-        void handleSessionIdle(rowId, liveSession, idleConfig, deps.sessionRepository).catch(
-          (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
-        );
-      }
-    });
+
+    // Declare handle early so event listener closure can reference it.
+    // We use a mutable ref-wrapper so close() can also call unsubscribeEvents
+    // which is assigned after handle.
+    let unsubscribeEvents: () => void = () => {};
 
     // 6. Build idempotent close function
     let closed = false;
@@ -177,13 +168,43 @@ async function processOne(
     // 7. Store in shared registry BEFORE patching the DB so that
     //    prompt-subscriber can never observe the opencodeSessionId without
     //    also finding the handle (prevents a second competing connection).
+    //    Declare handle early so the event listener closure can reference it.
     const handle: SessionHandle = {
       harnessSessionId: rowId,
       opencodeSessionId: liveSession.opencodeSessionId as string,
       workspaceId: session.workspaceId,
       session: liveSession,
+      journal,
+      currentTurn: null,
       close,
     };
+
+    unsubscribeEvents = liveSession.onEvent((event) => {
+      const chunk = extractChunk(event);
+      if (chunk !== null) {
+        journal.record({
+          content: chunk.content,
+          timestamp: Date.now(),
+          messageId: chunk.messageId,
+          partType: chunk.partType,
+        });
+        // Bind the messageId on first chunk for the current pending turn
+        if (handle.currentTurn && handle.currentTurn.messageId === null) {
+          handle.currentTurn.messageId = chunk.messageId;
+          deps.sessionRepository
+            .bindTurnMessageId(handle.currentTurn.turnId, chunk.messageId)
+            .catch((err: unknown) =>
+              console.warn('[direct-harness] bindTurnMessageId error:', err)
+            );
+        }
+      }
+      if (event.type === 'session.idle') {
+        void handleSessionIdle(handle, journal, idleConfig, deps.sessionRepository).catch(
+          (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
+        );
+      }
+    });
+
     deps.activeSessions.set(rowId, handle);
 
     // 8. Associate the harness-issued session ID with the existing backend row.
