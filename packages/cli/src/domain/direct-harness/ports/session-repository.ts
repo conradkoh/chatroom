@@ -33,8 +33,8 @@ export interface SessionRepository {
    */
   markActive(harnessSessionId: string): Promise<void>;
 
-  /** Persist the daemon's processing cursor for a session. */
-  updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void>;
+  /** Advance the daemon's turn-seq cursor for a session. */
+  markTurnProcessed(harnessSessionId: string, turnSeq: number): Promise<void>;
 
   /** Set the isGenerating flag so the web send mutation routes to the queue. */
   setGenerating(harnessSessionId: string, isGenerating: boolean): Promise<void>;

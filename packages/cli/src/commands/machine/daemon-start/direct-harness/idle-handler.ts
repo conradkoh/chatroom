@@ -58,7 +58,7 @@ export async function handleSessionIdle(
       agent: config.agent,
       ...(config.model ? { model: config.model } : {}),
     });
-    await sessionRepository.updateLastProcessedSeq(rowId, next.seq);
+    await sessionRepository.markTurnProcessed(rowId, next.seq);
   } catch (err) {
     console.warn(
       `[direct-harness] Failed to prompt queued message for session ${rowId}:`,

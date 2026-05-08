@@ -66,12 +66,12 @@ export class ConvexSessionRepository implements SessionRepository {
     });
   }
 
-  async updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void> {
+  async markTurnProcessed(harnessSessionId: string, turnSeq: number): Promise<void> {
     const { backend, sessionId } = this.options;
     await backend.mutation(api.daemon.directHarness.turns.markTurnProcessed, {
       sessionId,
       harnessSessionId,
-      turnSeq: seq,
+      turnSeq,
     });
   }
 

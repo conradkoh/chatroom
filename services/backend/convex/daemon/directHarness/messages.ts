@@ -107,7 +107,6 @@ export const pendingForMachine = query({
     const sessions: Array<{
       _id: string;
       workspaceId: string;
-      lastProcessedSeq: number;
       opencodeSessionId: string | undefined;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
     }> = [];
@@ -130,7 +129,6 @@ export const pendingForMachine = query({
         sessions.push({
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
-          lastProcessedSeq: cursor,
           // Include opencodeSessionId so the subscriber can detect when
           // the session transitions pending→active without a separate query.
           // When this changes (undefined→string), the subscription re-fires.

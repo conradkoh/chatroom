@@ -49,7 +49,6 @@ export const create = mutation({
       type: 'opencode',
       workspaceId: args.workspaceId,
       status: 'pending',
-      lastProcessedSeq: 0,
       createdBy: session.userId,
       createdAt: now,
       lastActiveAt: now,

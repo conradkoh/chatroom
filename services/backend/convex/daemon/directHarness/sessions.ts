@@ -20,7 +20,11 @@ export const associateHarnessSessionId = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
     const s = requireOpencodeSession(harnessSession);
 
     const existing = s.opencode.opencodeSessionId;
@@ -52,7 +56,11 @@ export const closeSession = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
     if (harnessSession.status === 'closed') return;
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
       status: 'closed',
@@ -75,7 +83,11 @@ export const markIdle = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
     // Don't overwrite terminal statuses.
     if (harnessSession.status === 'failed' || harnessSession.status === 'closed') return;
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
@@ -123,41 +135,16 @@ export const markActive = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
     if (harnessSession.status === 'failed' || harnessSession.status === 'closed') return;
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
       status: 'active',
       lastActiveAt: Date.now(),
     });
-  },
-});
-
-// ─── updateCursor ─────────────────────────────────────────────────────────────
-
-export const updateCursor = mutation({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    seq: v.number(),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
-
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
-    if (!harnessSession) throw new Error('Session not found');
-
-    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
-    if (!workspace) throw new Error('Workspace not found');
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) throw new Error('Unauthorized');
-
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, { lastProcessedSeq: args.seq });
   },
 });
 
@@ -179,7 +166,6 @@ export const getSession = query({
       isGenerating: s.isGenerating ?? false,
       opencodeSessionId: s.opencode.opencodeSessionId,
       lastUsedConfig: s.opencode.lastUsedConfig,
-      lastProcessedSeq: s.lastProcessedSeq,
       workspaceId: s.workspaceId,
     };
   },

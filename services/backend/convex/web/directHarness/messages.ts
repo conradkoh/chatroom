@@ -59,15 +59,15 @@ export const send = mutation({
     //  1. isGenerating  — agent is currently streaming; the daemon sets this
     //                     flag before calling session.prompt().
     //
-    //  2. Unprocessed user messages  — messages already in the main table
-    //     with seq > lastProcessedSeq that the daemon has not yet consumed.
+    //  2. Unprocessed user turns  — turns already in the turn table with
+    //     turnSeq > lastProcessedTurnSeq that the daemon has not yet consumed.
     //     This closes the race window where two messages arrive before the
-    //     daemon sets isGenerating: both land after the first user message
+    //     daemon sets isGenerating: both land after the first user turn
     //     which hasn't been processed yet, so the second must queue.
     //
     //  3. Existing queue items  — messages already waiting in the queue.
     //     Prevents a second message from bypassing a queued first message if
-    //     isGenerating was cleared early and lastProcessedSeq has caught up.
+    //     isGenerating was cleared early and the turn cursor has caught up.
     //
     const isGenerating = harnessSession.isGenerating ?? false;
 

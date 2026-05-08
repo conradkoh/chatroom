@@ -205,9 +205,9 @@ describe('pendingForMachine — reads turns', () => {
     expect(after.messages).toHaveLength(0);
   });
 
-  test('cursor (lastProcessedSeq in wire shape) equals session lastProcessedTurnSeq', async () => {
+  test('wire shape has no lastProcessedSeq field (removed legacy field)', async () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pp-cursor');
-    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await createSession(sessionId, workspaceId);
 
     const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
       sessionId,
@@ -215,7 +215,7 @@ describe('pendingForMachine — reads turns', () => {
     });
 
     expect(result.sessions).toHaveLength(1);
-    // lastProcessedTurnSeq defaults to 0, so wire lastProcessedSeq = 0
-    expect(result.sessions[0]!.lastProcessedSeq).toBe(0);
+    // lastProcessedSeq has been removed from the wire shape
+    expect(result.sessions[0]).not.toHaveProperty('lastProcessedSeq');
   });
 });

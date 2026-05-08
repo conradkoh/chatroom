@@ -2165,12 +2165,9 @@ export default defineSchema({
         createdBy: v.id('users'),
         createdAt: v.number(),
         lastActiveAt: v.number(),
-        /** Cursor for the daemon's message processing. Starts at 0. */
-        lastProcessedSeq: v.number(),
         /**
          * Cursor for the daemon's turn-based message processing.
-         * Mirrors lastProcessedSeq but indexes into chatroom_harnessSessionTurns.
-         * Default treated as 0. Coexists with lastProcessedSeq during step 3–4 migration.
+         * Indexes into chatroom_harnessSessionTurns. Default treated as 0.
          */
         lastProcessedTurnSeq: v.optional(v.number()),
         /**

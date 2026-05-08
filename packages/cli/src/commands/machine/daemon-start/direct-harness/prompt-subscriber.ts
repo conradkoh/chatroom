@@ -3,12 +3,12 @@
  * to the harness session.
  *
  * No prompt lifecycle (submit/claim/complete). The daemon reads user messages
- * directly from the message stream using cursor-based seq tracking:
- *   1. Query `messages.pendingForMachine` for user messages with
- *      seq > session.lastProcessedSeq
+ * directly from the turn stream using cursor-based turn-seq tracking:
+ *   1. Query `messages.pendingForMachine` for user turns with
+ *      turnSeq > session.lastProcessedTurnSeq
  *   2. For each session with new messages, resolve the handle (lazy resume if
  *      the daemon restarted) and call session.prompt()
- *   3. Update lastProcessedSeq on the session row
+ *   3. Mark the turn processed via turns.markTurnProcessed
  */
 
 import type { ConvexClient } from 'convex/browser';
@@ -36,7 +36,6 @@ interface PendingMessage {
 interface PendingSessionInfo {
   _id: string;
   workspaceId: string;
-  lastProcessedSeq: number;
   /** Set once the daemon has associated the SDK session. Undefined while still pending. */
   opencodeSessionId: string | undefined;
   lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
@@ -260,7 +259,7 @@ async function processSessionMessages(
         ...(override.model ? { model: override.model } : {}),
       });
 
-      await deps.sessionRepository.updateLastProcessedSeq(rowId, msg.seq);
+      await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
