@@ -144,9 +144,9 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
                     No response — interrupted before generation started
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                  <ExclamationTriangleIcon className="size-3" />
-                  <span>Interrupted</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <ExclamationTriangleIcon className="size-3 text-amber-500 dark:text-amber-400" />
+                  <span className="text-[10px] font-mono font-bold text-amber-500 dark:text-amber-400">Interrupted</span>
                 </div>
               </div>
             </div>
@@ -187,7 +187,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
           {queuedMessages!.map((qm) => (
             <div key={qm._id} className="flex justify-end">
               <div className="max-w-[75%] flex items-center gap-2">
-                <span className="text-xs text-muted-foreground shrink-0">Queued</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">Queued</span>
                 <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-primary/40 text-primary-foreground/70">
                   {qm.content}
                 </div>
