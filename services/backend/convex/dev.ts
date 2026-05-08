@@ -29,11 +29,6 @@ import { internalMutation } from './_generated/server.js';
  *     lacks turn rows to anchor it. Run this once after deploying the migration
  *     to clear legacy chunks, then never again unless the chunk table grows
  *     unexpectedly.
- *
- * lastProcessedSeq removal:
- *   - Clears the legacy `lastProcessedSeq` field from all chatroom_harnessSessions
- *     rows. The field has been removed from the schema; this patches existing rows
- *     so local dev data is consistent.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
@@ -46,24 +41,6 @@ export const cleanup: any = internalMutation({
     }
     if (allChunks.length > 0) {
       console.log(`[dev:cleanup] deleted ${allChunks.length} harness chunks`);
-    }
-
-    // Clear legacy lastProcessedSeq from all session rows.
-    // The field is removed from schema; this unsets it on existing rows.
-    const allSessions = await ctx.db.query('chatroom_harnessSessions').collect();
-    let seqCleared = 0;
-    for (const s of allSessions) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((s as any).lastProcessedSeq !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await ctx.db.patch('chatroom_harnessSessions', s._id, {
-          lastProcessedSeq: undefined,
-        } as any);
-        seqCleared++;
-      }
-    }
-    if (seqCleared > 0) {
-      console.log(`[dev:cleanup] cleared lastProcessedSeq from ${seqCleared} harness sessions`);
     }
   },
 });
