@@ -3,8 +3,8 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { useSubscribeMessages } from './hooks/useSubscribeMessages';
-import type { HarnessMessage } from './hooks/useSubscribeMessages';
+import { useHarnessMessageStore } from './hooks/useHarnessMessageStore';
+import type { HarnessMessage } from './hooks/useHarnessMessageStore';
 import { useQueuedMessages } from './hooks/useQueuedMessages';
 import { ThinkingBlock } from './ThinkingBlock';
 
@@ -94,7 +94,8 @@ function buildTurnGroups(messages: HarnessMessage[]): TurnGroup[] {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps) {
-  const messages = useSubscribeMessages({ harnessSessionId: sessionRowId });
+  const { messages, isLoading, hasMoreOlder, isLoadingOlder, loadOlderMessages } =
+    useHarnessMessageStore(sessionRowId);
   const queuedMessages = useQueuedMessages(sessionRowId);
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,9 +117,9 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
   useEffect(() => {
     if (isUserScrolledRef.current) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages?.length]);
+  }, [messages.length]);
 
-  if (messages === undefined) {
+  if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
         Loading…
@@ -171,7 +172,18 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
         );
       })}
 
-      {/* Queued messages — held while work is in flight */}
+      {/* Load older messages */}
+      {hasMoreOlder && (
+        <div className="flex justify-center py-2">
+          <button
+            onClick={loadOlderMessages}
+            disabled={isLoadingOlder}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors px-3 py-1 rounded border border-border hover:bg-accent/50"
+          >
+            {isLoadingOlder ? 'Loading…' : 'Load older messages'}
+          </button>
+        </div>
+      )}
       {hasQueue && (
         <div className="flex flex-col gap-2">
           {queuedMessages!.map((qm) => (

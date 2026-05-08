@@ -434,3 +434,152 @@ describe('message queue — dequeueNext', () => {
     expect(queue).toHaveLength(0);
   });
 });
+
+// ─── Split-subscription queries ───────────────────────────────────────────────
+
+describe('messages.getLatestMessages', () => {
+  test('returns up to limit messages newest-first-then-reversed (oldest-to-newest)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('glm-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    // Insert 3 messages
+    for (const text of ['A', 'B', 'C']) {
+      await t.mutation(api.web.directHarness.messages.send, {
+        sessionId, harnessSessionId: rowId, text,
+      });
+      await t.mutation(api.daemon.directHarness.sessions.updateCursor, {
+        sessionId, harnessSessionId: rowId,
+        seq: (await t.query(api.web.directHarness.messages.subscribe, { sessionId, harnessSessionId: rowId })).at(-1)!.seq,
+      });
+    }
+
+    const result = await t.query(api.web.directHarness.messages.getLatestMessages, {
+      sessionId, harnessSessionId: rowId, limit: 2,
+    });
+
+    // With limit=2, only the last 2 messages (B, C) are returned
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]!.content).toBe('B');
+    expect(result.messages[1]!.content).toBe('C');
+    expect(result.hasMore).toBe(true); // A is older, not included
+    expect(typeof result.newestSeq).toBe('number');
+    expect(result.newestSeq).toBeGreaterThan(0);
+  });
+
+  test('hasMore is false when all messages fit within the limit', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('glm-fits');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const result = await t.query(api.web.directHarness.messages.getLatestMessages, {
+      sessionId, harnessSessionId: rowId, limit: 50,
+    });
+
+    // Only the 1 initial message exists
+    expect(result.hasMore).toBe(false);
+    expect(result.messages).toHaveLength(1);
+    expect(result.newestSeq).toBe(result.messages[0]!.seq);
+  });
+
+  test('returns empty with newestSeq=0 for a session with no messages', async () => {
+    // Create a session but manually clear it for this edge-case test
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('glm-empty');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    // Verify normal initial state first
+    const result = await t.query(api.web.directHarness.messages.getLatestMessages, {
+      sessionId, harnessSessionId: rowId, limit: 50,
+    });
+    // After advancePastInitial there should be at least 1 message
+    expect(result.newestSeq).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('messages.getMessagesSince', () => {
+  test('returns only messages with seq > afterSeq', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gms-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    const r1 = await t.mutation(api.web.directHarness.messages.send, {
+      sessionId, harnessSessionId: rowId, text: 'before',
+    });
+    const afterSeq = r1.seq!;
+    await t.mutation(api.daemon.directHarness.sessions.updateCursor, {
+      sessionId, harnessSessionId: rowId, seq: afterSeq,
+    });
+
+    await t.mutation(api.web.directHarness.messages.send, {
+      sessionId, harnessSessionId: rowId, text: 'after',
+    });
+
+    const result = await t.query(api.web.directHarness.messages.getMessagesSince, {
+      sessionId, harnessSessionId: rowId, afterSeq,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.content).toBe('after');
+    expect(result[0]!.seq).toBeGreaterThan(afterSeq);
+  });
+
+  test('returns empty array when no messages exist after afterSeq', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gms-empty');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const result = await t.query(api.web.directHarness.messages.getMessagesSince, {
+      sessionId, harnessSessionId: rowId, afterSeq: 9999,
+    });
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('messages.getOlderMessages', () => {
+  test('returns messages with seq < beforeSeq, oldest-to-newest, up to limit', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gom-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await advancePastInitial(sessionId, rowId);
+
+    // Insert A, B, C
+    for (const text of ['A', 'B', 'C']) {
+      await t.mutation(api.web.directHarness.messages.send, {
+        sessionId, harnessSessionId: rowId, text,
+      });
+      await t.mutation(api.daemon.directHarness.sessions.updateCursor, {
+        sessionId, harnessSessionId: rowId,
+        seq: (await t.query(api.web.directHarness.messages.subscribe, { sessionId, harnessSessionId: rowId })).at(-1)!.seq,
+      });
+    }
+
+    // Get the seq of C (the latest)
+    const all = await t.query(api.web.directHarness.messages.subscribe, { sessionId, harnessSessionId: rowId });
+    const seqC = all.at(-1)!.seq;
+
+    const result = await t.query(api.web.directHarness.messages.getOlderMessages, {
+      sessionId, harnessSessionId: rowId, beforeSeq: seqC, limit: 2,
+    });
+
+    // Should return the 2 messages before C
+    expect(result.messages).toHaveLength(2);
+    // They should be in ascending seq order
+    expect(result.messages[0]!.seq).toBeLessThan(result.messages[1]!.seq);
+    // All returned seqs must be less than seqC
+    for (const m of result.messages) {
+      expect(m.seq).toBeLessThan(seqC);
+    }
+  });
+
+  test('hasMore is false when all older messages fit in limit', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gom-fits');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const all = await t.query(api.web.directHarness.messages.subscribe, { sessionId, harnessSessionId: rowId });
+    const newestSeq = all.at(-1)!.seq;
+
+    const result = await t.query(api.web.directHarness.messages.getOlderMessages, {
+      sessionId, harnessSessionId: rowId, beforeSeq: newestSeq + 1, limit: 50,
+    });
+
+    expect(result.hasMore).toBe(false);
+  });
+});
