@@ -26,7 +26,7 @@ export function StatusDot({ status, className }: StatusDotProps) {
   const { color, label } = STATUS_STYLES[status];
   return (
     <span
-      className={cn('inline-block w-2 h-2 rounded-full shrink-0', color, className)}
+      className={cn('inline-block w-2 h-2 shrink-0', color, className)}
       title={label}
       aria-label={label}
     />
