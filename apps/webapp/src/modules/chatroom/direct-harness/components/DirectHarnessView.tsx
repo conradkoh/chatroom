@@ -107,7 +107,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
       <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
         <MonitorOff size={32} className="text-muted-foreground/50" />
         <div className="text-center space-y-2 max-w-sm">
-          <p className="text-sm font-medium">No machines connected</p>
+          <p className="text-sm font-bold">No machines connected</p>
           <p className="text-xs text-muted-foreground">
             Run{' '}
             <code className="bg-muted px-1 py-0.5 rounded text-xs">chatroom machine start</code>{' '}
@@ -228,12 +228,12 @@ export const DirectHarnessView = memo(function DirectHarnessView({
 
       {/* Register Workspace Dialog */}
       {showRegisterDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
-            <h3 className="text-sm font-semibold">Register workspace</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
+          <div className="bg-card border border-border shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider">Register workspace</h3>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Machine</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Machine</label>
               <Select value={registerMachineId} onValueChange={setRegisterMachineId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select machine…" />
@@ -249,7 +249,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Working directory</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Working directory</label>
               <Input
                 className="h-8 text-xs"
                 placeholder="/path/to/project"
