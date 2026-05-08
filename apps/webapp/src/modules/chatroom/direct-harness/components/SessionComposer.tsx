@@ -1,6 +1,8 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -15,7 +17,6 @@ import {
 } from '@/components/ui/select';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useSendMessage } from '../hooks/useSendMessage';
-import { useWorkspaceCapabilities } from '../hooks/useWorkspaceCapabilities';
 import {
   HarnessModelSelect,
   parseModelKey,
@@ -41,7 +42,7 @@ export function NewSessionComposer({
   const [modelKey, setModelKey] = useState('');
   const { create, isCreating } = useCreateSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const capabilities = useWorkspaceCapabilities(workspaceId);
+  const capabilities = useSessionQuery(api.web.directHarness.capabilities.listForWorkspace, workspaceId ? { workspaceId } : 'skip');
 
   const harnesses = capabilities?.harnesses ?? [];
   const selectedHarness = harnesses.find((h) => h.name === harnessName) ?? harnesses[0];

@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { HarnessSessionSummary } from '../hooks/useListSessions';
+import type { HarnessSessionSummary } from '@workspace/backend/src/domain/direct-harness/types';
 import { SessionComposer } from './SessionComposer';
 import { SessionMessageStream } from './SessionMessageStream';
 import { StatusDot } from './StatusDot';

@@ -1,10 +1,11 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { api } from '@workspace/backend/convex/_generated/api';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useListSessions } from '../hooks/useListSessions';
 import { StatusDot } from './StatusDot';
 import { relativeTime } from '../utils';
 
@@ -19,7 +20,7 @@ export const SessionList = memo(function SessionList({
   selectedSessionId,
   onSelect,
 }: SessionListProps) {
-  const sessions = useListSessions(workspaceId);
+  const sessions = useSessionQuery(api.web.directHarness.sessions.listSessions, workspaceId ? { workspaceId } : 'skip');
 
   if (!sessions || sessions.length === 0) {
     return <div className="flex-1" />;

@@ -6,7 +6,7 @@ import { SessionComposer } from './SessionComposer';
 const mockSend = vi.fn();
 const mockUseSendMessage = vi.fn();
 
-vi.mock('./hooks/useSendMessage', () => ({
+vi.mock('../hooks/useSendMessage', () => ({
   useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
 }));
 

@@ -8,11 +8,11 @@ import { SessionMessageStream } from './SessionMessageStream';
 const mockUseHarnessTurnStore = vi.fn();
 const mockUseQueuedMessages = vi.fn().mockReturnValue([]);
 
-vi.mock('./hooks/useHarnessTurnStore', () => ({
+vi.mock('../hooks/useHarnessTurnStore', () => ({
   useHarnessTurnStore: (...args: unknown[]) => mockUseHarnessTurnStore(...args),
 }));
 
-vi.mock('./hooks/useQueuedMessages', () => ({
+vi.mock('../hooks/useQueuedMessages', () => ({
   useQueuedMessages: (...args: unknown[]) => mockUseQueuedMessages(...args),
 }));
 

@@ -20,7 +20,6 @@ import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
 import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
-import { useListSessions } from '../hooks/useListSessions';
 import { useRefreshCapabilities } from '../hooks/useRefreshCapabilities';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -38,7 +37,7 @@ function SelectedSessionDetail({
   selectedSessionId: Id<'chatroom_harnessSessions'>;
   workspaceId: Id<'chatroom_workspaces'> | null;
 }) {
-  const sessions = useListSessions(workspaceId);
+  const sessions = useSessionQuery(api.web.directHarness.sessions.listSessions, workspaceId ? { workspaceId } : 'skip');
   const sessionSummary = sessions?.find((s) => s._id === selectedSessionId);
 
   if (!sessionSummary) {
