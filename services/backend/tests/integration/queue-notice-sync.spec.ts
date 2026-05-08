@@ -16,11 +16,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import {
-  createTestSession,
-  createPairTeamChatroom,
-  joinParticipant,
-} from '../helpers/integration';
+import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
 
 /**
  * Helper: Get task counts for a chatroom.

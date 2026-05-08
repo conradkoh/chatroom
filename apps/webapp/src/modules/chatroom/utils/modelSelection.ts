@@ -39,10 +39,7 @@ export interface ModelSelectionInput {
  * - `hiddenModels`: when the provider IS hidden, these are **exceptions** (models to UN-hide);
  *   when the provider is NOT hidden, these are models to hide individually.
  */
-export function isModelHidden(
-  modelId: string,
-  filter: ModelFilter | null | undefined
-): boolean {
+export function isModelHidden(modelId: string, filter: ModelFilter | null | undefined): boolean {
   if (!filter) return false;
   const provider = modelId.split('/')[0];
   const providerHidden = filter.hiddenProviders.includes(provider);
@@ -70,7 +67,15 @@ export function isModelHidden(
  *   5. First visible model (fallback to first available if all hidden)
  */
 export function selectModel(input: ModelSelectionInput): string | null {
-  const { selectedHarness, availableModels, visibleModels, userChoice, machineConfigModel, teamConfigModel, preferenceModel } = input;
+  const {
+    selectedHarness,
+    availableModels,
+    visibleModels,
+    userChoice,
+    machineConfigModel,
+    teamConfigModel,
+    preferenceModel,
+  } = input;
 
   if (!selectedHarness || availableModels.length === 0) {
     return null;

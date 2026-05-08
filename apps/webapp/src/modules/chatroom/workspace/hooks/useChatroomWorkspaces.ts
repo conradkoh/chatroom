@@ -23,15 +23,10 @@ interface UseChatroomWorkspacesOptions {
  * Optionally enriches workspaces with `agentRoles` when `agentViews` is provided.
  * Also provides a `removeWorkspace` callback for the trash icon.
  */
-export function useChatroomWorkspaces(
-  chatroomId: string,
-  options?: UseChatroomWorkspacesOptions
-) {
+export function useChatroomWorkspaces(chatroomId: string, options?: UseChatroomWorkspacesOptions) {
   const registryResult = useSessionQuery(
     api.workspaces.listWorkspacesForChatroom,
-    options?.skip === true
-      ? 'skip'
-      : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
+    options?.skip === true ? 'skip' : { chatroomId: chatroomId as Id<'chatroom_rooms'> }
   );
 
   const removeWorkspaceMutation = useSessionMutation(api.workspaces.removeWorkspace);

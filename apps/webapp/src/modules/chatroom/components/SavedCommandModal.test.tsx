@@ -58,22 +58,12 @@ describe('checkDuplicateName', () => {
   });
 
   it('allows saving same name in edit mode (self-exclusion)', () => {
-    const result = checkDuplicateName(
-      'My Command',
-      ['My Command', 'Another'],
-      true,
-      'My Command'
-    );
+    const result = checkDuplicateName('My Command', ['My Command', 'Another'], true, 'My Command');
     expect(result).toBeNull();
   });
 
   it('is case-insensitive for self-exclusion in edit mode', () => {
-    const result = checkDuplicateName(
-      'my command',
-      ['My Command', 'Another'],
-      true,
-      'My Command'
-    );
+    const result = checkDuplicateName('my command', ['My Command', 'Another'], true, 'My Command');
     expect(result).toBeNull();
   });
 
@@ -160,9 +150,7 @@ describe('SavedCommandModal component', () => {
 
   it('Escape key closes the modal', () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal isOpen={true} chatroomId="room-1" onClose={onClose} />
-    );
+    render(<SavedCommandModal isOpen={true} chatroomId="room-1" onClose={onClose} />);
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
@@ -196,9 +184,7 @@ describe('SavedCommandModal component', () => {
   });
 
   it('type selector renders "Message Prompt" as the only option', () => {
-    render(
-      <SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} />
-    );
+    render(<SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} />);
 
     const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
@@ -209,12 +195,7 @@ describe('SavedCommandModal component', () => {
 
   it('type selector is disabled in edit mode', () => {
     render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        initial={makeCmd()}
-      />
+      <SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} initial={makeCmd()} />
     );
 
     const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;

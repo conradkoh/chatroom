@@ -15,6 +15,7 @@ Registry skills are **not automatically disclosed** to agents because the system
 - Skills: backlog, software-engineering, code-review, workflow, development-workflow
 
 **Related Functions**:
+
 - `listSkills()` - Returns summary view of all skills from registry
 - `getSkill()` - Retrieves single skill by ID
 
@@ -23,11 +24,13 @@ Registry skills are **not automatically disclosed** to agents because the system
 **Location**: `services/backend/src/domain/usecase/skills/activate-skill.ts`
 
 When `chatroom skill activate` is called:
+
 1. Skill is looked up in registry
 2. Prompt is generated with `cliEnvPrefix` injected
 3. **`skill.activated` event is written to `chatroom_eventStream`** with full prompt content
 
 **Event Structure** (from `services/backend/src/domain/entities/events.ts`):
+
 ```typescript
 SkillActivatedEvent = {
   type: 'skill.activated';
@@ -45,6 +48,7 @@ SkillActivatedEvent = {
 **Location**: `services/backend/prompts/generator.ts`
 
 `composeInitPrompt()` builds the agent's system prompt, which includes:
+
 - Team header (team name & structure)
 - Role title & description
 - **Glossary section** (from `prompts/sections/glossary.ts`)
@@ -56,6 +60,7 @@ SkillActivatedEvent = {
 - Next steps
 
 **Glossary Section** (`services/backend/prompts/sections/glossary.ts`):
+
 - Lists known terms from `GLOSSARY_TERMS` constant
 - Shows `(1 skill available)` for linked skills
 - **Tells agents to run `chatroom skill list`** to discover available skills
@@ -83,6 +88,7 @@ SkillActivatedEvent = {
 ### What's Missing
 
 **In the current flow:**
+
 ```
 Agent starts → receives system prompt
 System prompt includes glossary
@@ -93,6 +99,7 @@ Agent manually discovers and activates skills
 ```
 
 **What should happen:**
+
 ```
 Agent starts → receives system prompt
 System prompt includes:
@@ -168,6 +175,7 @@ To enable automatic disclosure of activated skills to agents:
 ## Test Points
 
 Check these test files for disclosure scenarios:
+
 - `services/backend/tests/integration/cli/agent-system-prompt.spec.ts`
 - `services/backend/tests/integration/cli/get-next-task-prompt.spec.ts`
 - `services/backend/tests/integration/teams/squad/*/system-prompt.spec.ts`
@@ -183,6 +191,7 @@ Check these test files for disclosure scenarios:
 - Missing: development-workflow
 
 This means agents won't see development-workflow in the glossary section of their system prompt, even though:
+
 - It's in the registry
 - It can be listed via `chatroom skill list`
 - It can be activated via `chatroom skill activate development-workflow`

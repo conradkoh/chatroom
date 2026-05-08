@@ -89,7 +89,10 @@ export async function getAssignedTasksForMachine(
   const tasks: AssignedTaskView[] = [];
 
   // Pre-fetch chatroom docs for entry point resolution (needed for unassigned tasks)
-  const chatroomDocs = new Map<string, { teamEntryPoint?: string | null; teamRoles?: string[] | null }>();
+  const chatroomDocs = new Map<
+    string,
+    { teamEntryPoint?: string | null; teamRoles?: string[] | null }
+  >();
   for (const chatroomId of chatroomIds) {
     const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
     if (chatroom) {

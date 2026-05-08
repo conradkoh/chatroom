@@ -93,9 +93,7 @@ export function TerminalOutputPanel({
         {/* Semi-transparent overlay */}
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
 
-        <DialogPrimitive.Content
-          className="fixed left-[50%] top-[50%] z-50 w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200"
-        >
+        <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 border-b-2 border-chatroom-border bg-chatroom-bg-primary">
             <div className="flex items-center gap-3 min-w-0">
@@ -142,9 +140,7 @@ export function TerminalOutputPanel({
             className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
           >
             {output || (status === 'pending' ? 'Waiting for process to start...\n' : '')}
-            {isRunning && (
-              <span className="text-chatroom-text-muted animate-pulse">▌</span>
-            )}
+            {isRunning && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
           </pre>
         </DialogPrimitive.Content>
       </DialogPortal>

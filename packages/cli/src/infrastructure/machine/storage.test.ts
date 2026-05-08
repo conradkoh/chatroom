@@ -21,7 +21,10 @@ describe('ensureMachineRegistered', () => {
   let testHome: string;
 
   beforeEach(() => {
-    testHome = join(tmpdir(), `chatroom-storage-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testHome = join(
+      tmpdir(),
+      `chatroom-storage-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testHome, { recursive: true });
     vi.stubEnv('HOME', testHome);
   });

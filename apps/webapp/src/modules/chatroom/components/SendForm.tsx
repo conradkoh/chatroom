@@ -12,11 +12,7 @@ import { AttachedTaskChip } from './AttachedTaskChip';
 import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   useAttachments,
   useTaskAttachments,

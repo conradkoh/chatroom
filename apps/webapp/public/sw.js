@@ -71,21 +71,19 @@ self.addEventListener('notificationclick', (event) => {
 
   // Try to focus an existing app tab, or open a new one
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Focus the first matching tab with the same chatroom
-        for (const client of clientList) {
-          if (chatroomId && client.url.includes(`/app/${chatroomId}`) && 'focus' in client) {
-            return client.focus();
-          }
-          // Fallback: focus any app tab
-          if (client.url.includes('/app') && 'focus' in client) {
-            return client.focus();
-          }
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus the first matching tab with the same chatroom
+      for (const client of clientList) {
+        if (chatroomId && client.url.includes(`/app/${chatroomId}`) && 'focus' in client) {
+          return client.focus();
         }
-        // No existing tab — open the app (with correct chatroom if specified)
-        return self.clients.openWindow(targetUrl);
-      })
+        // Fallback: focus any app tab
+        if (client.url.includes('/app') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // No existing tab — open the app (with correct chatroom if specified)
+      return self.clients.openWindow(targetUrl);
+    })
   );
 });

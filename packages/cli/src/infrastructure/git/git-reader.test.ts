@@ -425,7 +425,7 @@ describe('getOriginRepoSlug', () => {
   });
 
   test('returns null when origin remote does not exist', async () => {
-    mockFailure('fatal: No such remote \'origin\'');
+    mockFailure("fatal: No such remote 'origin'");
     const result = await getOriginRepoSlug('/repo');
     expect(result).toBeNull();
   });
@@ -489,7 +489,7 @@ describe('getOpenPRsForBranch', () => {
 
   test('falls back to no --repo when origin slug cannot be resolved', async () => {
     // First call: git remote get-url origin fails
-    mockFailure('fatal: No such remote \'origin\'');
+    mockFailure("fatal: No such remote 'origin'");
     // Second call: gh pr list
     mockSuccess('[]');
 
@@ -629,13 +629,15 @@ describe('getCommitStatusChecks', () => {
     // First call: getOriginRepoSlug -> git remote get-url origin
     mockSuccess('https://github.com/owner/repo.git\n');
     // Second call: gh api check-runs
-    mockSuccess(JSON.stringify({
-      check_runs: [
-        { name: 'build', status: 'completed', conclusion: 'success' },
-        { name: 'test', status: 'completed', conclusion: 'success' },
-      ],
-      total_count: 2,
-    }));
+    mockSuccess(
+      JSON.stringify({
+        check_runs: [
+          { name: 'build', status: 'completed', conclusion: 'success' },
+          { name: 'test', status: 'completed', conclusion: 'success' },
+        ],
+        total_count: 2,
+      })
+    );
     // Third call: gh api status
     mockSuccess('success\n');
 
@@ -648,13 +650,15 @@ describe('getCommitStatusChecks', () => {
 
   test('returns failure state when a check run fails', async () => {
     mockSuccess('https://github.com/owner/repo.git\n');
-    mockSuccess(JSON.stringify({
-      check_runs: [
-        { name: 'build', status: 'completed', conclusion: 'failure' },
-        { name: 'test', status: 'completed', conclusion: 'success' },
-      ],
-      total_count: 2,
-    }));
+    mockSuccess(
+      JSON.stringify({
+        check_runs: [
+          { name: 'build', status: 'completed', conclusion: 'failure' },
+          { name: 'test', status: 'completed', conclusion: 'success' },
+        ],
+        total_count: 2,
+      })
+    );
     mockSuccess('failure\n');
 
     const result = await getCommitStatusChecks('/repo', 'main');
@@ -664,12 +668,12 @@ describe('getCommitStatusChecks', () => {
 
   test('returns pending state when checks are in progress', async () => {
     mockSuccess('https://github.com/owner/repo.git\n');
-    mockSuccess(JSON.stringify({
-      check_runs: [
-        { name: 'build', status: 'in_progress', conclusion: null },
-      ],
-      total_count: 1,
-    }));
+    mockSuccess(
+      JSON.stringify({
+        check_runs: [{ name: 'build', status: 'in_progress', conclusion: null }],
+        total_count: 1,
+      })
+    );
     mockSuccess('pending\n');
 
     const result = await getCommitStatusChecks('/repo', 'main');

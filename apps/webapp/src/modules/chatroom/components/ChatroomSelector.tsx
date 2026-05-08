@@ -66,9 +66,7 @@ function groupChatrooms(chatrooms: ChatroomWithStatus[]): {
 
   // Recent: top 5 by lastActivityAt, excluding active and completed
   const activeIds = new Set(active.map((c) => c._id));
-  const idle = chatrooms.filter(
-    (c) => !activeIds.has(c._id) && c.chatStatus !== 'completed'
-  );
+  const idle = chatrooms.filter((c) => !activeIds.has(c._id) && c.chatStatus !== 'completed');
   const sortedIdle = [...idle].sort((a, b) => {
     const aTime = a.lastActivityAt || a._creationTime;
     const bTime = b.lastActivityAt || b._creationTime;
@@ -218,7 +216,10 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
       {/* Search Input */}
       <div className="mb-6">
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
+          />
           <input
             ref={searchInputRef}
             type="text"
@@ -327,7 +328,12 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groups.active.map((chatroom) => (
-                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                      <ChatroomCard
+                        key={chatroom._id}
+                        chatroom={chatroom}
+                        onSelect={onSelect}
+                        activeTab={activeTab}
+                      />
                     ))}
                   </div>
                 </div>
@@ -341,7 +347,12 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groups.recent.map((chatroom) => (
-                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                      <ChatroomCard
+                        key={chatroom._id}
+                        chatroom={chatroom}
+                        onSelect={onSelect}
+                        activeTab={activeTab}
+                      />
                     ))}
                   </div>
                 </div>
@@ -355,7 +366,12 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groups.remainder.map((chatroom) => (
-                      <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+                      <ChatroomCard
+                        key={chatroom._id}
+                        chatroom={chatroom}
+                        onSelect={onSelect}
+                        activeTab={activeTab}
+                      />
                     ))}
                   </div>
                 </div>
@@ -373,7 +389,12 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         groups.completed.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {groups.completed.map((chatroom) => (
-              <ChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} activeTab={activeTab} />
+              <ChatroomCard
+                key={chatroom._id}
+                chatroom={chatroom}
+                onSelect={onSelect}
+                activeTab={activeTab}
+              />
             ))}
           </div>
         ) : (

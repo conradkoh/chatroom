@@ -48,9 +48,7 @@ type WizardStep = 'select-platform' | 'enter-token' | 'enter-chat-id' | 'confirm
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
-export const IntegrationsTab = memo(function IntegrationsTab({
-  chatroomId,
-}: IntegrationsTabProps) {
+export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: IntegrationsTabProps) {
   const integrations = useSessionQuery(api.integrations.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
@@ -104,9 +102,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({
       )}
 
       {/* Empty State */}
-      {!hasIntegrations && !showWizard && (
-        <EmptyState onAdd={() => setShowWizard(true)} />
-      )}
+      {!hasIntegrations && !showWizard && <EmptyState onAdd={() => setShowWizard(true)} />}
     </div>
   );
 });
@@ -125,12 +121,7 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
       <p className="text-xs text-chatroom-text-muted mb-6 max-w-xs">
         Connect Telegram or other platforms to receive and send messages directly in this chatroom.
       </p>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onAdd}
-        className="text-xs gap-1.5"
-      >
+      <Button variant="outline" size="sm" onClick={onAdd} className="text-xs gap-1.5">
         <Plus size={14} />
         Add Integration
       </Button>
@@ -220,9 +211,7 @@ const IntegrationCard = memo(function IntegrationCard({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-chatroom-text-primary">
-                {platformName}
-              </span>
+              <span className="text-sm font-bold text-chatroom-text-primary">{platformName}</span>
               <span
                 className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
                   integration.enabled
@@ -356,9 +345,7 @@ const IntegrationCard = memo(function IntegrationCard({
               </Button>
             </div>
 
-            {testError && (
-              <p className="text-xs text-red-500 dark:text-red-400">{testError}</p>
-            )}
+            {testError && <p className="text-xs text-red-500 dark:text-red-400">{testError}</p>}
 
             {testSuccess && (
               <p className="text-xs text-green-500 dark:text-green-400">
@@ -409,9 +396,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
       setBotInfo(info);
       setStep('enter-chat-id');
     } catch (err: any) {
-      setError(
-        err?.data?.message ?? err?.message ?? 'Invalid bot token. Check with @BotFather.',
-      );
+      setError(err?.data?.message ?? err?.message ?? 'Invalid bot token. Check with @BotFather.');
     } finally {
       setIsValidating(false);
     }
@@ -504,9 +489,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
                 className="font-mono text-xs bg-chatroom-bg-primary border-chatroom-border"
               />
-              {error && (
-                <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-              )}
+              {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
             </div>
 
             <div className="flex justify-end">
@@ -590,9 +573,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 }}
                 className="font-mono text-xs bg-chatroom-bg-primary border-chatroom-border"
               />
-              {error && (
-                <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-              )}
+              {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
             </div>
 
             <div className="flex items-center justify-between">
@@ -633,13 +614,9 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 <Bot size={20} className="text-green-500 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm font-bold text-chatroom-text-primary">
-                  {botInfo.botName}
-                </p>
+                <p className="text-sm font-bold text-chatroom-text-primary">{botInfo.botName}</p>
                 {botInfo.botUsername && (
-                  <p className="text-xs text-chatroom-text-muted">
-                    @{botInfo.botUsername}
-                  </p>
+                  <p className="text-xs text-chatroom-text-muted">@{botInfo.botUsername}</p>
                 )}
               </div>
               <Check size={16} className="ml-auto text-green-500 dark:text-green-400" />
@@ -648,13 +625,13 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
             {chatId.trim() && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-none bg-chatroom-bg-tertiary">
                 <span className="text-xs text-chatroom-text-muted">Chat ID:</span>
-                <span className="text-xs font-mono text-chatroom-text-primary">{chatId.trim()}</span>
+                <span className="text-xs font-mono text-chatroom-text-primary">
+                  {chatId.trim()}
+                </span>
               </div>
             )}
 
-            {error && (
-              <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-            )}
+            {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
 
             <div className="flex items-center justify-between">
               <Button
@@ -697,18 +674,12 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               <Check size={24} className="text-green-500 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm font-bold text-chatroom-text-primary">
-                Telegram connected!
-              </p>
+              <p className="text-sm font-bold text-chatroom-text-primary">Telegram connected!</p>
               <p className="text-xs text-chatroom-text-muted mt-1">
                 Your Telegram bot is connected. Use the &quot;Test&quot; button to send messages.
               </p>
             </div>
-            <Button
-              size="sm"
-              onClick={onComplete}
-              className="text-xs"
-            >
+            <Button size="sm" onClick={onComplete} className="text-xs">
               Done
             </Button>
           </div>

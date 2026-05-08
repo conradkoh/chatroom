@@ -1,6 +1,9 @@
 'use client';
 
-import type { FileTree, FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
+import type {
+  FileTree,
+  FileTreeEntry,
+} from '@workspace/backend/src/domain/entities/workspace-files';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 

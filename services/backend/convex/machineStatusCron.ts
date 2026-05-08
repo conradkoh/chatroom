@@ -25,8 +25,7 @@ export const transitionOfflineMachines = internalMutation({
         .first();
 
       // If no liveness record or heartbeat has expired, transition to offline
-      const isExpired =
-        !liveness || liveness.lastSeenAt + DAEMON_HEARTBEAT_TTL_MS < now;
+      const isExpired = !liveness || liveness.lastSeenAt + DAEMON_HEARTBEAT_TTL_MS < now;
 
       if (isExpired) {
         // Status is "online" (we queried by_status), so this is a real transition

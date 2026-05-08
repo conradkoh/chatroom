@@ -111,7 +111,10 @@ export function ChatroomSwitcher() {
             Search and navigate to a chatroom
           </DialogPrimitive.Description>
 
-          <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <Command
+            filter={fuzzyFilter}
+            className="bg-chatroom-bg-primary text-chatroom-text-primary"
+          >
             <CommandInput
               placeholder="Search chatrooms..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"

@@ -54,9 +54,7 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
               registeredBy: config.role,
             })
             .catch((err: Error) => {
-              console.warn(
-                `[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`
-              );
+              console.warn(`[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`);
             });
         }
       }

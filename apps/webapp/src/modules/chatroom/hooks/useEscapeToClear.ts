@@ -10,10 +10,7 @@ import { useCallback } from 'react';
  * @param clearInput - Callback to clear the input
  * @returns onEscapeKeyDown handler for DialogPrimitive.Content
  */
-export function useEscapeToClear(
-  inputValueRef: React.RefObject<string>,
-  clearInput: () => void
-) {
+export function useEscapeToClear(inputValueRef: React.RefObject<string>, clearInput: () => void) {
   return useCallback(
     (e: KeyboardEvent) => {
       if (inputValueRef.current && inputValueRef.current.length > 0) {

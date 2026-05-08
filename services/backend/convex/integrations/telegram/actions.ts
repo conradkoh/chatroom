@@ -19,7 +19,10 @@ export const validateBotToken = action({
     ...SessionIdArg,
     botToken: v.string(),
   },
-  handler: async (ctx, args): Promise<{ botId: number; botName: string; botUsername: string | null }> => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ botId: number; botName: string; botUsername: string | null }> => {
     return await ctx.runAction(internal.integrations.telegram.api.validateBotToken, {
       botToken: args.botToken,
     });

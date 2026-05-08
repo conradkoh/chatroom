@@ -47,11 +47,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   FixedModal,
   FixedModalContent,
@@ -85,8 +81,6 @@ const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
 function getWorkspaceName(workingDir: string): string {
   return workingDir.split('/').filter(Boolean).pop() ?? workingDir;
 }
-
-
 
 type GitPlatform = 'github' | 'gitlab' | 'bitbucket' | 'generic';
 
@@ -169,7 +163,9 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
   // Safely extract fields from the available state, defaulting for other states
   const remotes = isAvailable ? gitState.remotes : [];
   const openPullRequests = isAvailable ? gitState.openPullRequests : [];
-  const diffStat = isAvailable ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
+  const diffStat = isAvailable
+    ? gitState.diffStat
+    : { filesChanged: 0, insertions: 0, deletions: 0 };
   const headCommitStatus = (isAvailable ? gitState.headCommitStatus : null) ?? null;
 
   const hasPR = openPullRequests.length > 0;
@@ -181,15 +177,22 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
 
   const primaryRemote = remotes.find((r) => r.name === 'origin') ?? remotes[0];
   const repoHttpsUrl = primaryRemote ? toRepoHttpsUrl(primaryRemote.url) : null;
-  const isGitHubRepo = primaryRemote
-    ? detectPlatform(primaryRemote.url) === 'github'
-    : false;
+  const isGitHubRepo = primaryRemote ? detectPlatform(primaryRemote.url) === 'github' : false;
 
   const hasBranchActions = isLocal || !!repoHttpsUrl;
 
   return {
-    isAvailable, isLoading, hasPR, branchDisplay, primaryRemote, repoHttpsUrl,
-    isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat,
+    isAvailable,
+    isLoading,
+    hasPR,
+    branchDisplay,
+    primaryRemote,
+    repoHttpsUrl,
+    isGitHubRepo,
+    hasBranchActions,
+    remotes,
+    openPullRequests,
+    diffStat,
     headCommitStatus,
   };
 }
@@ -225,7 +228,10 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider" title={primaryRemote.url}>
+      <span
+        className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-muted font-mono uppercase tracking-wider"
+        title={primaryRemote.url}
+      >
         <PrimaryIcon size={11} className="shrink-0" />
         {primaryRemote.name}
       </span>
@@ -294,8 +300,18 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
 }) {
   const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const sendAction = useSendLocalAction();
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, remotes, openPullRequests, diffStat, headCommitStatus } =
-    useDerivedGitInfo(workspace, isLocal);
+  const {
+    isAvailable,
+    isLoading,
+    hasPR,
+    branchDisplay,
+    repoHttpsUrl,
+    isGitHubRepo,
+    remotes,
+    openPullRequests,
+    diffStat,
+    headCommitStatus,
+  } = useDerivedGitInfo(workspace, isLocal);
 
   // Show the popover if there's anything to show (local actions or repo link)
   const hasPopoverContent = isLocal || repoHttpsUrl;
@@ -308,51 +324,77 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
       {isAvailable && (
         <>
           {/* Remote (first item, right-aligned) */}
-          {remotes.length > 0 && (
-            <RemotePopover remotes={remotes} />
-          )}
+          {remotes.length > 0 && <RemotePopover remotes={remotes} />}
 
           {/* Branch + PR + CI status — grouped together */}
           <div className="inline-flex items-center gap-0.5 shrink-0">
-          {hasPopoverContent ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-none transition-colors',
-                    hasPR
-                      ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
-                      : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
-                  )}
-                  title={hasPR ? openPullRequests[0]!.title : branchDisplay}
-                >
-                  {hasPR ? (
-                    <GitPullRequestIcon size={11} className="shrink-0" />
-                  ) : (
-                    <GitBranch size={11} className="shrink-0" />
-                  )}
-                  <span className="uppercase tracking-wider">{branchDisplay}</span>
-                  {hasPR && <span>(#{openPullRequests[0]!.prNumber})</span>}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
-                {isLocal && (
+            {hasPopoverContent ? (
+              <Popover>
+                <PopoverTrigger asChild>
                   <button
                     type="button"
-                    onClick={() =>
-                      void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir)
-                    }
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                    className={cn(
+                      'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-none transition-colors',
+                      hasPR
+                        ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
+                        : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
+                    )}
+                    title={hasPR ? openPullRequests[0]!.title : branchDisplay}
                   >
-                    <SiGithub size={12} className="shrink-0" />
-                    Open in GitHub Desktop
+                    {hasPR ? (
+                      <GitPullRequestIcon size={11} className="shrink-0" />
+                    ) : (
+                      <GitBranch size={11} className="shrink-0" />
+                    )}
+                    <span className="uppercase tracking-wider">{branchDisplay}</span>
+                    {hasPR && <span>(#{openPullRequests[0]!.prNumber})</span>}
                   </button>
-                )}
-                {repoHttpsUrl && (
-                  hasPR ? (
+                </PopoverTrigger>
+                <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
+                  {isLocal && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void sendAction(
+                          workspace.machineId,
+                          'open-github-desktop',
+                          workspace.workingDir
+                        )
+                      }
+                      className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                    >
+                      <SiGithub size={12} className="shrink-0" />
+                      Open in GitHub Desktop
+                    </button>
+                  )}
+                  {repoHttpsUrl &&
+                    (hasPR ? (
+                      <a
+                        href={openPullRequests[0]!.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
+                      >
+                        {isGitHubRepo ? (
+                          <SiGithub size={12} className="shrink-0" />
+                        ) : (
+                          <ExternalLink size={12} className="shrink-0" />
+                        )}
+                        {`View PR #${openPullRequests[0]!.prNumber} on GitHub`}
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-muted cursor-not-allowed rounded-none">
+                        {isGitHubRepo ? (
+                          <SiGithub size={12} className="shrink-0 opacity-50" />
+                        ) : (
+                          <ExternalLink size={12} className="shrink-0 opacity-50" />
+                        )}
+                        View PR on GitHub
+                      </span>
+                    ))}
+                  {repoHttpsUrl && (
                     <a
-                      href={openPullRequests[0]!.url}
+                      href={repoHttpsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
@@ -362,50 +404,21 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                       ) : (
                         <ExternalLink size={12} className="shrink-0" />
                       )}
-                      {`View PR #${openPullRequests[0]!.prNumber} on GitHub`}
+                      View Repository
                     </a>
-                  ) : (
-                    <span
-                      className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-muted cursor-not-allowed rounded-none"
-                    >
-                      {isGitHubRepo ? (
-                        <SiGithub size={12} className="shrink-0 opacity-50" />
-                      ) : (
-                        <ExternalLink size={12} className="shrink-0 opacity-50" />
-                      )}
-                      View PR on GitHub
-                    </span>
-                  )
-                )}
-                {repoHttpsUrl && (
-                  <a
-                    href={repoHttpsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors"
-                  >
-                    {isGitHubRepo ? (
-                      <SiGithub size={12} className="shrink-0" />
-                    ) : (
-                      <ExternalLink size={12} className="shrink-0" />
-                    )}
-                    View Repository
-                  </a>
-                )}
-              </PopoverContent>
-            </Popover>
-          ) : (
-            /* No popover content — static branch display */
-            <div className="inline-flex items-center gap-1 text-[11px] font-mono shrink-0">
-              <GitBranch size={11} className="text-chatroom-text-muted shrink-0" />
-              <span className="text-chatroom-text-secondary uppercase tracking-wider">
-                {branchDisplay}
-              </span>
-            </div>
-          )}
-          {headCommitStatus && (
-            <CommitStatusIndicator status={headCommitStatus} />
-          )}
+                  )}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              /* No popover content — static branch display */
+              <div className="inline-flex items-center gap-1 text-[11px] font-mono shrink-0">
+                <GitBranch size={11} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-chatroom-text-secondary uppercase tracking-wider">
+                  {branchDisplay}
+                </span>
+              </div>
+            )}
+            {headCommitStatus && <CommitStatusIndicator status={headCommitStatus} />}
           </div>
 
           {/* Diff stats — clickable, opens git panel */}
@@ -421,9 +434,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
       )}
 
       {/* Loading state */}
-      {isLoading && (
-        <span className="text-[10px] text-chatroom-text-muted">loading…</span>
-      )}
+      {isLoading && <span className="text-[10px] text-chatroom-text-muted">loading…</span>}
     </div>
   );
 });
@@ -439,8 +450,15 @@ const MobileStatusContent = memo(function MobileStatusContent({
 }: {
   workspace: WorkspaceWithMachine;
 }) {
-  const { isAvailable, isLoading, hasPR, branchDisplay, openPullRequests, diffStat, headCommitStatus } =
-    useDerivedGitInfo(workspace, false);
+  const {
+    isAvailable,
+    isLoading,
+    hasPR,
+    branchDisplay,
+    openPullRequests,
+    diffStat,
+    headCommitStatus,
+  } = useDerivedGitInfo(workspace, false);
 
   return (
     <div className="flex items-center gap-2 min-w-0 flex-1 px-2 overflow-hidden">
@@ -469,15 +487,11 @@ const MobileStatusContent = memo(function MobileStatusContent({
           </div>
 
           {/* Commit status */}
-          {headCommitStatus && (
-            <CommitStatusIndicator status={headCommitStatus} />
-          )}
+          {headCommitStatus && <CommitStatusIndicator status={headCommitStatus} />}
         </>
       )}
 
-      {isLoading && (
-        <span className="text-[10px] text-chatroom-text-muted">loading…</span>
-      )}
+      {isLoading && <span className="text-[10px] text-chatroom-text-muted">loading…</span>}
     </div>
   );
 });
@@ -510,10 +524,26 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onOpenGitPanel: () => void;
   onSwitchWorkspace: (workspaceId: string) => void;
   isLocal: boolean;
-  sendAction: (machineId: string, action: 'open-vscode' | 'open-finder' | 'open-github-desktop', workingDir: string) => void;
+  sendAction: (
+    machineId: string,
+    action: 'open-vscode' | 'open-finder' | 'open-github-desktop',
+    workingDir: string
+  ) => void;
 }) {
-  const { isAvailable, isLoading, hasPR, branchDisplay, repoHttpsUrl, isGitHubRepo, hasBranchActions, remotes, openPullRequests, diffStat, primaryRemote, headCommitStatus } =
-    useDerivedGitInfo(workspace, isLocal);
+  const {
+    isAvailable,
+    isLoading,
+    hasPR,
+    branchDisplay,
+    repoHttpsUrl,
+    isGitHubRepo,
+    hasBranchActions,
+    remotes,
+    openPullRequests,
+    diffStat,
+    primaryRemote,
+    headCommitStatus,
+  } = useDerivedGitInfo(workspace, isLocal);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [remoteExpanded, setRemoteExpanded] = useState(false);
   const [branchExpanded, setBranchExpanded] = useState(false);
@@ -572,21 +602,28 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
               {workspaceExpanded && (
                 <div className="flex flex-col gap-0.5 ml-3 pl-4 border-l-2 border-chatroom-border-strong mb-1">
                   {/* Switch workspace options */}
-                  {hasMultipleWorkspaces && allWorkspaces.filter((ws) => ws.id !== workspace.id).map((ws) => (
-                    <button
-                      key={ws.id}
-                      type="button"
-                      onClick={() => {
-                        onSwitchWorkspace(ws.id);
-                        setWorkspaceExpanded(false);
-                      }}
-                      className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
-                    >
-                      <FolderOpen size={12} className="shrink-0" />
-                      <span className="font-mono uppercase tracking-wider truncate">{getWorkspaceName(ws.workingDir)}</span>
-                      <span className="text-[10px] text-chatroom-text-muted truncate">{getWorkspaceDisplayHostname(ws)}</span>
-                    </button>
-                  ))}
+                  {hasMultipleWorkspaces &&
+                    allWorkspaces
+                      .filter((ws) => ws.id !== workspace.id)
+                      .map((ws) => (
+                        <button
+                          key={ws.id}
+                          type="button"
+                          onClick={() => {
+                            onSwitchWorkspace(ws.id);
+                            setWorkspaceExpanded(false);
+                          }}
+                          className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                        >
+                          <FolderOpen size={12} className="shrink-0" />
+                          <span className="font-mono uppercase tracking-wider truncate">
+                            {getWorkspaceName(ws.workingDir)}
+                          </span>
+                          <span className="text-[10px] text-chatroom-text-muted truncate">
+                            {getWorkspaceDisplayHostname(ws)}
+                          </span>
+                        </button>
+                      ))}
                   {/* Open workspace details */}
                   <button
                     type="button"
@@ -604,7 +641,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     <>
                       <button
                         type="button"
-                        onClick={() => { void sendAction(workspace.machineId, 'open-finder', workspace.workingDir); onClose(); }}
+                        onClick={() => {
+                          void sendAction(workspace.machineId, 'open-finder', workspace.workingDir);
+                          onClose();
+                        }}
                         className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                       >
                         <FolderOpen size={12} className="shrink-0" />
@@ -612,7 +652,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { void sendAction(workspace.machineId, 'open-vscode', workspace.workingDir); onClose(); }}
+                        onClick={() => {
+                          void sendAction(workspace.machineId, 'open-vscode', workspace.workingDir);
+                          onClose();
+                        }}
                         className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                       >
                         <Code2 size={12} className="shrink-0" />
@@ -635,7 +678,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                         onClick={() => setRemoteExpanded((prev) => !prev)}
                         className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                       >
-                        <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                        <PrimaryRemoteIcon
+                          size={14}
+                          className="text-chatroom-text-muted shrink-0"
+                        />
                         <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
                           {primaryRemote!.name}
                         </span>
@@ -658,14 +704,20 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
                           >
-                            <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                            <PrimaryRemoteIcon
+                              size={14}
+                              className="text-chatroom-text-muted shrink-0"
+                            />
                             <span className="text-[12px] text-chatroom-text-secondary font-mono uppercase tracking-wider">
                               {primaryRemote!.name}
                             </span>
                           </a>
                         ) : (
                           <div className="flex items-center gap-2 px-3 py-2.5">
-                            <PrimaryRemoteIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                            <PrimaryRemoteIcon
+                              size={14}
+                              className="text-chatroom-text-muted shrink-0"
+                            />
                             <span className="text-[12px] text-chatroom-text-muted font-mono uppercase tracking-wider">
                               {primaryRemote!.name}
                             </span>
@@ -713,7 +765,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                     >
                       {hasPR ? (
-                        <GitPullRequestIcon size={14} className="text-chatroom-text-muted shrink-0" />
+                        <GitPullRequestIcon
+                          size={14}
+                          className="text-chatroom-text-muted shrink-0"
+                        />
                       ) : (
                         <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
                       )}
@@ -751,15 +806,22 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       {isLocal && (
                         <button
                           type="button"
-                          onClick={() => { void sendAction(workspace.machineId, 'open-github-desktop', workspace.workingDir); onClose(); }}
+                          onClick={() => {
+                            void sendAction(
+                              workspace.machineId,
+                              'open-github-desktop',
+                              workspace.workingDir
+                            );
+                            onClose();
+                          }}
                           className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
                         >
                           <SiGithub size={12} className="shrink-0" />
                           Open in GitHub Desktop
                         </button>
                       )}
-                      {repoHttpsUrl && (
-                        hasPR ? (
+                      {repoHttpsUrl &&
+                        (hasPR ? (
                           <a
                             href={openPullRequests[0]!.url}
                             target="_blank"
@@ -775,9 +837,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             {`View PR #${openPullRequests[0]!.prNumber} on GitHub`}
                           </a>
                         ) : (
-                          <span
-                            className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-muted cursor-not-allowed rounded-none"
-                          >
+                          <span className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-muted cursor-not-allowed rounded-none">
                             {isGitHubRepo ? (
                               <SiGithub size={12} className="shrink-0 opacity-50" />
                             ) : (
@@ -785,8 +845,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                             )}
                             View PR on GitHub
                           </span>
-                        )
-                      )}
+                        ))}
                       {repoHttpsUrl && (
                         <a
                           href={repoHttpsUrl}
@@ -824,7 +883,9 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
             {isLoading && (
               <div className="flex items-center px-3 py-2.5">
-                <span className="text-[11px] text-chatroom-text-muted">Loading workspace info…</span>
+                <span className="text-[11px] text-chatroom-text-muted">
+                  Loading workspace info…
+                </span>
               </div>
             )}
           </div>
@@ -909,14 +970,15 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     ? `${getWorkspaceName(activeWorkspace.workingDir)}`
     : '';
 
-  const workspaceMachineLabel = activeWorkspace
-    ? getWorkspaceDisplayHostname(activeWorkspace)
-    : '';
+  const workspaceMachineLabel = activeWorkspace ? getWorkspaceDisplayHostname(activeWorkspace) : '';
 
   return (
     <>
       {/* ── Bottom Bar ── */}
-      <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div
+        className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-2"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         {isDesktop ? (
           /* Desktop: full workspace selector + status */
           <>
@@ -985,13 +1047,17 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => void sendAction(ws.machineId, 'open-finder', ws.workingDir)}
+                              onClick={() =>
+                                void sendAction(ws.machineId, 'open-finder', ws.workingDir)
+                              }
                             >
                               <FolderOpen size={13} className="mr-2" />
                               Open in Finder
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => void sendAction(ws.machineId, 'open-vscode', ws.workingDir)}
+                              onClick={() =>
+                                void sendAction(ws.machineId, 'open-vscode', ws.workingDir)
+                              }
                             >
                               <Code2 size={13} className="mr-2" />
                               Open in VS Code
@@ -1021,9 +1087,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
             className="flex items-center flex-1 min-w-0 h-full hover:bg-chatroom-bg-hover/50 transition-colors"
             title="View workspace details"
           >
-            {activeWorkspace && (
-              <MobileStatusContent workspace={activeWorkspace} />
-            )}
+            {activeWorkspace && <MobileStatusContent workspace={activeWorkspace} />}
           </button>
         )}
       </div>

@@ -28,16 +28,12 @@ interface WorkspaceRef {
   machineId: string;
 }
 
-function createMockDeps(
-  workspaces: WorkspaceRef[],
-  chatrooms: ChatroomRef[]
-): CheckAccessDeps {
+function createMockDeps(workspaces: WorkspaceRef[], chatrooms: ChatroomRef[]): CheckAccessDeps {
   return {
     getMachineByMachineId: async () => null,
     getWorkspacesForMachine: async (machineId: string) =>
       workspaces.filter((w) => w.machineId === machineId),
-    getChatroom: async (chatroomId: string) =>
-      chatrooms.find((c) => c.id === chatroomId) ?? null,
+    getChatroom: async (chatroomId: string) => chatrooms.find((c) => c.id === chatroomId) ?? null,
   };
 }
 
@@ -53,7 +49,11 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
       [{ id: 'chatroom-1', ownerId: 'user-1' }]
     );
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 
@@ -63,14 +63,22 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
       [{ id: 'chatroom-1', ownerId: 'other-user' }]
     );
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result.ok).toBe(false);
   });
 
   test('denies access when machine has no workspace registrations', async () => {
     const deps = createMockDeps([], []);
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result).toEqual({
       ok: false,
       reason: 'Machine has no workspace registrations',
@@ -89,7 +97,11 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
       ]
     );
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 
@@ -99,7 +111,11 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
       [] // chatroom not found
     );
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result.ok).toBe(false);
   });
 
@@ -118,7 +134,11 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
       },
     };
 
-    const result = await checkAccess(deps, { accessor: USER_1, resource: MACHINE_1, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: MACHINE_1,
+      permission: 'write-access',
+    });
     expect(result.ok).toBe(true);
     // Should only query each chatroom once despite 3 workspace registrations
     expect(getChatroomCallCount).toBe(1);
@@ -134,7 +154,11 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
     );
 
     const machine2: Resource = { type: 'machine', id: 'machine-2' };
-    const result = await checkAccess(deps, { accessor: USER_1, resource: machine2, permission: 'write-access' });
+    const result = await checkAccess(deps, {
+      accessor: USER_1,
+      resource: machine2,
+      permission: 'write-access',
+    });
     expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 });

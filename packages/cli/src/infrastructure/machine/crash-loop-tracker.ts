@@ -27,9 +27,9 @@ export const CRASH_LOOP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
  * - Attempts 3-10: 1 minute each (sustained backoff)
  */
 export const BACKOFF_INTERVALS: readonly number[] = [
-  0,      // Attempt 1: immediate
-  30000,  // Attempt 2: 30 seconds
-  60000,  // Attempt 3-10: 1 minute each
+  0, // Attempt 1: immediate
+  30000, // Attempt 2: 30 seconds
+  60000, // Attempt 3-10: 1 minute each
 ];
 
 // ─── Implementation ───────────────────────────────────────────────────────────

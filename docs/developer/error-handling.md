@@ -42,9 +42,9 @@ All throws must use the `BackendError` type defined in `services/backend/config/
 
 ```typescript
 type BackendError = {
-  code: BackendErrorCode;  // From BACKEND_ERROR_CODES
-  message: string;          // Human-readable message
-  fields?: string[];        // Optional: field names involved (for BAD_REQUEST-style errors)
+  code: BackendErrorCode; // From BACKEND_ERROR_CODES
+  message: string; // Human-readable message
+  fields?: string[]; // Optional: field names involved (for BAD_REQUEST-style errors)
 };
 ```
 
@@ -72,6 +72,7 @@ The CLI renders fields as `offending fields: content, priority` in the error mes
 ## What the CLI sees
 
 When a Convex function throws a `ConvexError`:
+
 - The error arrives at the CLI with `error.data` containing the structured `{ code, message, fields? }` object
 - The CLI's `getErrorMessage()` function extracts `data.message` (or `data.code` as fallback)
 - If `fields` is present, it's appended as `offending fields: <fields joined>`

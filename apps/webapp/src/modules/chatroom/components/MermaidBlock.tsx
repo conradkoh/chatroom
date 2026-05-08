@@ -83,9 +83,7 @@ function recenterNodeLabels(containerEl: HTMLElement): void {
 
     // Parse existing transform to preserve the x component
     const existingTransform = labelGroup.getAttribute('transform') || '';
-    const translateMatch = existingTransform.match(
-      /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/
-    );
+    const translateMatch = existingTransform.match(/translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/);
 
     if (translateMatch) {
       const currentX = parseFloat(translateMatch[1]);
@@ -180,10 +178,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
         // Fallback: use getBBox for the natural bounds
         const bbox = svgEl.getBBox();
         baseViewBoxRef.current = { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height };
-        svgEl.setAttribute(
-          'viewBox',
-          `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`
-        );
+        svgEl.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
       }
 
       // Make SVG fill the container — remove mermaid's inline max-width constraint
@@ -381,7 +376,10 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
             >
               <Minus size={14} />
             </button>
-            <span ref={zoomLabelRef} className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center">
+            <span
+              ref={zoomLabelRef}
+              className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center"
+            >
               100%
             </span>
             <button
@@ -525,7 +523,9 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
         cleanedSvg = cleanedSvg.replace(
           /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
           (_m, open, before, after) => {
-            const cleanStyle = (before + after).replace(/;\s*;/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '');
+            const cleanStyle = (before + after)
+              .replace(/;\s*;/g, ';')
+              .replace(/^\s*;\s*|\s*;\s*$/g, '');
             return cleanStyle ? `${open} style="${cleanStyle}"` : open;
           }
         );
@@ -534,50 +534,38 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
         // viewBox bounds by default (SVG spec says overflow:hidden).
         // Replace existing overflow attribute or add it.
         if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
-          cleanedSvg = cleanedSvg.replace(
-            /(<svg[^>]*)\boverflow="[^"]*"/,
-            '$1overflow="visible"'
-          );
+          cleanedSvg = cleanedSvg.replace(/(<svg[^>]*)\boverflow="[^"]*"/, '$1overflow="visible"');
         } else {
-          cleanedSvg = cleanedSvg.replace(
-            /(<svg\b)/,
-            '$1 overflow="visible"'
-          );
+          cleanedSvg = cleanedSvg.replace(/(<svg\b)/, '$1 overflow="visible"');
         }
 
         // (c) Pad the viewBox by 8px on each side to give text breathing room.
         // Safari's text metrics differ from Chrome's, so the tight viewBox
         // Mermaid computes can clip the last few pixels of text in Safari.
         const VB_PAD = 8;
-        cleanedSvg = cleanedSvg.replace(
-          /(<svg[^>]*\bviewBox=")([^"]*)(")/,
-          (_m, pre, vb, post) => {
-            const parts = vb.trim().split(/\s+/).map(Number);
-            if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
-              const [x, y, w, h] = parts;
-              return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
-            }
-            return _m;
+        cleanedSvg = cleanedSvg.replace(/(<svg[^>]*\bviewBox=")([^"]*)(")/, (_m, pre, vb, post) => {
+          const parts = vb.trim().split(/\s+/).map(Number);
+          if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
+            const [x, y, w, h] = parts;
+            return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
           }
-        );
+          return _m;
+        });
 
         // (d) Defense-in-depth: if foreignObject elements are still present
         // (htmlLabels may not take effect for all diagram types), ensure they
         // have overflow:visible so Safari doesn't clip their content at the
         // fixed height boundary. Also add a generous height to prevent clipping.
-        cleanedSvg = cleanedSvg.replace(
-          /<foreignObject([^>]*)>/g,
-          (_m, attrs) => {
-            // Add overflow="visible" to the foreignObject
-            let newAttrs = attrs;
-            if (/overflow=/.test(newAttrs)) {
-              newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
-            } else {
-              newAttrs += ' overflow="visible"';
-            }
-            return `<foreignObject${newAttrs}>`;
+        cleanedSvg = cleanedSvg.replace(/<foreignObject([^>]*)>/g, (_m, attrs) => {
+          // Add overflow="visible" to the foreignObject
+          let newAttrs = attrs;
+          if (/overflow=/.test(newAttrs)) {
+            newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
+          } else {
+            newAttrs += ' overflow="visible"';
           }
-        );
+          return `<foreignObject${newAttrs}>`;
+        });
 
         if (!cancelled) {
           setSvg(cleanedSvg);
@@ -593,7 +581,9 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     }
 
     renderChart();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [chart]);
 
   if (loading && !error) {

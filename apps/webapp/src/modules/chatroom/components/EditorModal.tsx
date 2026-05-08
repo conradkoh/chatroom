@@ -112,10 +112,8 @@ export const EditorModal = memo(function EditorModal({
           </div>
           <div className="flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
             <span className="text-[10px] text-chatroom-text-muted">
-              {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
-                ? '⌘'
-                : 'Ctrl'}
-              ↵ to send · Tab for indent · Esc to close
+              {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl'}↵
+              to send · Tab for indent · Esc to close
             </span>
             <button
               type="button"

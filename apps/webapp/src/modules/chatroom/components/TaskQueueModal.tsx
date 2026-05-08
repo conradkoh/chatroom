@@ -118,12 +118,7 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   }
 
   return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      maxWidth="max-w-2xl"
-      className="sm:max-h-[85vh]"
-    >
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl" className="sm:max-h-[85vh]">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose} className="py-4">
           <div className="flex flex-col gap-0.5">

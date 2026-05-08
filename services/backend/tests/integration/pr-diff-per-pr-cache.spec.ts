@@ -19,11 +19,7 @@ import { createTestSession, registerMachineWithDaemon } from '../helpers/integra
 const WORKING_DIR = '/workspace/project';
 const BASE_BRANCH = 'main';
 
-async function requestDiff(
-  sessionId: string,
-  machineId: string,
-  prNumber: number
-): Promise<void> {
+async function requestDiff(sessionId: string, machineId: string, prNumber: number): Promise<void> {
   return t.mutation(api.workspaces.requestPRDiff, {
     sessionId: sessionId as any,
     machineId,

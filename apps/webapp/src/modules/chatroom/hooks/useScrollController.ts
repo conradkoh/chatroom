@@ -118,11 +118,7 @@ export class ScrollController {
    * @param wasLoadingMore  True if we were paginating up
    * @param wasNearTop    True if scrollTop < 200 before the update
    */
-  onNewMessages(
-    heightDiff: number,
-    wasLoadingMore: boolean,
-    wasNearTop: boolean
-  ): void {
+  onNewMessages(heightDiff: number, wasLoadingMore: boolean, wasNearTop: boolean): void {
     if (!this.el) return;
 
     if (wasLoadingMore || wasNearTop) {

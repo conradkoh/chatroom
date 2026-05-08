@@ -52,7 +52,11 @@ interface ScoringBadgesProps {
 }
 
 /** Renders priority, complexity, and value scoring badges. Shared by ReviewListItem and ReviewDetail. */
-const ScoringBadges = memo(function ScoringBadges({ complexity, value, priority }: ScoringBadgesProps) {
+const ScoringBadges = memo(function ScoringBadges({
+  complexity,
+  value,
+  priority,
+}: ScoringBadgesProps) {
   if (!complexity && !value && priority === undefined) return null;
 
   return (
@@ -299,8 +303,7 @@ export const ReviewPanel = memo(function ReviewPanel({
   // Auto-select first visible item when panel opens or visible items change
   useEffect(() => {
     if (isOpen && visibleItems.length > 0) {
-      const selectionStillValid =
-        selectedId && visibleItems.some((i) => i._id === selectedId);
+      const selectionStillValid = selectedId && visibleItems.some((i) => i._id === selectedId);
       if (!selectionStillValid) {
         setSelectedId(visibleItems[0]._id);
       }

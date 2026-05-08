@@ -68,9 +68,7 @@ export function startFileContentSubscription(
     }
   );
 
-  console.log(
-    `[${formatTimestamp()}] 📂 File content subscription started (reactive)`
-  );
+  console.log(`[${formatTimestamp()}] 📂 File content subscription started (reactive)`);
 
   return {
     stop: () => {

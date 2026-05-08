@@ -89,7 +89,7 @@ export const syncFileTree = mutation({
   handler: async () => {
     throw new Error(
       '[DEPRECATED] syncFileTree is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-      'Run: npm install -g chatroom-cli@latest'
+        'Run: npm install -g chatroom-cli@latest'
     );
   },
 });
@@ -321,7 +321,7 @@ export const fulfillFileContent = mutation({
   handler: async () => {
     throw new Error(
       '[DEPRECATED] fulfillFileContent is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-      'Run: npm install -g chatroom-cli@latest'
+        'Run: npm install -g chatroom-cli@latest'
     );
   },
 });
@@ -525,9 +525,7 @@ export const purgeFileTree = mutation({
     // Delete file content requests (uses different index)
     const contentRequests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_status', (q: any) =>
-        q.eq('machineId', args.machineId)
-      )
+      .withIndex('by_machine_status', (q: any) => q.eq('machineId', args.machineId))
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of contentRequests) {
@@ -866,9 +864,7 @@ export const purgeFileContentV2 = mutation({
     // Delete file content requests
     const requests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_status', (q: any) =>
-        q.eq('machineId', args.machineId)
-      )
+      .withIndex('by_machine_status', (q: any) => q.eq('machineId', args.machineId))
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of requests) await ctx.db.delete(req._id);

@@ -61,9 +61,7 @@ export function buildWorkflowMermaid(steps: MermaidWorkflowStep[]): string {
   for (const step of steps) {
     const desc = sanitizeMermaidLabel(step.description);
     const role = step.assigneeRole ? sanitizeMermaidLabel(step.assigneeRole) : null;
-    const label = role
-      ? `${step.stepKey}\\n${desc}\\n[${role}]`
-      : `${step.stepKey}\\n${desc}`;
+    const label = role ? `${step.stepKey}\\n${desc}\\n[${role}]` : `${step.stepKey}\\n${desc}`;
     lines.push(`  ${step.stepKey}["${label}"]`);
   }
 
