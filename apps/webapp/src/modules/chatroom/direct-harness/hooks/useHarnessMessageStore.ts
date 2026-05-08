@@ -183,9 +183,7 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
   // is set once and never changes, keeping the subscription args stable.
   const tailData = useSessionQuery(
     api.web.directHarness.messages.getMessagesSince,
-    state.isInitialized
-      ? { harnessSessionId, afterSeq: tailSeqRef.current }
-      : 'skip'
+    state.isInitialized ? { harnessSessionId, afterSeq: tailSeqRef.current } : 'skip'
   );
 
   useEffect(() => {
@@ -217,6 +215,10 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
       messages: result.messages as HarnessMessage[],
       hasMore: result.hasMore as boolean,
     });
+    // Clear the ref so a subsequent click with the same oldestSeq (e.g., when
+    // the prior fetch returned only duplicates and oldestSeq didn't advance) is
+    // processed rather than silently suppressed by the guard above.
+    processedOlderSeqRef.current = null;
   }, [olderData, state.olderQuerySeq]);
 
   // ── Public API ───────────────────────────────────────────────────────────
