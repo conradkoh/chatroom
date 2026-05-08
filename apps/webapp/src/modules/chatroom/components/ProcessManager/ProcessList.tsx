@@ -5,7 +5,6 @@
 'use client';
 
 import { Square, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-
 import type { CommandRun } from './ProcessManager';
 
 interface ProcessListProps {

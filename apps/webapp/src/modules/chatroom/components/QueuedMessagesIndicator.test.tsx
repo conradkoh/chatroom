@@ -14,10 +14,6 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
-
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Control the list of queued messages returned by the query.
@@ -61,6 +57,10 @@ vi.mock('./WorkQueue/QueuedMessageDetailModal', () => ({
       </div>
     ) : null,
 }));
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 
 const CHATROOM_ID = 'room-test-1';
 

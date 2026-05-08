@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -23,14 +24,13 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
 
-import type { CommandItem, SettingsTab } from './types';
+import type { SavedCommand } from '../../types/savedCommand';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { getCommandUsageStore } from '../../lib/commandUsageStore';
-import type { SavedCommand } from '../../types/savedCommand';
+import type { CommandItem, SettingsTab } from './types';
 
 export type { SettingsTab };
 
@@ -55,7 +55,7 @@ interface UseCommandPaletteCommandsProps {
   onViewGitHubRepository?: (() => void) | null;
   onOpenWorkspaceDetails?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
-  runnableCommands?: { name: string; script: string; source: string }[];
+  runnableCommands?: Array<{ name: string; script: string; source: string }>;
   /** Callback to open the Process Manager with a specific command selected */
   onOpenProcessManagerWithCommand?: (commandName: string) => void;
   /** Callback to directly execute a command (run + open terminal) */

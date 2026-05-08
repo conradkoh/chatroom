@@ -4,8 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback, useEffect } from 'react';
 
-import { TEAMS_CONFIG } from '../config/teams';
-
 import {
   Select,
   SelectContent,
@@ -13,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { TEAMS_CONFIG } from '../config/teams';
 
 interface CreateChatroomFormProps {
   onCreated: (chatroomId: string) => void;

@@ -10,8 +10,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '@workspace/backend/src/domain/types/skills';
-import { useQuery } from 'convex/react';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useQuery } from 'convex/react';
 import {
   AlertTriangle,
   ChevronDown,

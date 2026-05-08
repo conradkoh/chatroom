@@ -19,6 +19,8 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -31,9 +33,15 @@ import {
   getModelDisplayLabel,
   getMachineDisplayName,
 } from '../types/machine';
-import { isModelHidden, selectModel } from '../utils/modelSelection';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,14 +52,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 

@@ -3,7 +3,6 @@
  */
 
 import { describe, expect, test } from 'vitest';
-
 import {
   computeFrecencyScore,
   computeAllFrecencyScores,

@@ -5,8 +5,6 @@ import { MessageSquare, X } from 'lucide-react';
 import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 
-import { compactMarkdownComponents, messageFeedProseClassNames } from './markdown-utils';
-
 import {
   FixedModal,
   FixedModalBody,
@@ -15,6 +13,7 @@ import {
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
 
+import { compactMarkdownComponents, messageFeedProseClassNames } from './markdown-utils';
 
 interface AttachedMessageChipProps {
   messageId: Id<'chatroom_messages'>;

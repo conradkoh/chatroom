@@ -25,12 +25,11 @@ import {
   CsvTableRenderer,
 } from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-
-
-import { isBinaryFile } from './binaryDetection';
-import { FileTypeIcon } from './fileIcons';
-import type { FileEntry } from './useFileSelector';
 import { useFileContent } from '../../workspace/hooks/useFileContent';
+
+import { FileTypeIcon } from './fileIcons';
+import { isBinaryFile } from './binaryDetection';
+import type { FileEntry } from './useFileSelector';
 
 import {
   FixedModal,

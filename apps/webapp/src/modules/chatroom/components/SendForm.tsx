@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { AlertTriangle, Code2, Plus, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { AlertTriangle, Code2, Plus, X } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -12,7 +12,7 @@ import { AttachedTaskChip } from './AttachedTaskChip';
 import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
-
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   useAttachments,
   useTaskAttachments,
@@ -22,12 +22,6 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 
 interface SendFormProps {
   chatroomId: string;

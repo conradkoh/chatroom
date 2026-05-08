@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { memo, useEffect, useState } from 'react';
-
 import { CsvTableRenderer } from '../file-renderers';
 import { useFileContent } from '../hooks/useFileContent';
 

@@ -10,18 +10,16 @@
 
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
-import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
-import { X, ChevronLeft } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { X, ChevronLeft } from 'lucide-react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 
-
-import { OutputPanel } from './OutputPanel';
-import { ProcessList } from './ProcessList';
-import { useEscapeToClear } from '../../hooks/useEscapeToClear';
-import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
-
+import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { ProcessList } from './ProcessList';
+import { OutputPanel } from './OutputPanel';
+import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
+import { useEscapeToClear } from '../../hooks/useEscapeToClear';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

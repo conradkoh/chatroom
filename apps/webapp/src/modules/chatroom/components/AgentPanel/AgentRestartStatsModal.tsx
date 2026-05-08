@@ -2,8 +2,6 @@
 
 import { memo, useState, useEffect } from 'react';
 
-import { AgentRestartChart } from './AgentRestartChart';
-
 import {
   FixedModal,
   FixedModalContent,
@@ -12,6 +10,7 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { AgentRestartChart } from './AgentRestartChart';
 
 interface AgentRestartStatsModalProps {
   isOpen: boolean;

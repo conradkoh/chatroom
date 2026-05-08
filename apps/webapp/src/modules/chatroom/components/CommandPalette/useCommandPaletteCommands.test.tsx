@@ -1,9 +1,8 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useCommandPaletteCommands } from './useCommandPaletteCommands';
-
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
+import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
 describe('useCommandPaletteCommands', () => {
   const baseProps = {

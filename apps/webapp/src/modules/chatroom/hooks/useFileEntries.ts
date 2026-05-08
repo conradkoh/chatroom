@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 
 interface TreeResult {

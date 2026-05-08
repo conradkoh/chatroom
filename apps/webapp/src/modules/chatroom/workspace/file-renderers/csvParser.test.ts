@@ -1,5 +1,4 @@
 import { describe, test, expect } from 'vitest';
-
 import { parseCsv } from './csvParser';
 
 describe('parseCsv', () => {

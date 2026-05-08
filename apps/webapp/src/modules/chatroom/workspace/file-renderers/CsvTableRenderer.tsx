@@ -1,7 +1,6 @@
 'use client';
 
 import { memo, useMemo } from 'react';
-
 import { parseCsv } from './csvParser';
 
 interface CsvTableRendererProps {

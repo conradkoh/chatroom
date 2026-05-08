@@ -22,7 +22,7 @@ function makeMessage(
 // ─── Mock: Notification (fallback path) ──────────────────────────────────────
 
 const notificationCloseMock = vi.fn();
-const notificationInstances: { body: string; tag: string; close: () => void }[] = [];
+const notificationInstances: Array<{ body: string; tag: string; close: () => void }> = [];
 
 class MockNotification {
   static permission: NotificationPermission = 'granted';
@@ -67,7 +67,7 @@ function disableServiceWorker() {
 // ─── Visibility helpers ──────────────────────────────────────────────────────
 
 let originalHidden: boolean;
-let visibilityListeners: (() => void)[];
+let visibilityListeners: Array<() => void>;
 
 function setDocumentHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', {

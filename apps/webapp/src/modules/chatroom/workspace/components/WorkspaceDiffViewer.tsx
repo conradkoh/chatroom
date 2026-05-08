@@ -6,6 +6,16 @@ import { memo, useState, useEffect, useCallback } from 'react';
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
 
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,15 +26,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
