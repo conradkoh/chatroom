@@ -1,16 +1,21 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useEffect, useRef } from 'react';
-import { cn } from '@/lib/utils';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+
 import { useHarnessMessageStore } from './hooks/useHarnessMessageStore';
 import type { HarnessMessage } from './hooks/useHarnessMessageStore';
 import { useQueuedMessages } from './hooks/useQueuedMessages';
 import { ThinkingBlock } from './ThinkingBlock';
 
+import { cn } from '@/lib/utils';
+import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
+
 interface SessionMessageStreamProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
 }
+
+const SCROLL_THRESHOLD = 100;
 
 // ─── Turn grouping ─────────────────────────────────────────────────────────────
 
@@ -62,7 +67,13 @@ function buildTurnGroups(messages: HarnessMessage[]): TurnGroup[] {
       legacyRun = null;
       let turn = seenMessageIds.get(msg.messageId);
       if (!turn) {
-        turn = { key: msg.messageId, role: 'assistant', minSeq: msg.seq, thinkingContent: '', textContent: '' };
+        turn = {
+          key: msg.messageId,
+          role: 'assistant',
+          minSeq: msg.seq,
+          thinkingContent: '',
+          textContent: '',
+        };
         seenMessageIds.set(msg.messageId, turn);
         groups.push(turn);
       }
@@ -76,7 +87,13 @@ function buildTurnGroups(messages: HarnessMessage[]): TurnGroup[] {
     } else {
       // Legacy assistant row (no messageId) — consecutive merge
       if (!legacyRun) {
-        legacyRun = { key: `legacy-${msg._id}`, role: 'assistant', minSeq: msg.seq, thinkingContent: '', textContent: '' };
+        legacyRun = {
+          key: `legacy-${msg._id}`,
+          role: 'assistant',
+          minSeq: msg.seq,
+          thinkingContent: '',
+          textContent: '',
+        };
         groups.push(legacyRun);
       }
       if (msg.seq < legacyRun.minSeq) legacyRun.minSeq = msg.seq;
@@ -97,27 +114,65 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
   const { messages, isLoading, hasMoreOlder, isLoadingOlder, loadOlderMessages } =
     useHarnessMessageStore(sessionRowId);
   const queuedMessages = useQueuedMessages(sessionRowId);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isUserScrolledRef = useRef(false);
 
-  // Reset scroll-lock when session changes
+  const { controller } = useScrollController();
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const prevScrollHeightRef = useRef(0);
+  const prevMessageCountRef = useRef(0);
+  const wasLoadingMoreRef = useRef(false);
+
+  // Ref callback — attach scroll controller to the DOM element
+  const feedRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      feedRef.current = node;
+      if (node) {
+        controller.current.attach(node);
+      } else {
+        controller.current.detach();
+      }
+    },
+    [controller]
+  );
+
+  // Keep wasLoadingMoreRef in sync with isLoadingOlder
   useEffect(() => {
-    isUserScrolledRef.current = false;
-  }, [sessionRowId]);
+    wasLoadingMoreRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
 
-  const handleScroll = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    isUserScrolledRef.current = !atBottom;
-  };
+  // Preserve scroll position when loading older messages prepend content at top
+  useLayoutEffect(() => {
+    if (feedRef.current) {
+      const newScrollHeight = feedRef.current.scrollHeight;
+      const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+      const messagesAdded = messages.length > prevMessageCountRef.current;
 
-  // Auto-scroll on new tokens unless the user has scrolled up
+      if (messagesAdded && heightDiff > 0) {
+        const wasNearTop = feedRef.current.scrollTop < 200;
+        controller.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, wasNearTop);
+      }
+
+      prevScrollHeightRef.current = newScrollHeight;
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length, controller]);
+
+  // Auto-fill: load older messages when content doesn't fill the container
   useEffect(() => {
-    if (isUserScrolledRef.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+    if (feedRef.current && hasMoreOlder && !isLoadingOlder) {
+      const { scrollHeight, clientHeight } = feedRef.current;
+      if (scrollHeight <= clientHeight) {
+        loadOlderMessages();
+      }
+    }
+  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages, messages.length]);
+
+  // Scroll handler — load older messages when near the top
+  const handleScroll = useCallback(() => {
+    const pos = controller.current.getScrollPosition();
+    if (pos && hasMoreOlder && !isLoadingOlder && pos.scrollTop < SCROLL_THRESHOLD) {
+      loadOlderMessages();
+    }
+  }, [controller, hasMoreOlder, isLoadingOlder, loadOlderMessages]);
 
   if (isLoading) {
     return (
@@ -140,7 +195,7 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
 
   return (
     <div
-      ref={containerRef}
+      ref={feedRefCallback}
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4"
     >
@@ -172,18 +227,6 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
         );
       })}
 
-      {/* Load older messages */}
-      {hasMoreOlder && (
-        <div className="flex justify-center py-2">
-          <button
-            onClick={loadOlderMessages}
-            disabled={isLoadingOlder}
-            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors px-3 py-1 rounded border border-border hover:bg-accent/50"
-          >
-            {isLoadingOlder ? 'Loading…' : 'Load older messages'}
-          </button>
-        </div>
-      )}
       {hasQueue && (
         <div className="flex flex-col gap-2">
           {queuedMessages!.map((qm) => (
@@ -198,7 +241,6 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
           ))}
         </div>
       )}
-      <div ref={bottomRef} />
     </div>
   );
 }

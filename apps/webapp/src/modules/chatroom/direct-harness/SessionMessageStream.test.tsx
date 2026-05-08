@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 import { SessionMessageStream } from './SessionMessageStream';
 
@@ -17,6 +17,15 @@ vi.mock('./hooks/useQueuedMessages', () => ({
 }));
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+// ResizeObserver is not available in jsdom — provide a no-op stub
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
 
 const SESSION_ROW_ID = 'sr1' as never;
 
@@ -220,33 +229,34 @@ describe('SessionMessageStream', () => {
     expect(screen.getByText('Waiting')).toBeInTheDocument();
   });
 
-  // ── Load older messages ─────────────────────────────────────────────────────
+  // ── Load older messages (scroll-driven) ────────────────────────────────────
 
-  it('shows load older button when hasMoreOlder is true', () => {
+  it('does not show a "load older messages" button (loading is scroll-driven)', () => {
     mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: true });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByRole('button', { name: /load older messages/i })).toBeInTheDocument();
-  });
-
-  it('hides load older button when hasMoreOlder is false', () => {
-    mockStore([msg('m1', 'user', 'Hello', 1)]);
     render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
     expect(screen.queryByRole('button', { name: /load older messages/i })).not.toBeInTheDocument();
   });
 
-  it('calls loadOlderMessages when the button is clicked', async () => {
+  it('calls loadOlderMessages when scrolled near the top and hasMoreOlder is true', () => {
     const loadOlderMessages = vi.fn();
-    const user = userEvent.setup();
     mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: true, loadOlderMessages });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    await user.click(screen.getByRole('button', { name: /load older messages/i }));
-    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    const scrollEl = container.firstChild as HTMLElement;
+    // Simulate scroll near top (scrollTop < 100)
+    Object.defineProperty(scrollEl, 'scrollTop', { value: 50, configurable: true });
+    fireEvent.scroll(scrollEl);
+    expect(loadOlderMessages).toHaveBeenCalled();
   });
 
-  it('shows loading state on the button while isLoadingOlder is true', () => {
-    mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: true, isLoadingOlder: true });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
+  it('does not call loadOlderMessages on scroll when hasMoreOlder is false', () => {
+    const loadOlderMessages = vi.fn();
+    mockStore([msg('m1', 'user', 'Hello', 1)], { hasMoreOlder: false, loadOlderMessages });
+    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    const scrollEl = container.firstChild as HTMLElement;
+    // scrollTop > threshold, far from top
+    Object.defineProperty(scrollEl, 'scrollTop', { value: 500, configurable: true });
+    fireEvent.scroll(scrollEl);
+    expect(loadOlderMessages).not.toHaveBeenCalled();
   });
 });
 
@@ -488,25 +498,13 @@ describe('SessionMessageStream', () => {
     expect(screen.getByText('Waiting')).toBeInTheDocument();
   });
 
-  // ── Load older messages ─────────────────────────────────────────────────────
+  // ── Load older messages (scroll-driven) ────────────────────────────────────
 
-  it('shows load older button when hasMoreOlder is true', () => {
+  it('does not show a "load older messages" button (loading is scroll-driven)', () => {
     mockUseHarnessMessageStore.mockReturnValue({
       messages: [msg('m1', 'user', 'Hello', 1)],
       isLoading: false,
       hasMoreOlder: true,
-      isLoadingOlder: false,
-      loadOlderMessages: vi.fn(),
-    });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByRole('button', { name: /load older messages/i })).toBeInTheDocument();
-  });
-
-  it('hides load older button when hasMoreOlder is false', () => {
-    mockUseHarnessMessageStore.mockReturnValue({
-      messages: [msg('m1', 'user', 'Hello', 1)],
-      isLoading: false,
-      hasMoreOlder: false,
       isLoadingOlder: false,
       loadOlderMessages: vi.fn(),
     });
@@ -514,9 +512,8 @@ describe('SessionMessageStream', () => {
     expect(screen.queryByRole('button', { name: /load older messages/i })).not.toBeInTheDocument();
   });
 
-  it('calls loadOlderMessages when the button is clicked', async () => {
+  it('calls loadOlderMessages when scrolled near the top and hasMoreOlder is true', () => {
     const loadOlderMessages = vi.fn();
-    const user = userEvent.setup();
     mockUseHarnessMessageStore.mockReturnValue({
       messages: [msg('m1', 'user', 'Hello', 1)],
       isLoading: false,
@@ -524,20 +521,27 @@ describe('SessionMessageStream', () => {
       isLoadingOlder: false,
       loadOlderMessages,
     });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    await user.click(screen.getByRole('button', { name: /load older messages/i }));
-    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    const scrollEl = container.firstChild as HTMLElement;
+    Object.defineProperty(scrollEl, 'scrollTop', { value: 50, configurable: true });
+    fireEvent.scroll(scrollEl);
+    expect(loadOlderMessages).toHaveBeenCalled();
   });
 
-  it('shows loading state on the button while isLoadingOlder is true', () => {
+  it('does not call loadOlderMessages on scroll when hasMoreOlder is false', () => {
+    const loadOlderMessages = vi.fn();
     mockUseHarnessMessageStore.mockReturnValue({
       messages: [msg('m1', 'user', 'Hello', 1)],
       isLoading: false,
-      hasMoreOlder: true,
-      isLoadingOlder: true,
-      loadOlderMessages: vi.fn(),
+      hasMoreOlder: false,
+      isLoadingOlder: false,
+      loadOlderMessages,
     });
-    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
-    expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
+    const { container } = render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    const scrollEl = container.firstChild as HTMLElement;
+    // scrollTop > threshold, far from top
+    Object.defineProperty(scrollEl, 'scrollTop', { value: 500, configurable: true });
+    fireEvent.scroll(scrollEl);
+    expect(loadOlderMessages).not.toHaveBeenCalled();
   });
 });
