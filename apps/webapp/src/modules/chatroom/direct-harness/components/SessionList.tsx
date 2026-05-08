@@ -48,7 +48,7 @@ export const SessionList = memo(function SessionList({
             >
               <StatusDot status={s.status} className="mt-0.5 shrink-0" />
               <span className="flex-1 min-w-0">
-                <span className="text-sm block truncate">{label}</span>
+                <span className="text-sm font-bold block truncate">{label}</span>
                 <span className="text-xs text-muted-foreground font-mono tabular-nums">{relativeTime(s.lastActiveAt)}</span>
               </span>
             </button>
