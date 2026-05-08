@@ -93,7 +93,7 @@ export function NewSessionComposer({
     <div className="flex-1 flex flex-col min-h-0">
       {/* Empty state */}
       <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground select-none">
-        <p className="text-sm font-medium text-foreground">New session</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-foreground">New session</p>
         <p className="text-xs">Type a message below to get started.</p>
       </div>
 
