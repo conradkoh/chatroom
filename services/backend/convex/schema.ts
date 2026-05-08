@@ -2168,6 +2168,12 @@ export default defineSchema({
         /** Cursor for the daemon's message processing. Starts at 0. */
         lastProcessedSeq: v.number(),
         /**
+         * Cursor for the daemon's turn-based message processing.
+         * Mirrors lastProcessedSeq but indexes into chatroom_harnessSessionTurns.
+         * Default treated as 0. Coexists with lastProcessedSeq during step 3–4 migration.
+         */
+        lastProcessedTurnSeq: v.optional(v.number()),
+        /**
          * True while the agent is actively generating a response.
          * Combined with the unprocessed-message and queue-item checks in
          * web/messages.send, this ensures messages sent while work is in

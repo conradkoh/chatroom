@@ -2,7 +2,11 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
-import { getSessionWithAccess, requireDirectHarnessWorkers, requireOpencodeSession } from '../../api/directHarnessHelpers.js';
+import {
+  getSessionWithAccess,
+  requireDirectHarnessWorkers,
+  requireOpencodeSession,
+} from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
@@ -11,12 +15,14 @@ export const appendMessages = mutation({
   args: {
     ...SessionIdArg,
     harnessSessionId: v.id('chatroom_harnessSessions'),
-    chunks: v.array(v.object({
-      content: v.string(),
-      timestamp: v.number(),
-      messageId: v.optional(v.string()),
-      partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
-    })),
+    chunks: v.array(
+      v.object({
+        content: v.string(),
+        timestamp: v.number(),
+        messageId: v.optional(v.string()),
+        partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -80,11 +86,15 @@ export const pendingForMachine = query({
         [...workspaceIds].flatMap((wsId) => [
           ctx.db
             .query('chatroom_harnessSessions')
-            .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'pending'))
+            .withIndex('by_workspace_status', (q) =>
+              q.eq('workspaceId', wsId).eq('status', 'pending')
+            )
             .collect(),
           ctx.db
             .query('chatroom_harnessSessions')
-            .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'active'))
+            .withIndex('by_workspace_status', (q) =>
+              q.eq('workspaceId', wsId).eq('status', 'active')
+            )
             .collect(),
           ctx.db
             .query('chatroom_harnessSessions')
@@ -104,14 +114,16 @@ export const pendingForMachine = query({
     const allMessages: Array<{ harnessSessionId: string; content: string; seq: number }> = [];
 
     for (const session of allSessions) {
-      const cursor = session.lastProcessedSeq ?? 0;
-      const pending = await ctx.db
-        .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_role_seq', (q) =>
-          q.eq('harnessSessionId', session._id).eq('role', 'user').gt('seq', cursor)
+      const cursor = session.lastProcessedTurnSeq ?? 0;
+      const pendingTurns = await ctx.db
+        .query('chatroom_harnessSessionTurns')
+        .withIndex('by_session_turnSeq', (q) =>
+          q.eq('harnessSessionId', session._id).gt('turnSeq', cursor)
         )
         .order('asc')
         .collect();
+
+      const pending = pendingTurns.filter((t) => t.role === 'user');
 
       if (pending.length > 0) {
         const s = requireOpencodeSession(session);
@@ -125,11 +137,11 @@ export const pendingForMachine = query({
           opencodeSessionId: s.opencode.opencodeSessionId,
           lastUsedConfig: s.opencode.lastUsedConfig,
         });
-        for (const msg of pending) {
+        for (const turn of pending) {
           allMessages.push({
-            harnessSessionId: msg.harnessSessionId as unknown as string,
-            content: msg.content,
-            seq: msg.seq,
+            harnessSessionId: turn.harnessSessionId as unknown as string,
+            content: turn.textContent,
+            seq: turn.turnSeq,
           });
         }
       }

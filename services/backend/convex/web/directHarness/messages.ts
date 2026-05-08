@@ -8,10 +8,10 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import {
-  getNextMessageSeq,
   getSessionWithAccess,
   requireDirectHarnessWorkers,
 } from '../../api/directHarnessHelpers.js';
+import { insertUserTurn } from '../../daemon/directHarness/turns.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── send ─────────────────────────────────────────────────────────────────────
@@ -68,13 +68,13 @@ export const send = mutation({
     const unprocessedUserMsg = isGenerating
       ? null // skip extra query when already routing to queue
       : await ctx.db
-          .query('chatroom_harnessSessionMessages')
-          .withIndex('by_session_role_seq', (q) =>
+          .query('chatroom_harnessSessionTurns')
+          .withIndex('by_session_turnSeq', (q) =>
             q
               .eq('harnessSessionId', args.harnessSessionId)
-              .eq('role', 'user')
-              .gt('seq', harnessSession.lastProcessedSeq)
+              .gt('turnSeq', harnessSession.lastProcessedTurnSeq ?? 0)
           )
+          .filter((q) => q.eq(q.field('role'), 'user'))
           .first();
 
     const hasQueuedItem =
@@ -100,16 +100,8 @@ export const send = mutation({
       return { queued: true as const };
     }
 
-    const seq = await getNextMessageSeq(ctx, args.harnessSessionId);
-    await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionId: args.harnessSessionId,
-      seq,
-      role: 'user',
-      content: args.text.trim(),
-      timestamp: now,
-    });
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, { lastActiveAt: now });
-    return { seq };
+    const { turnSeq } = await insertUserTurn(ctx, args.harnessSessionId, args.text, now);
+    return { turnSeq };
   },
 });
 

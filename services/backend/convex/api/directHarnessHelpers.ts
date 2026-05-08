@@ -52,6 +52,22 @@ export async function getNextMessageSeq(
   return (lastMessage?.seq ?? 0) + 1;
 }
 
+/**
+ * Returns the next monotonically-increasing turnSeq for a session's turns.
+ * Starts at 1. Convex mutations are serialised so this is race-free.
+ */
+export async function getNextTurnSeq(
+  ctx: { db: MutationCtx['db'] },
+  harnessSessionId: Id<'chatroom_harnessSessions'>
+): Promise<number> {
+  const lastTurn = await ctx.db
+    .query('chatroom_harnessSessionTurns')
+    .withIndex('by_session_turnSeq', (q) => q.eq('harnessSessionId', harnessSessionId))
+    .order('desc')
+    .first();
+  return (lastTurn?.turnSeq ?? 0) + 1;
+}
+
 // ─── Harness session type narrowing ─────────────────────────────────────────
 
 /**

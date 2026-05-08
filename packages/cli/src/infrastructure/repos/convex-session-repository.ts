@@ -68,10 +68,10 @@ export class ConvexSessionRepository implements SessionRepository {
 
   async updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void> {
     const { backend, sessionId } = this.options;
-    await backend.mutation(api.daemon.directHarness.sessions.updateCursor, {
+    await backend.mutation(api.daemon.directHarness.turns.markTurnProcessed, {
       sessionId,
       harnessSessionId,
-      seq,
+      turnSeq: seq,
     });
   }
 
@@ -86,10 +86,13 @@ export class ConvexSessionRepository implements SessionRepository {
 
   async dequeueNext(harnessSessionId: string): Promise<{ content: string; seq: number } | null> {
     const { backend, sessionId } = this.options;
-    return backend.mutation(api.daemon.directHarness.queue.dequeueNext, {
+    const result = (await backend.mutation(api.daemon.directHarness.queue.dequeueNext, {
       sessionId,
       harnessSessionId,
-    }) as Promise<{ content: string; seq: number } | null>;
+    })) as { content: string; turnSeq: number } | null;
+    if (!result) return null;
+    // Re-map turnSeq → seq so the wire shape is unchanged for callers.
+    return { content: result.content, seq: result.turnSeq };
   }
 
   async beginAssistantTurn(harnessSessionId: string): Promise<{ turnId: string; turnSeq: number }> {

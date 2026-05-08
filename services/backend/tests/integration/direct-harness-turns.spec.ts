@@ -11,6 +11,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession, createSession } from './direct-harness/fixtures';
+import { createTestSession } from '../helpers/integration';
 
 // ─── Flag management ──────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ afterEach(() => {
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
 describe('turns.beginAssistantTurn', () => {
-  test('allocates turnSeq=1 for first call', async () => {
+  test('allocates turnSeq=2 for first assistant turn (after createSession user turn at 1)', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('begin-first');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
@@ -34,11 +35,11 @@ describe('turns.beginAssistantTurn', () => {
       harnessSessionId: rowId,
     });
 
-    expect(result.turnSeq).toBe(1);
+    expect(result.turnSeq).toBe(2); // user turn is turnSeq=1, assistant is turnSeq=2
     expect(result.turnId).toBeDefined();
   });
 
-  test('allocates turnSeq=2 for second call', async () => {
+  test('allocates sequential turnSeqs', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('begin-second');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
@@ -51,8 +52,7 @@ describe('turns.beginAssistantTurn', () => {
       harnessSessionId: rowId,
     });
 
-    expect(first.turnSeq).toBe(1);
-    expect(second.turnSeq).toBe(2);
+    expect(second.turnSeq).toBe(first.turnSeq + 1);
     expect(first.turnId).not.toBe(second.turnId);
   });
 
@@ -135,7 +135,42 @@ describe('turns.bindTurnMessageId', () => {
   });
 });
 
-// ─── finalizeAssistantTurn ───────────────────────────────────────────────────
+// ─── markTurnProcessed ───────────────────────────────────────────────────────
+
+describe('turns.markTurnProcessed', () => {
+  test('patches lastProcessedTurnSeq on the session row', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mtp-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.turns.markTurnProcessed, {
+      sessionId,
+      harnessSessionId: rowId,
+      turnSeq: 3,
+    });
+
+    const session = await t.run(async (ctx) => ctx.db.get(rowId as Id<'chatroom_harnessSessions'>));
+    expect(session?.lastProcessedTurnSeq).toBe(3);
+  });
+
+  test('rejects when machine.userId !== auth.user._id', async () => {
+    // Create a session owned by user A
+    const { sessionId: ownerSession, workspaceId } =
+      await setupWorkspaceForSession('mtp-unauth-owner');
+    const { sessionId: rowId } = await createSession(ownerSession, workspaceId);
+
+    // Create a different user's session
+    const { sessionId: otherSession } = await createTestSession('mtp-unauth-other');
+
+    // otherSession belongs to a different user — markTurnProcessed should reject
+    await expect(
+      t.mutation(api.daemon.directHarness.turns.markTurnProcessed, {
+        sessionId: otherSession,
+        harnessSessionId: rowId,
+        turnSeq: 1,
+      })
+    ).rejects.toThrow();
+  });
+});
 
 describe('turns.finalizeAssistantTurn', () => {
   test('aggregates text + reasoning content correctly', async () => {

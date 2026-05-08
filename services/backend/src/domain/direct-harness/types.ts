@@ -12,13 +12,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 // ─── Session status ───────────────────────────────────────────────────────────
 
 /** Canonical status union for harness sessions. */
-export type HarnessSessionStatus =
-  | 'pending'
-  | 'spawning'
-  | 'active'
-  | 'idle'
-  | 'closed'
-  | 'failed';
+export type HarnessSessionStatus = 'pending' | 'spawning' | 'active' | 'idle' | 'closed' | 'failed';
 
 // ─── Session config ───────────────────────────────────────────────────────────
 
@@ -143,8 +137,8 @@ export interface HarnessSendMessageInput {
 }
 
 export type HarnessSendMessageResult =
-  | { seq: number; queued?: never }
-  | { queued: true; seq?: never };
+  | { turnSeq: number; queued?: never }
+  | { queued: true; turnSeq?: never };
 
 // ─── Direct-Harness Commands ────────────────────────────────────────────────
 

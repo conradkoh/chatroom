@@ -11,7 +11,8 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
-import { getNextMessageSeq, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { insertUserTurn } from './turns.js';
 import { mutation } from '../../_generated/server.js';
 
 // ─── setGenerating ────────────────────────────────────────────────────────────
@@ -69,22 +70,16 @@ export const dequeueNext = mutation({
       return null;
     }
 
-    // Promote to the main message table.
+    // Promote to the turn table.
     await ctx.db.patch('chatroom_harnessMessageQueue', item._id, { status: 'delivered' });
 
-    const seq = await getNextMessageSeq(ctx, args.harnessSessionId);
-    await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionId: args.harnessSessionId,
-      seq,
-      role: 'user',
-      content: item.content,
-      timestamp: item.timestamp,
-    });
+    const { turnSeq } = await insertUserTurn(
+      ctx,
+      args.harnessSessionId,
+      item.content,
+      item.timestamp
+    );
 
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
-      lastActiveAt: Date.now(),
-    });
-
-    return { content: item.content, seq };
+    return { content: item.content, turnSeq };
   },
 });

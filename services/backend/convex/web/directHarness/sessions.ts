@@ -8,7 +8,11 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
-import { getNextMessageSeq, requireDirectHarnessWorkers, requireOpencodeSession } from '../../api/directHarnessHelpers.js';
+import {
+  requireDirectHarnessWorkers,
+  requireOpencodeSession,
+} from '../../api/directHarnessHelpers.js';
+import { insertUserTurn } from '../../daemon/directHarness/turns.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── create ───────────────────────────────────────────────────────────────────
@@ -34,7 +38,10 @@ export const create = mutation({
 
     const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
     if (!args.firstMessage.trim()) {
-      throw new ConvexError({ code: 'HARNESS_SESSION_INVALID_PROMPT', message: 'firstMessage must not be empty' });
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'firstMessage must not be empty',
+      });
     }
 
     const now = Date.now();
@@ -54,14 +61,7 @@ export const create = mutation({
       },
     });
 
-    const firstSeq = await getNextMessageSeq(ctx, harnessSessionId);
-    await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionId,
-      seq: firstSeq,
-      role: 'user',
-      content: args.firstMessage.trim(),
-      timestamp: now,
-    });
+    await insertUserTurn(ctx, harnessSessionId, args.firstMessage, now);
 
     return { sessionId: harnessSessionId };
   },
