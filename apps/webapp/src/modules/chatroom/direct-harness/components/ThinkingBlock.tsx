@@ -17,7 +17,7 @@ export function ThinkingBlock({ content, className }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={cn('rounded-lg border border-border overflow-hidden text-sm', className)}>
+    <div className={cn('border border-border overflow-hidden text-sm', className)}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-1.5 px-3 py-2 text-muted-foreground hover:bg-accent/50 transition-colors text-left"
@@ -28,11 +28,11 @@ export function ThinkingBlock({ content, className }: ThinkingBlockProps) {
         ) : (
           <ChevronRightIcon className="shrink-0 h-3.5 w-3.5" />
         )}
-        <span className="text-xs font-medium">Thinking</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider">Thinking</span>
       </button>
 
       {expanded && (
-        <div className="px-3 py-2.5 border-t border-border bg-muted/30 text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+        <div className="px-3 py-2.5 border-t-2 border-border bg-muted/30 text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
           {content}
         </div>
       )}
