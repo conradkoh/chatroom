@@ -82,7 +82,16 @@ import { internalMutation } from './_generated/server.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
-  handler: async (_ctx) => {
-    // no-op — see step-by-step workflow above when you need to run a migration.
+  handler: async (ctx) => {
+    // Delete all harness session message chunks
+    const chunks = await ctx.db.query('chatroom_harnessSessionMessages').collect();
+    let deleted = 0;
+    for (const chunk of chunks) {
+      await ctx.db.delete('chatroom_harnessSessionMessages', chunk._id);
+      deleted++;
+    }
+    if (deleted > 0) {
+      console.log(`[dev:cleanup] deleted ${deleted} harness chunks`);
+    }
   },
 });
