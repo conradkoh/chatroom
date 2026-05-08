@@ -72,20 +72,22 @@ export const SessionList = memo(function SessionList({
               key={s._id}
               onClick={() => onSelect(s._id)}
               className={cn(
-                'w-full text-left px-3 py-2 flex items-center gap-2 transition-colors',
+                'w-full text-left px-3 py-2 flex items-start gap-2 transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 isSelected
                   ? 'bg-accent text-accent-foreground'
                   : 'hover:bg-accent/40 text-foreground'
               )}
             >
-              <StatusDot status={s.status} className="shrink-0" />
-              <span className="flex-1 min-w-0 truncate text-xs font-bold uppercase tracking-wide">
-                {label}
-              </span>
-              <span className="shrink-0 text-[10px] font-mono tabular-nums text-muted-foreground">
-                {relativeTime(s.lastActiveAt)}
-              </span>
+              <StatusDot status={s.status} className="shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <span className="text-xs font-bold uppercase tracking-wide">
+                  {label}
+                </span>
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+                  {relativeTime(s.lastActiveAt)}
+                </span>
+              </div>
             </button>
           );
         })}
