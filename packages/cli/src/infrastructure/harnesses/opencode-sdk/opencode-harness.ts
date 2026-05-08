@@ -177,6 +177,16 @@ export class OpencodeSdkHarness implements BoundHarness {
     return this.childProcess.exitCode === null && this.childProcess.killed === false;
   }
 
+  /** Fetch the current title of a session directly from the OpenCode API. */
+  async fetchSessionTitle(opencodeSessionId: string): Promise<string | undefined> {
+    try {
+      const info = await this.client.session.get({ path: { id: opencodeSessionId } });
+      return info.data?.title ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Tear down the harness process and release all resources. */
   async close(): Promise<void> {
     if (this.closed) return;

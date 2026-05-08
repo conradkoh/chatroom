@@ -45,6 +45,7 @@ function mockBoundHarness(): BoundHarness {
     listProviders: vi.fn().mockResolvedValue([]),
     newSession: vi.fn(),
     resumeSession: vi.fn(),
+    fetchSessionTitle: vi.fn(),
     isAlive: vi.fn().mockReturnValue(true),
     close: vi.fn(),
   };

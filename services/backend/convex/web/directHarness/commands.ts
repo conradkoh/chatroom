@@ -66,3 +66,49 @@ export const refreshCapabilities = mutation({
     });
   },
 });
+
+// ─── refreshSessionTitle ──────────────────────────────────────────────────────
+
+/**
+ * Request the daemon to fetch the current session title from OpenCode
+ * and sync it back to Convex.
+ *
+ * Creates a chatroom_directHarnessCommands row for the daemon that manages
+ * the given harness session.
+ */
+export const refreshSessionTitle = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+
+    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
+    if (!harnessSession) {
+      throw new Error('Harness session not found');
+    }
+
+    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    // Verify the caller has access to this workspace's chatroom
+    await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
+
+    // Skip if session has no opencode session ID yet (still spawning)
+    if (!('opencode' in harnessSession) || !harnessSession.opencode?.opencodeSessionId) {
+      return;
+    }
+
+    await ctx.db.insert('chatroom_directHarnessCommands', {
+      machineId: workspace.machineId,
+      workspaceId: harnessSession.workspaceId,
+      type: 'refreshSessionTitle',
+      refreshSessionTitle: { harnessSessionId: args.harnessSessionId },
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+  },
+});

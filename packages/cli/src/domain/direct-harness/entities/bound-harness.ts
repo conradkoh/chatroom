@@ -56,6 +56,13 @@ export interface BoundHarness {
     options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession>;
 
+  /**
+   * Fetch the current title of an existing session directly from the harness.
+   * Returns undefined if the session is not found or the call fails.
+   * Lightweight — does NOT create a session or subscribe to events.
+   */
+  fetchSessionTitle(opencodeSessionId: string): Promise<string | undefined>;
+
   /** Whether the underlying process is still alive. */
   isAlive(): boolean;
 

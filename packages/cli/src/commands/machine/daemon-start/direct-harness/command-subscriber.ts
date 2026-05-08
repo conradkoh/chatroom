@@ -32,8 +32,9 @@ interface PendingCommand {
   _creationTime: number;
   machineId: string;
   workspaceId: string;
-  type: 'refreshCapabilities';
+  type: 'refreshCapabilities' | 'refreshSessionTitle';
   refreshCapabilities?: { initiatedBy: string };
+  refreshSessionTitle?: { harnessSessionId: string };
   status: string;
   createdAt: number;
   completedAt?: number;
@@ -135,6 +136,9 @@ async function drain(
         case 'refreshCapabilities':
           await handleRefreshCapabilities(ctx, deps, cmd);
           break;
+        case 'refreshSessionTitle':
+          await handleRefreshSessionTitle(ctx, deps, cmd);
+          break;
         default:
           await markFailed(ctx, cmd._id, `Unknown command type: ${cmd.type}`);
       }
@@ -179,6 +183,52 @@ async function handleRefreshCapabilities(
   );
 
   console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
+}
+
+async function handleRefreshSessionTitle(
+  ctx: DaemonContext,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand
+): Promise<void> {
+  const { harnessSessionId } = (cmd.refreshSessionTitle ?? {}) as { harnessSessionId?: string };
+  if (!harnessSessionId) {
+    await markFailed(ctx, cmd._id, 'refreshSessionTitle: missing harnessSessionId');
+    return;
+  }
+
+  // Look up the opencodeSessionId from the backend
+  const sessionRow = (await ctx.deps.backend.query(
+    api.daemon.directHarness.sessions.getSession,
+    { harnessSessionId }
+  )) as { opencodeSessionId?: string } | null;
+
+  if (!sessionRow?.opencodeSessionId) {
+    // Session not yet associated — nothing to fetch
+    await ctx.deps.backend.mutation(
+      api.daemon.directHarness.commands.updateCommandStatus,
+      { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
+    );
+    return;
+  }
+
+  // Use the running harness to fetch the title from OpenCode
+  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
+  const newTitle = await harness.fetchSessionTitle(sessionRow.opencodeSessionId);
+
+  if (newTitle) {
+    await ctx.deps.backend.mutation(
+      api.daemon.directHarness.sessions.updateSessionTitle,
+      { sessionId: ctx.sessionId, harnessSessionId, sessionTitle: newTitle }
+    );
+    console.log(
+      `[direct-harness] Refreshed title for session ${harnessSessionId}: "${newTitle}"`
+    );
+  }
+
+  await ctx.deps.backend.mutation(
+    api.daemon.directHarness.commands.updateCommandStatus,
+    { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
