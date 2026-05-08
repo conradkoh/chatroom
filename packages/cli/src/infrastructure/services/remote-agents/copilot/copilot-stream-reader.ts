@@ -46,7 +46,13 @@ const DONE_MARKER = 'Done.';
 /**
  * Lines that should be logged but not passed to onText callbacks
  */
-const SKIP_PREFIXES = ['Total usage est:', 'API time spent:', 'Total session time:', 'Total code changes:', 'Breakdown by AI model:'];
+const SKIP_PREFIXES = [
+  'Total usage est:',
+  'API time spent:',
+  'Total session time:',
+  'Total code changes:',
+  'Breakdown by AI model:',
+];
 
 export class CopilotStreamReader {
   private readonly textCallbacks: TextCallback[] = [];

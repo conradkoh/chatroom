@@ -37,7 +37,9 @@ export const cleanupOldEvents = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[EventCleanup] Deleted ${deleted} old events (cutoff: ${new Date(cutoff).toISOString()})`);
+      console.log(
+        `[EventCleanup] Deleted ${deleted} old events (cutoff: ${new Date(cutoff).toISOString()})`
+      );
     }
 
     // Self-reschedule if we hit the batch limit (more rows likely remain)

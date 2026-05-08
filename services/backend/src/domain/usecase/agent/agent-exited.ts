@@ -116,9 +116,7 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     // the cleanup previously done by cleanupMachineAgent).
     const participant = await ctx.db
       .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', role)
-      )
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
       .unique();
     if (participant) {
       await ctx.db.patch('chatroom_participants', participant._id, {

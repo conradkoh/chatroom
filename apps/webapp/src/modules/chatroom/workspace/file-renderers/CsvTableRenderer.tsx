@@ -9,7 +9,10 @@ interface CsvTableRendererProps {
   className?: string;
 }
 
-export const CsvTableRenderer = memo(function CsvTableRenderer({ content, className }: CsvTableRendererProps) {
+export const CsvTableRenderer = memo(function CsvTableRenderer({
+  content,
+  className,
+}: CsvTableRendererProps) {
   const rows = useMemo(() => parseCsv(content), [content]);
 
   if (rows.length === 0) {

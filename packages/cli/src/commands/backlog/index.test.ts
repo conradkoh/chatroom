@@ -170,14 +170,11 @@ describe('completeBacklog', () => {
     expect(getAllLogOutput()).toContain('Backlog item completed');
     // Strict equality: catches omitted required args (regression: objectContaining
     // let missing fields slip through undetected).
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        sessionId: TEST_SESSION_ID,
-        chatroomId: TEST_CHATROOM_ID,
-        itemId: TEST_TASK_ID,
-      }
-    );
+    expect(deps.backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: TEST_SESSION_ID,
+      chatroomId: TEST_CHATROOM_ID,
+      itemId: TEST_TASK_ID,
+    });
   });
 });
 
@@ -277,9 +274,7 @@ describe('exportBacklog', () => {
 
   it('exits with code 1 when backend query fails', async () => {
     const deps = createMockDeps();
-    (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('Network error')
-    );
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
     await exportBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
 
@@ -326,10 +321,7 @@ describe('importBacklog', () => {
   });
 
   it('reads file, creates new items, and reports counts', async () => {
-    const exportData = makeExportFile([
-      { content: 'Task A' },
-      { content: 'Task B' },
-    ]);
+    const exportData = makeExportFile([{ content: 'Task A' }, { content: 'Task B' }]);
 
     const deps = createMockDeps({
       fs: createMockFsOps({
@@ -353,10 +345,7 @@ describe('importBacklog', () => {
   });
 
   it('skips duplicate items based on content hash', async () => {
-    const exportData = makeExportFile([
-      { content: 'Already exists' },
-      { content: 'New task' },
-    ]);
+    const exportData = makeExportFile([{ content: 'Already exists' }, { content: 'New task' }]);
 
     const deps = createMockDeps({
       fs: createMockFsOps({
@@ -421,10 +410,7 @@ describe('importBacklog', () => {
   });
 
   it('idempotent: importing same file twice creates items only once', async () => {
-    const exportData = makeExportFile([
-      { content: 'Task X' },
-      { content: 'Task Y' },
-    ]);
+    const exportData = makeExportFile([{ content: 'Task X' }, { content: 'Task Y' }]);
 
     // First import — no existing items
     const deps1 = createMockDeps({
@@ -459,10 +445,7 @@ describe('importBacklog', () => {
   });
 
   it('handles duplicate items within the same export file', async () => {
-    const exportData = makeExportFile([
-      { content: 'Same content' },
-      { content: 'Same content' },
-    ]);
+    const exportData = makeExportFile([{ content: 'Same content' }, { content: 'Same content' }]);
 
     const deps = createMockDeps({
       fs: createMockFsOps({
@@ -537,22 +520,23 @@ describe('updateBacklog', () => {
     // Use strict equality (not objectContaining) to ensure no required fields
     // are silently omitted — the prior objectContaining form let a missing
     // chatroomId slip through undetected.
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        sessionId: TEST_SESSION_ID,
-        chatroomId: TEST_CHATROOM_ID,
-        itemId: TEST_TASK_ID,
-        content: 'Updated content',
-      }
-    );
+    expect(deps.backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: TEST_SESSION_ID,
+      chatroomId: TEST_CHATROOM_ID,
+      itemId: TEST_TASK_ID,
+      content: 'Updated content',
+    });
     expect(getAllLogOutput()).toContain('Backlog item content updated');
   });
 
   it('exits with code 1 when backlogItemId is missing', async () => {
     const deps = createMockDeps();
 
-    await updateBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: '', content: 'some content' }, deps);
+    await updateBacklog(
+      TEST_CHATROOM_ID,
+      { role: 'planner', backlogItemId: '', content: 'some content' },
+      deps
+    );
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(deps.backend.mutation).not.toHaveBeenCalled();
@@ -591,15 +575,12 @@ describe('closeBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     // Strict equality: catches omitted required args like chatroomId
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        sessionId: TEST_SESSION_ID,
-        chatroomId: TEST_CHATROOM_ID,
-        itemId: TEST_TASK_ID,
-        reason: 'duplicate of item XYZ',
-      }
-    );
+    expect(deps.backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: TEST_SESSION_ID,
+      chatroomId: TEST_CHATROOM_ID,
+      itemId: TEST_TASK_ID,
+      reason: 'duplicate of item XYZ',
+    });
     expect(getAllLogOutput()).toContain('Backlog item closed');
   });
 
@@ -644,15 +625,12 @@ describe('closeBacklog', () => {
     expect(exitSpy).not.toHaveBeenCalled();
     // Strict equality: include all required mutation args, not just the
     // trimmed field — objectContaining would silently miss omitted fields.
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        sessionId: TEST_SESSION_ID,
-        chatroomId: TEST_CHATROOM_ID,
-        itemId: TEST_TASK_ID,
-        reason: 'trimmed reason',
-      }
-    );
+    expect(deps.backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: TEST_SESSION_ID,
+      chatroomId: TEST_CHATROOM_ID,
+      itemId: TEST_TASK_ID,
+      reason: 'trimmed reason',
+    });
     expect(getAllLogOutput()).toContain('Reason: trimmed reason');
   });
 });

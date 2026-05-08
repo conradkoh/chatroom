@@ -1,6 +1,6 @@
 /**
  * Tests for skill prompt full output verification.
- * 
+ *
  * These tests verify what the agent sees EXACTLY when a skill is activated.
  * The key is that the skill.activated event contains a 'prompt' field
  * that is what gets used as the system prompt for the agent.
@@ -67,11 +67,11 @@ describe('skill activation: what the agent sees', () => {
     });
 
     expect(event).toBeDefined();
-    
+
     // THIS IS THE KEY: The prompt field is what the agent sees
     // When agent asks "what do I see", this is the prompt content
     expect(event?.prompt).toBe(customContent);
-    
+
     // Also verify other fields are correctly set
     expect(event?.skillId).toBe('development-workflow');
     expect(event?.skillName).toBe('Development & Release Workflow');
@@ -102,7 +102,7 @@ describe('skill activation: what the agent sees', () => {
     });
 
     expect(event).toBeDefined();
-    
+
     // The FULL prompt the agent sees - comprehensive release workflow
     const fullPrompt = event?.prompt;
     expect(fullPrompt).toContain('You have been activated with the "development-workflow" skill');

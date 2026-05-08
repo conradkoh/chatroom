@@ -21,7 +21,12 @@ import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Control the list of queued messages returned by the query.
-let mockQueuedMessages: { _id: string; _creationTime: number; content: string; senderRole: string }[] = [];
+let mockQueuedMessages: {
+  _id: string;
+  _creationTime: number;
+  content: string;
+  senderRole: string;
+}[] = [];
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (_api: unknown, _args: unknown) => mockQueuedMessages,

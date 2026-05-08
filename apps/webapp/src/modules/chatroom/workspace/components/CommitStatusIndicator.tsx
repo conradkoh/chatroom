@@ -10,11 +10,7 @@ import { memo } from 'react';
 
 import type { CommitStatusSummary } from '../types/git';
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,14 +87,9 @@ export const CommitStatusIndicator = memo(function CommitStatusIndicator({
           {status.checkRuns.length > 0 ? (
             <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto">
               {status.checkRuns.map((run) => (
-                <div
-                  key={run.name}
-                  className="flex items-center gap-1.5 px-1 py-0.5 text-[11px]"
-                >
+                <div key={run.name} className="flex items-center gap-1.5 px-1 py-0.5 text-[11px]">
                   {getConclusionIcon(run.conclusion, run.status)}
-                  <span className="text-chatroom-text-primary truncate flex-1">
-                    {run.name}
-                  </span>
+                  <span className="text-chatroom-text-primary truncate flex-1">{run.name}</span>
                   <span className="text-chatroom-text-muted text-[10px] shrink-0">
                     {getConclusionLabel(run.conclusion, run.status)}
                   </span>

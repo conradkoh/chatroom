@@ -58,19 +58,15 @@ describe('computeFrecencyScore', () => {
 
   test('sums scores for multiple usages', () => {
     const timestamps = [
-      now - 1 * HOUR,   // weight: 150
-      now - 12 * HOUR,  // weight: 120
-      now - 5 * DAY,    // weight: 60
+      now - 1 * HOUR, // weight: 150
+      now - 12 * HOUR, // weight: 120
+      now - 5 * DAY, // weight: 60
     ];
     expect(computeFrecencyScore(timestamps, now)).toBe(330);
   });
 
   test('frequent recent usage scores highest', () => {
-    const frequentRecent = [
-      now - 1 * HOUR,
-      now - 2 * HOUR,
-      now - 3 * HOUR,
-    ]; // 3 × 150 = 450
+    const frequentRecent = [now - 1 * HOUR, now - 2 * HOUR, now - 3 * HOUR]; // 3 × 150 = 450
 
     const frequentOld = [
       now - 20 * DAY,

@@ -12,6 +12,7 @@ import { AttachedTaskChip } from './AttachedTaskChip';
 import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
+
 import {
   useAttachments,
   useTaskAttachments,

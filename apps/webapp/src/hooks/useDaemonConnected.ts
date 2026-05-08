@@ -43,10 +43,7 @@ const STALENESS_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
  * ```
  */
 export function useDaemonConnected(machineId: string | null): UseDaemonConnectedResult {
-  const result = useSessionQuery(
-    api.machines.getDaemonStatus,
-    machineId ? { machineId } : 'skip'
-  );
+  const result = useSessionQuery(api.machines.getDaemonStatus, machineId ? { machineId } : 'skip');
 
   if (result === undefined) {
     return { isConnected: false, isLoading: true };

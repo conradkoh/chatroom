@@ -16,7 +16,10 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({
+  content,
+  className,
+}: MarkdownRendererProps) {
   return (
     <div className={className ?? DEFAULT_PROSE_CLASSES}>
       <Markdown remarkPlugins={REMARK_PLUGINS}>{content}</Markdown>

@@ -55,8 +55,8 @@ export function CommandOutputPanel({
               isRunning
                 ? 'bg-yellow-500 animate-pulse'
                 : output.some((line) => line.toLowerCase().includes('error'))
-                ? 'bg-red-500'
-                : 'bg-green-500'
+                  ? 'bg-red-500'
+                  : 'bg-green-500'
             )}
           />
           <div className="flex flex-col min-w-0">
@@ -117,8 +117,8 @@ export function CommandOutputPanel({
                 line.toLowerCase().includes('error')
                   ? 'text-red-400'
                   : line.toLowerCase().includes('warning')
-                  ? 'text-yellow-400'
-                  : 'text-chatroom-text-secondary'
+                    ? 'text-yellow-400'
+                    : 'text-chatroom-text-secondary'
               )}
             >
               {line}

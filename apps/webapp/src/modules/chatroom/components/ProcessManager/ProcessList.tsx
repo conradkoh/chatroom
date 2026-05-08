@@ -55,23 +55,15 @@ export function ProcessList({
           <div
             key={run._id}
             className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-              isSelected
-                ? 'bg-chatroom-bg-hover'
-                : 'hover:bg-chatroom-bg-hover/50'
+              isSelected ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
             }`}
             onClick={() => onSelect(run._id)}
           >
             <StatusIcon status={run.status} />
 
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-chatroom-text-primary truncate">
-                {run.commandName}
-              </div>
-              {run.pid && (
-                <div className="text-[10px] text-chatroom-text-muted">
-                  PID {run.pid}
-                </div>
-              )}
+              <div className="text-xs text-chatroom-text-primary truncate">{run.commandName}</div>
+              {run.pid && <div className="text-[10px] text-chatroom-text-muted">PID {run.pid}</div>}
             </div>
 
             {/* Action buttons */}

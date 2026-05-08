@@ -75,10 +75,7 @@ export const cleanupWorkspaceFileTree = internalMutation({
 export const cleanupReadCursors = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cursors = await ctx.db
-      .query('chatroom_read_cursors')
-      .order('asc')
-      .take(BATCH_SIZE);
+    const cursors = await ctx.db.query('chatroom_read_cursors').order('asc').take(BATCH_SIZE);
 
     let deleted = 0;
     for (const cursor of cursors) {
@@ -283,7 +280,9 @@ export const cleanupMachines = internalMutation({
     }
 
     if (deletedMachines > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deletedMachines} inactive machines (90d+) and all related rows`);
+      console.log(
+        `[ChatroomCleanup] Deleted ${deletedMachines} inactive machines (90d+) and all related rows`
+      );
     }
 
     // Self-reschedule if we hit the batch limit
@@ -304,10 +303,7 @@ export const cleanupMachines = internalMutation({
 export const cleanupParticipants = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .order('asc')
-      .take(BATCH_SIZE);
+    const participants = await ctx.db.query('chatroom_participants').order('asc').take(BATCH_SIZE);
 
     let deleted = 0;
     for (const participant of participants) {
@@ -352,10 +348,7 @@ export const cleanupCliSessions = internalMutation({
     const inactiveSessions = await ctx.db
       .query('cliSessions')
       .filter((q) =>
-        q.and(
-          q.eq(q.field('isActive'), false),
-          q.lt(q.field('_creationTime'), inactiveCutoff)
-        )
+        q.and(q.eq(q.field('isActive'), false), q.lt(q.field('_creationTime'), inactiveCutoff))
       )
       .take(BATCH_SIZE);
 
@@ -450,10 +443,7 @@ export const cleanupCompletedTasks = internalMutation({
       .order('asc')
       .filter((q) =>
         q.and(
-          q.or(
-            q.eq(q.field('status'), 'completed'),
-            q.eq(q.field('status'), 'closed')
-          ),
+          q.or(q.eq(q.field('status'), 'completed'), q.eq(q.field('status'), 'closed')),
           // Must be old enough by creation time (conservative pre-filter)
           q.lt(q.field('_creationTime'), cutoff)
         )

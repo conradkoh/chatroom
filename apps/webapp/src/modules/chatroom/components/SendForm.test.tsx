@@ -331,9 +331,7 @@ describe('SendForm', () => {
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent(/Failed to send/i);
       expect(alert).toHaveTextContent(/Server error/i);
-      expect(
-        screen.getByRole('button', { name: /Dismiss send error/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Dismiss send error/i })).toBeInTheDocument();
     });
 
     it('clears the inline error when the user starts typing again', async () => {

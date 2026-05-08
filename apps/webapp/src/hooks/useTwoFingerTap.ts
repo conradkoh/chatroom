@@ -51,10 +51,10 @@ export function useTwoFingerTap(onTwoFingerTap: () => void): void {
       if (endTouches.length < 1) return;
 
       const moved = endTouches.some((touch) => {
-        const start = startTouches.find(
-          (s) =>
-            Math.abs(s.x - touch.clientX) < 50 && Math.abs(s.y - touch.clientY) < 50
-        ) ?? startTouches[0]!;
+        const start =
+          startTouches.find(
+            (s) => Math.abs(s.x - touch.clientX) < 50 && Math.abs(s.y - touch.clientY) < 50
+          ) ?? startTouches[0]!;
         const dx = Math.abs(touch.clientX - start.x);
         const dy = Math.abs(touch.clientY - start.y);
         return dx > MAX_TAP_MOVEMENT_PX || dy > MAX_TAP_MOVEMENT_PX;

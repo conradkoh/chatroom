@@ -68,8 +68,7 @@ describe('telegram api', () => {
   describe('role filtering logic', () => {
     test('user role is allowed', () => {
       const senderRole = 'user';
-      const isAllowed =
-        senderRole === 'user' || !!senderRole.match(/^(planner|builder|reviewer)$/);
+      const isAllowed = senderRole === 'user' || !!senderRole.match(/^(planner|builder|reviewer)$/);
       expect(isAllowed).toBe(true);
     });
 

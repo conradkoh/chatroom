@@ -188,9 +188,7 @@ export async function readContext(
     console.log('\n' + '═'.repeat(60));
     console.log('</context>');
   } catch (err) {
-    console.error(
-      `❌ Failed to read context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
-    );
+    console.error(`❌ Failed to read context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`);
     process.exit(1);
     return;
   }

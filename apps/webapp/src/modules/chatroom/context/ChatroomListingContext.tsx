@@ -89,7 +89,9 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
 
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
-    const unreadHandoffMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false]));
+    const unreadHandoffMap = new Map(
+      unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false])
+    );
     const remoteAgentStatusMap = new Map(
       remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
     );
@@ -110,7 +112,6 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       presenceByRoom.set(p.chatroomId, existing);
     }
 
-
     return baseChatrooms.map((chatroom) => {
       const agents = presenceByRoom.get(chatroom._id) ?? [];
 
@@ -120,9 +121,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       if (chatroom.status === 'completed') {
         chatStatus = 'completed';
       } else {
-        const onlineAgents = agents.filter(
-          (a) => a.lastSeenAction !== 'exited' && a.isAlive
-        );
+        const onlineAgents = agents.filter((a) => a.lastSeenAction !== 'exited' && a.isAlive);
         if (onlineAgents.length === 0) {
           chatStatus = 'idle';
         } else {

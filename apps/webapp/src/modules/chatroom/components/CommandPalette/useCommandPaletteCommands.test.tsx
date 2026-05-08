@@ -228,9 +228,7 @@ describe('useCommandPaletteCommands', () => {
       });
       expect(cmd?.keywords).toBeDefined();
       expect(cmd?.keywords?.some((k) => k.toLowerCase() === 'pull')).toBe(false);
-      expect(
-        fuzzyFilter('Chatroom: Refresh Workspace State', 'pull', cmd?.keywords)
-      ).toBe(0);
+      expect(fuzzyFilter('Chatroom: Refresh Workspace State', 'pull', cmd?.keywords)).toBe(0);
     });
 
     it('triggers the handler when the action is called', () => {

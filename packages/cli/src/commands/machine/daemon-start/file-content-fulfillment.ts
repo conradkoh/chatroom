@@ -19,13 +19,44 @@ const MAX_CONTENT_BYTES = 500 * 1024;
 
 /** Known binary file extensions. */
 const BINARY_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
-  '.mp3', '.mp4', '.wav', '.ogg', '.webm',
-  '.zip', '.tar', '.gz', '.bz2', '.7z', '.rar',
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-  '.woff', '.woff2', '.ttf', '.otf', '.eot',
-  '.exe', '.dll', '.so', '.dylib',
-  '.bin', '.dat', '.db', '.sqlite',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.ico',
+  '.svg',
+  '.mp3',
+  '.mp4',
+  '.wav',
+  '.ogg',
+  '.webm',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.bz2',
+  '.7z',
+  '.rar',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.bin',
+  '.dat',
+  '.db',
+  '.sqlite',
 ]);
 
 function isBinaryFile(path: string): boolean {
@@ -98,7 +129,9 @@ async function fulfillSingleRequest(
       truncated: false,
     });
     const elapsed = Date.now() - startTime;
-    console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`);
+    console.log(
+      `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`
+    );
     return;
   }
 
@@ -136,5 +169,7 @@ async function fulfillSingleRequest(
   });
 
   const elapsed = Date.now() - startTime;
-  console.log(`[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`);
+  console.log(
+    `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`
+  );
 }

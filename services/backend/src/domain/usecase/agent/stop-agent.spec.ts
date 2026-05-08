@@ -210,9 +210,7 @@ describe('stopAgent use case — eager cleanup', () => {
         .collect();
     });
 
-    const stopEvent = events.find(
-      (e) => e.type === 'agent.requestStop' && e.role === 'builder'
-    );
+    const stopEvent = events.find((e) => e.type === 'agent.requestStop' && e.role === 'builder');
     expect(stopEvent).toBeDefined();
     if (stopEvent && stopEvent.type === 'agent.requestStop') {
       expect(stopEvent.pid).toBe(54321);

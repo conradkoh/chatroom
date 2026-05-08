@@ -99,7 +99,9 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
     lines.push(`- **${skill.skillId}**: ${skill.description}`);
   }
   lines.push('');
-  lines.push("Don't wait for the user to ask — proactively activate the skill that matches the task.");
+  lines.push(
+    "Don't wait for the user to ask — proactively activate the skill that matches the task."
+  );
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }

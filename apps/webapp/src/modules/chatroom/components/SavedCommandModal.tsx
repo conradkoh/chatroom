@@ -64,9 +64,7 @@ export function SavedCommandModal({
   const isEditMode = Boolean(initial);
   const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
   const [name, setName] = useState(initial?.name ?? '');
-  const [promptText, setPromptText] = useState(
-    initial?.type === 'prompt' ? initial.prompt : ''
-  );
+  const [promptText, setPromptText] = useState(initial?.type === 'prompt' ? initial.prompt : '');
   const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);

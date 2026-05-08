@@ -12,7 +12,15 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE } from '@workspace/backend/src/domain/types/skills';
 import { useQuery } from 'convex/react';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { AlertTriangle, ChevronDown, ChevronRight, FileText, Loader2, Pencil, RotateCcw } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Loader2,
+  Pencil,
+  RotateCcw,
+} from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 

@@ -136,10 +136,7 @@ export async function startAgent(
       });
     }
 
-    if (
-      previousMachineId != null &&
-      previousMachineId !== machineId
-    ) {
+    if (previousMachineId != null && previousMachineId !== machineId) {
       await ctx.db.insert('chatroom_eventStream', {
         type: 'machine.switched',
         chatroomId,

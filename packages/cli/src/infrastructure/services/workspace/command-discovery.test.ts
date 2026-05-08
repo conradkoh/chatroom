@@ -94,17 +94,33 @@ describe('command prefixes', () => {
   });
 
   test('getFilteredScriptCommand for all PMs', () => {
-    expect(getFilteredScriptCommand('pnpm', 'my-pkg', 'build')).toBe('pnpm --filter my-pkg run build');
-    expect(getFilteredScriptCommand('yarn', 'my-pkg', 'build')).toBe('yarn workspace my-pkg run build');
-    expect(getFilteredScriptCommand('bun', 'my-pkg', 'build')).toBe('bun --filter my-pkg run build');
-    expect(getFilteredScriptCommand('npm', 'my-pkg', 'build')).toBe('npm --workspace=my-pkg run build');
+    expect(getFilteredScriptCommand('pnpm', 'my-pkg', 'build')).toBe(
+      'pnpm --filter my-pkg run build'
+    );
+    expect(getFilteredScriptCommand('yarn', 'my-pkg', 'build')).toBe(
+      'yarn workspace my-pkg run build'
+    );
+    expect(getFilteredScriptCommand('bun', 'my-pkg', 'build')).toBe(
+      'bun --filter my-pkg run build'
+    );
+    expect(getFilteredScriptCommand('npm', 'my-pkg', 'build')).toBe(
+      'npm --workspace=my-pkg run build'
+    );
   });
 
   test('getFilteredTurboCommand for all PMs', () => {
-    expect(getFilteredTurboCommand('pnpm', 'my-pkg', 'build')).toBe('pnpm turbo run build --filter=my-pkg');
-    expect(getFilteredTurboCommand('yarn', 'my-pkg', 'build')).toBe('yarn turbo run build --filter=my-pkg');
-    expect(getFilteredTurboCommand('bun', 'my-pkg', 'build')).toBe('bun turbo run build --filter=my-pkg');
-    expect(getFilteredTurboCommand('npm', 'my-pkg', 'build')).toBe('npx turbo run build --filter=my-pkg');
+    expect(getFilteredTurboCommand('pnpm', 'my-pkg', 'build')).toBe(
+      'pnpm turbo run build --filter=my-pkg'
+    );
+    expect(getFilteredTurboCommand('yarn', 'my-pkg', 'build')).toBe(
+      'yarn turbo run build --filter=my-pkg'
+    );
+    expect(getFilteredTurboCommand('bun', 'my-pkg', 'build')).toBe(
+      'bun turbo run build --filter=my-pkg'
+    );
+    expect(getFilteredTurboCommand('npm', 'my-pkg', 'build')).toBe(
+      'npx turbo run build --filter=my-pkg'
+    );
   });
 });
 
@@ -128,10 +144,7 @@ describe('discoverCommands — monorepo', () => {
     );
 
     // pnpm-workspace.yaml
-    await writeFile(
-      join(testDir, 'pnpm-workspace.yaml'),
-      "packages:\n  - 'packages/*'\n"
-    );
+    await writeFile(join(testDir, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
 
     // Sub-package
     await createPackageJson(join(testDir, 'packages/cli'), {
@@ -145,33 +158,38 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'pnpm: test',
       script: 'pnpm run test',
-      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Root turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build',
       script: 'pnpm turbo run build',
-      source: 'turbo.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
+      source: 'turbo.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Filtered turbo tasks
     expect(commands).toContainEqual({
       name: 'turbo: build (my-cli)',
       script: 'pnpm turbo run build --filter=my-cli',
-      source: 'turbo.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
+      source: 'turbo.json',
+      subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
 
     // Per-package script commands
     expect(commands).toContainEqual({
       name: 'my-cli: build',
       script: 'pnpm --filter my-cli run build',
-      source: 'package.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
     expect(commands).toContainEqual({
       name: 'my-cli: test',
       script: 'pnpm --filter my-cli run test',
-      source: 'package.json', subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: 'packages/cli', name: 'my-cli' },
     });
   });
 
@@ -182,10 +200,7 @@ describe('discoverCommands — monorepo', () => {
       workspaces: ['apps/*'],
       scripts: { lint: 'eslint .' },
     });
-    await writeFile(
-      join(testDir, 'turbo.json'),
-      JSON.stringify({ tasks: { build: {} } })
-    );
+    await writeFile(join(testDir, 'turbo.json'), JSON.stringify({ tasks: { build: {} } }));
     await createPackageJson(join(testDir, 'apps/web'), {
       name: '@my/web',
       scripts: { dev: 'next dev' },
@@ -197,21 +212,24 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'yarn: lint',
       script: 'yarn run lint',
-      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'root' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'root' },
     });
 
     // Turbo filtered
     expect(commands).toContainEqual({
       name: 'turbo: build (@my/web)',
       script: 'yarn turbo run build --filter=@my/web',
-      source: 'turbo.json', subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
+      source: 'turbo.json',
+      subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
     });
 
     // Per-package
     expect(commands).toContainEqual({
       name: '@my/web: dev',
       script: 'yarn workspace @my/web run dev',
-      source: 'package.json', subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: 'apps/web', name: '@my/web' },
     });
   });
 
@@ -227,7 +245,8 @@ describe('discoverCommands — monorepo', () => {
     expect(commands).toContainEqual({
       name: 'npm: start',
       script: 'npm run start',
-      source: 'package.json', subWorkspace: { type: 'npm', path: '.', name: 'single-app' },
+      source: 'package.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'single-app' },
     });
 
     // No workspace-specific commands

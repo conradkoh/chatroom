@@ -327,8 +327,9 @@ describe('classify', () => {
         teamRoles: ['planner', 'builder'],
       });
       // Classification fails
-      (deps.backend.mutation as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new Error('Classification failed'));
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Classification failed')
+      );
 
       await classify(TEST_CHATROOM_ID, defaultOptions(), deps);
 

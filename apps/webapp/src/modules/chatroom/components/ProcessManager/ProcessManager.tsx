@@ -100,7 +100,9 @@ export function ProcessManager({
         setSelectedWorkspace(null);
         // Track the workspace for back navigation
         const groups = groupCommandsByWorkspace(commands, '');
-        const ws = groups.find((g) => g.allCommands.some((c: RunnableCommand) => c.name === cmd.name));
+        const ws = groups.find((g) =>
+          g.allCommands.some((c: RunnableCommand) => c.name === cmd.name)
+        );
         if (ws) setPreviousWorkspace(ws);
       }
     }
@@ -181,12 +183,10 @@ export function ProcessManager({
   );
 
   // Separate running and recent runs
-  const runningProcesses = runs.filter(
-    (r) => r.status === 'running' || r.status === 'pending'
-  );
-  const recentRuns = runs.filter(
-    (r) => r.status !== 'running' && r.status !== 'pending'
-  ).slice(0, 10);
+  const runningProcesses = runs.filter((r) => r.status === 'running' || r.status === 'pending');
+  const recentRuns = runs
+    .filter((r) => r.status !== 'running' && r.status !== 'pending')
+    .slice(0, 10);
 
   const handleRunCommand = useCallback(
     (cmd: RunnableCommand) => {
@@ -231,7 +231,10 @@ export function ProcessManager({
           {/* Split pane */}
           <div className="flex flex-1 overflow-hidden">
             {/* Left sidebar */}
-            <div className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden" onKeyDown={handleKeyDown}>
+            <div
+              className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden"
+              onKeyDown={handleKeyDown}
+            >
               {/* Search */}
               <div className="p-2 border-b border-chatroom-border">
                 <input
@@ -252,7 +255,12 @@ export function ProcessManager({
                     title={`Running (${runningProcesses.length})`}
                     runs={runningProcesses}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
+                    onSelect={(runId) => {
+                      setPreviousCommand(selectedCommand);
+                      setSelectedCommand(null);
+                      setSelectedWorkspace(null);
+                      onSelectRun(runId);
+                    }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -263,7 +271,8 @@ export function ProcessManager({
                   /* Search results: flat list of matching commands */
                   <div>
                     <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
-                      Search Results ({workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
+                      Search Results (
+                      {workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
                     </div>
                     {(() => {
                       let idx = 0;
@@ -284,11 +293,15 @@ export function ProcessManager({
                                 isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
                               }`}
                             >
-                              <span className="text-yellow-500 flex-shrink-0 mt-0.5">{isFav ? '★' : '☆'}</span>
+                              <span className="text-yellow-500 flex-shrink-0 mt-0.5">
+                                {isFav ? '★' : '☆'}
+                              </span>
                               <div className="flex-1 min-w-0">
-                                <div className={`text-xs font-bold uppercase tracking-wider truncate ${
-                                  isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
-                                }`}>
+                                <div
+                                  className={`text-xs font-bold uppercase tracking-wider truncate ${
+                                    isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
+                                  }`}
+                                >
                                   {getCompactDisplayName(cmd.name, cmd.script)}
                                 </div>
                                 <div className="text-[10px] text-chatroom-text-muted/70 truncate">
@@ -315,11 +328,15 @@ export function ProcessManager({
                             setSelectedCommand(null);
                           }}
                           className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors border-b border-chatroom-border/20 ${
-                            isFocused ? 'bg-chatroom-bg-hover text-chatroom-text-primary' : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+                            isFocused
+                              ? 'bg-chatroom-bg-hover text-chatroom-text-primary'
+                              : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
                           }`}
                         >
                           <span className="truncate">{ws.path === '.' ? 'Root' : ws.path}</span>
-                          <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">{ws.allCommands.length}</span>
+                          <span className="ml-auto text-chatroom-text-muted/50 text-[10px]">
+                            {ws.allCommands.length}
+                          </span>
                         </button>
                       );
                     })}
@@ -332,7 +349,12 @@ export function ProcessManager({
                     title="Recent"
                     runs={recentRuns}
                     onStop={onStopCommand}
-                    onSelect={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); setSelectedWorkspace(null); onSelectRun(runId); }}
+                    onSelect={(runId) => {
+                      setPreviousCommand(selectedCommand);
+                      setSelectedCommand(null);
+                      setSelectedWorkspace(null);
+                      onSelectRun(runId);
+                    }}
                     onRestart={handleRestartCommand}
                     selectedRunId={activeRunOutput.run?._id ?? null}
                   />
@@ -380,7 +402,11 @@ export function ProcessManager({
                   runs={runs}
                   onRun={() => handleRunCommand(selectedCommand)}
                   onStop={onStopCommand}
-                  onSelectRun={(runId) => { setPreviousCommand(selectedCommand); setSelectedCommand(null); onSelectRun(runId); }}
+                  onSelectRun={(runId) => {
+                    setPreviousCommand(selectedCommand);
+                    setSelectedCommand(null);
+                    onSelectRun(runId);
+                  }}
                   onToggleFavorite={() => handleToggleFavorite(selectedCommand.name)}
                   onBack={() => {
                     if (previousWorkspace) {
@@ -449,9 +475,10 @@ function groupCommandsByWorkspace(
 ): WorkspaceGroup[] {
   // Filter by search query
   const filtered = searchQuery
-    ? commands.filter((c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.script.toLowerCase().includes(searchQuery.toLowerCase())
+    ? commands.filter(
+        (c) =>
+          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.script.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : commands;
 
@@ -505,9 +532,11 @@ function CommandDetailPanel({
   const runningInstances = runs.filter(
     (r) => r.commandName === command.name && (r.status === 'running' || r.status === 'pending')
   );
-  const recentInstances = runs.filter(
-    (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
-  ).slice(0, 5);
+  const recentInstances = runs
+    .filter(
+      (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
+    )
+    .slice(0, 5);
 
   // Handle Enter key to run command
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -534,9 +563,7 @@ function CommandDetailPanel({
             <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               {command.name}
             </h3>
-            <p className="text-xs text-chatroom-text-muted mt-0.5">
-              Source: {command.source}
-            </p>
+            <p className="text-xs text-chatroom-text-muted mt-0.5">Source: {command.source}</p>
           </div>
         </div>
       </div>
@@ -544,9 +571,7 @@ function CommandDetailPanel({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Script */}
         <div className="bg-black/60 rounded p-3">
-          <code className="text-xs font-mono text-green-400 break-all">
-            $ {command.script}
-          </code>
+          <code className="text-xs font-mono text-green-400 break-all">$ {command.script}</code>
         </div>
 
         {/* Actions */}
@@ -614,16 +639,21 @@ function CommandDetailPanel({
                   key={run._id}
                   className="flex items-center gap-2 px-3 py-1.5 hover:bg-chatroom-bg-hover/30 transition-colors"
                 >
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    run.status === 'completed' ? 'bg-chatroom-text-muted/50' :
-                    run.status === 'failed' ? 'bg-red-500' :
-                    'bg-yellow-500'
-                  }`} />
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      run.status === 'completed'
+                        ? 'bg-chatroom-text-muted/50'
+                        : run.status === 'failed'
+                          ? 'bg-red-500'
+                          : 'bg-yellow-500'
+                    }`}
+                  />
                   <button
                     onClick={() => onSelectRun(run._id)}
                     className="flex-1 text-left text-xs text-chatroom-text-muted truncate"
                   >
-                    {run.status}{run.exitCode !== undefined ? ` (exit ${run.exitCode})` : ''}
+                    {run.status}
+                    {run.exitCode !== undefined ? ` (exit ${run.exitCode})` : ''}
                   </button>
                 </div>
               ))}
@@ -680,7 +710,8 @@ function WorkspaceDetailPanel({
           const others: RunnableCommand[] = [];
 
           for (const cmd of workspace.allCommands) {
-            const isCommon = cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
+            const isCommon =
+              cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
             if (favSet.has(cmd.name)) {
               favourited.push(cmd);
             } else if (isCommon) {
@@ -701,15 +732,14 @@ function WorkspaceDetailPanel({
                 <button
                   onClick={() => onToggleFavorite(cmd.name)}
                   className={`flex-shrink-0 transition-colors ${
-                    isFav ? 'text-yellow-500' : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
+                    isFav
+                      ? 'text-yellow-500'
+                      : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
                   }`}
                 >
                   ★
                 </button>
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => onSelectCommand(cmd)}
-                >
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectCommand(cmd)}>
                   <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider">
                     {scriptName}
                   </div>

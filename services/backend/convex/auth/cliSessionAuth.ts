@@ -89,9 +89,7 @@ export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   userId: Id<'users'>
-): Promise<
-  { ok: true; chatroom: Doc<'chatroom_rooms'> } | { ok: false; reason: string }
-> {
+): Promise<{ ok: true; chatroom: Doc<'chatroom_rooms'> } | { ok: false; reason: string }> {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
   if (!chatroom) {

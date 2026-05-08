@@ -2,14 +2,34 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Check, Copy, Loader2, ChevronRight, ChevronDown, FolderIcon, Menu, ChevronsDownUp, Search, Eye, Code2, Files } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  FolderIcon,
+  Menu,
+  ChevronsDownUp,
+  Search,
+  Eye,
+  Code2,
+  Files,
+} from 'lucide-react';
+import {
+  isMarkdownFile,
+  isCsvFile,
+  getDefaultViewMode,
+  type FileViewMode,
+  MarkdownRenderer,
+  CsvTableRenderer,
+} from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 
 import { isBinaryFile } from './binaryDetection';
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
-import { isMarkdownFile, isCsvFile, getDefaultViewMode, type FileViewMode, MarkdownRenderer, CsvTableRenderer } from '../../workspace/file-renderers';
 import { useFileContent } from '../../workspace/hooks/useFileContent';
 
 import {
@@ -148,17 +168,19 @@ const TreeItem = memo(function TreeItem({
         )}
         <span className="truncate font-mono">{node.name}</span>
       </button>
-      {isDir && isExpanded && node.children.map((child) => (
-        <TreeItem
-          key={child.path}
-          node={child}
-          depth={depth + 1}
-          selectedPath={selectedPath}
-          expandedDirs={expandedDirs}
-          onToggleDir={onToggleDir}
-          onSelectFile={onSelectFile}
-        />
-      ))}
+      {isDir &&
+        isExpanded &&
+        node.children.map((child) => (
+          <TreeItem
+            key={child.path}
+            node={child}
+            depth={depth + 1}
+            selectedPath={selectedPath}
+            expandedDirs={expandedDirs}
+            onToggleDir={onToggleDir}
+            onSelectFile={onSelectFile}
+          />
+        ))}
     </>
   );
 });
@@ -319,9 +341,7 @@ const FileContentPanel = memo(function FileContentPanel({
 }) {
   // Fetch cached content (with transparent decompression)
   const contentResult = useFileContent(
-    machineId && workingDir && filePath
-      ? { machineId, workingDir, filePath }
-      : 'skip'
+    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
   );
 
   // Request content mutation (triggers daemon to fetch)
@@ -383,7 +403,10 @@ const FileContentPanel = memo(function FileContentPanel({
           {/* Line numbers */}
           <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
             {contentResult.content.split('\n').map((_: string, i: number) => (
-              <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
+              <div
+                key={i}
+                className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed"
+              >
                 {i + 1}
               </div>
             ))}
@@ -434,16 +457,17 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   }, [filePath]);
 
   // Close mobile tree when selecting a file
-  const handleMobileSelectFile = useCallback((path: string) => {
-    onSelectFile(path);
-    setMobileTreeOpen(false);
-  }, [onSelectFile]);
+  const handleMobileSelectFile = useCallback(
+    (path: string) => {
+      onSelectFile(path);
+      setMobileTreeOpen(false);
+    },
+    [onSelectFile]
+  );
 
   // Fetch content result for header metadata (with transparent decompression)
   const contentResult = useFileContent(
-    machineId && workingDir && filePath
-      ? { machineId, workingDir, filePath }
-      : 'skip'
+    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
   );
 
   return (
@@ -454,11 +478,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
           <FixedModalTitle>Files</FixedModalTitle>
         </FixedModalHeader>
         <div className="flex-1 overflow-y-auto">
-          <FileTreeSidebar
-            files={files}
-            selectedPath={filePath}
-            onSelectFile={onSelectFile}
-          />
+          <FileTreeSidebar files={files} selectedPath={filePath} onSelectFile={onSelectFile} />
         </div>
       </FixedModalSidebar>
 
@@ -499,15 +519,29 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             </button>
             {hasToggle && (
               <button
-                onClick={() => setViewMode(prev => prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source')}
+                onClick={() =>
+                  setViewMode((prev) =>
+                    prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source'
+                  )
+                }
                 className={`p-1 shrink-0 transition-colors ${
                   viewMode !== 'source'
                     ? 'text-chatroom-accent'
                     : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
                 }`}
-                title={viewMode === 'source' ? (isMarkdown ? 'Preview markdown' : 'View as table') : 'Show source'}
+                title={
+                  viewMode === 'source'
+                    ? isMarkdown
+                      ? 'Preview markdown'
+                      : 'View as table'
+                    : 'Show source'
+                }
               >
-                {viewMode === 'source' ? <Eye className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
+                {viewMode === 'source' ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <Code2 className="h-3.5 w-3.5" />
+                )}
               </button>
             )}
             {onOpenInExplorer && filePath && (
@@ -529,7 +563,9 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
           {mobileTreeOpen && (
             <div className="sm:hidden absolute inset-0 z-10 bg-chatroom-bg-primary border-r border-chatroom-border overflow-y-auto">
               <div className="flex items-center justify-between px-3 py-2 border-b border-chatroom-border">
-                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">Files</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                  Files
+                </span>
                 <button
                   onClick={() => setMobileTreeOpen(false)}
                   className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1"

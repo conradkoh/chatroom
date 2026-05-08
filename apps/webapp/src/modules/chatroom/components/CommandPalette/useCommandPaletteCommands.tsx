@@ -477,7 +477,17 @@ export function useCommandPaletteCommands({
         icon: <RefreshCw size={14} />,
         category: 'Actions',
         // Omit "pull" / "git pull" — this command re-pushes observed state from the daemon, not VCS pull.
-        keywords: ['refresh', 'reload', 'sync', 'workspace', 'state', 'update', 'git', 'observed', 'daemon'],
+        keywords: [
+          'refresh',
+          'reload',
+          'sync',
+          'workspace',
+          'state',
+          'update',
+          'git',
+          'observed',
+          'daemon',
+        ],
         action: onRefreshWorkspaceState,
       });
     }

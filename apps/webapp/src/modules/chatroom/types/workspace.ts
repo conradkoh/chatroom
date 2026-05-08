@@ -25,8 +25,9 @@ export interface Workspace {
 /**
  * Returns the display name for a workspace's machine: alias if set, otherwise hostname.
  */
-export function getWorkspaceDisplayHostname(ws: { hostname: string; machineAlias?: string }): string {
+export function getWorkspaceDisplayHostname(ws: {
+  hostname: string;
+  machineAlias?: string;
+}): string {
   return ws.machineAlias || ws.hostname;
 }
-
-

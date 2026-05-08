@@ -47,7 +47,7 @@ describe('MermaidBlock — performance patterns', () => {
     );
     const modalSource = modalMatch![0];
     expect(modalSource).not.toContain('transform: `scale');
-    expect(modalSource).not.toContain("style.transform");
+    expect(modalSource).not.toContain('style.transform');
   });
 
   test('zoom label uses ref-based DOM mutation instead of React state', () => {
@@ -89,7 +89,7 @@ describe('MermaidBlock — performance patterns', () => {
     expect(source).toContain("addEventListener('touchmove'");
 
     // Wheel listener should be non-passive to allow preventDefault
-    expect(source).toContain("passive: false");
+    expect(source).toContain('passive: false');
   });
 });
 
@@ -152,9 +152,7 @@ describe('MermaidBlock — mermaid configuration', () => {
     // In Mermaid 11.x, flowchart.htmlLabels is deprecated.
     // The setting must be at the top level of mermaid.initialize().
     // Extract the mermaid.initialize call
-    const initMatch = source.match(
-      /mermaid\.initialize\(\{[\s\S]*?\}\);/
-    );
+    const initMatch = source.match(/mermaid\.initialize\(\{[\s\S]*?\}\);/);
     expect(initMatch).not.toBeNull();
     const initBlock = initMatch![0];
 
@@ -169,9 +167,7 @@ describe('MermaidBlock — mermaid configuration', () => {
 
   test('htmlLabels is not set inside the flowchart config block', () => {
     // Extract just the flowchart config object
-    const flowchartMatch = source.match(
-      /flowchart:\s*\{[\s\S]*?\},/
-    );
+    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
     expect(flowchartMatch).not.toBeNull();
     const flowchartBlock = flowchartMatch![0];
 
@@ -180,17 +176,13 @@ describe('MermaidBlock — mermaid configuration', () => {
   });
 
   test('useMaxWidth is set to false for natural sizing', () => {
-    const flowchartMatch = source.match(
-      /flowchart:\s*\{[\s\S]*?\},/
-    );
+    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
     expect(flowchartMatch).not.toBeNull();
     expect(flowchartMatch![0]).toContain('useMaxWidth: false');
   });
 
   test('node padding is increased for polished appearance', () => {
-    const flowchartMatch = source.match(
-      /flowchart:\s*\{[\s\S]*?\},/
-    );
+    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
     expect(flowchartMatch).not.toBeNull();
     // padding should be >= 20 (default is 15)
     const paddingMatch = flowchartMatch![0].match(/padding:\s*(\d+)/);
@@ -207,9 +199,7 @@ describe('MermaidBlock — mermaid configuration', () => {
 
 describe('MermaidBlock — SVG post-processing', () => {
   // Extract the renderChart function body for analysis
-  const renderChartMatch = source.match(
-    /async function renderChart\(\)\s*\{[\s\S]*?\n\s{4}\}/
-  );
+  const renderChartMatch = source.match(/async function renderChart\(\)\s*\{[\s\S]*?\n\s{4}\}/);
   const renderChartBody = renderChartMatch ? renderChartMatch[0] : '';
 
   test('removes max-width from SVG inline style', () => {

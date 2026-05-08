@@ -53,9 +53,7 @@ function trimNotifiedIds(ids: Set<string>): void {
 export function useHandoffNotification(messages: NotifiableMessage[], chatroomId: string) {
   const notifiedIdsRef = useRef(new Set<string>());
   const isInitialLoadRef = useRef(true);
-  const isDocumentHiddenRef = useRef(
-    typeof document !== 'undefined' ? document.hidden : false
-  );
+  const isDocumentHiddenRef = useRef(typeof document !== 'undefined' ? document.hidden : false);
   const lastNotificationTimeRef = useRef(0);
 
   // Request permission on mount
@@ -88,15 +86,18 @@ export function useHandoffNotification(messages: NotifiableMessage[], chatroomId
     };
   }, []);
 
-  const fireNotification = useCallback((senderRole: string) => {
-    console.log('[Notification] Firing notification from:', senderRole);
-    showNotification(
-      'Chatroom Handoff',
-      `${senderRole} has handed off to you`,
-      'chatroom-handoff',
-      chatroomId
-    );
-  }, [chatroomId]);
+  const fireNotification = useCallback(
+    (senderRole: string) => {
+      console.log('[Notification] Firing notification from:', senderRole);
+      showNotification(
+        'Chatroom Handoff',
+        `${senderRole} has handed off to you`,
+        'chatroom-handoff',
+        chatroomId
+      );
+    },
+    [chatroomId]
+  );
 
   // Detect new handoff messages and fire notifications
   useEffect(() => {
@@ -116,8 +117,7 @@ export function useHandoffNotification(messages: NotifiableMessage[], chatroomId
       if (notifiedIdsRef.current.has(msg._id)) continue;
       notifiedIdsRef.current.add(msg._id);
 
-      const isHandoffToUser =
-        msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user';
+      const isHandoffToUser = msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user';
       const isHidden = isDocumentHiddenRef.current;
 
       if (isHandoffToUser && isHidden) {

@@ -10,8 +10,7 @@ export function prStateBadge(
   isDraft?: boolean,
   mergedAt?: string | null
 ): { label: string; cls: string } {
-  if (isDraft)
-    return { label: 'Draft', cls: 'text-chatroom-text-muted border-chatroom-border' };
+  if (isDraft) return { label: 'Draft', cls: 'text-chatroom-text-muted border-chatroom-border' };
   if (state === 'MERGED' || mergedAt)
     return {
       label: 'Merged',

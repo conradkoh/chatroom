@@ -43,11 +43,7 @@ export class HarnessSpawningService {
    *    (Can be bypassed with options.bypassConcurrentLimit = true)
    * 2. Rate limiter — delegates to SpawnRateLimiter for token-bucket check.
    */
-  shouldAllowSpawn(
-    chatroomId: string,
-    reason: string,
-    options?: SpawnOptions
-  ): TryConsumeResult {
+  shouldAllowSpawn(chatroomId: string, reason: string, options?: SpawnOptions): TryConsumeResult {
     const current = this.concurrentAgents.get(chatroomId) ?? 0;
 
     // Skip concurrent limit check if bypass is requested (e.g., manual user actions)

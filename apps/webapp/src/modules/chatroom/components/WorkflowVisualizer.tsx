@@ -50,26 +50,22 @@ function getWorkflowStatusBadge(status: string) {
     case 'draft':
       return {
         label: 'Draft',
-        classes:
-          'bg-chatroom-bg-tertiary text-chatroom-text-muted',
+        classes: 'bg-chatroom-bg-tertiary text-chatroom-text-muted',
       };
     case 'active':
       return {
         label: 'Active',
-        classes:
-          'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+        classes: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
       };
     case 'completed':
       return {
         label: 'Completed',
-        classes:
-          'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+        classes: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
       };
     case 'cancelled':
       return {
         label: 'Cancelled',
-        classes:
-          'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+        classes: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
       };
     default:
       return { label: status, classes: 'bg-chatroom-bg-tertiary' };
@@ -96,26 +92,22 @@ function getStepStatusBadge(status: string) {
     case 'pending':
       return {
         label: 'Pending',
-        classes:
-          'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     case 'in_progress':
       return {
         label: 'In Progress',
-        classes:
-          'bg-chatroom-status-info/15 text-chatroom-status-info',
+        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
     case 'completed':
       return {
         label: 'Completed',
-        classes:
-          'bg-chatroom-status-success/15 text-chatroom-status-success',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'cancelled':
       return {
         label: 'Cancelled',
-        classes:
-          'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+        classes: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
       };
     default:
       return { label: status, classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted' };
@@ -152,7 +144,9 @@ function StepCard({
         <span className="text-sm font-semibold text-chatroom-text-primary truncate">
           {step.stepKey}
         </span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${statusBadge.classes}`}>
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${statusBadge.classes}`}
+        >
           {statusBadge.label}
         </span>
         {step.assigneeRole && (
@@ -279,12 +273,7 @@ export function WorkflowVisualizer({
   };
 
   return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      maxWidth="max-w-5xl"
-      className="sm:!h-[85vh]"
-    >
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" className="sm:!h-[85vh]">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>

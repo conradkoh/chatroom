@@ -17,11 +17,7 @@ describe('CopilotStreamReader', () => {
   }
 
   it('fires onText for each non-empty line', () => {
-    const stream = createStream([
-      '● Print hello to stdout',
-      '$ echo "hello"',
-      '└ 2 lines...',
-    ]);
+    const stream = createStream(['● Print hello to stdout', '$ echo "hello"', '└ 2 lines...']);
 
     const onText = vi.fn();
     const reader = new CopilotStreamReader(stream);
@@ -40,11 +36,7 @@ describe('CopilotStreamReader', () => {
   });
 
   it('fires onAgentEnd when Done. is received', () => {
-    const stream = createStream([
-      '● Print hello to stdout',
-      '$ echo "hello"',
-      'Done.',
-    ]);
+    const stream = createStream(['● Print hello to stdout', '$ echo "hello"', 'Done.']);
 
     const onAgentEnd = vi.fn();
     const reader = new CopilotStreamReader(stream);
@@ -81,10 +73,7 @@ describe('CopilotStreamReader', () => {
   });
 
   it('fires onAnyEvent for each line', () => {
-    const stream = createStream([
-      '● Print hello to stdout',
-      'Done.',
-    ]);
+    const stream = createStream(['● Print hello to stdout', 'Done.']);
 
     const onAnyEvent = vi.fn();
     const reader = new CopilotStreamReader(stream);
@@ -100,13 +89,7 @@ describe('CopilotStreamReader', () => {
   });
 
   it('skips empty lines', () => {
-    const stream = createStream([
-      '● Print hello to stdout',
-      '',
-      '$ echo "hello"',
-      '',
-      'Done.',
-    ]);
+    const stream = createStream(['● Print hello to stdout', '', '$ echo "hello"', '', 'Done.']);
 
     const onText = vi.fn();
     const reader = new CopilotStreamReader(stream);

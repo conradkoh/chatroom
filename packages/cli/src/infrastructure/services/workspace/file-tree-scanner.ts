@@ -83,10 +83,7 @@ const EXCLUDE_PATTERNS = [
  * @param options - Optional: maxEntries cap (default 10,000)
  * @returns FileTree with flat array of entries
  */
-export async function scanFileTree(
-  rootDir: string,
-  options?: ScanOptions
-): Promise<FileTree> {
+export async function scanFileTree(rootDir: string, options?: ScanOptions): Promise<FileTree> {
   const maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const scannedAt = Date.now();
 
@@ -128,14 +125,11 @@ async function getGitFiles(rootDir: string): Promise<string[]> {
     });
 
     // Get untracked files (respects .gitignore)
-    const untracked = await execAsync(
-      'git ls-files --others --exclude-standard',
-      {
-        cwd: rootDir,
-        env,
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
+    const untracked = await execAsync('git ls-files --others --exclude-standard', {
+      cwd: rootDir,
+      env,
+      maxBuffer: 10 * 1024 * 1024,
+    });
 
     const trackedFiles = parseLines(tracked.stdout);
     const untrackedFiles = parseLines(untracked.stdout);

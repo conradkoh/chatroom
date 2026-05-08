@@ -33,7 +33,10 @@ export const listMySessions = query({
   args: {
     ...SessionIdArg,
   },
-  handler: async (ctx, args): Promise<{ success: boolean; sessions?: SessionInfo[]; reason?: string }> => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: boolean; sessions?: SessionInfo[]; reason?: string }> => {
     // Get the current session and user
     const currentSession = await ctx.db
       .query('sessions')
@@ -124,7 +127,10 @@ export const revokeAllOtherSessions = mutation({
   args: {
     ...SessionIdArg,
   },
-  handler: async (ctx, args): Promise<{ success: boolean; revokedCount?: number; reason?: string }> => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: boolean; revokedCount?: number; reason?: string }> => {
     // Get the current session and user
     const currentSession = await ctx.db
       .query('sessions')

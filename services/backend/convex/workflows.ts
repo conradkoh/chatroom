@@ -55,9 +55,7 @@ async function getStepByKey(
 ) {
   const step = await ctx.db
     .query('chatroom_workflow_steps')
-    .withIndex('by_workflow_stepKey', (q) =>
-      q.eq('workflowId', workflowId).eq('stepKey', stepKey)
-    )
+    .withIndex('by_workflow_stepKey', (q) => q.eq('workflowId', workflowId).eq('stepKey', stepKey))
     .unique();
 
   if (!step) {
@@ -202,9 +200,7 @@ async function advanceWorkflow(
   }
 
   // Check if all steps are terminal (completed or cancelled)
-  const allTerminal = steps.every(
-    (s) => s.status === 'completed' || s.status === 'cancelled'
-  );
+  const allTerminal = steps.every((s) => s.status === 'completed' || s.status === 'cancelled');
 
   if (allTerminal) {
     await ctx.db.patch('chatroom_workflows', workflowId, {
@@ -692,8 +688,7 @@ export const getWorkflowStatus = query({
     const availableNextSteps = steps
       .filter(
         (s) =>
-          s.status === 'pending' &&
-          s.dependsOn.every((dep) => statusByKey.get(dep) === 'completed')
+          s.status === 'pending' && s.dependsOn.every((dep) => statusByKey.get(dep) === 'completed')
       )
       .map((s) => s.stepKey);
 

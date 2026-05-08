@@ -102,9 +102,7 @@ const TabItem = memo(function TabItem({
       title={tab.filePath}
     >
       <FileTypeIcon path={tab.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
-      <span className={cn('truncate', !tab.isPinned && 'italic')}>
-        {tab.name}
-      </span>
+      <span className={cn('truncate', !tab.isPinned && 'italic')}>{tab.name}</span>
       <button
         className="ml-1 shrink-0 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-chatroom-bg-hover transition-opacity cursor-pointer"
         onClick={handleClose}

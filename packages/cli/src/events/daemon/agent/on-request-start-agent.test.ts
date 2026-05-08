@@ -40,7 +40,9 @@ function createMockCtx(overrides?: {
   } as unknown as DaemonContext;
 }
 
-function createEvent(overrides?: Partial<AgentRequestStartEventPayload>): AgentRequestStartEventPayload {
+function createEvent(
+  overrides?: Partial<AgentRequestStartEventPayload>
+): AgentRequestStartEventPayload {
   return {
     _id: 'test-event-id' as any,
     chatroomId: 'test-chatroom' as any,
@@ -115,7 +117,8 @@ describe('onRequestStartAgent', () => {
     const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
     // Filter for calls that look like emitAgentStartFailed (contain 'error' field)
     const startFailedCalls = calls.filter(
-      (call: unknown[]) => call.length >= 2 && (call[1] as Record<string, unknown>)?.error !== undefined
+      (call: unknown[]) =>
+        call.length >= 2 && (call[1] as Record<string, unknown>)?.error !== undefined
     );
     expect(startFailedCalls).toHaveLength(0);
   });
