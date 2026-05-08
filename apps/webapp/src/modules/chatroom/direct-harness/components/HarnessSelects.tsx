@@ -111,7 +111,7 @@ export function HarnessModelSelect({ providers, value, onValueChange }: HarnessM
           type="button"
           disabled={!hasProviders}
           className={cn(
-            'flex items-center justify-between w-full h-full gap-2 px-3 text-xs rounded-md border border-input bg-transparent',
+            'flex items-center justify-between w-full h-full gap-2 px-3 text-xs border border-input bg-transparent',
             'shadow-xs whitespace-nowrap transition-[color,box-shadow]',
             'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring',
             'disabled:cursor-not-allowed disabled:opacity-50'
