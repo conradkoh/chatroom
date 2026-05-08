@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { relativeTime } from './utils';
+import { relativeTime } from './index';
 
 describe('relativeTime', () => {
   it('returns "just now" for diff < 60 seconds', () => {

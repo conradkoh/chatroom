@@ -13,13 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCreateSession } from './hooks/useCreateSession';
-import { useSendMessage } from './hooks/useSendMessage';
-import { useWorkspaceCapabilities } from './hooks/useWorkspaceCapabilities';
+import { useCreateSession } from '../hooks/useCreateSession';
+import { useSendMessage } from '../hooks/useSendMessage';
+import { useWorkspaceCapabilities } from '../hooks/useWorkspaceCapabilities';
 import {
   HarnessModelSelect,
   parseModelKey,
-} from './components/HarnessSelects';
+} from './HarnessSelects';
 import type { SessionStatus } from './StatusDot';
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────

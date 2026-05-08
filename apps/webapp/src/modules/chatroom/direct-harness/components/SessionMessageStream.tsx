@@ -4,8 +4,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 
-import { useHarnessTurnStore } from './hooks/useHarnessTurnStore';
-import { useQueuedMessages } from './hooks/useQueuedMessages';
+import { useHarnessTurnStore } from '../hooks/useHarnessTurnStore';
+import { useQueuedMessages } from '../hooks/useQueuedMessages';
 import { ThinkingBlock } from './ThinkingBlock';
 
 import { cn } from '@/lib/utils';

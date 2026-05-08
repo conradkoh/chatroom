@@ -20,8 +20,8 @@ import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { useListSessions } from './hooks/useListSessions';
-import { useRefreshCapabilities } from './hooks/useRefreshCapabilities';
+import { useListSessions } from '../hooks/useListSessions';
+import { useRefreshCapabilities } from '../hooks/useRefreshCapabilities';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

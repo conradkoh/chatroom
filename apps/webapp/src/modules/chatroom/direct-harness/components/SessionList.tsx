@@ -4,9 +4,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useListSessions } from './hooks/useListSessions';
+import { useListSessions } from '../hooks/useListSessions';
 import { StatusDot } from './StatusDot';
-import { relativeTime } from './utils';
+import { relativeTime } from '../utils';
 
 interface SessionListProps {
   workspaceId: Id<'chatroom_workspaces'>;

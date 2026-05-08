@@ -45,7 +45,7 @@ import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
-import { DirectHarnessView } from './direct-harness/DirectHarnessView';
+import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
