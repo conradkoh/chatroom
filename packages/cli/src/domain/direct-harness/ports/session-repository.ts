@@ -66,4 +66,11 @@ export interface SessionRepository {
    * Idempotent: no-op if the turn is already complete.
    */
   finalizeAssistantTurn(turnId: string): Promise<void>;
+
+  /**
+   * Update the session title for a harness session.
+   * Called when the daemon receives a `session.updated` event from OpenCode
+   * with a new auto-generated title.
+   */
+  updateSessionTitle(harnessSessionId: string, title: string): Promise<void>;
 }

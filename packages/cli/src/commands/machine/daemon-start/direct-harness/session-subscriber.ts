@@ -203,6 +203,18 @@ async function processOne(
           (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
         );
       }
+      if (event.type === 'session.updated') {
+        const info = (event.payload as { info?: { title?: string } }).info;
+        const newTitle = info?.title;
+        if (newTitle && newTitle !== liveSession.sessionTitle) {
+          liveSession.setTitle?.(newTitle);
+          void deps.sessionRepository
+            .updateSessionTitle(rowId as string, newTitle)
+            .catch((err: unknown) =>
+              console.warn('[direct-harness] updateSessionTitle error:', err)
+            );
+        }
+      }
     });
 
     deps.activeSessions.set(rowId, handle);

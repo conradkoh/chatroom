@@ -119,4 +119,13 @@ export class ConvexSessionRepository implements SessionRepository {
       turnId,
     });
   }
+
+  async updateSessionTitle(harnessSessionId: string, title: string): Promise<void> {
+    const { backend, sessionId } = this.options;
+    await backend.mutation(api.daemon.directHarness.sessions.updateSessionTitle, {
+      sessionId,
+      harnessSessionId,
+      sessionTitle: title,
+    });
+  }
 }

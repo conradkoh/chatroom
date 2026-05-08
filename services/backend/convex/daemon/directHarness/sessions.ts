@@ -203,3 +203,34 @@ export const listPendingSessionsForMachine = query({
     return sessionGroups.flat();
   },
 });
+
+// ─── updateSessionTitle ───────────────────────────────────────────────────────
+
+/**
+ * Update the session title for a harness session.
+ * Called by the daemon when it receives a `session.updated` event from OpenCode
+ * carrying a new auto-generated title.
+ */
+export const updateSessionTitle = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    sessionTitle: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
+    const s = requireOpencodeSession(harnessSession);
+
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      opencode: {
+        ...s.opencode,
+        sessionTitle: args.sessionTitle,
+      },
+    });
+  },
+});

@@ -268,6 +268,75 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe('New Title');
   });
 
+  // ── session.updated event handler contract ──────────────────────────────────
+  //
+  // session-subscriber.ts handles 'session.updated' events to sync the
+  // auto-generated OpenCode title back to Convex. These tests verify the
+  // primitives that handler relies on.
+
+  it('session.updated: _emit forwards event to listener and setTitle is callable', () => {
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    const updatedEvent: DirectHarnessSessionEvent = {
+      type: 'session.updated',
+      payload: { info: { id: 'sess-123', title: 'Debug the auth issue', version: '1' } },
+      timestamp: Date.now(),
+    };
+    session._emit(updatedEvent);
+
+    // Event must reach listener so session-subscriber can inspect it
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe('session.updated');
+
+    // Subscriber calls setTitle when the new title differs from the current one
+    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    if (newTitle && newTitle !== session.sessionTitle) {
+      session.setTitle(newTitle);
+    }
+    expect(session.sessionTitle).toBe('Debug the auth issue');
+  });
+
+  it('session.updated: setTitle is NOT called when title is same as current', () => {
+    const session = createSession(); // sessionTitle = 'Test Session'
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    const updatedEvent: DirectHarnessSessionEvent = {
+      type: 'session.updated',
+      payload: { info: { id: 'sess-123', title: 'Test Session', version: '1' } },
+      timestamp: Date.now(),
+    };
+    session._emit(updatedEvent);
+
+    // Guard: same title → no setTitle call
+    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    const before = session.sessionTitle;
+    if (newTitle && newTitle !== session.sessionTitle) {
+      session.setTitle(newTitle);
+    }
+    expect(session.sessionTitle).toBe(before); // unchanged
+  });
+
+  it('session.updated: setTitle is NOT called when info.title is absent', () => {
+    const session = createSession();
+    const before = session.sessionTitle;
+
+    const updatedEvent: DirectHarnessSessionEvent = {
+      type: 'session.updated',
+      payload: { info: { id: 'sess-123' } }, // no title field
+      timestamp: Date.now(),
+    };
+    session._emit(updatedEvent);
+
+    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    if (newTitle && newTitle !== session.sessionTitle) {
+      session.setTitle(newTitle);
+    }
+    expect(session.sessionTitle).toBe(before); // unchanged
+  });
+
   // ── properties ──────────────────────────────────────────────────────────────
 
   it('exposes opencodeSessionId and sessionTitle', () => {

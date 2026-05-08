@@ -63,6 +63,7 @@ describe('closeSession', () => {
       beginAssistantTurn: vi.fn(),
       bindTurnMessageId: vi.fn(),
       finalizeAssistantTurn: vi.fn(),
+      updateSessionTitle: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
     const spy = vi.spyOn(sessionRepository, 'markClosed');
@@ -104,6 +105,7 @@ describe('closeSession', () => {
       beginAssistantTurn: vi.fn(),
       bindTurnMessageId: vi.fn(),
       finalizeAssistantTurn: vi.fn(),
+      updateSessionTitle: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
 
@@ -127,6 +129,7 @@ describe('closeSession', () => {
       beginAssistantTurn: vi.fn(),
       bindTurnMessageId: vi.fn(),
       finalizeAssistantTurn: vi.fn(),
+      updateSessionTitle: vi.fn(),
     };
     const deps = mockDeps({ session, journal, sessionRepository });
 

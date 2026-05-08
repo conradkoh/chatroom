@@ -73,4 +73,19 @@ describe('ConvexSessionRepository', () => {
       })
     );
   });
+
+  it('updateSessionTitle calls sessions.updateSessionTitle mutation', async () => {
+    const { repo, backend } = createRepo();
+
+    await repo.updateSessionTitle('row-1', 'Debug the auth issue');
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: 'mock-session-id',
+        harnessSessionId: 'row-1',
+        sessionTitle: 'Debug the auth issue',
+      })
+    );
+  });
 });
