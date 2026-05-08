@@ -2,6 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 
 import { useHarnessTurnStore } from './hooks/useHarnessTurnStore';
 import { useQueuedMessages } from './hooks/useQueuedMessages';
@@ -119,6 +120,38 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
 
         // Assistant turn — check for streaming overlay
         const isStreaming = streamingOverlay !== null && streamingOverlay.turnId === turn._id;
+
+        // Failed turn — render with partial content (if any) + Interrupted badge
+        if (turn.status === 'failed') {
+          const hasText = turn.textContent.length > 0;
+          const hasThinking = turn.reasoningContent.length > 0;
+          const hasContent = hasText || hasThinking;
+
+          return (
+            <div key={turn._id} className="flex justify-start">
+              <div className={cn('max-w-[75%] flex flex-col gap-2')}>
+                {hasContent ? (
+                  <>
+                    {hasThinking && <ThinkingBlock content={turn.reasoningContent} />}
+                    {hasText && (
+                      <div className="rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-muted text-foreground">
+                        {turn.textContent}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-2xl rounded-bl-sm px-4 py-2.5 text-xs text-muted-foreground italic bg-muted">
+                    No response — interrupted before generation started
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                  <ExclamationTriangleIcon className="size-3" />
+                  <span>Interrupted</span>
+                </div>
+              </div>
+            </div>
+          );
+        }
 
         // Pending turn with no messageId yet — nothing to show
         if (turn.status === 'pending' && !turn.messageId && !isStreaming) {

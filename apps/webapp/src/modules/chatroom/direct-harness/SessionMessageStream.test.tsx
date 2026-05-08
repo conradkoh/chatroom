@@ -194,6 +194,53 @@ describe('SessionMessageStream', () => {
     expect(scrollEl.children).toHaveLength(0);
   });
 
+  // ── Failed turns ─────────────────────────────────────────────────────────────
+
+  it('renders failed turn with content and Interrupted badge', () => {
+    mockStore([
+      turn('t1', 'assistant', 'Partial response', 1, { status: 'failed', reasoningContent: '' }),
+    ]);
+    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    expect(screen.getByText('Partial response')).toBeInTheDocument();
+    expect(screen.getByText('Interrupted')).toBeInTheDocument();
+  });
+
+  it('renders failed turn with empty content as a no-response placeholder + badge', () => {
+    mockStore([turn('t1', 'assistant', '', 1, { status: 'failed' })]);
+    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    expect(
+      screen.getByText(/no response.*interrupted before generation started/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Interrupted')).toBeInTheDocument();
+  });
+
+  it('failed turn with reasoning content renders ThinkingBlock + Interrupted badge', () => {
+    mockStore([
+      turn('t1', 'assistant', 'Some answer', 1, {
+        status: 'failed',
+        reasoningContent: 'thinking...',
+      }),
+    ]);
+    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    expect(screen.getByText('Some answer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /thinking/i })).toBeInTheDocument();
+    expect(screen.getByText('Interrupted')).toBeInTheDocument();
+  });
+
+  it('failed turn does NOT use streamingOverlay (overlay is for other turn)', () => {
+    mockStore([turn('t1', 'assistant', 'failed partial', 1, { status: 'failed' })], {
+      streamingOverlay: {
+        turnId: 'other-turn' as never,
+        textContent: 'live text',
+        reasoningContent: '',
+      },
+    });
+    render(<SessionMessageStream sessionRowId={SESSION_ROW_ID} />);
+    // Failed turn content still uses turn.textContent, not overlay
+    expect(screen.queryByText('live text')).not.toBeInTheDocument();
+    expect(screen.getByText('Interrupted')).toBeInTheDocument();
+  });
+
   // ── Queued messages ─────────────────────────────────────────────────────────
 
   it('shows queued messages with a Queued badge below the main stream', () => {
