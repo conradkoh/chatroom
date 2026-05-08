@@ -6,7 +6,7 @@ import { useConvex } from 'convex/react';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 
-import type { HarnessMessage } from './useSubscribeMessages';
+import type { HarnessMessage } from '@workspace/backend/src/domain/direct-harness/types';
 
 export type { HarnessMessage };
 
