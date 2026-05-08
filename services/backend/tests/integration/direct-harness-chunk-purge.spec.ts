@@ -1,7 +1,7 @@
 /**
  * Direct Harness — Chunk Purge Integration Tests
  *
- * Covers purgeFinalizedChunks (cron) and dev:cleanup.
+ * Covers purgeFinalizedChunks (cron).
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
@@ -266,43 +266,5 @@ describe('directHarnessCleanup.purgeFinalizedChunks', () => {
 
     expect(result.turnsScanned).toBeGreaterThanOrEqual(2);
     expect(result.chunksDeleted).toBeGreaterThanOrEqual(4); // 2 turns × 2 chunks
-  });
-});
-
-// ─── dev:cleanup ─────────────────────────────────────────────────────────────
-
-describe('dev.cleanup', () => {
-  test('deletes all chatroom_harnessSessionMessages rows', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('dev-cleanup-basic');
-    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
-
-    const { turnId } = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
-      sessionId,
-      harnessSessionId: rowId,
-    });
-    await t.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
-      sessionId,
-      turnId: turnId as Id<'chatroom_harnessSessionTurns'>,
-      messageId: 'msg-dev-cleanup',
-    });
-    await insertChunksForTurn(sessionId, rowId, 'msg-dev-cleanup');
-
-    const before = await countAllChunks();
-    expect(before).toBeGreaterThanOrEqual(2);
-
-    await t.mutation(internal.dev.cleanup, {});
-
-    const after = await countAllChunks();
-    expect(after).toBe(0);
-  });
-
-  test('idempotent: calling cleanup on empty table causes no error', async () => {
-    // Ensure empty first
-    await t.mutation(internal.dev.cleanup, {});
-
-    // Call again on empty table
-    await expect(t.mutation(internal.dev.cleanup, {})).resolves.not.toThrow();
-
-    expect(await countAllChunks()).toBe(0);
   });
 });
