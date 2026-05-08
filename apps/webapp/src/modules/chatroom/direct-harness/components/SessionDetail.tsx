@@ -17,9 +17,9 @@ export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailPro
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Minimal header */}
-      <div className="shrink-0 border-b border-border px-4 py-2.5 flex items-center gap-2">
+      <div className="shrink-0 border-b-2 border-border px-4 py-2.5 flex items-center gap-2">
         <StatusDot status={sessionSummary.status} />
-        <span className="text-sm font-medium text-foreground truncate">{title}</span>
+        <span className="text-sm font-bold text-foreground truncate">{title}</span>
       </div>
 
       {/* Messages */}
