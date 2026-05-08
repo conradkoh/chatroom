@@ -5,6 +5,7 @@ import type { HarnessSessionSummary } from '@workspace/backend/src/domain/direct
 import { SessionComposer } from './SessionComposer';
 import { SessionMessageStream } from './SessionMessageStream';
 import { StatusDot } from './StatusDot';
+import { displaySessionTitle } from './SessionList';
 
 interface SessionDetailProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
@@ -12,7 +13,7 @@ interface SessionDetailProps {
 }
 
 export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailProps) {
-  const title = sessionSummary.sessionTitle ?? sessionSummary.lastUsedConfig.agent;
+  const title = displaySessionTitle(sessionSummary);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
