@@ -6,15 +6,15 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { MonitorOff, Plus, SquarePen } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from './ui/select';
 
 import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
