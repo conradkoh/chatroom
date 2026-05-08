@@ -53,6 +53,9 @@ describe('closeSession', () => {
       associateOpenCodeSessionId: vi.fn(),
       getOpenCodeSessionId: vi.fn(),
       markClosed: vi.fn(),
+      markIdle: vi.fn(),
+      markFailed: vi.fn(),
+      markActive: vi.fn(),
       updateLastProcessedSeq: vi.fn(),
       setGenerating: vi.fn(),
       dequeueNext: vi.fn(),
@@ -91,6 +94,9 @@ describe('closeSession', () => {
       updateLastProcessedSeq: vi.fn(),
       setGenerating: vi.fn(),
       dequeueNext: vi.fn(),
+      markIdle: vi.fn(),
+      markFailed: vi.fn(),
+      markActive: vi.fn(),
     };
     const deps = mockDeps({ sessionRepository });
 
@@ -108,6 +114,9 @@ describe('closeSession', () => {
       updateLastProcessedSeq: vi.fn(),
       setGenerating: vi.fn(),
       dequeueNext: vi.fn(),
+      markIdle: vi.fn(),
+      markFailed: vi.fn(),
+      markActive: vi.fn(),
     };
     const deps = mockDeps({ session, journal, sessionRepository });
 

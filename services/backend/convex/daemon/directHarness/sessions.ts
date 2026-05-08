@@ -61,6 +61,77 @@ export const closeSession = mutation({
   },
 });
 
+// ─── markIdle ─────────────────────────────────────────────────────────────────
+
+/**
+ * Marks a session as idle (disconnected but resumable).
+ * Called by the daemon when a prompt fails or the harness process crashes.
+ * The opencode session data still exists on disk and can be resumed.
+ */
+export const markIdle = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    // Don't overwrite terminal statuses.
+    if (harnessSession.status === 'failed' || harnessSession.status === 'closed') return;
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      status: 'idle',
+      isGenerating: false,
+      lastActiveAt: Date.now(),
+    });
+  },
+});
+
+// ─── markFailed ───────────────────────────────────────────────────────────────
+
+/**
+ * Marks a session as permanently failed.
+ * Called when the session is confirmed unrecoverable: workspace not found,
+ * opencode returns "session not found", or the session-open failed before
+ * an opencodeSessionId was established.
+ */
+export const markFailed = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      status: 'failed',
+      isGenerating: false,
+      lastActiveAt: Date.now(),
+    });
+  },
+});
+
+// ─── markActive ───────────────────────────────────────────────────────────────
+
+/**
+ * Marks a session as active after a successful lazy-resume.
+ * Restores the UI to show the session is connected.
+ */
+export const markActive = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    if (harnessSession.status === 'failed' || harnessSession.status === 'closed') return;
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      status: 'active',
+      lastActiveAt: Date.now(),
+    });
+  },
+});
+
 // ─── updateCursor ─────────────────────────────────────────────────────────────
 
 export const updateCursor = mutation({

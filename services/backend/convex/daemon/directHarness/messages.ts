@@ -72,8 +72,9 @@ export const pendingForMachine = query({
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    // Only process active/pending sessions — skip closed/failed to prevent
-    // endless retries for stale sessions.
+    // Only process resumable sessions — skip closed/failed to prevent
+    // endless retries for stale sessions. Include idle so disconnected
+    // sessions with queued messages can be lazily resumed.
     const allSessions = (
       await Promise.all(
         [...workspaceIds].flatMap((wsId) => [
@@ -84,6 +85,10 @@ export const pendingForMachine = query({
           ctx.db
             .query('chatroom_harnessSessions')
             .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'active'))
+            .collect(),
+          ctx.db
+            .query('chatroom_harnessSessions')
+            .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'idle'))
             .collect(),
         ])
       )

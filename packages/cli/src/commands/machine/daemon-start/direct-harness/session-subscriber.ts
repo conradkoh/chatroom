@@ -111,7 +111,7 @@ async function processOne(
       console.warn(
         `[direct-harness] Cannot open session ${rowId}: workspace ${session.workspaceId} not found`
       );
-      await deps.sessionRepository.markClosed(rowId);
+      await deps.sessionRepository.markFailed(rowId);
       return;
     }
 
@@ -210,9 +210,10 @@ async function processOne(
       `[direct-harness] Failed to open session ${rowId}:`,
       err instanceof Error ? err.message : String(err)
     );
-
+    // No opencodeSessionId was established, so there is nothing on disk to
+    // resume. Mark as failed (permanent).
     try {
-      await deps.sessionRepository.markClosed(rowId);
+      await deps.sessionRepository.markFailed(rowId);
     } catch {
       // Best-effort
     }

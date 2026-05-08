@@ -177,6 +177,11 @@ export function SessionComposer({
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isDisabled = status === 'pending' || status === 'spawning' || isTerminal || isSending;
+
+  const terminalMessage =
+    status === 'failed'
+      ? 'Session data was not found and cannot be recovered. Start a new session to continue.'
+      : 'This session has been closed.';
   const trimmed = text.trim();
   const canSend = !!trimmed && !isDisabled;
 
@@ -201,9 +206,7 @@ export function SessionComposer({
   if (isTerminal) {
     return (
       <div className="shrink-0 border-t border-border px-3 py-2">
-        <p className="text-xs text-muted-foreground">
-          This session is {status}. Start a new session to continue.
-        </p>
+        <p className="text-xs text-muted-foreground">{terminalMessage}</p>
       </div>
     );
   }

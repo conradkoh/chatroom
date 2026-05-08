@@ -233,3 +233,108 @@ describe('listPendingSessionsForMachine', () => {
     expect(pending).toEqual([]);
   });
 });
+
+// ─── markIdle / markFailed / markActive ──────────────────────────────────────
+
+describe('markIdle', () => {
+  test('sets status to idle and clears isGenerating', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mark-idle-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markIdle, {
+      sessionId,
+      harnessSessionId: rowId,
+    });
+
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, {
+      harnessSessionId: rowId,
+    });
+    expect(session?.status).toBe('idle');
+    expect(session?.isGenerating).toBe(false);
+  });
+
+  test('does not overwrite failed status', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mark-idle-no-overwrite');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markFailed, { sessionId, harnessSessionId: rowId });
+    await t.mutation(api.daemon.directHarness.sessions.markIdle, { sessionId, harnessSessionId: rowId });
+
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, { harnessSessionId: rowId });
+    expect(session?.status).toBe('failed');
+  });
+});
+
+describe('markFailed', () => {
+  test('sets status to failed', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mark-failed-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markFailed, {
+      sessionId,
+      harnessSessionId: rowId,
+    });
+
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, {
+      harnessSessionId: rowId,
+    });
+    expect(session?.status).toBe('failed');
+  });
+});
+
+describe('markActive', () => {
+  test('sets status to active', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mark-active-basic');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markIdle, { sessionId, harnessSessionId: rowId });
+    await t.mutation(api.daemon.directHarness.sessions.markActive, { sessionId, harnessSessionId: rowId });
+
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, { harnessSessionId: rowId });
+    expect(session?.status).toBe('active');
+  });
+
+  test('does not overwrite failed or closed', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('mark-active-no-overwrite');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markFailed, { sessionId, harnessSessionId: rowId });
+    await t.mutation(api.daemon.directHarness.sessions.markActive, { sessionId, harnessSessionId: rowId });
+
+    const session = await t.query(api.daemon.directHarness.sessions.getSession, { harnessSessionId: rowId });
+    expect(session?.status).toBe('failed');
+  });
+});
+
+describe('pendingForMachine — idle sessions', () => {
+  test('idle sessions with unprocessed messages are returned', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pfm-idle');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    // Simulate daemon marking the session idle after a crash
+    await t.mutation(api.daemon.directHarness.sessions.markIdle, { sessionId, harnessSessionId: rowId });
+
+    const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
+      sessionId,
+      machineId,
+    });
+
+    // The initial message from createSession is still unprocessed
+    expect(result.sessions.some((s) => s._id === rowId)).toBe(true);
+    expect(result.messages.some((m) => m.harnessSessionId === rowId)).toBe(true);
+  });
+
+  test('failed sessions are not returned', async () => {
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pfm-failed');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.daemon.directHarness.sessions.markFailed, { sessionId, harnessSessionId: rowId });
+
+    const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.sessions.every((s) => s._id !== rowId)).toBe(true);
+  });
+});

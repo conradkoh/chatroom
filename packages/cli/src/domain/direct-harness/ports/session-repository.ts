@@ -11,8 +11,27 @@ export interface SessionRepository {
   /** Read the OpenCode session ID for a given backend row. */
   getOpenCodeSessionId(harnessSessionId: string): Promise<OpenCodeSessionId | undefined>;
 
-  /** Mark a session as closed in the backend. */
+  /** Mark a session as closed in the backend (user-initiated). */
   markClosed(harnessSessionId: string): Promise<void>;
+
+  /**
+   * Mark a session as idle (disconnected but resumable).
+   * Used when a prompt fails or the harness crashes — opencode still has
+   * the session on disk.
+   */
+  markIdle(harnessSessionId: string): Promise<void>;
+
+  /**
+   * Mark a session as permanently failed.
+   * Used when the workspace is gone or opencode confirms the session does
+   * not exist on disk.
+   */
+  markFailed(harnessSessionId: string): Promise<void>;
+
+  /**
+   * Mark a session as active after a successful lazy-resume.
+   */
+  markActive(harnessSessionId: string): Promise<void>;
 
   /** Persist the daemon's processing cursor for a session. */
   updateLastProcessedSeq(harnessSessionId: string, seq: number): Promise<void>;

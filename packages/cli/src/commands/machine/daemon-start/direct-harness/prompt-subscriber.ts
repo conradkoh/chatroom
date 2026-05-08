@@ -191,11 +191,22 @@ async function processSessionMessages(
       deps.harnesses.set(workspaceId, harness);
     }
 
-    handle = await resumeSession(
-      { harness, journalFactory: deps.journalFactory, chunkExtractor: createOpencodeSdkChunkExtractor() },
-      { harnessSessionId: rowId, opencodeSessionId, workspaceId }
-    );
+    try {
+      handle = await resumeSession(
+        { harness, journalFactory: deps.journalFactory, chunkExtractor: createOpencodeSdkChunkExtractor() },
+        { harnessSessionId: rowId, opencodeSessionId, workspaceId }
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[direct-harness] Cannot resume session ${rowId}: ${message}`);
+      // opencode confirmed the session does not exist on disk.
+      await deps.sessionRepository.markFailed(rowId).catch(() => {});
+      return;
+    }
+
     deps.activeSessions.set(rowId, handle);
+    // Session reconnected — update status so the UI reflects it.
+    await deps.sessionRepository.markActive(rowId).catch(() => {});
 
     // Wire session.idle so queued messages are drained after a daemon restart.
     const idleConfig = {
@@ -227,10 +238,9 @@ async function processSessionMessages(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`);
-      // Clean up: mark session closed and remove stale handle.
-      // Also evict the harness — if the process crashed (fetch failed),
-      // the next session must start a fresh one.
-      await deps.sessionRepository.markClosed(rowId).catch(() => {});
+      // The prompt failed — likely the harness process crashed. The opencode
+      // session is still on disk, so mark idle (resumable) rather than closed.
+      await deps.sessionRepository.markIdle(rowId).catch(() => {});
       deps.activeSessions.delete(rowId);
       if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
       return;
