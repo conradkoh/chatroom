@@ -43,7 +43,7 @@ const initialState: State = {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 type Action =
-  | { type: 'INITIALIZE'; messages: HarnessMessage[]; newestSeq: number; hasMore: boolean }
+  | { type: 'INITIALIZE'; messages: HarnessMessage[]; newestSeq: number | null; hasMore: boolean }
   | { type: 'APPEND_DELTA'; messages: HarnessMessage[] }
   | { type: 'PREPEND_OLDER'; messages: HarnessMessage[]; hasMore: boolean }
   | { type: 'REQUEST_OLDER' }
@@ -76,7 +76,7 @@ function reducer(state: State, action: Action): State {
       if (!state.isInitialized || state.newestSeq === null) return state;
       // Only accept messages newer than what we already have.
       const incoming = dedup(state.messages, action.messages).filter(
-        (m) => m.seq > state.newestSeq!
+        (m) => m.seq > (state.newestSeq ?? 0)
       );
       if (incoming.length === 0) return state;
       const merged = [...state.messages, ...incoming];
@@ -126,8 +126,16 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
 
   /**
    * Pinned tail cursor — set once after the initial load and never changed.
-   * This keeps the getMessagesSince subscription args stable, ensuring Convex
-   * only evaluates the query against the tail rather than the full history.
+   * Keeps the getMessagesSince subscription args stable so Convex only evaluates
+   * the tail rather than the full history on each insert.
+   *
+   * Race condition safety: tailSeqRef is set inside a useEffect (after the
+   * initial getLatestMessages data resolves), so getMessagesSince won't
+   * subscribe until the next render. Messages created between the initial
+   * query's snapshot and subscription start are NOT lost — getMessagesSince
+   * uses `seq > afterSeq` and Convex re-evaluates the reactive query against
+   * the current DB state when the subscription begins, returning every row
+   * newer than the cursor regardless of when it arrived.
    */
   const tailSeqRef = useRef<number>(0);
 
@@ -162,7 +170,7 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
         limit: 50,
       })
       .then((data) => {
-        tailSeqRef.current = data.newestSeq;
+        tailSeqRef.current = data.newestSeq ?? 0;
         dispatch({
           type: 'INITIALIZE',
           messages: data.messages as HarnessMessage[],

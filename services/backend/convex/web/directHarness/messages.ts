@@ -7,7 +7,11 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getNextMessageSeq, getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import {
+  getNextMessageSeq,
+  getSessionWithAccess,
+  requireDirectHarnessWorkers,
+} from '../../api/directHarnessHelpers.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── send ─────────────────────────────────────────────────────────────────────
@@ -20,7 +24,11 @@ export const send = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const { harnessSession } = await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
+    const { harnessSession } = await getSessionWithAccess(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
 
     if (harnessSession.status === 'closed' || harnessSession.status === 'failed') {
       throw new ConvexError({
@@ -29,7 +37,10 @@ export const send = mutation({
       });
     }
     if (!args.text.trim()) {
-      throw new ConvexError({ code: 'HARNESS_SESSION_INVALID_PROMPT', message: 'Message text must not be empty' });
+      throw new ConvexError({
+        code: 'HARNESS_SESSION_INVALID_PROMPT',
+        message: 'Message text must not be empty',
+      });
     }
 
     const now = Date.now();
@@ -76,8 +87,7 @@ export const send = mutation({
             )
             .first();
 
-    const shouldQueue =
-      isGenerating || unprocessedUserMsg !== null || hasQueuedItem !== null;
+    const shouldQueue = isGenerating || unprocessedUserMsg !== null || hasQueuedItem !== null;
 
     if (shouldQueue) {
       await ctx.db.insert('chatroom_harnessMessageQueue', {
@@ -92,7 +102,11 @@ export const send = mutation({
 
     const seq = await getNextMessageSeq(ctx, args.harnessSessionId);
     await ctx.db.insert('chatroom_harnessSessionMessages', {
-      harnessSessionId: args.harnessSessionId, seq, role: 'user', content: args.text.trim(), timestamp: now,
+      harnessSessionId: args.harnessSessionId,
+      seq,
+      role: 'user',
+      content: args.text.trim(),
+      timestamp: now,
     });
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, { lastActiveAt: now });
     return { seq };
@@ -100,7 +114,8 @@ export const send = mutation({
 });
 
 // ─── subscribe ────────────────────────────────────────────────────────────────
-// Kept for backward-compat and tests. New code should use the split queries below.
+// Kept for legacy integration tests. No frontend caller — getLatestMessages /
+// getMessagesSince / getOlderMessages are the live path.
 
 export const subscribe = query({
   args: {
@@ -157,7 +172,7 @@ export const getLatestMessages = query({
 
     const hasMore = rows.length > limit;
     const messages = rows.slice(0, limit).reverse();
-    const newestSeq = messages.length > 0 ? messages[messages.length - 1].seq : 0;
+    const newestSeq = messages.length > 0 ? messages[messages.length - 1].seq : null;
 
     return { messages, hasMore, newestSeq };
   },
