@@ -162,14 +162,12 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
         limit: 50,
       })
       .then((data) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = data as any;
-        tailSeqRef.current = result.newestSeq as number;
+        tailSeqRef.current = data.newestSeq;
         dispatch({
           type: 'INITIALIZE',
-          messages: result.messages as HarnessMessage[],
-          newestSeq: result.newestSeq as number,
-          hasMore: result.hasMore as boolean,
+          messages: data.messages as HarnessMessage[],
+          newestSeq: data.newestSeq,
+          hasMore: data.hasMore,
         });
       })
       .catch((err: unknown) => {
@@ -208,12 +206,10 @@ export function useHarnessMessageStore(harnessSessionId: Id<'chatroom_harnessSes
       return;
     }
     processedOlderSeqRef.current = state.olderQuerySeq;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = olderData as any;
     dispatch({
       type: 'PREPEND_OLDER',
-      messages: result.messages as HarnessMessage[],
-      hasMore: result.hasMore as boolean,
+      messages: olderData.messages as HarnessMessage[],
+      hasMore: olderData.hasMore,
     });
     // Clear the ref so a subsequent click with the same oldestSeq (e.g., when
     // the prior fetch returned only duplicates and oldestSeq didn't advance) is
