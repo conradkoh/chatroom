@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -17,7 +17,9 @@ import {
 } from './ui/select';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useSendMessage } from '../hooks/useSendMessage';
+import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import {
+  HarnessAgentSelect,
   HarnessModelSelect,
   parseModelKey,
 } from './HarnessSelects';
@@ -39,38 +41,43 @@ export function NewSessionComposer({
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [harnessName, setHarnessName] = useState('opencode-sdk');
-  const [modelKey, setModelKey] = useState('');
   const { create, isCreating } = useCreateSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const capabilities = useSessionQuery(api.web.directHarness.capabilities.listForWorkspace, workspaceId ? { workspaceId } : 'skip');
+  const capabilities = useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
 
   const harnesses = capabilities?.harnesses ?? [];
-  const selectedHarness = harnesses.find((h) => h.name === harnessName) ?? harnesses[0];
-  const providers = selectedHarness?.providers ?? [];
 
-  // Auto-select the first available model when providers load
-  useEffect(() => {
-    if (modelKey) return;
-    const firstProvider = providers[0];
-    const firstModel = firstProvider?.models[0];
-    if (firstProvider && firstModel) {
-      setModelKey(`${firstProvider.providerID}::${firstModel.modelID}`);
-    }
-  }, [providers, modelKey]);
+  const {
+    selectedAgent,
+    setSelectedAgent,
+    selectedModel,
+    setSelectedModel,
+    providers,
+    resolvedAgent,
+    resolvedModel,
+  } = useHarnessConfig({ harnesses, harnessName });
+
+  // Agents for the selector: pass the full agents array — HarnessAgentSelect
+  // filters to mode primary|all internally.
+  const selectedHarness = harnesses.find((h) => h.name === harnessName) ?? harnesses[0];
+  const currentHarnessAgents = selectedHarness?.agents ?? [];
 
   const trimmed = text.trim();
-  const canSend = !!trimmed && !isCreating && !!modelKey;
+  const canSend = !!trimmed && !isCreating && !!resolvedModel;
 
   const handleSend = async () => {
     if (!canSend) return;
     setError(null);
-    const model = parseModelKey(modelKey);
+    const model = parseModelKey(resolvedModel);
     try {
       const result = await create({
         workspaceId,
         harnessName,
         config: {
-          agent: 'build',
+          agent: resolvedAgent,
           ...(model ? { model } : {}),
         },
         firstMessage: trimmed,
@@ -124,11 +131,11 @@ export function NewSessionComposer({
           </Button>
         </div>
 
-        {/* Harness + model selectors */}
+        {/* Harness + agent + model selectors */}
         <div className="flex gap-2">
           {/* Harness selector */}
           <Select value={harnessName} onValueChange={setHarnessName}>
-            <SelectTrigger className="h-7 py-0 text-xs w-36 shrink-0">
+            <SelectTrigger className="h-8 py-0 text-xs w-32 shrink-0">
               <SelectValue placeholder="Harness" />
             </SelectTrigger>
             <SelectContent>
@@ -146,12 +153,21 @@ export function NewSessionComposer({
             </SelectContent>
           </Select>
 
+          {/* Agent selector */}
+          <div className="w-28 shrink-0">
+            <HarnessAgentSelect
+              agents={currentHarnessAgents}
+              value={selectedAgent}
+              onValueChange={setSelectedAgent}
+            />
+          </div>
+
           {/* Model selector — grouped by provider, searchable */}
           <div className="flex-1 min-w-0 flex flex-col">
             <HarnessModelSelect
               providers={providers}
-              value={modelKey}
-              onValueChange={setModelKey}
+              value={selectedModel}
+              onValueChange={setSelectedModel}
             />
           </div>
         </div>
