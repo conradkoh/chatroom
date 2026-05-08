@@ -98,7 +98,7 @@ export function NewSessionComposer({
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-border p-3 flex flex-col gap-2">
+      <div className="shrink-0 border-t-2 border-border p-3 flex flex-col gap-2">
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Textarea + send button */}
@@ -206,14 +206,14 @@ export function SessionComposer({
 
   if (isTerminal) {
     return (
-      <div className="shrink-0 border-t border-border px-3 py-2">
+      <div className="shrink-0 border-t-2 border-border px-3 py-2">
         <p className="text-xs text-muted-foreground">{terminalMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="shrink-0 border-t border-border p-3 flex flex-col gap-2">
+    <div className="shrink-0 border-t-2 border-border p-3 flex flex-col gap-2">
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex gap-2 items-end">
         <Textarea

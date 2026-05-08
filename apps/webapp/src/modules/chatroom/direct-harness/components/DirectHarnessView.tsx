@@ -145,9 +145,9 @@ export const DirectHarnessView = memo(function DirectHarnessView({
     <>
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-        <div className="w-64 shrink-0 border-r border-border flex flex-col min-h-0 bg-card">
+        <div className="w-64 shrink-0 border-r-2 border-border flex flex-col min-h-0 bg-card">
           {/* Workspace picker + new button */}
-          <div className="shrink-0 p-2 border-b border-border flex items-center gap-1.5">
+          <div className="shrink-0 p-2 border-b-2 border-border flex items-center gap-1.5">
             <div className="flex-1 min-w-0">
               {workspaces.length > 0 ? (
                 <HarnessWorkspaceSwitcher
