@@ -8,16 +8,28 @@ const crons = cronJobs();
 crons.interval('cleanup old events', { minutes: 15 }, internal.eventCleanup.cleanupOldEvents);
 
 // Storage cleanup — command output (7-day TTL, hourly)
-crons.interval('cleanup command output', { hours: 1 }, internal.storageCleanup.cleanupCommandOutput);
+crons.interval(
+  'cleanup command output',
+  { hours: 1 },
+  internal.storageCleanup.cleanupCommandOutput
+);
 
 // Storage cleanup — command runs (30-day TTL, daily)
 crons.interval('cleanup command runs', { hours: 24 }, internal.storageCleanup.cleanupCommandRuns);
 
 // Storage cleanup — commit details (30-day TTL, daily)
-crons.interval('cleanup commit details', { hours: 24 }, internal.storageCleanup.cleanupCommitDetails);
+crons.interval(
+  'cleanup commit details',
+  { hours: 24 },
+  internal.storageCleanup.cleanupCommitDetails
+);
 
 // Storage cleanup — cached content (24-hour TTL, hourly)
-crons.interval('cleanup cached content', { hours: 1 }, internal.storageCleanup.cleanupCachedContent);
+crons.interval(
+  'cleanup cached content',
+  { hours: 1 },
+  internal.storageCleanup.cleanupCachedContent
+);
 
 // Machine status — transition online→offline when heartbeat expires (every 60s)
 crons.interval(
@@ -27,7 +39,11 @@ crons.interval(
 );
 
 // Chatroom cleanup — workspace file tree (30-day stale, daily)
-crons.interval('cleanup workspace file tree', { hours: 24 }, internal.chatroomCleanup.cleanupWorkspaceFileTree);
+crons.interval(
+  'cleanup workspace file tree',
+  { hours: 24 },
+  internal.chatroomCleanup.cleanupWorkspaceFileTree
+);
 
 // Chatroom cleanup — orphaned read cursors (daily)
 crons.interval('cleanup read cursors', { hours: 24 }, internal.chatroomCleanup.cleanupReadCursors);
@@ -42,16 +58,31 @@ crons.interval('cleanup participants', { hours: 24 }, internal.chatroomCleanup.c
 crons.interval('cleanup cli sessions', { hours: 24 }, internal.chatroomCleanup.cleanupCliSessions);
 
 // Chatroom cleanup — expired CLI auth requests 7d+ (daily)
-crons.interval('cleanup cli auth requests', { hours: 24 }, internal.chatroomCleanup.cleanupCliAuthRequests);
+crons.interval(
+  'cleanup cli auth requests',
+  { hours: 24 },
+  internal.chatroomCleanup.cleanupCliAuthRequests
+);
 
 // Chatroom cleanup — completed tasks 60d+ (daily)
-crons.interval('cleanup completed tasks', { hours: 24 }, internal.chatroomCleanup.cleanupCompletedTasks);
+crons.interval(
+  'cleanup completed tasks',
+  { hours: 24 },
+  internal.chatroomCleanup.cleanupCompletedTasks
+);
 
 // Capabilities refresh — fail batches stuck in pending (48h+, daily)
 crons.interval(
   'expire stale capabilities refresh batches',
   { hours: 24 },
   internal.capabilitiesRefreshCron.expireStalePendingCapabilitiesRefreshBatches
+);
+
+// Direct harness cleanup — purge finalized turn chunks (1h TTL, hourly)
+crons.interval(
+  'purge finalized harness chunks',
+  { hours: 1 },
+  internal.directHarnessCleanup.purgeFinalizedChunks
 );
 
 export default crons;

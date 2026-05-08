@@ -2263,7 +2263,8 @@ export default defineSchema({
   })
     .index('by_session_turnSeq', ['harnessSessionId', 'turnSeq'])
     .index('by_session_status', ['harnessSessionId', 'status'])
-    .index('by_messageId', ['messageId']),
+    .index('by_messageId', ['messageId'])
+    .index('by_status_completedAt', ['status', 'completedAt']),
 
   /**
    * User messages held in reserve while work is in flight for a session.
