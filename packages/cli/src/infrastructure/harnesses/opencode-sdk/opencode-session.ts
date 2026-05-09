@@ -1,4 +1,3 @@
-import { createOpencodeClient } from '@opencode-ai/sdk';
 import type { OpencodeClient } from '@opencode-ai/sdk';
 import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
@@ -35,7 +34,8 @@ function toSessionEvent(event: OpenCodeEvent): DirectHarnessSessionEvent {
 }
 
 export interface OpencodeSdkSessionOptions {
-  readonly baseUrl: string;
+  /** The shared HTTP client from the parent harness. */
+  readonly client: OpencodeClient;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
 }
@@ -53,7 +53,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   constructor(options: OpencodeSdkSessionOptions) {
     this.opencodeSessionId = options.opencodeSessionId as OpenCodeSessionId;
     this.sessionTitle = options.sessionTitle;
-    this.client = createOpencodeClient({ baseUrl: options.baseUrl });
+    this.client = options.client;
   }
 
   async prompt(input: PromptInput): Promise<void> {

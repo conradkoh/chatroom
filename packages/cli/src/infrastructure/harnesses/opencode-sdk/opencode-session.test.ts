@@ -3,29 +3,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OpencodeSdkSession } from './opencode-session.js';
 import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 
-// ─── Mock @opencode-ai/sdk ───────────────────────────────────────────────────
+// ─── Mock client ─────────────────────────────────────────────────────────────
 
 const mockPrompt = vi.fn();
 const mockAbort = vi.fn();
 const mockSubscribe = vi.fn();
 
-vi.mock('@opencode-ai/sdk', () => ({
-  createOpencodeClient: vi.fn(() => ({
-    session: {
-      prompt: mockPrompt,
-      abort: mockAbort,
-    },
-    event: {
-      subscribe: mockSubscribe,
-    },
-  })),
-}));
+/** A reusable mock OpencodeClient — shared by tests to verify client sharing. */
+const mockClient = {
+  session: { prompt: mockPrompt, abort: mockAbort },
+  event: { subscribe: mockSubscribe },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function createSession(overrides?: { baseUrl?: string }) {
+function createSession() {
   return new OpencodeSdkSession({
-    baseUrl: overrides?.baseUrl ?? 'http://127.0.0.1:15432',
+    client: mockClient as never,
     opencodeSessionId: 'sess-123',
     sessionTitle: 'Test Session',
   });
@@ -343,5 +337,26 @@ describe('OpencodeSdkSession', () => {
     const session = createSession();
     expect(session.opencodeSessionId).toBe('sess-123');
     expect(session.sessionTitle).toBe('Test Session');
+  });
+
+  it('two sessions created with the same client share the same client reference', () => {
+    // Both sessions receive the same mockClient — they share one HTTP client.
+    const session1 = new OpencodeSdkSession({
+      client: mockClient as never,
+      opencodeSessionId: 'sess-a',
+      sessionTitle: 'Session A',
+    });
+    const session2 = new OpencodeSdkSession({
+      client: mockClient as never,
+      opencodeSessionId: 'sess-b',
+      sessionTitle: 'Session B',
+    });
+
+    // Both sessions use the exact same client object (verified by reference equality).
+    // When sessions are created from a harness, the harness passes `this.client`,
+    // so all sessions for one workspace share a single connection pool.
+    expect((session1 as unknown as { client: unknown }).client).toBe(
+      (session2 as unknown as { client: unknown }).client
+    );
   });
 });

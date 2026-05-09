@@ -140,7 +140,7 @@ export class OpencodeSdkHarness implements BoundHarness {
     }
 
     return new OpencodeSdkSession({
-      baseUrl: this.getBaseUrl(),
+      client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
     });
@@ -165,7 +165,7 @@ export class OpencodeSdkHarness implements BoundHarness {
     }
 
     return new OpencodeSdkSession({
-      baseUrl: this.getBaseUrl(),
+      client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
     });
