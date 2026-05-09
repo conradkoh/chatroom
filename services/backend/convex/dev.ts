@@ -74,6 +74,12 @@
  *   Deleted 9 legacy chatroom_harnessSessions documents that still carried
  *   the old `lastProcessedSeq` field after it was renamed to
  *   `lastProcessedTurnSeq`.
+ *
+ * Step 8 — drop chunk seq migration
+ *   Purged ALL chatroom_harnessSessionMessages rows so a follow-up commit
+ *   can drop the optional `seq` field and its two `*_seq` indexes from the
+ *   schema. Table is ephemeral (1h TTL via purgeFinalizedChunks) and new
+ *   rows have not been writing seq since commit 0174d57d.
  */
 
 import { internalMutation } from './_generated/server.js';
@@ -82,7 +88,13 @@ import { internalMutation } from './_generated/server.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
-  handler: async (_ctx) => {
-    // no-op — see step-by-step workflow above when you need to run a migration.
+  handler: async (ctx) => {
+    // Step 8: purge all chunk rows so the next commit can drop the seq field
+    // and *_seq indexes from the schema.
+    const all = await ctx.db.query('chatroom_harnessSessionMessages').collect();
+    for (const doc of all) {
+      await ctx.db.delete('chatroom_harnessSessionMessages', doc._id);
+    }
+    console.log(`[dev:cleanup] purged ${all.length} chatroom_harnessSessionMessages rows`);
   },
 });
