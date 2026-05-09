@@ -31,7 +31,6 @@ export interface HarnessMessage {
   _id: Id<'chatroom_harnessSessionMessages'>;
   _creationTime: number;
   harnessSessionId: Id<'chatroom_harnessSessions'>;
-  seq?: number; // optional — new rows use _creationTime for ordering
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;

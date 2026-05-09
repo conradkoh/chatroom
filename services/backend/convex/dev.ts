@@ -88,13 +88,7 @@ import { internalMutation } from './_generated/server.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
-  handler: async (ctx) => {
-    // Step 8: purge all chunk rows so the next commit can drop the seq field
-    // and *_seq indexes from the schema.
-    const all = await ctx.db.query('chatroom_harnessSessionMessages').collect();
-    for (const doc of all) {
-      await ctx.db.delete('chatroom_harnessSessionMessages', doc._id);
-    }
-    console.log(`[dev:cleanup] purged ${all.length} chatroom_harnessSessionMessages rows`);
+  handler: async () => {
+    // no-op — see step-by-step workflow above when you need to run a migration.
   },
 });

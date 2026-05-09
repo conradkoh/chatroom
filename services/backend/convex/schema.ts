@@ -2208,7 +2208,6 @@ export default defineSchema({
    */
   chatroom_harnessSessionMessages: defineTable({
     harnessSessionId: v.id('chatroom_harnessSessions'),
-    seq: v.optional(v.number()), // optional — new rows use _creationTime for ordering
     role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),
@@ -2217,8 +2216,8 @@ export default defineSchema({
     /** Distinguishes reasoning (thinking) tokens from regular text output. */
     partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
   })
-    .index('by_session_seq', ['harnessSessionId', 'seq'])
-    .index('by_session_role_seq', ['harnessSessionId', 'role', 'seq'])
+    .index('by_session', ['harnessSessionId'])
+    .index('by_session_role', ['harnessSessionId', 'role'])
     .index('by_messageId', ['messageId']),
 
   /**

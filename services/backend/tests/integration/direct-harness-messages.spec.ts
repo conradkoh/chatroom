@@ -140,15 +140,13 @@ describe('messages.appendMessages', () => {
     const messages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', rowId))
+        .withIndex('by_session', (q) => q.eq('harnessSessionId', rowId))
         .collect()
     );
 
     const assistant = messages.find((m) => m.role === 'assistant');
     expect(assistant).toBeDefined();
     expect(assistant?.content).toBe('response');
-    // New rows no longer have seq populated; ordering uses _creationTime
-    expect(assistant?.seq).toBeUndefined();
   });
 
   test('chunks are ordered by _creationTime (insertion order)', async () => {
@@ -167,13 +165,12 @@ describe('messages.appendMessages', () => {
     const messages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', rowId))
+        .withIndex('by_session', (q) => q.eq('harnessSessionId', rowId))
         .collect()
     );
 
-    // 2 assistant chunks, no seq populated
+    // 2 assistant chunks
     expect(messages.length).toBe(2);
-    expect(messages.every((m) => m.seq === undefined)).toBe(true);
     // _creationTime values are non-decreasing (may be equal in test env, but present)
     expect(messages.every((m) => typeof m._creationTime === 'number')).toBe(true);
   });
@@ -194,7 +191,7 @@ describe('messages.appendMessages', () => {
     const messages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', rowId))
+        .withIndex('by_session', (q) => q.eq('harnessSessionId', rowId))
         .collect()
     );
 
@@ -225,7 +222,7 @@ describe('messages.appendMessages', () => {
     const messages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', rowId))
+        .withIndex('by_session', (q) => q.eq('harnessSessionId', rowId))
         .collect()
     );
 

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockQuery = vi.fn();
 let olderQueryCallCount = 0;
 let tailQueryCallCount = 0;
-let mockChunkData: Array<{ _id: string; _creationTime: number; seq?: number; content: string; partType?: 'text' | 'reasoning' }> = [];
+let mockChunkData: Array<{ _id: string; _creationTime: number; content: string; partType?: 'text' | 'reasoning' }> = [];
 
 vi.mock('convex/react', () => ({
   useConvex: () => ({ query: mockQuery }),

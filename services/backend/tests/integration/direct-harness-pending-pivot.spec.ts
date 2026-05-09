@@ -47,7 +47,7 @@ describe('web.sessions.create — user turn', () => {
     const chunkUserRows = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_role_seq', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
+        .withIndex('by_session_role', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
         .collect()
     );
     expect(chunkUserRows).toHaveLength(0);
@@ -91,7 +91,7 @@ describe('web.messages.send — direct path (no queue)', () => {
     const chunkUserRows = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_role_seq', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
+        .withIndex('by_session_role', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
         .collect()
     );
     expect(chunkUserRows).toHaveLength(0);
@@ -155,7 +155,7 @@ describe('daemon.queue.dequeueNext — promotes to turn row', () => {
     const chunkUserRows = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_harnessSessionMessages')
-        .withIndex('by_session_role_seq', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
+        .withIndex('by_session_role', (q) => q.eq('harnessSessionId', rowId).eq('role', 'user'))
         .collect()
     );
     expect(chunkUserRows).toHaveLength(0);
