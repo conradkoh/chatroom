@@ -238,22 +238,51 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
     streamingTurn?.messageId ? { harnessSessionId, messageId: streamingTurn.messageId } : 'skip'
   ) as HarnessMessage[] | undefined;
 
+  // Incremental overlay accumulation.
+  // Refs hold mutable state that persists across renders without triggering
+  // re-renders. The high-water mark prevents re-processing chunks we've
+  // already merged. When the messageId changes (new turn), the refs reset.
+  const overlayTextRef = useRef('');
+  const overlayReasoningRef = useRef('');
+  const highWaterSeqRef = useRef(-1);
+  const lastMessageIdRef = useRef<string | null>(null);
+
   // Derive streaming overlay (computed, not stored in state)
   const streamingOverlay: StreamingOverlay | null = useMemo(() => {
-    if (!streamingTurn || !chunksData) return null;
-    let textContent = '';
-    let reasoningContent = '';
+    if (!streamingTurn || !chunksData) {
+      // No active streaming turn — reset accumulator
+      overlayTextRef.current = '';
+      overlayReasoningRef.current = '';
+      highWaterSeqRef.current = -1;
+      lastMessageIdRef.current = null;
+      return null;
+    }
+
+    // Reset accumulator when the turn changes (new messageId)
+    const currentMsgId = streamingTurn.messageId ?? null;
+    if (lastMessageIdRef.current !== currentMsgId) {
+      overlayTextRef.current = '';
+      overlayReasoningRef.current = '';
+      highWaterSeqRef.current = -1;
+      lastMessageIdRef.current = currentMsgId;
+    }
+
+    // Append only chunks newer than the high-water mark
     for (const chunk of chunksData) {
-      if (chunk.partType === 'reasoning') {
-        reasoningContent += chunk.content;
-      } else {
-        textContent += chunk.content;
+      if (chunk.seq > highWaterSeqRef.current) {
+        if (chunk.partType === 'reasoning') {
+          overlayReasoningRef.current += chunk.content;
+        } else {
+          overlayTextRef.current += chunk.content;
+        }
+        highWaterSeqRef.current = chunk.seq;
       }
     }
+
     return {
       turnId: streamingTurn._id,
-      textContent,
-      reasoningContent,
+      textContent: overlayTextRef.current,
+      reasoningContent: overlayReasoningRef.current,
     };
   }, [streamingTurn, chunksData]);
 

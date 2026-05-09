@@ -156,8 +156,13 @@ export const getOlderTurns = query({
  * Reactive subscription for the in-flight streaming turn's raw chunks.
  *
  * The frontend subscribes to this while there is a turn with status='streaming'
- * and a bound messageId. Returns chunk rows ordered by seq ascending so the
- * client can concatenate tokens for incremental display.
+ * and a bound messageId. Returns the most recent `limit` (default 200) chunk
+ * rows ordered by seq ascending so the client can append new tokens
+ * incrementally.
+ *
+ * By returning only the tail of the chunk stream, Convex only re-evaluates
+ * this query when new chunks arrive — and returns at most O(limit) rows
+ * regardless of how long the generation has been running.
  *
  * When the streaming turn finalizes (status flips to 'complete'), the frontend
  * drops this subscription (passes 'skip') and uses the canonical textContent /
@@ -168,15 +173,26 @@ export const getStreamingTurnChunks = query({
     ...SessionIdArg,
     harnessSessionId: v.id('chatroom_harnessSessions'),
     messageId: v.string(),
+    /** Maximum number of chunks to return. Defaults to 200. */
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
     await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
 
-    return ctx.db
+    const limit = args.limit ?? 200;
+
+    // Fetch newest `limit` chunks (desc), then sort asc so the client can
+    // concatenate in order. This bounds the query to O(limit) rows regardless
+    // of how many chunks have accumulated.
+    const rows = await ctx.db
       .query('chatroom_harnessSessionMessages')
       .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
-      .order('asc')
-      .collect();
+      .order('desc')
+      .take(limit);
+
+    // Restore ascending order for the client
+    rows.sort((a, b) => a.seq - b.seq);
+    return rows;
   },
 });

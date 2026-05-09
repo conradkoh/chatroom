@@ -296,4 +296,42 @@ describe('turns.getStreamingTurnChunks', () => {
     expect(chunksA).toHaveLength(1);
     expect(chunksA[0]!.content).toBe('from-a');
   });
+
+  test('respects the limit parameter — returns only the newest N chunks in seq order', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-limit');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const testMessageId = 'msg-limit-test';
+
+    // Insert 5 chunks
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [
+        { content: 'a', timestamp: 1000, messageId: testMessageId },
+        { content: 'b', timestamp: 1001, messageId: testMessageId },
+        { content: 'c', timestamp: 1002, messageId: testMessageId },
+        { content: 'd', timestamp: 1003, messageId: testMessageId },
+        { content: 'e', timestamp: 1004, messageId: testMessageId },
+      ],
+    });
+
+    // Request only the newest 3
+    const chunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+      limit: 3,
+    });
+
+    expect(chunks).toHaveLength(3);
+    // Should return the NEWEST 3 (c, d, e) in ascending seq order
+    expect(chunks[0]!.content).toBe('c');
+    expect(chunks[1]!.content).toBe('d');
+    expect(chunks[2]!.content).toBe('e');
+    // Verify ascending order
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i]!.seq).toBeGreaterThan(chunks[i - 1]!.seq);
+    }
+  });
 });
