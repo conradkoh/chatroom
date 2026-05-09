@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockQuery = vi.fn();
 let olderQueryCallCount = 0;
 let tailQueryCallCount = 0;
-let mockChunkData: Array<{ seq: number; content: string; partType?: 'text' | 'reasoning'; _id?: string; _creationTime?: number }> = [];
+let mockChunkData: Array<{ _id: string; _creationTime: number; seq?: number; content: string; partType?: 'text' | 'reasoning' }> = [];
 
 vi.mock('convex/react', () => ({
   useConvex: () => ({ query: mockQuery }),
@@ -167,8 +167,8 @@ function makeStreamingTurn(id: string, turnSeq: number, messageId: string) {
 describe('useHarnessTurnStore — streamingOverlay incremental accumulation', () => {
   it('builds overlay from initial chunks on first subscription', async () => {
     mockChunkData = [
-      { seq: 1, content: 'hello ', partType: 'text' },
-      { seq: 2, content: 'world', partType: 'text' },
+      { _id: 'c1', _creationTime: 1000, content: 'hello ', partType: 'text' },
+      { _id: 'c2', _creationTime: 1001, content: 'world', partType: 'text' },
     ];
     const streamTurn = makeStreamingTurn('t-stream', 1, 'msg-abc');
     mockQuery.mockResolvedValue({ turns: [streamTurn], hasMore: false, newestTurnSeq: 1 });
@@ -184,8 +184,8 @@ describe('useHarnessTurnStore — streamingOverlay incremental accumulation', ()
   it('appends only new chunks past the high-water mark on subsequent updates', async () => {
     // Start with 2 chunks
     mockChunkData = [
-      { seq: 1, content: 'hello ', partType: 'text' },
-      { seq: 2, content: 'world', partType: 'text' },
+      { _id: 'c1', _creationTime: 1000, content: 'hello ', partType: 'text' },
+      { _id: 'c2', _creationTime: 1001, content: 'world', partType: 'text' },
     ];
     const streamTurn = makeStreamingTurn('t-stream', 1, 'msg-xyz');
     mockQuery.mockResolvedValue({ turns: [streamTurn], hasMore: false, newestTurnSeq: 1 });
@@ -196,9 +196,9 @@ describe('useHarnessTurnStore — streamingOverlay incremental accumulation', ()
 
     // Simulate a new chunk arriving — the query now returns 3 chunks
     mockChunkData = [
-      { seq: 1, content: 'hello ', partType: 'text' },
-      { seq: 2, content: 'world', partType: 'text' },
-      { seq: 3, content: '!', partType: 'text' },
+      { _id: 'c1', _creationTime: 1000, content: 'hello ', partType: 'text' },
+      { _id: 'c2', _creationTime: 1001, content: 'world', partType: 'text' },
+      { _id: 'c3', _creationTime: 1002, content: '!', partType: 'text' },
     ];
     rerender();
 
@@ -209,7 +209,7 @@ describe('useHarnessTurnStore — streamingOverlay incremental accumulation', ()
 
   it('resets overlay when messageId changes (new turn)', async () => {
     // Render with a streaming turn using messageId='msg-first', one chunk
-    mockChunkData = [{ seq: 1, content: 'first', partType: 'text' }];
+    mockChunkData = [{ _id: 'f1', _creationTime: 1000, content: 'first', partType: 'text' }];
     const turn1 = makeStreamingTurn('t-1', 1, 'msg-first');
     mockQuery.mockResolvedValue({ turns: [turn1], hasMore: false, newestTurnSeq: 1 });
 
@@ -219,7 +219,7 @@ describe('useHarnessTurnStore — streamingOverlay incremental accumulation', ()
 
     // Render a fresh hook as if the user navigated to a new session
     // (new harnessSessionId resets all internal state including refs)
-    mockChunkData = [{ seq: 1, content: 'second', partType: 'text' }];
+    mockChunkData = [{ _id: 's1', _creationTime: 1000, content: 'second', partType: 'text' }];
     const turn2 = makeStreamingTurn('t-2', 1, 'msg-second');
     mockQuery.mockResolvedValue({ turns: [turn2], hasMore: false, newestTurnSeq: 1 });
 

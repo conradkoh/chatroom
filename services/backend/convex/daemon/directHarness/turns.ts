@@ -153,8 +153,8 @@ export const finalizeAssistantTurn = mutation({
         .query('chatroom_harnessSessionMessages')
         .withIndex('by_messageId', (q) => q.eq('messageId', turn.messageId))
         .collect();
-      // Sort by seq ascending for correct concatenation order
-      chunks.sort((a, b) => a.seq - b.seq);
+
+      // Chunks are returned in _creationTime (insertion) order by the by_messageId index.
 
       for (const chunk of chunks) {
         const partType = chunk.partType ?? 'text';
@@ -192,7 +192,7 @@ export async function aggregateChunksByMessageId(
     .query('chatroom_harnessSessionMessages')
     .withIndex('by_messageId', (q) => q.eq('messageId', messageId))
     .collect();
-  chunks.sort((a, b) => a.seq - b.seq);
+  // Chunks are returned in _creationTime (insertion) order by the by_messageId index.
 
   let textContent = '';
   let reasoningContent = '';

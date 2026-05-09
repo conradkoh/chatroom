@@ -34,24 +34,6 @@ export function assertAgentNonEmpty(agent: string): void {
   }
 }
 
-// ─── Message sequencing ──────────────────────────────────────────────────────
-
-/**
- * Returns the next monotonically-increasing seq for a session's messages.
- * Starts at 1. Convex mutations are serialised so this is race-free.
- */
-export async function getNextMessageSeq(
-  ctx: { db: MutationCtx['db'] },
-  harnessSessionId: Id<'chatroom_harnessSessions'>
-): Promise<number> {
-  const lastMessage = await ctx.db
-    .query('chatroom_harnessSessionMessages')
-    .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', harnessSessionId))
-    .order('desc')
-    .first();
-  return (lastMessage?.seq ?? 0) + 1;
-}
-
 /**
  * Returns the next monotonically-increasing turnSeq for a session's turns.
  * Starts at 1. Convex mutations are serialised so this is race-free.

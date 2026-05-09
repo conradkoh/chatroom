@@ -30,18 +30,13 @@ export const appendMessages = mutation({
 
     if (args.chunks.length === 0) return { inserted: 0 };
 
-    // Assign seqs atomically from current max+1 — no collision with user msgs.
-    const lastMsg = await ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session_seq', (q) => q.eq('harnessSessionId', args.harnessSessionId))
-      .order('desc')
-      .first();
-    let nextSeq = (lastMsg?.seq ?? 0) + 1;
-
+    // Insert chunks without manual seq. Convex's _creationTime orders chunks
+    // across mutations (mutations are serialized). Within a single mutation,
+    // inserts may share the same _creationTime; the frontend handles this via
+    // per-chunk _id deduplication, not a _creationTime high-water mark.
     for (const chunk of args.chunks) {
       await ctx.db.insert('chatroom_harnessSessionMessages', {
         harnessSessionId: args.harnessSessionId,
-        seq: nextSeq++,
         role: 'assistant',
         content: chunk.content,
         timestamp: chunk.timestamp,

@@ -2208,7 +2208,7 @@ export default defineSchema({
    */
   chatroom_harnessSessionMessages: defineTable({
     harnessSessionId: v.id('chatroom_harnessSessions'),
-    seq: v.number(),
+    seq: v.optional(v.number()), // optional — new rows use _creationTime for ordering
     role: v.union(v.literal('user'), v.literal('assistant')),
     content: v.string(),
     timestamp: v.number(),

@@ -252,9 +252,9 @@ describe('turns.getStreamingTurnChunks', () => {
     expect(chunks[0]!.content).toBe('token1');
     expect(chunks[1]!.content).toBe('token2');
     expect(chunks[2]!.content).toBe('token3');
-    // Verify ordering by seq
+    // Verify ordering by _creationTime (seq no longer populated on new rows)
     for (let i = 1; i < chunks.length; i++) {
-      expect(chunks[i]!.seq).toBeGreaterThan(chunks[i - 1]!.seq);
+      expect(chunks[i]!._creationTime).toBeGreaterThanOrEqual(chunks[i - 1]!._creationTime);
     }
   });
 
@@ -297,7 +297,7 @@ describe('turns.getStreamingTurnChunks', () => {
     expect(chunksA[0]!.content).toBe('from-a');
   });
 
-  test('respects the limit parameter — returns only the newest N chunks in seq order', async () => {
+  test('respects the limit parameter — returns only the newest N chunks in _creationTime order', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-limit');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
@@ -325,13 +325,13 @@ describe('turns.getStreamingTurnChunks', () => {
     });
 
     expect(chunks).toHaveLength(3);
-    // Should return the NEWEST 3 (c, d, e) in ascending seq order
+    // Should return the NEWEST 3 (c, d, e) in ascending _creationTime order
     expect(chunks[0]!.content).toBe('c');
     expect(chunks[1]!.content).toBe('d');
     expect(chunks[2]!.content).toBe('e');
-    // Verify ascending order
+    // Verify ascending _creationTime order
     for (let i = 1; i < chunks.length; i++) {
-      expect(chunks[i]!.seq).toBeGreaterThan(chunks[i - 1]!.seq);
+      expect(chunks[i]!._creationTime).toBeGreaterThanOrEqual(chunks[i - 1]!._creationTime);
     }
   });
 });

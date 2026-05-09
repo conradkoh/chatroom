@@ -7,7 +7,7 @@
  *
  * For the single in-flight streaming turn, the frontend additionally
  * subscribes to getStreamingTurnChunks which returns the raw chunk rows
- * ordered by seq — enabling token-by-token incremental display.
+ * ordered by _creationTime ascending — enabling token-by-token incremental display.
  */
 
 import { v } from 'convex/values';
@@ -157,7 +157,7 @@ export const getOlderTurns = query({
  *
  * The frontend subscribes to this while there is a turn with status='streaming'
  * and a bound messageId. Returns the most recent `limit` (default 200) chunk
- * rows ordered by seq ascending so the client can append new tokens
+ * rows ordered by _creationTime ascending so the client can append new tokens
  * incrementally.
  *
  * By returning only the tail of the chunk stream, Convex only re-evaluates
@@ -182,9 +182,9 @@ export const getStreamingTurnChunks = query({
 
     const limit = args.limit ?? 200;
 
-    // Fetch newest `limit` chunks (desc), then sort asc so the client can
-    // concatenate in order. This bounds the query to O(limit) rows regardless
-    // of how many chunks have accumulated.
+    // Fetch newest `limit` chunks (desc), then sort by _creationTime asc so the client
+    // can concatenate in insertion order. This bounds the query to O(limit) rows
+    // regardless of how many chunks have accumulated.
     const rows = await ctx.db
       .query('chatroom_harnessSessionMessages')
       .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
@@ -192,7 +192,7 @@ export const getStreamingTurnChunks = query({
       .take(limit);
 
     // Restore ascending order for the client
-    rows.sort((a, b) => a.seq - b.seq);
+    rows.sort((a, b) => a._creationTime - b._creationTime);
     return rows;
   },
 });

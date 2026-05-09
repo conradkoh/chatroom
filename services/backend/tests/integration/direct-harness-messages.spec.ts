@@ -147,10 +147,12 @@ describe('messages.appendMessages', () => {
     const assistant = messages.find((m) => m.role === 'assistant');
     expect(assistant).toBeDefined();
     expect(assistant?.content).toBe('response');
+    // New rows no longer have seq populated; ordering uses _creationTime
+    expect(assistant?.seq).toBeUndefined();
   });
 
-  test('seqs are assigned without collision', async () => {
-    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-seq');
+  test('chunks are ordered by _creationTime (insertion order)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('append-order');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);
 
     await t.mutation(api.daemon.directHarness.messages.appendMessages, {
@@ -169,11 +171,11 @@ describe('messages.appendMessages', () => {
         .collect()
     );
 
-    const seqs = messages.map((m) => m.seq);
-    // All seqs must be unique
-    expect(new Set(seqs).size).toBe(seqs.length);
-    // 2 assistant chunks
+    // 2 assistant chunks, no seq populated
     expect(messages.length).toBe(2);
+    expect(messages.every((m) => m.seq === undefined)).toBe(true);
+    // _creationTime values are non-decreasing (may be equal in test env, but present)
+    expect(messages.every((m) => typeof m._creationTime === 'number')).toBe(true);
   });
 
   test('messageId and partType are stored correctly', async () => {

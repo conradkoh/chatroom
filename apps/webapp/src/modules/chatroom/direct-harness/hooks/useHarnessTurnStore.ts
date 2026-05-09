@@ -240,11 +240,12 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
 
   // Incremental overlay accumulation.
   // Refs hold mutable state that persists across renders without triggering
-  // re-renders. The high-water mark prevents re-processing chunks we've
-  // already merged. When the messageId changes (new turn), the refs reset.
+  // re-renders. mergedIdsRef tracks chunk._id values already appended —
+  // correct even when _creationTime is shared across inserts in the same
+  // Convex mutation. When the messageId changes (new turn), refs reset.
   const overlayTextRef = useRef('');
   const overlayReasoningRef = useRef('');
-  const highWaterSeqRef = useRef(-1);
+  const mergedIdsRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
 
   // Derive streaming overlay (computed, not stored in state)
@@ -253,7 +254,7 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
       // No active streaming turn — reset accumulator
       overlayTextRef.current = '';
       overlayReasoningRef.current = '';
-      highWaterSeqRef.current = -1;
+      mergedIdsRef.current = new Set();
       lastMessageIdRef.current = null;
       return null;
     }
@@ -263,19 +264,22 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
     if (lastMessageIdRef.current !== currentMsgId) {
       overlayTextRef.current = '';
       overlayReasoningRef.current = '';
-      highWaterSeqRef.current = -1;
+      mergedIdsRef.current = new Set();
       lastMessageIdRef.current = currentMsgId;
     }
 
-    // Append only chunks newer than the high-water mark
+    // Append only chunks not yet in the merged set (keyed by _id, which is
+    // always unique). This handles _creationTime collisions that occur when
+    // multiple inserts share a mutation (Convex does not guarantee per-insert
+    // _creationTime uniqueness within a mutation).
     for (const chunk of chunksData) {
-      if (chunk.seq > highWaterSeqRef.current) {
+      if (!mergedIdsRef.current.has(chunk._id as string)) {
         if (chunk.partType === 'reasoning') {
           overlayReasoningRef.current += chunk.content;
         } else {
           overlayTextRef.current += chunk.content;
         }
-        highWaterSeqRef.current = chunk.seq;
+        mergedIdsRef.current.add(chunk._id as string);
       }
     }
 
