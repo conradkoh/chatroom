@@ -109,77 +109,56 @@ describe('OpencodeSdkSession', () => {
     })).rejects.toThrow('Session is closed');
   });
 
-  // ── onEvent() ───────────────────────────────────────────────────────────────
+  // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
+  //
+  // Event delivery is now managed by the parent harness's SSE fan-out loop.
+  // OpencodeSdkSession no longer subscribes to the SSE stream itself;
+  // instead the harness calls _receiveEvent() for each event addressed to
+  // this session's opencodeSessionId.
 
-  it('subscribes to event stream on first onEvent call', () => {
-    mockSubscribe.mockReturnValue({ stream: emptyStream() });
-
-    const session = createSession();
-    const unsub = session.onEvent(vi.fn());
-
-    expect(mockSubscribe).toHaveBeenCalledOnce();
-    unsub();
-  });
-
-  it('filters events by sessionID and forwards matching ones', async () => {
-    const events = [
-      { type: 'message.part.updated', properties: { sessionID: 'sess-other', delta: 'skip' } },
-      { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hello' } },
-      { type: 'message.updated', properties: { sessionID: 'sess-123', info: { id: 'msg-1' } } },
-      { type: 'session.status', properties: { sessionID: 'sess-other', status: 'idle' } },
-    ];
-
-    mockSubscribe.mockReturnValue({ stream: eventStream(events) });
-
-    const session = createSession();
-    const listener = vi.fn();
-    session.onEvent(listener);
-
-    // Yield to allow the event stream to process
-    await vi.waitFor(() => {
-      expect(listener).toHaveBeenCalledTimes(2);
-    });
-
-    // Only sess-123 events were forwarded
-    expect(listener).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      type: 'message.part.updated',
-      payload: expect.objectContaining({ delta: 'hello' }),
-    }));
-    expect(listener).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      type: 'message.updated',
-    }));
-  });
-
-  it('deduplicates multiple onEvent subscriptions (single event stream)', () => {
-    mockSubscribe.mockReturnValue({ stream: emptyStream() });
-
-    const session = createSession();
-    session.onEvent(vi.fn());
-    session.onEvent(vi.fn());
-
-    expect(mockSubscribe).toHaveBeenCalledOnce();
-  });
-
-  it('unsubscribe removes the listener', async () => {
-    const events = [
-      { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'a' } },
-      { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'b' } },
-    ];
-
-    mockSubscribe.mockReturnValue({ stream: eventStream(events) });
-
+  it('onEvent registers a listener and returns an unsubscribe function', () => {
     const session = createSession();
     const listener = vi.fn();
     const unsub = session.onEvent(listener);
 
-    // Unsubscribe before processing
-    unsub();
+    // No SSE subscription initiated by the session itself
+    expect(mockSubscribe).not.toHaveBeenCalled();
 
-    // Let the event stream run
-    await vi.waitFor(() => {
-      // The stream should have been consumed, but no events dispatched
-      expect(listener).not.toHaveBeenCalled();
-    });
+    // Delivering an event via _receiveEvent dispatches to the listener
+    session._receiveEvent({ type: 'test.event', properties: { sessionID: 'sess-123' } });
+    expect(listener).toHaveBeenCalledOnce();
+
+    // After unsubscribing, listener no longer receives events
+    unsub();
+    session._receiveEvent({ type: 'test.event2', properties: {} });
+    expect(listener).toHaveBeenCalledOnce(); // still 1
+  });
+
+  it('_receiveEvent dispatches to all registered listeners', () => {
+    const session = createSession();
+    const a = vi.fn();
+    const b = vi.fn();
+    session.onEvent(a);
+    session.onEvent(b);
+
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    expect(a).toHaveBeenCalledOnce();
+    expect(b).toHaveBeenCalledOnce();
+    expect(a).toHaveBeenCalledWith(expect.objectContaining({ type: 'session.idle' }));
+  });
+
+  it('_receiveEvent maps properties to payload on the emitted event', () => {
+    const session = createSession();
+    const listener = vi.fn();
+    session.onEvent(listener);
+
+    session._receiveEvent({ type: 'message.part.updated', properties: { delta: 'hello', sessionID: 'sess-123' } });
+
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'message.part.updated',
+      payload: expect.objectContaining({ delta: 'hello' }),
+    }));
   });
 
   // ── close() ─────────────────────────────────────────────────────────────────
@@ -242,7 +221,6 @@ describe('OpencodeSdkSession', () => {
 
   it('_emit does not dispatch after close', async () => {
     mockAbort.mockResolvedValue({});
-    mockSubscribe.mockReturnValue({ stream: emptyStream() });
 
     const session = createSession();
     const listener = vi.fn();

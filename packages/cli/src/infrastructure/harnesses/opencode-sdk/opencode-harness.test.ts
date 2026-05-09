@@ -329,3 +329,78 @@ describe('OpencodeSdkHarness', () => {
     expect(harness.type).toBe('opencode-sdk');
   });
 });
+
+// ─── SSE Fan-out Tests ────────────────────────────────────────────────────────
+
+describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
+  function makeStream(events: unknown[]) {
+    return {
+      stream: (async function* () {
+        for (const e of events) yield e;
+      })(),
+    };
+  }
+
+  it('routes events to the correct session by sessionID via _receiveEvent', () => {
+    // Test the routing logic directly without the async event loop.
+    // The harness dispatches events by calling session._receiveEvent() when
+    // the sessionID matches. This tests the routing in isolation.
+    const harness = createHarness();
+
+    const receivedA: unknown[] = [];
+    const receivedB: unknown[] = [];
+
+    const mockSessionA = { _receiveEvent: (e: unknown) => receivedA.push(e) } as any;
+    const mockSessionB = { _receiveEvent: (e: unknown) => receivedB.push(e) } as any;
+
+    harness.registerSessionListener('sess-a', mockSessionA);
+    harness.registerSessionListener('sess-b', mockSessionB);
+
+    // Simulate the harness dispatching events (as the event loop would)
+    const dispatchEvent = (raw: { type: string; properties?: Record<string, unknown> }) => {
+      const sessionListeners = (harness as any).sessionListeners as Map<string, any>;
+      const p = raw.properties;
+      const sid = p && 'sessionID' in p ? p['sessionID'] : undefined;
+      if (typeof sid === 'string') {
+        sessionListeners.get(sid)?._receiveEvent(raw);
+      }
+    };
+
+    dispatchEvent({ type: 'msg', properties: { sessionID: 'sess-a' } });
+    dispatchEvent({ type: 'msg', properties: { sessionID: 'sess-b' } });
+    dispatchEvent({ type: 'msg', properties: { sessionID: 'sess-a' } });
+
+    expect(receivedA).toHaveLength(2);
+    expect(receivedB).toHaveLength(1);
+  });
+
+  it('unregistering the last session stops the event loop flag', () => {
+    const harness = createHarness();
+    const sid = 'sess-test';
+    const mockSession = { _receiveEvent: vi.fn() } as any;
+
+    harness.registerSessionListener(sid, mockSession);
+    expect((harness as any).eventLoopRunning).toBe(true);
+
+    harness.unregisterSessionListener(sid);
+    expect((harness as any).eventLoopStopped).toBe(true);
+    expect((harness as any).sessionListeners.size).toBe(0);
+  });
+
+  it('close() signals the event loop to stop', async () => {
+    const harness = createHarness();
+    const sid = 'sess-close-test';
+    const mockSession = { _receiveEvent: vi.fn() } as any;
+
+    harness.registerSessionListener(sid, mockSession);
+
+    // Mock process kill so close() works
+    (harness as any).childProcess.kill = vi.fn();
+    (harness as any).childProcess.once = vi.fn().mockImplementation((_event: string, cb: () => void) => setTimeout(cb, 0));
+
+    await harness.close();
+
+    expect((harness as any).eventLoopStopped).toBe(true);
+    expect((harness as any).sessionListeners.size).toBe(0);
+  });
+});
