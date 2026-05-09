@@ -12,8 +12,7 @@ import { useCreateSession } from '../hooks/useCreateSession';
 import { useSendMessage } from '../hooks/useSendMessage';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
-import { HarnessSelectorRow } from './HarnessSelectorRow';
-import { parseModelKey } from './HarnessSelects';
+import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
 import type { SessionStatus } from './StatusDot';
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
@@ -42,7 +41,6 @@ export function NewSessionComposer({
   const harnesses = capabilities?.harnesses ?? [];
   const machineId = capabilities?.machineId ?? null;
 
-  // Per-machine, per-harness model filter
   const filter = useHarnessModelFilter(machineId, harnessName);
 
   const config = useHarnessConfig({
@@ -112,6 +110,7 @@ export function NewSessionComposer({
           <Button
             size="icon"
             className="shrink-0 h-9 w-9"
+            aria-label="Send message"
             disabled={!canSend}
             onClick={() => void handleSend()}
           >
@@ -120,7 +119,7 @@ export function NewSessionComposer({
         </div>
 
         {/* Harness + agent + model selectors + filter button */}
-        <HarnessSelectorRow
+        <HarnessSelectorBar
           harnesses={harnesses}
           harnessName={harnessName}
           onHarnessChange={setHarnessName}
@@ -136,17 +135,44 @@ export function NewSessionComposer({
 
 /**
  * Shown at the bottom of an active session for follow-up messages.
+ *
+ * Exposes the harness/agent/model bar in frozen-harness mode so the user can
+ * see (and in future, switch) the agent and model for the current session.
+ * The harness dropdown is rendered but disabled since it can't change mid-session.
  */
 export function SessionComposer({
   sessionRowId,
   status,
+  workspaceId,
+  harnessName,
+  lastUsedConfig,
 }: {
   sessionRowId: Id<'chatroom_harnessSessions'>;
   status: SessionStatus;
+  workspaceId: Id<'chatroom_workspaces'>;
+  harnessName: string;
+  lastUsedConfig?: { agent?: string; model?: { providerID: string; modelID: string } };
 }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { send, isSending } = useSendMessage();
+
+  const capabilities = useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
+
+  const harnesses = capabilities?.harnesses ?? [];
+  const machineId = capabilities?.machineId ?? null;
+
+  const filter = useHarnessModelFilter(machineId, harnessName);
+
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName,
+    initial: lastUsedConfig,
+    isModelHidden: filter.isHidden,
+  });
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isDisabled = status === 'pending' || status === 'spawning' || isTerminal || isSending;
@@ -162,6 +188,8 @@ export function SessionComposer({
     if (!canSend) return;
     setError(null);
     try {
+      // TODO: when in-session agent/model switching ships, pass resolvedAgent +
+      // resolvedModel to send() here so they override the session's config.
       await send({ harnessSessionId: sessionRowId, text: trimmed });
       setText('');
     } catch (err) {
@@ -200,12 +228,23 @@ export function SessionComposer({
         <Button
           size="icon"
           className="shrink-0 h-9 w-9"
+          aria-label="Send message"
           disabled={!canSend}
           onClick={() => void handleSend()}
         >
           <Send size={15} />
         </Button>
       </div>
+      {/* Harness/agent/model bar — harness frozen mid-session; filter button visible when machineId is known */}
+      {/* TODO: when in-session agent/model switching ships, pass resolvedAgent + resolvedModel to send(). */}
+      <HarnessSelectorBar
+        harnesses={harnesses}
+        harnessName={harnessName}
+        onHarnessChange={() => {}} // no-op: harness frozen mid-session
+        harnessFrozen
+        config={config}
+        filter={filter}
+      />
     </div>
   );
 }

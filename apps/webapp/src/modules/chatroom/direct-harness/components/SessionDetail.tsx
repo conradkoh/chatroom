@@ -59,7 +59,13 @@ export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailPro
       </div>
 
       {/* Composer */}
-      <SessionComposer sessionRowId={sessionRowId} status={sessionSummary.status} />
+      <SessionComposer
+        sessionRowId={sessionRowId}
+        status={sessionSummary.status}
+        workspaceId={sessionSummary.workspaceId}
+        harnessName={sessionSummary.harnessName}
+        lastUsedConfig={sessionSummary.lastUsedConfig}
+      />
     </div>
   );
 }

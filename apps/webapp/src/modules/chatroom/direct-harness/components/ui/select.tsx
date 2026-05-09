@@ -22,6 +22,23 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/**
+ * Shared layout/border/focus/disabled classes for trigger elements that need
+ * to visually match a SelectTrigger. Import this when a plain <button> needs
+ * to be style-compatible with SelectTrigger (e.g. HarnessModelSelect).
+ *
+ * Does NOT include SelectTrigger-specific data-attribute selectors
+ * (data-[size=...], *:data-[slot=...], [&_svg]:...) — those stay inline.
+ */
+export const selectTriggerClassName =
+  'flex items-center justify-between gap-2 ' +
+  'rounded-none border border-input bg-transparent ' +
+  'px-3 text-xs shadow-xs whitespace-nowrap ' +
+  'transition-[color,box-shadow] outline-none ' +
+  'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring ' +
+  'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive ' +
+  'disabled:cursor-not-allowed disabled:opacity-50';
+
 function SelectTrigger({
   className,
   size = 'default',

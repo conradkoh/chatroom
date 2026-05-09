@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AgentOption, ProviderOption } from '../components/HarnessSelects';
+import type { AgentOption, ProviderOption } from '../components/harness-selectors/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
