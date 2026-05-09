@@ -8,21 +8,12 @@ import { useRef, useState } from 'react';
 
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useSendMessage } from '../hooks/useSendMessage';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
-import {
-  HarnessAgentSelect,
-  HarnessModelSelect,
-  parseModelKey,
-} from './HarnessSelects';
+import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
+import { HarnessSelectorRow } from './HarnessSelectorRow';
+import { parseModelKey } from './HarnessSelects';
 import type { SessionStatus } from './StatusDot';
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
@@ -49,21 +40,18 @@ export function NewSessionComposer({
   );
 
   const harnesses = capabilities?.harnesses ?? [];
+  const machineId = capabilities?.machineId ?? null;
 
-  const {
-    selectedAgent,
-    setSelectedAgent,
-    selectedModel,
-    setSelectedModel,
-    providers,
-    resolvedAgent,
-    resolvedModel,
-  } = useHarnessConfig({ harnesses, harnessName });
+  // Per-machine, per-harness model filter
+  const filter = useHarnessModelFilter(machineId, harnessName);
 
-  // Agents for the selector: pass the full agents array — HarnessAgentSelect
-  // filters to mode primary|all internally.
-  const selectedHarness = harnesses.find((h) => h.name === harnessName) ?? harnesses[0];
-  const currentHarnessAgents = selectedHarness?.agents ?? [];
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName,
+    isModelHidden: filter.isHidden,
+  });
+
+  const { resolvedAgent, resolvedModel } = config;
 
   const trimmed = text.trim();
   const canSend = !!trimmed && !isCreating && !!resolvedModel;
@@ -131,46 +119,14 @@ export function NewSessionComposer({
           </Button>
         </div>
 
-        {/* Harness + agent + model selectors */}
-        <div className="flex gap-2">
-          {/* Harness selector */}
-          <Select value={harnessName} onValueChange={setHarnessName}>
-            <SelectTrigger className="h-8 py-0 text-xs w-32 shrink-0">
-              <SelectValue placeholder="Harness" />
-            </SelectTrigger>
-            <SelectContent>
-              {harnesses.length > 0 ? (
-                harnesses.map((h) => (
-                  <SelectItem key={h.name} value={h.name} className="text-xs">
-                    {h.displayName}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="opencode-sdk" className="text-xs">
-                  Opencode
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          {/* Agent selector */}
-          <div className="w-28 shrink-0">
-            <HarnessAgentSelect
-              agents={currentHarnessAgents}
-              value={selectedAgent}
-              onValueChange={setSelectedAgent}
-            />
-          </div>
-
-          {/* Model selector — grouped by provider, searchable */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <HarnessModelSelect
-              providers={providers}
-              value={selectedModel}
-              onValueChange={setSelectedModel}
-            />
-          </div>
-        </div>
+        {/* Harness + agent + model selectors + filter button */}
+        <HarnessSelectorRow
+          harnesses={harnesses}
+          harnessName={harnessName}
+          onHarnessChange={setHarnessName}
+          config={config}
+          filter={filter}
+        />
       </div>
     </div>
   );

@@ -5,10 +5,10 @@
  * filtering, and the agent+model resolution fallback chains that were
  * previously duplicated across NewSessionForm and SessionParamsPopover.
  *
- * Pure state + memo only — no Convex calls inside this hook.
+ * Pure state + memo + effects — no Convex calls inside this hook.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentOption, ProviderOption } from '../components/HarnessSelects';
 
@@ -31,6 +31,12 @@ interface UseHarnessConfigArgs {
     agent?: string;
     model?: { providerID: string; modelID: string };
   };
+  /**
+   * Optional model filter predicate. When provided, models for which
+   * `isModelHidden(modelKey)` returns true are excluded from `modelOptions`
+   * and from `resolvedModel`. The key format is `"providerID::modelID"`.
+   */
+  isModelHidden?: (modelKey: string) => boolean;
 }
 
 export interface UseHarnessConfigResult {
@@ -44,9 +50,9 @@ export interface UseHarnessConfigResult {
   providers: ProviderOption[];
   /** Resolved agent name — falls back through: selectedAgent → initial.agent → first eligible. */
   resolvedAgent: string;
-  /** Resolved model key — falls back through: selectedModel → agent default → first model. */
+  /** Resolved model key (after filter) — falls back through: selectedModel → agent default → first visible. */
   resolvedModel: string;
-  /** Flat list of model options derived from the harness providers. */
+  /** Flat list of visible model options (after applying isModelHidden filter). */
   modelOptions: { value: string; label: string }[];
 }
 
@@ -56,6 +62,7 @@ export function useHarnessConfig({
   harnesses,
   harnessName,
   initial,
+  isModelHidden: isModelHiddenFn,
 }: UseHarnessConfigArgs): UseHarnessConfigResult {
   const [selectedAgent, setSelectedAgent] = useState<string>(initial?.agent ?? '');
   const [selectedModel, setSelectedModel] = useState<string>(
@@ -78,14 +85,16 @@ export function useHarnessConfig({
     const list: { value: string; label: string }[] = [];
     for (const provider of providers) {
       for (const model of provider.models) {
+        const key = `${provider.providerID}::${model.modelID}`;
+        if (isModelHiddenFn?.(key)) continue; // exclude filtered models
         list.push({
-          value: `${provider.providerID}::${model.modelID}`,
+          value: key,
           label: `${provider.name} · ${model.name}`,
         });
       }
     }
     return list;
-  }, [providers]);
+  }, [providers, isModelHiddenFn]);
 
   // Resolved agent:
   //   - When agents are available: user selection → initial → first eligible
@@ -100,7 +109,7 @@ export function useHarnessConfig({
         '')
       : (selectedAgent || 'builder');
 
-  // Resolved model: user selection → agent default → first model
+  // Resolved model (after filter): user selection → agent default → first visible model
   const agentDefaultModel = eligibleAgents.find((a) => a.name === resolvedAgent)?.model;
   const agentDefaultModelKey = agentDefaultModel
     ? `${agentDefaultModel.providerID}::${agentDefaultModel.modelID}`
@@ -110,6 +119,56 @@ export function useHarnessConfig({
     (agentDefaultModelKey && modelOptions.find((m) => m.value === agentDefaultModelKey)?.value) ??
     modelOptions[0]?.value ??
     '';
+
+  // ── Display-state sync effects ───────────────────────────────────────────────
+
+  // Use refs to read stable current values without adding them to effect deps,
+  // preventing infinite re-render loops.
+  const selectedAgentRef = useRef(selectedAgent);
+  selectedAgentRef.current = selectedAgent;
+
+  // Effect 1: Sync selectedAgent when eligibleAgents loads or the harness changes.
+  // If the current selection is invalid (empty or agent no longer in list), reset.
+  useEffect(() => {
+    if (eligibleAgents.length === 0) return;
+    const currentAgent = selectedAgentRef.current;
+    const isValid = eligibleAgents.some((a) => a.name === currentAgent);
+    if (isValid) return;
+    // Empty or stale selection — pick the best default
+    const fallback =
+      eligibleAgents.find((a) => a.name === (initial?.agent ?? ''))?.name ??
+      eligibleAgents[0]?.name ??
+      '';
+    setSelectedAgent(fallback);
+  }, [eligibleAgents, initial?.agent]);
+
+  // Effect 2: On user-driven agent change (after initial mount), overwrite
+  // selectedModel with the new agent's default model (or first visible).
+  // On initial mount, do NOT overwrite if initial.model was provided — that
+  // preserves the session-restore behavior when initial is populated.
+  const initialMountRef = useRef(true);
+  const prevResolvedAgentRef = useRef(resolvedAgent);
+
+  useEffect(() => {
+    if (initialMountRef.current) {
+      initialMountRef.current = false;
+      prevResolvedAgentRef.current = resolvedAgent;
+      return;
+    }
+    if (resolvedAgent === prevResolvedAgentRef.current) return;
+    prevResolvedAgentRef.current = resolvedAgent;
+
+    // Agent changed after mount — switch model to the new agent's default
+    const agent = eligibleAgents.find((a) => a.name === resolvedAgent);
+    if (agent?.model) {
+      const key = `${agent.model.providerID}::${agent.model.modelID}`;
+      // Use the agent default if visible; otherwise fall through to first visible
+      const isVisible = modelOptions.some((m) => m.value === key);
+      setSelectedModel(isVisible ? key : (modelOptions[0]?.value ?? ''));
+    } else {
+      setSelectedModel(modelOptions[0]?.value ?? '');
+    }
+  }, [resolvedAgent, eligibleAgents, modelOptions]);
 
   return {
     selectedAgent,

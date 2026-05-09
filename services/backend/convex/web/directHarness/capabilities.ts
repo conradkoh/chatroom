@@ -21,7 +21,7 @@ export const listForWorkspace = query({
     requireDirectHarnessWorkers();
 
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
-    if (!workspace) return { harnesses: [] };
+    if (!workspace) return { machineId: null, harnesses: [] };
 
     // Check machine registry for rich capability data
     const registryEntry = await ctx.db
@@ -32,10 +32,10 @@ export const listForWorkspace = query({
     if (registryEntry) {
       const wsEntry = registryEntry.workspaces.find((w) => w.workspaceId === args.workspaceId);
       if (wsEntry && wsEntry.harnesses && wsEntry.harnesses.length > 0) {
-        return { harnesses: wsEntry.harnesses };
+        return { machineId: workspace.machineId, harnesses: wsEntry.harnesses };
       }
     }
 
-    return { harnesses: [] };
+    return { machineId: workspace.machineId, harnesses: [] };
   },
 });

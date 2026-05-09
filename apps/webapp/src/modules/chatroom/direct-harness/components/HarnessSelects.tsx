@@ -73,7 +73,7 @@ export function HarnessAgentSelect({ agents, value, onValueChange }: HarnessAgen
 
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="h-8 text-xs bg-background border-border">
+      <SelectTrigger className="h-8 text-xs">
         <SelectValue placeholder="Select agent" />
       </SelectTrigger>
       <SelectContent className="bg-card border-border text-foreground">
