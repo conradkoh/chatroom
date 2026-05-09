@@ -66,7 +66,8 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
+import { useChatroomActiveWorkspace } from './hooks/useChatroomActiveWorkspace';
+import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useFileTabs } from './workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -705,14 +706,13 @@ export function ChatroomDashboard({
   // Use hook to get aggregate status (event stream + lifecycle)
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
-  // Workspace bar data
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
-
-  // Active workspace — the workspace currently used for file explorer, Cmd+P, git, etc.
-  // Defaults to the first connected workspace. Index-based to support future switching UI.
+  // Workspace bar data and active workspace selection
+  // Index-based to support future switching UI — owner keeps the index state.
   const [activeWorkspaceIndex] = useState(0);
-  const activeWorkspace =
-    chatroomWorkspaces.filter((ws) => ws.machineId)[activeWorkspaceIndex] ?? null;
+  const { activeWorkspace, workspaces: chatroomWorkspaces } = useChatroomActiveWorkspace(
+    chatroomId as import("@workspace/backend/convex/_generated/dataModel").Id<"chatroom_rooms">,
+    activeWorkspaceIndex
+  );
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1503,28 +1503,24 @@ export function ChatroomDashboard({
                       />
                     </div>
 
-                    {/* Right: Message Feed (split view) */}
-                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                      <MessageFeed
-                        chatroomId={chatroomId}
-                        activeTask={activeTask}
-                        controller={scrollController}
-                        isPinned={isPinned}
-                        scrollToBottom={scrollToBottom}
-                        onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                        machines={machineNameMap}
-                      />
-                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                        <SendForm
-                          chatroomId={chatroomId}
-                          onBeforeResize={beginResize}
-                          onAfterResize={endResize}
-                          onRegisterFocus={handleRegisterSendFormFocus}
-                          files={autocompleteFiles}
-                          onCreateCommand={handleOpenSavedCommandModal}
-                        />
-                      </div>
-                    </div>
+                    {/* Right: Mode-switchable panel (Messages | Direct Harness) */}
+                    {/* Note: the mode dropdown is desktop-only since the split-view toggle is hidden on mobile */}
+                    <RightSplitPanel
+                      chatroomId={chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>}
+                      messagesPanelProps={{
+                        activeTask,
+                        controller: scrollController,
+                        isPinned,
+                        scrollToBottom,
+                        onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                        machines: machineNameMap,
+                        onBeforeResize: beginResize,
+                        onAfterResize: endResize,
+                        onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                        autocompleteFiles,
+                        onCreateCommand: handleOpenSavedCommandModal,
+                      }}
+                    />
                   </div>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
