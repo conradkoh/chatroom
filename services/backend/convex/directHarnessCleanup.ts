@@ -17,7 +17,7 @@ import { internalMutation } from './_generated/server.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BATCH_SIZE = 200;
+const BATCH_SIZE = 500;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
 // ─── purgeFinalizedChunks ─────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
  * Deletes chunks (chatroom_harnessSessionMessages) for turns that have been
  * finalized (status='complete' or 'failed') more than 1 hour ago.
  *
- * Bounded at BATCH_SIZE=200 turns per tick. The cron is self-resuming:
+ * Bounded at BATCH_SIZE=500 turns per tick. The cron is self-resuming:
  * chunks deleted in one tick won't re-match, so subsequent ticks make progress.
  *
  * Returns counts for observability.

@@ -4,7 +4,7 @@
  *
  * Streaming behaviour:
  *   - Chunks recorded via `record()` are buffered in memory.
- *   - A periodic interval (default 500ms) drains the buffer and writes
+ *   - A periodic interval (default 1000ms) drains the buffer and writes
  *     to the OutputRepository, so the UI sees new chunks in near-real-time.
  *   - On `commit()` (called by closeSession), any remaining chunks are
  *     flushed and the interval is stopped.
@@ -25,7 +25,7 @@ import type {
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;
-  /** Flush interval in milliseconds. Default 500ms. */
+  /** Flush interval in milliseconds. Default 1000ms. */
   readonly flushIntervalMs?: number;
   /** Optional logger for debug/warnings. */
   readonly logger?: Pick<Console, 'warn'>;
@@ -35,7 +35,7 @@ export class BufferedJournalFactory implements JournalFactory {
   constructor(private readonly options: BufferedJournalFactoryOptions) {}
 
   create(harnessSessionId: string): SessionJournal {
-    const { outputRepository, flushIntervalMs = 500, logger = console } = this.options;
+    const { outputRepository, flushIntervalMs = 1000, logger = console } = this.options;
     const buffer: OutputChunk[] = [];
     let flushInProgress = false;
 

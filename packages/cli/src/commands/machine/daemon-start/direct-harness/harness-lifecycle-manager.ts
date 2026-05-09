@@ -15,7 +15,7 @@ import { formatTimestamp } from '../utils.js';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Kill a harness that has been idle longer than this. */
-const INACTIVITY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const INACTIVITY_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /** How often to check for idle harnesses. */
 const CHECK_INTERVAL_MS = 60 * 1000; // every minute
