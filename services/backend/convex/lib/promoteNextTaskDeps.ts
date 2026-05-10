@@ -6,9 +6,9 @@
  * the dep wiring inline.
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { PromoteNextTaskDeps } from '../../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../../src/domain/usecase/task/promote-queued-message';
+import type { MutationCtx } from '../_generated/server';
 
 /**
  * Creates PromoteNextTaskDeps wired to the given Convex mutation context.

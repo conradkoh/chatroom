@@ -16,13 +16,13 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
-import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
@@ -55,7 +55,7 @@ async function enrichMessageAttachments(
   // Resolve attached tasks
   let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
   if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-    const tasks = await Promise.all(msg.attachedTaskIds.map((taskId) => ctx.db.get(taskId)));
+    const tasks = await Promise.all(msg.attachedTaskIds.map((taskId) => ctx.db.get("chatroom_tasks", taskId)));
     attachedTasks = tasks
       .filter((t): t is NonNullable<typeof t> => t !== null)
       .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
@@ -64,7 +64,7 @@ async function enrichMessageAttachments(
   // Resolve attached backlog items
   let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
   if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
-    const items = await Promise.all(msg.attachedBacklogItemIds.map((itemId) => ctx.db.get(itemId)));
+    const items = await Promise.all(msg.attachedBacklogItemIds.map((itemId) => ctx.db.get("chatroom_backlog", itemId)));
     attachedBacklogItems = items
       .filter((i): i is NonNullable<typeof i> => i !== null)
       .map((i) => ({ id: i._id, content: i.content, status: i.status }));
@@ -75,7 +75,7 @@ async function enrichMessageAttachments(
     | { _id: string; content: string; senderRole: string; _creationTime: number }[]
     | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
-    const msgs = await Promise.all(msg.attachedMessageIds.map((msgId) => ctx.db.get(msgId)));
+    const msgs = await Promise.all(msg.attachedMessageIds.map((msgId) => ctx.db.get("chatroom_messages", msgId)));
     attachedMessages = msgs
       .filter((m): m is NonNullable<typeof m> => m !== null)
       .map((m) => ({
@@ -92,7 +92,7 @@ async function enrichMessageAttachments(
     | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
-      msg.attachedArtifactIds.map((artifactId) => ctx.db.get(artifactId))
+      msg.attachedArtifactIds.map((artifactId) => ctx.db.get("chatroom_artifacts", artifactId))
     );
     attachedArtifacts = artifacts
       .filter((a): a is NonNullable<typeof a> => a !== null)
@@ -107,7 +107,7 @@ async function enrichMessageAttachments(
   // Resolve attached workflows
   let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
   if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
-    const workflows = await Promise.all(msg.attachedWorkflowIds.map((wfId) => ctx.db.get(wfId)));
+    const workflows = await Promise.all(msg.attachedWorkflowIds.map((wfId) => ctx.db.get("chatroom_workflows", wfId)));
     attachedWorkflows = workflows
       .filter((w): w is NonNullable<typeof w> => w !== null)
       .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
@@ -135,7 +135,7 @@ async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[
   const taskMap = new Map<string, { status: string } | null>();
   const taskResults = await Promise.all(
     uniqueTaskIds.map(async (id) => {
-      const task = await ctx.db.get(id);
+      const task = await ctx.db.get("chatroom_tasks", id);
       return [id.toString(), task ? { status: task.status } : null] as const;
     })
   );
@@ -1655,7 +1655,7 @@ export const getActiveTaskMessages = query({
     // Fetch all source messages in parallel
     const messages = await Promise.all(
       sourceMessageIds.map(async (id) => {
-        const msg = await ctx.db.get(id);
+        const msg = await ctx.db.get("chatroom_messages", id);
         return msg;
       })
     );

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import type { Agent } from '@opencode-ai/sdk';
+import { describe, it, expect } from 'vitest';
+
 import { selectAgent } from './select-agent';
 
 const createAgent = (name: string, mode: 'subagent' | 'primary' | 'all'): Agent => ({

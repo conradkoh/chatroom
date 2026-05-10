@@ -78,4 +78,11 @@ crons.interval(
   internal.capabilitiesRefreshCron.expireStalePendingCapabilitiesRefreshBatches
 );
 
+// Direct harness cleanup — purge finalized turn chunks (1h TTL, hourly)
+crons.interval(
+  'purge finalized harness chunks',
+  { hours: 1 },
+  internal.directHarnessCleanup.purgeFinalizedChunks
+);
+
 export default crons;

@@ -1,18 +1,17 @@
-import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
-import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
 import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
+import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
+import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
+import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type {
   GitCommit,
   GitBranchResult,
   GitDiffStatResult,
-} from '../../../infrastructure/git/types.js';
-import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
-import type { GitPullRequest } from '../../../infrastructure/git/types.js';
+ GitPullRequest } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /**
@@ -128,7 +127,7 @@ function makeBranchDependentFields(
 }
 
 export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  let workspaces: Array<{ workingDir: string }>;
+  let workspaces: { workingDir: string }[];
   try {
     workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
       sessionId: ctx.sessionId,

@@ -1168,7 +1168,6 @@ opencodeCommand
     const { installTool } = await import('./commands/opencode-install/index.js');
     await installTool({ checkExisting: !options.force });
   });
-
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.

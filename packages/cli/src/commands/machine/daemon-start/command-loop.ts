@@ -2,34 +2,45 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import {
   AGENT_REQUEST_DEADLINE_MS,
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { pushCommands } from './command-sync-heartbeat.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
+import { startFileTreeSubscription } from './file-tree-subscription.js';
+import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
+import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
+import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
+import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
-import { pushCommands } from './command-sync-heartbeat.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
-import { startObservedSyncSubscription } from './observed-sync.js';
-import { handlePing } from './handlers/ping.js';
 import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
+import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
+import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { api } from '../../../api.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
+import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
+import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -420,6 +431,20 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
 
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  // Gated by directHarnessWorkers flag. All return { stop: () => void }.
+  let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
+  let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
+  let commandSubscriptionHandle: { stop: () => void } | null = null;
+  let lifecycleManager: HarnessLifecycleManager | null = null;
+  // Shared state for v2 direct-harness subscribers.
+  // activeSessions: opened/resumed sessions shared by session-subscriber
+  //   and prompt-subscriber so they reuse the same DirectHarnessSession.
+  // harnesses: running BoundHarness instances per workspace, lazily spawned
+  //   on first use and killed on shutdown.
+  const activeSessions = new Map<string, SessionHandle>();
+  const harnesses = new Map<string, BoundHarness>();
+
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   if (ctx.observedSyncEnabled) {
@@ -442,6 +467,18 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
+    if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
+    if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
+    if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
+    if (lifecycleManager) lifecycleManager.stopMonitoring();
+    // Close all active direct-harness sessions
+    for (const handle of activeSessions.values()) {
+      await handle.close().catch(() => {});
+    }
+    // Kill all running harness processes
+    for (const harness of harnesses.values()) {
+      await harness.close().catch(() => {});
+    }
 
     await onDaemonShutdown(ctx);
 
@@ -472,6 +509,55 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // to push state only for chatrooms the frontend is actively watching.
   if (ctx.observedSyncEnabled) {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
+  }
+
+  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
+  if (featureFlags.directHarnessWorkers) {
+    const sessionRepository = new ConvexSessionRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const outputRepository = new ConvexOutputRepository({
+      backend: ctx.deps.backend,
+      sessionId: ctx.sessionId,
+    });
+    const journalFactory = new BufferedJournalFactory({
+      outputRepository,
+    });
+
+    const sharedDeps = {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      journalFactory,
+    };
+
+    pendingPromptSubscriptionHandle = startMessageSubscriber(ctx, wsClient, sharedDeps);
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      journalFactory,
+    });
+
+    lifecycleManager = new HarnessLifecycleManager(
+      harnesses,
+      activeSessions,
+      async (workspaceId) =>
+        ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
+          sessionId: ctx.sessionId,
+          workspaceId,
+        })
+    );
+    lifecycleManager.startMonitoring();
+
+    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
+      lifecycleManager,
+      publisher: new ConvexCapabilitiesPublisher({
+        backend: ctx.deps.backend,
+        sessionId: ctx.sessionId,
+      }),
+    });
   }
 
   console.log(`\nListening for commands...`);

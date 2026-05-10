@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
 import { Readable } from 'node:stream';
+
+import { describe, expect, it, vi } from 'vitest';
+
 import { CopilotStreamReader } from './copilot-stream-reader.js';
 
 describe('CopilotStreamReader', () => {

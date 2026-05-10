@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { Readable, Writable } from 'node:stream';
+import type { Readable, Writable } from 'node:stream';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { forwardFiltered } from './node-streams.js';

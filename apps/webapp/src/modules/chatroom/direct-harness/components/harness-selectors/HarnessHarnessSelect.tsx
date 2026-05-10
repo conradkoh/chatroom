@@ -1,0 +1,41 @@
+'use client';
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import type { HarnessOption } from '../../hooks/useHarnessConfig';
+
+interface HarnessHarnessSelectProps {
+  harnesses: HarnessOption[];
+  value: string;
+  onValueChange: (name: string) => void;
+  /** When true, the dropdown is visible but disabled (frozen harness mode). */
+  disabled?: boolean;
+}
+
+export function HarnessHarnessSelect({
+  harnesses,
+  value,
+  onValueChange,
+  disabled,
+}: HarnessHarnessSelectProps) {
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency with HarnessModelSelect */}
+      <SelectTrigger className="h-8 text-xs w-full bg-transparent">
+        <SelectValue placeholder="Harness" />
+      </SelectTrigger>
+      <SelectContent>
+        {harnesses.length > 0 ? (
+          harnesses.map((h) => (
+            <SelectItem key={h.name} value={h.name} className="text-xs">
+              {h.displayName}
+            </SelectItem>
+          ))
+        ) : (
+          <SelectItem value="opencode-sdk" className="text-xs">
+            Opencode
+          </SelectItem>
+        )}
+      </SelectContent>
+    </Select>
+  );
+}

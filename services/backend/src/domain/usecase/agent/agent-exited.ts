@@ -14,12 +14,12 @@
  * pending config-removal requests.
  */
 
+import { processConfigRemoval } from './config-removal';
+import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
-import { processConfigRemoval } from './config-removal';
-import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

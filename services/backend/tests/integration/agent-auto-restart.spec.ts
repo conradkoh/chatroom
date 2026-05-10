@@ -13,8 +13,8 @@
 
 import { expect, test } from 'vitest';
 
-import type { Id } from '../../convex/_generated/dataModel';
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {

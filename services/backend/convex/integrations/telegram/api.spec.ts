@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'vitest';
 import { randomBytes } from 'crypto';
+
+import { describe, expect, test } from 'vitest';
 
 /**
  * Tests for the Telegram API module logic.

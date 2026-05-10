@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { composeSystemPrompt, CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt';
 
 describe('composeSystemPrompt', () => {

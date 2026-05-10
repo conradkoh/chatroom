@@ -121,11 +121,11 @@ export interface CommitStatusSummary {
   /** Combined state: 'success' | 'failure' | 'pending' | 'error' | 'neutral' */
   state: string;
   /** Individual check runs */
-  checkRuns: Array<{
+  checkRuns: {
     name: string;
     status: string;
     conclusion: string | null;
-  }>;
+  }[];
   /** Total number of checks */
   totalCount: number;
 }

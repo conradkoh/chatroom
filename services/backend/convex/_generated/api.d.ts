@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
@@ -28,6 +29,14 @@ import type * as commands from "../commands.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
+import type * as daemon_directHarness_capabilities from "../daemon/directHarness/capabilities.js";
+import type * as daemon_directHarness_commands from "../daemon/directHarness/commands.js";
+import type * as daemon_directHarness_messages from "../daemon/directHarness/messages.js";
+import type * as daemon_directHarness_queue from "../daemon/directHarness/queue.js";
+import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
+import type * as daemon_directHarness_turns from "../daemon/directHarness/turns.js";
+import type * as dev from "../dev.js";
+import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
@@ -64,6 +73,12 @@ import type * as tasks from "../tasks.js";
 import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as utils_types from "../utils/types.js";
+import type * as web_directHarness_capabilities from "../web/directHarness/capabilities.js";
+import type * as web_directHarness_commands from "../web/directHarness/commands.js";
+import type * as web_directHarness_messageQueue from "../web/directHarness/messageQueue.js";
+import type * as web_directHarness_messages from "../web/directHarness/messages.js";
+import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
+import type * as web_directHarness_turns from "../web/directHarness/turns.js";
 import type * as workflows from "../workflows.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspaces from "../workspaces.js";
@@ -75,6 +90,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;
   attendance: typeof attendance;
@@ -95,6 +111,14 @@ declare const fullApi: ApiFromModules<{
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;
+  "daemon/directHarness/capabilities": typeof daemon_directHarness_capabilities;
+  "daemon/directHarness/commands": typeof daemon_directHarness_commands;
+  "daemon/directHarness/messages": typeof daemon_directHarness_messages;
+  "daemon/directHarness/queue": typeof daemon_directHarness_queue;
+  "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
+  "daemon/directHarness/turns": typeof daemon_directHarness_turns;
+  dev: typeof dev;
+  directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
@@ -131,6 +155,12 @@ declare const fullApi: ApiFromModules<{
   "tasks/taskDelivery": typeof tasks_taskDelivery;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   "utils/types": typeof utils_types;
+  "web/directHarness/capabilities": typeof web_directHarness_capabilities;
+  "web/directHarness/commands": typeof web_directHarness_commands;
+  "web/directHarness/messageQueue": typeof web_directHarness_messageQueue;
+  "web/directHarness/messages": typeof web_directHarness_messages;
+  "web/directHarness/sessions": typeof web_directHarness_sessions;
+  "web/directHarness/turns": typeof web_directHarness_turns;
   workflows: typeof workflows;
   workspaceFiles: typeof workspaceFiles;
   workspaces: typeof workspaces;

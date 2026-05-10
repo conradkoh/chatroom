@@ -16,8 +16,7 @@
  * Returns a flat list of commands with name, script, and source.
  */
 
-import { access } from 'node:fs/promises';
-import { readFile } from 'node:fs/promises';
+import { access , readFile } from 'node:fs/promises';
 import { join, relative, basename } from 'node:path';
 
 import { resolveSubWorkspaces } from './workspace-resolver.js';
@@ -54,7 +53,7 @@ const MAX_SCRIPT_LENGTH = 4096;
  * Lockfile names in priority order.
  * First match wins — pnpm > yarn > bun > npm.
  */
-const LOCKFILE_MAP: Array<{ file: string; manager: PackageManager }> = [
+const LOCKFILE_MAP: { file: string; manager: PackageManager }[] = [
   { file: 'pnpm-lock.yaml', manager: 'pnpm' },
   { file: 'yarn.lock', manager: 'yarn' },
   { file: 'bun.lockb', manager: 'bun' },

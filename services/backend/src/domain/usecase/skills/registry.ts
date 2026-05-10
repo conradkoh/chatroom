@@ -6,12 +6,11 @@
  * and add it to SKILLS_REGISTRY below. No Convex changes needed.
  */
 
-import { codeReviewSkill } from './modules/code-review/index';
 import { backlogSkill } from './modules/backlog/index';
+import { codeReviewSkill } from './modules/code-review/index';
+import { developmentWorkflowSkill } from './modules/development-workflow/index';
 import { softwareEngineeringSkill } from './modules/software-engineering/index';
 import { workflowSkill } from './modules/workflow/index';
-import { developmentWorkflowSkill } from './modules/development-workflow/index';
-
 import type { SkillId } from '../../types/skills';
 
 export interface SkillModule {

@@ -29,13 +29,13 @@
 
 import { promoteNextTask } from './promote-next-task';
 import { adjustTaskCountsForTransition } from './task-counts';
-import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 // ============================================================================
 // TYPES
@@ -96,7 +96,7 @@ export async function transitionTask(
   options?: TransitionTaskOptions
 ): Promise<void> {
   // 0. Read old status before transition for counter adjustment
-  const taskBeforeTransition = await ctx.db.get(taskId);
+  const taskBeforeTransition = await ctx.db.get("chatroom_tasks", taskId);
   const oldStatus = taskBeforeTransition?.status;
 
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)

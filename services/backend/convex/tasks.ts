@@ -15,8 +15,8 @@ import {
   validateSession,
 } from './auth/cliSessionAuth';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
-import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';

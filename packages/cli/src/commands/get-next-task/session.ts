@@ -17,8 +17,8 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { api, type Id } from '../../api.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
-import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ---------------------------------------------------------------------------
 // Type definitions

@@ -14,10 +14,10 @@
 
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import type { Signals } from '../../types/signals.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
+import type { Signals } from '../../types/signals.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
@@ -92,11 +92,11 @@ export interface AgentProcessManagerDeps {
       harness: AgentHarness
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
-    listAgentEntries: (machineId: string) => Array<{
+    listAgentEntries: (machineId: string) => {
       chatroomId: string;
       role: string;
       entry: { pid: number; harness: AgentHarness };
-    }>;
+    }[];
   };
   spawning: {
     shouldAllowSpawn: (
@@ -350,8 +350,8 @@ export class AgentProcessManager {
     return this.slots.get(agentKey(chatroomId, role));
   }
 
-  listActive(): Array<{ chatroomId: string; role: string; slot: AgentSlot }> {
-    const result: Array<{ chatroomId: string; role: string; slot: AgentSlot }> = [];
+  listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
+    const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
     for (const [key, slot] of this.slots) {
       if (slot.state === 'running' || slot.state === 'spawning') {
         const [chatroomId, role] = key.split(':');

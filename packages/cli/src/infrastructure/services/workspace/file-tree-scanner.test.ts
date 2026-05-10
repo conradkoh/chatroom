@@ -1,5 +1,9 @@
+import { exec } from 'node:child_process';
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { isExcluded, buildEntries } from './file-tree-scanner.js';
+
 
 // Mock child_process and util before importing scanFileTree
 vi.mock('node:child_process', () => ({
@@ -13,8 +17,6 @@ vi.mock('node:util', () => ({
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
 }));
-
-import { exec } from 'node:child_process';
 
 const mockExec = vi.mocked(exec);
 

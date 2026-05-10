@@ -12,8 +12,8 @@ import type { ContextDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
