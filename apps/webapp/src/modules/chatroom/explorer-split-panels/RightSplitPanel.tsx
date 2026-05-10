@@ -22,12 +22,15 @@ import {
 } from '../direct-harness/components/ui/select';
 import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
-import { useExplorerSplitPanelMode, type ExplorerSplitPanelMode } from './useExplorerSplitPanelMode';
+import {
+  useExplorerSplitPanelMode,
+  type ExplorerSplitPanelMode,
+} from './useExplorerSplitPanelMode';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 // Props forwarded to MessagesPanel (all except chatroomId which is in RightSplitPanelProps)
-export type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId'>;
+type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId'>;
 
 export interface RightSplitPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -50,10 +53,7 @@ export function RightSplitPanel({ chatroomId, messagesPanelProps }: RightSplitPa
     <div className="flex flex-col min-h-0 overflow-hidden flex-1">
       {/* Header: mode dropdown */}
       <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end px-2">
-        <Select
-          value={mode}
-          onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}
-        >
+        <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
           <SelectTrigger className="h-6 text-[10px] w-36 px-2">
             <SelectValue />
           </SelectTrigger>

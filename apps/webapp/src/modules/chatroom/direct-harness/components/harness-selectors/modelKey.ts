@@ -9,9 +9,3 @@ export function parseModelKey(
   if (providerID && modelID) return { providerID, modelID };
   return undefined;
 }
-
-/** Build a "<providerID>::<modelID>" key from a model object. */
-export function buildModelKey(model?: { providerID: string; modelID: string }): string {
-  if (!model) return '';
-  return `${model.providerID}::${model.modelID}`;
-}

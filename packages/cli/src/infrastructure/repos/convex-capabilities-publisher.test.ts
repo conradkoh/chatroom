@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { ConvexCapabilitiesPublisher } from './convex-capabilities-publisher.js';
-import type { MachineCapabilities } from '../../domain/index.js';
+import type { MachineCapabilities } from '../../domain/direct-harness/entities/machine-capabilities.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,11 @@ describe('ConvexCapabilitiesPublisher', () => {
                 displayName: 'OpenCode SDK',
                 agents: [
                   { name: 'builder', mode: 'primary' },
-                  { name: 'planner', mode: 'primary', model: { providerID: 'openai', modelID: 'gpt-4' } },
+                  {
+                    name: 'planner',
+                    mode: 'primary',
+                    model: { providerID: 'openai', modelID: 'gpt-4' },
+                  },
                 ],
                 providers: [
                   {
@@ -93,9 +97,7 @@ describe('ConvexCapabilitiesPublisher', () => {
     const caps: MachineCapabilities = {
       machineId: 'machine-2',
       lastSeenAt: 2000,
-      workspaces: [
-        { workspaceId: 'ws-2', cwd: '/empty/ws', name: 'Empty', harnesses: [] },
-      ],
+      workspaces: [{ workspaceId: 'ws-2', cwd: '/empty/ws', name: 'Empty', harnesses: [] }],
     };
 
     await publisher.publish(caps);
@@ -104,9 +106,7 @@ describe('ConvexCapabilitiesPublisher', () => {
       expect.anything(),
       expect.objectContaining({
         machineId: 'machine-2',
-        workspaces: [
-          { workspaceId: 'ws-2', cwd: '/empty/ws', name: 'Empty', harnesses: [] },
-        ],
+        workspaces: [{ workspaceId: 'ws-2', cwd: '/empty/ws', name: 'Empty', harnesses: [] }],
       })
     );
   });
@@ -139,9 +139,7 @@ describe('ConvexCapabilitiesPublisher', () => {
               name: 'custom',
               displayName: 'Custom',
               configSchema: { type: 'object' },
-              agents: [
-                { name: 'agent-x', mode: 'all', description: 'The X agent' },
-              ],
+              agents: [{ name: 'agent-x', mode: 'all', description: 'The X agent' }],
               providers: [],
             },
           ],

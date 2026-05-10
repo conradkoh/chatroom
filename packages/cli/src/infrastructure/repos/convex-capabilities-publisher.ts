@@ -6,10 +6,8 @@
  */
 
 import { api } from '../../api.js';
-import type {
-  CapabilitiesPublisher,
-  MachineCapabilities,
-} from '../../domain/index.js';
+import type { CapabilitiesPublisher } from '../../domain/direct-harness/ports/capabilities-publisher.js';
+import type { MachineCapabilities } from '../../domain/direct-harness/entities/machine-capabilities.js';
 
 /** Minimal backend interface required by the publisher. */
 export interface CapabilitiesTransportBackend {
