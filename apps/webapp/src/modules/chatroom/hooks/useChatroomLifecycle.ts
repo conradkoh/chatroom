@@ -13,8 +13,6 @@ import type { Workspace } from '../types/workspace';
 import { useFileTabs } from '../workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
 
-export type { ActivityView } from '../components/ActivityBar';
-
 // ─── localStorage keys ─────────────────────────────────────────────────────────
 
 const ACTIVITY_VIEW_KEY = (chatroomId: string) => `chatroom:${chatroomId}:activityView`;
