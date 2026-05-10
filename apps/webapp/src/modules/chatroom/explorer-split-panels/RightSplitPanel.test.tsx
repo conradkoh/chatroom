@@ -18,11 +18,19 @@ vi.mock('./DirectHarnessPanel', () => ({
 const mockOnValueChange = vi.fn();
 
 vi.mock('../direct-harness/components/ui/select', () => ({
-  Select: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (v: string) => void }) => {
+  Select: ({
+    children,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    onValueChange: (v: string) => void;
+  }) => {
     mockOnValueChange.mockImplementation(onValueChange);
     return <div>{children}</div>;
   },
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
   SelectValue: () => null,
   SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
@@ -36,11 +44,22 @@ vi.mock('../direct-harness/components/ui/select', () => ({
 
 const CHATROOM_ID = 'cr1' as never;
 const DEFAULT_MESSAGES_PROPS = {
-  controller: { current: { attach: vi.fn(), detach: vi.fn(), onNewMessages: vi.fn(), getScrollPosition: vi.fn() } },
+  controller: {
+    current: {
+      attach: vi.fn(),
+      detach: vi.fn(),
+      onNewMessages: vi.fn(),
+      getScrollPosition: vi.fn(),
+    },
+  },
   isPinned: false,
   scrollToBottom: vi.fn(),
   onRegisterOpenEventStream: vi.fn(),
 } as any;
+const DEFAULT_HARNESS_PROPS = {
+  selectedHarnessSessionId: null,
+  setSelectedHarnessSessionId: vi.fn(),
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -48,13 +67,25 @@ beforeEach(() => {
 
 describe('RightSplitPanel', () => {
   it('shows messages panel by default', () => {
-    render(<RightSplitPanel chatroomId={CHATROOM_ID} messagesPanelProps={DEFAULT_MESSAGES_PROPS} />);
+    render(
+      <RightSplitPanel
+        chatroomId={CHATROOM_ID}
+        messagesPanelProps={DEFAULT_MESSAGES_PROPS}
+        {...DEFAULT_HARNESS_PROPS}
+      />
+    );
     expect(screen.getByTestId('messages-panel')).toBeInTheDocument();
     expect(screen.queryByTestId('harness-panel')).not.toBeInTheDocument();
   });
 
   it('switches to direct-harness panel when mode changes', () => {
-    render(<RightSplitPanel chatroomId={CHATROOM_ID} messagesPanelProps={DEFAULT_MESSAGES_PROPS} />);
+    render(
+      <RightSplitPanel
+        chatroomId={CHATROOM_ID}
+        messagesPanelProps={DEFAULT_MESSAGES_PROPS}
+        {...DEFAULT_HARNESS_PROPS}
+      />
+    );
     expect(screen.getByTestId('messages-panel')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Direct Harness'));
@@ -64,8 +95,16 @@ describe('RightSplitPanel', () => {
   });
 
   it('persists mode to localStorage', () => {
-    render(<RightSplitPanel chatroomId={CHATROOM_ID} messagesPanelProps={DEFAULT_MESSAGES_PROPS} />);
+    render(
+      <RightSplitPanel
+        chatroomId={CHATROOM_ID}
+        messagesPanelProps={DEFAULT_MESSAGES_PROPS}
+        {...DEFAULT_HARNESS_PROPS}
+      />
+    );
     fireEvent.click(screen.getByText('Direct Harness'));
-    expect(localStorage.getItem('chatroom:cr1:explorerSplitPanelMode')).toBe('direct-harness');
+    expect(localStorage.getItem('chatroom:cr1:explorerSplitPanelMode')).toBe(
+      JSON.stringify('direct-harness')
+    );
   });
 });
