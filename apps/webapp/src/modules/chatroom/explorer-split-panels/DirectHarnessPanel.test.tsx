@@ -39,7 +39,9 @@ vi.mock('../direct-harness/components/SessionList', () => ({
 
 vi.mock('../direct-harness/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
   SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
@@ -52,6 +54,7 @@ import type React from 'react';
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 const CHATROOM_ID = 'cr1' as never;
+const NOOP_SETTER = () => {};
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,27 +64,47 @@ beforeEach(() => {
 describe('DirectHarnessPanel', () => {
   it('shows empty state when no active workspace', () => {
     mockActiveWorkspace.mockReturnValue({ activeWorkspace: null, workspaces: [] });
-    render(<DirectHarnessPanel chatroomId={CHATROOM_ID} />);
+    render(
+      <DirectHarnessPanel
+        chatroomId={CHATROOM_ID}
+        selectedSessionId={null}
+        setSelectedSessionId={NOOP_SETTER}
+      />
+    );
     expect(screen.getByText(/no workspace registered/i)).toBeInTheDocument();
   });
 
   it('shows new session composer when workspace exists and no sessions', () => {
     mockActiveWorkspace.mockReturnValue({
-      activeWorkspace: { workspaceId: 'ws1', machineId: 'm1', workingDir: '/proj', hostname: 'box' },
+      activeWorkspace: {
+        workspaceId: 'ws1',
+        machineId: 'm1',
+        workingDir: '/proj',
+        hostname: 'box',
+      },
       workspaces: [],
     });
     mockSessions.mockReturnValue([]);
-    render(<DirectHarnessPanel chatroomId={CHATROOM_ID} />);
+    render(
+      <DirectHarnessPanel
+        chatroomId={CHATROOM_ID}
+        selectedSessionId={null}
+        setSelectedSessionId={NOOP_SETTER}
+      />
+    );
     expect(screen.getByTestId('new-session-composer')).toBeInTheDocument();
   });
 
-  it('shows session detail when a session is persisted and found', () => {
-    // Pre-populate localStorage with a session ID
+  it('shows session detail when a session is provided', () => {
     const sessionId = 'sess-1';
-    localStorage.setItem('chatroom:cr1:harnessPanel:selectedSessionId', sessionId);
 
     mockActiveWorkspace.mockReturnValue({
-      activeWorkspace: { workspaceId: 'ws1', machineId: 'm1', workingDir: '/proj', hostname: 'box' },
+      activeWorkspace: {
+        workspaceId: 'ws1',
+        machineId: 'm1',
+        workingDir: '/proj',
+        hostname: 'box',
+      },
       workspaces: [],
     });
 
@@ -96,7 +119,13 @@ describe('DirectHarnessPanel', () => {
     };
     mockSessions.mockReturnValue([fakeSummary]);
 
-    render(<DirectHarnessPanel chatroomId={CHATROOM_ID} />);
+    render(
+      <DirectHarnessPanel
+        chatroomId={CHATROOM_ID}
+        selectedSessionId={sessionId}
+        setSelectedSessionId={NOOP_SETTER}
+      />
+    );
     expect(screen.getByTestId('session-detail')).toBeInTheDocument();
   });
 });

@@ -7,7 +7,7 @@
  *
  * Layout:
  *   ┌────────────────────────────────────────────────┐
- *   │ [Session dropdown ▾]          [+ New session] │  <- header
+ *   │ [Session dropdown ▾]          [+ New session]  │  <- header
  *   ├────────────────────────────────────────────────┤
  *   │                                                │
  *   │  SessionDetail  OR  NewSessionComposer         │  <- body
@@ -19,7 +19,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import {
   Select,
@@ -34,33 +34,6 @@ import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import { useRefreshCapabilities } from '../direct-harness/hooks/useRefreshCapabilities';
 import { useChatroomActiveWorkspace } from '../hooks/useChatroomActiveWorkspace';
 
-// ─── localStorage helpers ─────────────────────────────────────────────────────
-
-const SELECTED_SESSION_KEY = (chatroomId: string) =>
-  `chatroom:${chatroomId}:harnessPanel:selectedSessionId`;
-
-function readSelectedSession(key: string): string | null {
-  try {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeSelectedSession(key: string, id: string | null): void {
-  try {
-    if (typeof window === 'undefined') return;
-    if (id === null) {
-      localStorage.removeItem(key);
-    } else {
-      localStorage.setItem(key, id);
-    }
-  } catch {
-    // ignore
-  }
-}
-
 // ─── Sentinel for "new session" pane ─────────────────────────────────────────
 
 const NEW_SESSION_VALUE = '__new__';
@@ -69,11 +42,19 @@ const NEW_SESSION_VALUE = '__new__';
 
 interface DirectHarnessPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
+  /** Managed by the parent lifecycle hook — persisted per chatroom. */
+  selectedSessionId: string | null;
+  /** Managed by the parent lifecycle hook — persists on change. */
+  setSelectedSessionId: (id: string | null) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function DirectHarnessPanel({ chatroomId }: DirectHarnessPanelProps) {
+export function DirectHarnessPanel({
+  chatroomId,
+  selectedSessionId,
+  setSelectedSessionId,
+}: DirectHarnessPanelProps) {
   const { activeWorkspace } = useChatroomActiveWorkspace(chatroomId);
 
   // workspaceId is the Convex _id of the active workspace (string here, cast to Id when needed)
@@ -93,33 +74,21 @@ export function DirectHarnessPanel({ chatroomId }: DirectHarnessPanelProps) {
     if (workspaceId) refreshCapabilities(workspaceId);
   }, [workspaceId, refreshCapabilities]);
 
-  // Persist selected session per chatroom
-  const sessionKey = SELECTED_SESSION_KEY(chatroomId as string);
-  const [selectedSessionId, setSelectedSessionIdState] =
-    useState<Id<'chatroom_harnessSessions'> | null>(() => {
-      const stored = readSelectedSession(sessionKey);
-      return stored ? (stored as Id<'chatroom_harnessSessions'>) : null;
-    });
-
   // Auto-select most-recent session when none persisted and sessions load
   useEffect(() => {
     if (sessions && sessions.length > 0 && selectedSessionId === null) {
       const newest = [...sessions].reverse()[0];
       if (newest) setSelectedSessionId(newest._id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions]);
 
-  const setSelectedSessionId = useCallback(
-    (id: Id<'chatroom_harnessSessions'> | null) => {
-      setSelectedSessionIdState(id);
-      writeSelectedSession(sessionKey, id);
-    },
-    [sessionKey]
-  );
+  const typedSessionId = selectedSessionId
+    ? (selectedSessionId as Id<'chatroom_harnessSessions'>)
+    : null;
 
   // Find the summary for the selected session
-  const sessionSummary = sessions?.find((s) => s._id === selectedSessionId);
+  const sessionSummary = sessions?.find((s) => s._id === typedSessionId);
 
   // Dropdown current value
   const dropdownValue = selectedSessionId ?? NEW_SESSION_VALUE;
@@ -182,11 +151,8 @@ export function DirectHarnessPanel({ chatroomId }: DirectHarnessPanelProps) {
 
       {/* Body: session detail or new session composer */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {selectedSessionId && sessionSummary ? (
-          <SessionDetail
-            sessionRowId={selectedSessionId}
-            sessionSummary={sessionSummary}
-          />
+        {typedSessionId && sessionSummary ? (
+          <SessionDetail sessionRowId={typedSessionId} sessionSummary={sessionSummary} />
         ) : (
           <NewSessionComposer
             workspaceId={workspaceId}

@@ -66,9 +66,8 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { useChatroomActiveWorkspace } from './hooks/useChatroomActiveWorkspace';
+import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
-import { useFileTabs } from './workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 
@@ -98,7 +97,6 @@ import { toRepoHttpsUrl } from '@/lib/git-url';
 import { openExternalUrl } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
-
 
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';
@@ -410,6 +408,22 @@ export function ChatroomDashboard({
     endResize,
   } = useScrollController();
 
+  // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
+  const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
+  const {
+    fileTabs,
+    activityView: activeView,
+    setActivityView,
+    activeWorkspace,
+    workspaces: chatroomWorkspaces,
+    splitMode,
+    setSplitMode,
+    selectedHarnessSessionId,
+    setSelectedHarnessSessionId,
+    explorerSplitViewEnabled,
+    setExplorerSplitViewEnabled,
+  } = chatroomLifecycle;
+
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
@@ -455,14 +469,8 @@ export function ChatroomDashboard({
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
-  // Activity bar — single active view at a time
-  const [activeView, setActiveView] = useState<ActivityView>('messages');
-
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
-
-  // Explorer split view state: show messages panel alongside explorer
-  const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] = useState(false);
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -480,7 +488,7 @@ export function ChatroomDashboard({
         }
       } else {
         // Switch to different view
-        setActiveView(view);
+        setActivityView(view);
         // Focus message input when switching to messages
         if (view === 'messages') {
           setTimeout(() => focusSendFormRef.current?.(), 0);
@@ -489,9 +497,6 @@ export function ChatroomDashboard({
     },
     [activeView]
   );
-
-  // File tabs state
-  const fileTabs = useFileTabs({ chatroomId });
 
   // File select handler: single click = preview, double click = pin
   const handleFileSelect = useCallback(
@@ -706,14 +711,6 @@ export function ChatroomDashboard({
   // Use hook to get aggregate status (event stream + lifecycle)
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
-  // Workspace bar data and active workspace selection
-  // Index-based to support future switching UI — owner keeps the index state.
-  const [activeWorkspaceIndex] = useState(0);
-  const { activeWorkspace, workspaces: chatroomWorkspaces } = useChatroomActiveWorkspace(
-    chatroomId as import("@workspace/backend/convex/_generated/dataModel").Id<"chatroom_rooms">,
-    activeWorkspaceIndex
-  );
-
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
     chatroomId,
@@ -731,7 +728,7 @@ export function ChatroomDashboard({
   const handleOpenInExplorer = useCallback(
     (filePath: string) => {
       fileTabs.pinTab(filePath);
-      setActiveView('explorer');
+      setActivityView('explorer');
       setExplorerSidebarVisible(true);
       setRevealPath(filePath);
     },
@@ -1084,6 +1081,15 @@ export function ChatroomDashboard({
   // Inline command output — direct reactive state (no closures, no stale refs)
   const inlineCommand = useInlineCommandOutput(commandRunner);
 
+  // Clean up inline command output when switching chatrooms.
+  const inlineCommandRef = useRef(inlineCommand);
+  inlineCommandRef.current = inlineCommand;
+  useEffect(() => {
+    return () => {
+      inlineCommandRef.current.close();
+    };
+  }, [chatroomId]);
+
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
     setProcessManagerInitialCommand(null);
@@ -1159,15 +1165,17 @@ export function ChatroomDashboard({
     onOpenProcessManager: handleOpenProcessManager,
     onShowExplorer: activeWorkspace
       ? () => {
-          setActiveView('explorer');
+          setActivityView('explorer');
           setExplorerSidebarVisible(true);
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
       : null,
-    onShowMessages: () => setActiveView('messages'),
+    onShowMessages: () => setActivityView('messages'),
     onToggleChatSplitPanel:
-      activeView === 'explorer' ? () => setExplorerSplitViewEnabled((prev) => !prev) : null,
+      activeView === 'explorer'
+        ? () => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)
+        : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
@@ -1476,7 +1484,7 @@ export function ChatroomDashboard({
                   {activeView === 'explorer' && (
                     <button
                       className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                      onClick={() => setExplorerSplitViewEnabled((prev) => !prev)}
+                      onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
                       title={
                         explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
                       }
@@ -1506,7 +1514,9 @@ export function ChatroomDashboard({
                     {/* Right: Mode-switchable panel (Messages | Direct Harness) */}
                     {/* Note: the mode dropdown is desktop-only since the split-view toggle is hidden on mobile */}
                     <RightSplitPanel
-                      chatroomId={chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>}
+                      chatroomId={
+                        chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
+                      }
                       messagesPanelProps={{
                         activeTask,
                         controller: scrollController,
@@ -1520,6 +1530,10 @@ export function ChatroomDashboard({
                         autocompleteFiles,
                         onCreateCommand: handleOpenSavedCommandModal,
                       }}
+                      selectedHarnessSessionId={selectedHarnessSessionId}
+                      setSelectedHarnessSessionId={setSelectedHarnessSessionId}
+                      mode={splitMode}
+                      setMode={setSplitMode}
                     />
                   </div>
                 ) : activeView === 'messages' ? (

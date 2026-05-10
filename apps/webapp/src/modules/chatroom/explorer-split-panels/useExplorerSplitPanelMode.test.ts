@@ -20,7 +20,9 @@ describe('useExplorerSplitPanelMode', () => {
     const { result } = renderHook(() => useExplorerSplitPanelMode(CHATROOM_A));
     act(() => result.current[1]('direct-harness'));
     expect(result.current[0]).toBe('direct-harness');
-    expect(localStorage.getItem('chatroom:cr-a:explorerSplitPanelMode')).toBe('direct-harness');
+    expect(localStorage.getItem('chatroom:cr-a:explorerSplitPanelMode')).toBe(
+      JSON.stringify('direct-harness')
+    );
   });
 
   it('reads persisted value on mount', () => {
