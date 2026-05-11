@@ -70,14 +70,6 @@ const GIT_STATE_FIELDS: GitStateFieldDef<unknown, unknown, Record<string, unknow
     defaultValue: { status: 'not_found' } as GitDiffStatResult,
   },
   {
-    key: 'commits',
-    includeInSlim: false,
-    collect: (wd) => gitReader.getRecentCommits(wd, COMMITS_PER_PAGE),
-    toHashable: (raw) => (raw as GitCommit[]).map((c) => c.sha),
-    toMutationPartial: () => ({}),
-    defaultValue: [] as GitCommit[],
-  },
-  {
     key: 'commitsAhead',
     includeInSlim: false,
     collect: (wd) => gitReader.getCommitsAhead(wd),
@@ -203,28 +195,45 @@ export async function pushSingleWorkspaceGitState(
   const preCollected = new Map<string, unknown>([['branch', branchResult]]);
   const values = await pipeline.collect(workingDir, preCollected);
 
-  const commits = values.get('commits') as GitCommit[];
+  // Fetch recent commits separately (not part of the pipeline)
+  const commits = await gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE);
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
 
-  const hash = pipeline.computeHash(values, false);
-  if (ctx.lastPushedGitState.get(stateKey) === hash) {
-    return;
+  // Two independent hashes: one for gitState, one for recentCommits
+  const stateHash = pipeline.computeHash(values, false);
+  const commitsKey = `${stateKey}:commits`;
+  const commitsHash = JSON.stringify(commits.map((c) => c.sha));
+
+  if (ctx.lastPushedGitState.get(stateKey) !== stateHash) {
+    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      status: 'available',
+      ...pipeline.toMutationArgs(values, false),
+    });
+    ctx.lastPushedGitState.set(stateKey, stateHash);
+    console.log(
+      `[${formatTimestamp()}] 🔀 Git state pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})`
+    );
   }
 
-  await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    status: 'available',
-    ...pipeline.toMutationArgs(values, false),
-    recentCommits: commits,
-    hasMoreCommits,
-  });
-
-  ctx.lastPushedGitState.set(stateKey, hash);
-  console.log(
-    `[${formatTimestamp()}] 🔀 Git state pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})`
-  );
+  if (ctx.lastPushedGitState.get(commitsKey) !== commitsHash) {
+    try {
+      await ctx.deps.backend.mutation(api.workspaces.upsertRecentCommits, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        workingDir,
+        commits,
+        hasMoreCommits,
+      });
+      ctx.lastPushedGitState.set(commitsKey, commitsHash);
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Recent commits push failed for ${workingDir}: ${getErrorMessage(err)}`
+      );
+    }
+  }
 
   prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: unknown) => {
     console.warn(
