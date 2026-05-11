@@ -374,6 +374,44 @@ describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
     expect(receivedB).toHaveLength(1);
   });
 
+  it('event loop reconnects more than 2 times when stream ends repeatedly', async () => {
+    // The old code had `attempt < 2` which stopped after 2 connections.
+    // This test verifies the loop reconnects indefinitely (we test 3+ reconnects).
+    let subscribeCount = 0;
+    const harness = createHarness();
+
+    // Each call to subscribe() returns an immediately-exhausted stream.
+    // We let it reconnect 3 times, then stop it.
+    mockSubscribe.mockImplementation(() => {
+      subscribeCount++;
+      if (subscribeCount >= 4) {
+        // Stop the loop after 4 subscribe calls to avoid infinite loop in test
+        harness.unregisterSessionListener('sess-reconnect');
+      }
+      return Promise.resolve({
+        stream: (async function* () {
+          // empty stream — ends immediately
+        })(),
+      });
+    });
+
+    // Use fake timers to skip the backoff delays
+    vi.useFakeTimers();
+
+    const mockSession = { _receiveEvent: vi.fn() } as any;
+    harness.registerSessionListener('sess-reconnect', mockSession);
+
+    // Advance timers in a loop to flush all backoff delays
+    for (let i = 0; i < 20; i++) {
+      await vi.runAllTimersAsync();
+    }
+
+    vi.useRealTimers();
+
+    // Should have called subscribe at least 3 times (not stopped at 2)
+    expect(subscribeCount).toBeGreaterThanOrEqual(3);
+  });
+
   it('unregistering the last session stops the event loop flag', () => {
     const harness = createHarness();
     const sid = 'sess-test';

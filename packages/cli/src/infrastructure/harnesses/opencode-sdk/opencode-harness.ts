@@ -241,13 +241,18 @@ export class OpencodeSdkHarness implements BoundHarness {
    * `harnessEventSessionId(event)`. Runs until the harness is closed or the
    * last session listener unregisters.
    *
-   * Performs one reconnect attempt if the stream errors unexpectedly, matching
-   * the implicit behaviour of the former per-session streams.
+   * Retries indefinitely with exponential backoff (500ms → 30s) when the
+   * stream ends or errors. Backoff resets to 500ms after a successful stream
+   * that delivered at least one event.
    */
   private async runEventLoop(): Promise<void> {
     let attempt = 0;
-    while (!this.closed && !this.eventLoopStopped && attempt < 2) {
+    let delayMs = 500;
+    const MAX_DELAY_MS = 30_000;
+
+    while (!this.closed && !this.eventLoopStopped) {
       attempt++;
+      let eventCount = 0;
       try {
         const result = await this.client.event.subscribe();
         const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
@@ -257,10 +262,11 @@ export class OpencodeSdkHarness implements BoundHarness {
           try {
             next = await iterator.next();
           } catch {
-            // Stream error — break inner loop and possibly retry
+            // Stream error — break inner loop and retry
             break;
           }
           if (next.done || this.closed || this.eventLoopStopped) break;
+          eventCount++;
           const raw = next.value as { type: string; properties?: Record<string, unknown> };
           const sid = harnessEventSessionId(raw);
           if (sid) {
@@ -268,14 +274,46 @@ export class OpencodeSdkHarness implements BoundHarness {
           }
         }
         if (this.closed || this.eventLoopStopped) break; // clean exit
-        // Stream ended naturally — retry once
+        // Reset backoff when the stream was healthy and delivered events
+        if (eventCount > 0) {
+          delayMs = 500;
+        }
       } catch {
-        if (this.closed || this.eventLoopStopped || attempt >= 2) break;
-        // Brief pause before retry
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        if (this.closed || this.eventLoopStopped) break;
       }
+
+      if (this.closed || this.eventLoopStopped) break;
+
+      console.warn(
+        `[opencode-harness] SSE stream ended, reconnecting in ${delayMs}ms (attempt ${attempt})...`
+      );
+
+      // Wait with backoff, but exit early if the loop is stopped
+      await this._sleepWithEarlyExit(delayMs);
+
+      delayMs = Math.min(delayMs * 2, MAX_DELAY_MS);
     }
     this.eventLoopRunning = false;
+  }
+
+  /**
+   * Sleep for `ms` milliseconds, but resolve immediately if the harness is
+   * closed or the event loop is stopped. Polls every 50ms.
+   */
+  private _sleepWithEarlyExit(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        clearInterval(poll);
+        resolve();
+      }, ms);
+      const poll = setInterval(() => {
+        if (this.closed || this.eventLoopStopped) {
+          clearTimeout(timer);
+          clearInterval(poll);
+          resolve();
+        }
+      }, 50);
+    });
   }
 
   /** Fetch the current title of a session directly from the OpenCode API. */
