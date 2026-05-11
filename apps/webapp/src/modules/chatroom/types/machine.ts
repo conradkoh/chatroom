@@ -27,10 +27,7 @@ export interface MachineInfo {
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /** Available AI models discovered dynamically, keyed by harness name */
-  availableModels: Record<string, string[]>;
-  daemonConnected: boolean;
-  lastSeenAt: number;
+  // availableModels removed in v1.38.4 — now served via getMachineModels query / useMachineModels hook
 }
 
 export interface AgentConfig {
@@ -41,7 +38,7 @@ export interface AgentConfig {
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
-  daemonConnected: boolean;
+  daemonConnected?: boolean;
   availableHarnesses: AgentHarness[];
   updatedAt: number;
   spawnedAgentPid?: number;

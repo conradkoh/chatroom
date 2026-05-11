@@ -107,6 +107,56 @@ async function getOwnedMachine(
 }
 
 // ============================================================================
+// MACHINE MODELS — EXTRACTED TABLE
+// ============================================================================
+
+/**
+ * Upsert per-machine row in chatroom_machineModels.
+ *
+ * One row per machine; the whole Record<harness, models[]> lives in a single row.
+ * Skips the write when availableModels is undefined (don't clobber existing data
+ * with an empty/absent payload from old daemons that don't send models).
+ * Also skips when the content is structurally identical to the existing row
+ * (JSON.stringify deep-equality) — no-op writes still invalidate Convex
+ * subscriptions, so we must suppress them to achieve the bandwidth goal.
+ */
+async function upsertMachineModels(
+  ctx: MutationCtx,
+  machineId: string,
+  availableModels: Record<string, string[]> | undefined,
+): Promise<void> {
+  if (availableModels === undefined) {
+    // Don't clobber existing models when caller didn't supply them.
+    return;
+  }
+
+  const existing = await ctx.db
+    .query('chatroom_machineModels')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
+
+  if (existing) {
+    // Skip write if content is identical — prevents subscription invalidation churn.
+    // JSON.stringify is safe here: JS object key order is insertion-order-stable and
+    // daemons write the same harness key order on every call. A true reordering would
+    // indicate a genuine harness-list change and trigger a real write (correct behaviour).
+    if (JSON.stringify(existing.availableModels) === JSON.stringify(availableModels)) {
+      return;
+    }
+    await ctx.db.patch('chatroom_machineModels', existing._id, {
+      availableModels,
+      updatedAt: Date.now(),
+    });
+  } else {
+    await ctx.db.insert('chatroom_machineModels', {
+      machineId,
+      availableModels,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
+// ============================================================================
 // MACHINE REGISTRATION
 // ============================================================================
 
@@ -164,6 +214,9 @@ export const register = mutation({
         lastSeenAt: now,
       });
 
+      // Dual-write into dedicated models table (re-register / update path)
+      await upsertMachineModels(ctx, args.machineId, args.availableModels);
+
       return { machineId: args.machineId, isNew: false };
     }
 
@@ -180,6 +233,9 @@ export const register = mutation({
       lastSeenAt: now,
       daemonConnected: false,
     });
+
+    // Dual-write into dedicated models table (new-insert path)
+    await upsertMachineModels(ctx, args.machineId, args.availableModels);
 
     return { machineId: args.machineId, isNew: true };
   },
@@ -254,6 +310,9 @@ export const refreshCapabilities = mutation({
       availableModels: args.availableModels,
       lastSeenAt: Date.now(),
     });
+
+    // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
+    await upsertMachineModels(ctx, args.machineId, args.availableModels);
   },
 });
 
@@ -517,48 +576,54 @@ export const listMachines = query({
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect();
 
-    // Join with machineStatus table for materialized online/offline state
-    const machineIds = machines.map((m) => m.machineId);
-    const statusMap = new Map<string, { status: string }>();
-    for (const machineId of machineIds) {
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      if (machineStatus) {
-        statusMap.set(machineId, { status: machineStatus.status });
-      }
-    }
-
-    // Read lastSeenAt from liveness table (still updated on every heartbeat)
-    const livenessData = new Map<string, number>();
-    for (const machineId of machineIds) {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      if (liveness) {
-        livenessData.set(machineId, liveness.lastSeenAt);
-      }
-    }
-
     return {
-      machines: machines.map((m) => {
-        const status = statusMap.get(m.machineId);
-        return {
-          machineId: m.machineId,
-          hostname: m.hostname,
-          alias: m.alias,
-          os: m.os,
-          availableHarnesses: m.availableHarnesses,
-          harnessVersions: m.harnessVersions ?? {},
-          availableModels: m.availableModels ?? {},
-          daemonConnected: status?.status === 'online',
-          lastSeenAt: livenessData.get(m.machineId) ?? 0,
-          registeredAt: m.registeredAt,
-        };
-      }),
+      machines: machines.map((m) => ({
+        machineId: m.machineId,
+        hostname: m.hostname,
+        alias: m.alias,
+        os: m.os,
+        availableHarnesses: m.availableHarnesses,
+        harnessVersions: m.harnessVersions ?? {},
+        registeredAt: m.registeredAt,
+      })),
     };
+  },
+});
+
+/**
+ * Per-machine available model list, read from the new chatroom_machineModels table.
+ * Falls back to the legacy chatroom_machines.availableModels field for machines that
+ * have not yet been back-filled by the dropEmbeddedAvailableModels migration.
+ */
+export const getMachineModels = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return { availableModels: {} as Record<string, string[]> };
+
+    // Verify ownership
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) {
+      return { availableModels: {} as Record<string, string[]> };
+    }
+
+    // Prefer new table; fall back to legacy field if migration hasn't backfilled yet.
+    const newRow = await ctx.db
+      .query('chatroom_machineModels')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (newRow) {
+      return { availableModels: newRow.availableModels };
+    }
+
+    // Legacy fallback: machine.availableModels may be Record OR legacy string[].
+    const legacy = machine.availableModels;
+    if (legacy && !Array.isArray(legacy)) return { availableModels: legacy };
+    if (Array.isArray(legacy)) return { availableModels: { opencode: legacy } };
+    return { availableModels: {} as Record<string, string[]> };
   },
 });
 

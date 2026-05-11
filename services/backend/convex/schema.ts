@@ -833,6 +833,12 @@ export default defineSchema({
     // Shape: { opencode: [...], pi: [...] }
     // DEPRECATED SHAPE: v.array(v.string()) - kept to pass validation until
     // migration.migrateAvailableModelsToPerHarness has run. Remove after migration.
+    /**
+     * @deprecated v1.38.4 — superseded by chatroom_machineModels (own table to keep heavy model
+     * payload out of the parent row). Kept as optional for backwards compatibility with old daemons
+     * + read-tolerance until dropEmbeddedAvailableModels migration has been run on all environments.
+     * Remove after migration.
+     */
     availableModels: v.optional(
       v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
     ),
@@ -877,6 +883,25 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_status', ['status']),
+
+  /**
+   * Per-machine available model lists, extracted from chatroom_machines.availableModels in v1.38.4.
+   *
+   * Rationale: the availableModels payload is ~50KB per machine. When it lived on the parent
+   * chatroom_machines row it was re-pushed to every listMachines subscriber on every machine-row
+   * write (heartbeat, status change, etc.). Separating it into its own table — mirroring the
+   * same design intent as chatroom_machineLiveness — means model-list updates no longer
+   * invalidate the lightweight listMachines subscription.
+   *
+   * One row per machine. The whole Record<harness, models[]> lives in a single row.
+   */
+  chatroom_machineModels: defineTable({
+    machineId: v.string(),
+    // Per-harness model lists. Shape: { opencode: ['provider/model', ...], pi: [...] }
+    // Single row per machine (one record holding all harnesses).
+    availableModels: v.record(v.string(), v.array(v.string())),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
 
   /**
    * Model visibility filters for a machine's harness.
