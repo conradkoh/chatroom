@@ -1,12 +1,9 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
-import { useFileEntries } from '@/modules/chatroom/hooks/useFileEntries';
+import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
 
 interface UseFileSelectorOptions {
   chatroomId?: string;
@@ -46,25 +43,24 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   );
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  // Request file tree mutation
-  const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
-
-  // Fetch file tree — only subscribe when the file selector is open
-  const treeResult = useFileTree(
-    open && machineId && workingDir ? { machineId, workingDir } : 'skip'
-  );
+  const hasWorkspace = !!machineId && !!workingDir;
+  const {
+    entries: files,
+    treeJson,
+    refresh,
+    isLoading,
+  } = useWorkspaceFileTree({
+    machineId: machineId ?? '',
+    workingDir: workingDir ?? '',
+    enabled: open && hasWorkspace,
+  });
 
   // Request a fresh file tree scan when the selector opens
   useEffect(() => {
-    if (open && machineId && workingDir) {
-      requestFileTreeMutation({ machineId, workingDir }).catch(() => {
-        // Non-blocking — tree may already be cached
-      });
+    if (open && hasWorkspace) {
+      refresh();
     }
-  }, [open, machineId, workingDir, requestFileTreeMutation]);
-
-  // Parse file tree entries (files only)
-  const files = useFileEntries(treeResult);
+  }, [open, hasWorkspace, refresh]);
 
   // Register Cmd+P / Ctrl+P shortcut
   useEffect(() => {
@@ -121,8 +117,8 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     recentFiles,
     selectedFile,
     selectFile,
-    hasTree: !!treeResult,
-    isLoading: treeResult === undefined && !!machineId && !!workingDir,
-    hasWorkspace: !!machineId && !!workingDir,
+    hasTree: treeJson !== null,
+    isLoading,
+    hasWorkspace,
   };
 }

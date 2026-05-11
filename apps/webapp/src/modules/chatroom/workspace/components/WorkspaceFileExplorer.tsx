@@ -8,9 +8,9 @@ import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
-import { useFileTree } from '../hooks/useFileTree';
 
 import { cn } from '@/lib/utils';
+import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -226,21 +226,21 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   }, [expandedPathsStorageKey]);
 
   // Fetch file tree reactively (uses cached data from backend, handles decompression)
-  const treeResult = useFileTree({ machineId, workingDir });
+  const { treeJson, isLoading } = useWorkspaceFileTree({ machineId, workingDir });
 
   // Note: No auto-refresh on mount. Tree refresh is triggered on-demand
   // via the refresh button in FileExplorerPanel.
 
   // Parse tree JSON into hierarchical nodes
   const treeNodes = useMemo<TreeNode[]>(() => {
-    if (!treeResult?.treeJson) return [];
+    if (!treeJson) return [];
     try {
-      const parsed: FileTree = JSON.parse(treeResult.treeJson);
+      const parsed: FileTree = JSON.parse(treeJson);
       return buildTree(parsed.entries ?? []);
     } catch {
       return [];
     }
-  }, [treeResult?.treeJson]);
+  }, [treeJson]);
 
   // Auto-expand tree to reveal a specific file path
   useEffect(() => {
@@ -275,7 +275,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   );
 
   // Loading state
-  if (treeResult === undefined) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8 text-chatroom-text-muted text-xs">
         <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
