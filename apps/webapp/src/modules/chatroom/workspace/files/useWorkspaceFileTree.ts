@@ -5,8 +5,8 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useRef } from 'react';
 
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
-import { useFileEntries } from '@/modules/chatroom/hooks/useFileEntries';
-import { useFileTree } from '@/modules/chatroom/workspace/hooks/useFileTree';
+import { useFileEntries } from './useFileEntries';
+import { useFileTree } from './useFileTree';
 
 const REFRESH_DEDUP_WINDOW_MS = 1500;
 

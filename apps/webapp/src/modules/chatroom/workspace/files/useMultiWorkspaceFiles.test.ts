@@ -23,11 +23,11 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: mocks.useSessionMutation,
 }));
 
-vi.mock('@/modules/chatroom/workspace/hooks/useFileTree', () => ({
+vi.mock('@/modules/chatroom/workspace/files/useFileTree', () => ({
   useFileTree: mocks.useFileTree,
 }));
 
-vi.mock('@/modules/chatroom/hooks/useFileEntries', () => ({
+vi.mock('@/modules/chatroom/workspace/files/useFileEntries', () => ({
   useFileEntries: mocks.useFileEntries,
 }));
 
