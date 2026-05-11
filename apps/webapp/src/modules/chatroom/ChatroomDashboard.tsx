@@ -50,7 +50,7 @@ import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
-import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
+import { useMultiWorkspaceFiles } from './workspace/files';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
