@@ -306,6 +306,28 @@ export const purgeWorkspaceFileContent = migrations.define({
   },
 });
 
+// --- Git State Migrations ---
+
+/**
+ * Migration: Drop embedded recentCommits + hasMoreCommits from chatroom_workspaceGitState.
+ * The fields were removed from the daemon write path in v1.38.3; this migration
+ * cleans up legacy rows so the schema fields can eventually be deleted.
+ *
+ * Run via:
+ *   cd services/backend && npx convex run migrations:run '{"fn":"migrations:dropEmbeddedRecentCommits"}'
+ *
+ * Idempotent: rows already cleaned are skipped (returns undefined = no patch).
+ */
+export const dropEmbeddedRecentCommits = migrations.define({
+  table: 'chatroom_workspaceGitState',
+  migrateOne: async (_ctx, row) => {
+    const r = row as Record<string, unknown>;
+    if (r.recentCommits !== undefined || r.hasMoreCommits !== undefined) {
+      return { recentCommits: undefined, hasMoreCommits: undefined };
+    }
+  },
+});
+
 // --- Saved Commands Migrations ---
 // (none currently — type field shipped with the feature in v1.34.0; production has no legacy rows)
 
@@ -337,4 +359,6 @@ export const runAll = migrations.runner([
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
+  // Git State
+  internal.migrations.dropEmbeddedRecentCommits,
 ]);

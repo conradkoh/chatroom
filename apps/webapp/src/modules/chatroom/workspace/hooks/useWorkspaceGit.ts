@@ -301,18 +301,12 @@ export function useLoadMoreCommits(
 ): { loading: boolean; loadMore: () => void } {
   const [loading, setLoading] = useState(false);
   const requestMutation = useSessionMutation(api.workspaces.requestMoreCommits);
-  const shouldSkipGit = !machineId || !workingDir;
-  const gitState = useSessionQuery(
-    api.workspaces.getWorkspaceGitState,
-    shouldSkipGit ? 'skip' : { machineId, workingDir }
-  );
 
   const loadMore = useCallback(() => {
-    const offset =
-      commitCount ?? (gitState?.status === 'available' ? (gitState.recentCommits?.length ?? 0) : 0);
+    const offset = commitCount ?? 0;
     setLoading(true);
     requestMutation({ machineId, workingDir, offset }).finally(() => setLoading(false));
-  }, [requestMutation, machineId, workingDir, gitState, commitCount]);
+  }, [requestMutation, machineId, workingDir, commitCount]);
 
   return { loading, loadMore };
 }

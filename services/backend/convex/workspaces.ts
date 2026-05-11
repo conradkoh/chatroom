@@ -226,8 +226,6 @@ export const getWorkspaceGitState = query({
         branch: row.branch ?? 'HEAD',
         isDirty: row.isDirty ?? false,
         diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
-        recentCommits: row.recentCommits ?? [],
-        hasMoreCommits: row.hasMoreCommits ?? false,
         openPullRequests: (row.openPullRequests ?? []).map((pr) => ({
           ...pr,
           prNumber: pr.prNumber ?? pr.number ?? 0,
@@ -481,18 +479,6 @@ export const upsertWorkspaceGitState = mutation({
         deletions: v.number(),
       })
     ),
-    recentCommits: v.optional(
-      v.array(
-        v.object({
-          sha: v.string(),
-          shortSha: v.string(),
-          message: v.string(),
-          author: v.string(),
-          date: v.string(),
-        })
-      )
-    ),
-    hasMoreCommits: v.optional(v.boolean()),
     // Open pull requests for the current branch
     openPullRequests: v.optional(
       v.array(
@@ -610,8 +596,6 @@ export const upsertWorkspaceGitState = mutation({
       branch: args.branch,
       isDirty: args.isDirty,
       diffStat: args.diffStat,
-      recentCommits: args.recentCommits,
-      hasMoreCommits: args.hasMoreCommits,
       openPullRequests: args.openPullRequests?.map(normalizePr),
       allPullRequests: args.allPullRequests?.map(normalizePr),
       remotes: args.remotes,
@@ -640,6 +624,7 @@ export const upsertWorkspaceGitState = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
+
   },
 });
 
