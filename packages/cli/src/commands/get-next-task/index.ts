@@ -43,9 +43,9 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = await getSessionId();
   if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
+    const otherUrls = await getOtherSessionUrls();
 
     console.error(`❌ Not authenticated for: ${convexUrl}`);
 

@@ -1182,7 +1182,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   const { getConvexClient } = await import('./infrastructure/convex/client.js');
   const { sendLifecycleHeartbeat } = await import('./infrastructure/lifecycle-heartbeat.js');
 
-  const sessionId = getSessionId();
+  const sessionId = await getSessionId();
   if (!sessionId) return; // not authed yet — skip silently
 
   const client = await getConvexClient();

@@ -42,12 +42,12 @@ function createMockDeps(overrides?: Partial<AuthLoginDeps>): AuthLoginDeps {
       }),
     },
     auth: {
-      isAuthenticated: vi.fn().mockReturnValue(false),
+      isAuthenticated: vi.fn().mockResolvedValue(false),
       getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.json'),
-      saveAuthData: vi.fn(),
-      getDeviceName: vi.fn().mockReturnValue('test-host (darwin)'),
+      saveAuthData: vi.fn().mockResolvedValue(undefined),
+      getDeviceName: vi.fn().mockResolvedValue('test-host (darwin)'),
       getCliVersion: vi.fn().mockReturnValue('1.0.0-test'),
-      getSessionId: vi.fn().mockReturnValue('existing-session-id'),
+      getSessionId: vi.fn().mockResolvedValue('existing-session-id'),
     },
     browser: {
       open: vi.fn().mockResolvedValue(undefined),
@@ -140,8 +140,8 @@ describe('authLogin', () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
-        isAuthenticated: vi.fn().mockReturnValue(true),
-        getSessionId: vi.fn().mockReturnValue('existing-session-id'),
+        isAuthenticated: vi.fn().mockResolvedValue(true),
+        getSessionId: vi.fn().mockResolvedValue('existing-session-id'),
       },
       backend: {
         mutation: vi.fn(),
@@ -160,8 +160,8 @@ describe('authLogin', () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
-        isAuthenticated: vi.fn().mockReturnValue(true),
-        getSessionId: vi.fn().mockReturnValue('expired-session-id'),
+        isAuthenticated: vi.fn().mockResolvedValue(true),
+        getSessionId: vi.fn().mockResolvedValue('expired-session-id'),
       },
       backend: {
         // validateSession returns expired, then createAuthRequest, then getAuthRequestStatus
@@ -190,8 +190,8 @@ describe('authLogin', () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
-        isAuthenticated: vi.fn().mockReturnValue(true),
-        getSessionId: vi.fn().mockReturnValue('existing-session-id'),
+        isAuthenticated: vi.fn().mockResolvedValue(true),
+        getSessionId: vi.fn().mockResolvedValue('existing-session-id'),
       },
       backend: {
         mutation: vi.fn(),
@@ -210,7 +210,7 @@ describe('authLogin', () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
-        isAuthenticated: vi.fn().mockReturnValue(true),
+        isAuthenticated: vi.fn().mockResolvedValue(true),
       },
       backend: {
         mutation: vi.fn().mockResolvedValue({

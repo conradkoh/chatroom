@@ -90,13 +90,13 @@ export interface AgentProcessManagerDeps {
       role: string,
       pid: number,
       harness: AgentHarness
-    ) => void;
-    clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
-    listAgentEntries: (machineId: string) => {
+    ) => Promise<void>;
+    clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
+    listAgentEntries: (machineId: string) => Promise<{
       chatroomId: string;
       role: string;
       entry: { pid: number; harness: AgentHarness };
-    }[];
+    }[]>;
   };
   spawning: {
     shouldAllowSpawn: (
@@ -237,7 +237,7 @@ export class AgentProcessManager {
     return { success: true };
   }
 
-  handleExit(opts: HandleExitOpts): void {
+  async handleExit(opts: HandleExitOpts): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
 
@@ -289,7 +289,11 @@ export class AgentProcessManager {
     });
 
     // Clear from disk
-    this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+    try {
+      await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+    } catch {
+      // Non-critical
+    }
 
     // Untrack in agent services
     for (const service of this.deps.agentServices.values()) {
@@ -362,7 +366,19 @@ export class AgentProcessManager {
   }
 
   async recover(): Promise<void> {
-    const entries = this.deps.persistence.listAgentEntries(this.deps.machineId);
+    let entries: {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness };
+    }[] = [];
+    try {
+      entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
+    } catch (err) {
+      console.warn(
+        `[AgentProcessManager] ⚠️ Failed to load persisted agent entries: ${(err as Error).message}`
+      );
+    }
+
     let recovered = 0;
     let cleaned = 0;
 
@@ -619,9 +635,9 @@ export class AgentProcessManager {
           console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
         });
 
-      // Persist to disk (fire-and-forget)
+      // Persist to disk (best-effort)
       try {
-        this.deps.persistence.persistAgentPid(
+        await this.deps.persistence.persistAgentPid(
           this.deps.machineId,
           opts.chatroomId,
           opts.role,
@@ -634,7 +650,7 @@ export class AgentProcessManager {
 
       // Register exit handler
       spawnResult.onExit(({ code, signal }) => {
-        this.handleExit({
+        void this.handleExit({
           chatroomId: opts.chatroomId,
           role: opts.role,
           pid,
@@ -755,7 +771,11 @@ export class AgentProcessManager {
     });
 
     // Clear from disk
-    this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+    try {
+      await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+    } catch {
+      // Non-critical
+    }
 
     // Untrack in agent services
     for (const service of this.deps.agentServices.values()) {

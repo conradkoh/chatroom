@@ -43,9 +43,9 @@ function createMockDeps(overrides?: Partial<HandoffDeps>): HandoffDeps {
       query: vi.fn().mockResolvedValue(true),
     },
     session: {
-      getSessionId: vi.fn().mockReturnValue(TEST_SESSION_ID),
+      getSessionId: vi.fn().mockResolvedValue(TEST_SESSION_ID),
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-      getOtherSessionUrls: vi.fn().mockReturnValue([]),
+      getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
@@ -97,9 +97,9 @@ describe('handoff', () => {
     it('exits with code 1 when not authenticated', async () => {
       const deps = createMockDeps({
         session: {
-          getSessionId: vi.fn().mockReturnValue(null),
+          getSessionId: vi.fn().mockResolvedValue(null),
           getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-          getOtherSessionUrls: vi.fn().mockReturnValue([]),
+          getOtherSessionUrls: vi.fn().mockResolvedValue([]),
         },
       });
 

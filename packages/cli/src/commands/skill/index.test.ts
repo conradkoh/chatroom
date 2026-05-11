@@ -25,9 +25,9 @@ function createMockDeps(overrides?: Partial<SkillDeps>): SkillDeps {
       query: vi.fn().mockResolvedValue([]),
     },
     session: {
-      getSessionId: vi.fn().mockReturnValue(TEST_SESSION_ID),
+      getSessionId: vi.fn().mockResolvedValue(TEST_SESSION_ID),
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-      getOtherSessionUrls: vi.fn().mockReturnValue([]),
+      getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
@@ -67,9 +67,9 @@ describe('listSkills', () => {
   it('exits with code 1 when not authenticated', async () => {
     const deps = createMockDeps({
       session: {
-        getSessionId: vi.fn().mockReturnValue(null),
+        getSessionId: vi.fn().mockResolvedValue(null),
         getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-        getOtherSessionUrls: vi.fn().mockReturnValue([]),
+        getOtherSessionUrls: vi.fn().mockResolvedValue([]),
       },
     });
 
@@ -130,9 +130,9 @@ describe('activateSkill', () => {
   it('exits with code 1 when not authenticated', async () => {
     const deps = createMockDeps({
       session: {
-        getSessionId: vi.fn().mockReturnValue(null),
+        getSessionId: vi.fn().mockResolvedValue(null),
         getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-        getOtherSessionUrls: vi.fn().mockReturnValue([]),
+        getOtherSessionUrls: vi.fn().mockResolvedValue([]),
       },
     });
 

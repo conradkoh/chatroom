@@ -82,8 +82,8 @@ async function createDefaultDeps(): Promise<WorkflowDeps> {
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────
 
-function requireAuth(d: WorkflowDeps): string {
-  const sessionId = d.session.getSessionId();
+async function requireAuth(d: WorkflowDeps): Promise<string> {
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -205,7 +205,7 @@ export async function createWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Parse JSON from stdin
@@ -323,7 +323,7 @@ export async function specifyWorkflowStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Parse sections from stdin
@@ -387,7 +387,7 @@ export async function executeWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   try {
@@ -420,7 +420,7 @@ export async function getWorkflowStatus(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   try {
@@ -558,7 +558,7 @@ export async function completeStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   try {
@@ -590,7 +590,7 @@ export async function exitWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate reason is non-empty
@@ -629,7 +629,7 @@ export async function viewStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   try {

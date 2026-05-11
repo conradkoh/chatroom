@@ -132,7 +132,7 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
   const models = await discoverModels(ctx.agentServices);
 
   // Re-detect available harnesses so any newly installed tools are reflected immediately.
-  const freshConfig = ensureMachineRegistered();
+  const freshConfig = await ensureMachineRegistered();
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
 
@@ -540,14 +540,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       journalFactory,
     });
 
-    lifecycleManager = new HarnessLifecycleManager(
-      harnesses,
-      activeSessions,
-      async (workspaceId) =>
-        ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-          sessionId: ctx.sessionId,
-          workspaceId,
-        })
+    lifecycleManager = new HarnessLifecycleManager(harnesses, activeSessions, async (workspaceId) =>
+      ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
+        sessionId: ctx.sessionId,
+        workspaceId,
+      })
     );
     lifecycleManager.startMonitoring();
 

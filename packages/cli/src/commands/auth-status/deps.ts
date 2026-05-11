@@ -18,9 +18,9 @@ export interface AuthStatusBackendOps {
  * Session storage operations for auth-status (load, path, check).
  */
 export interface AuthStatusSessionOps {
-  loadAuthData: () => { sessionId: string; createdAt: string; deviceName?: string } | null;
+  loadAuthData: () => Promise<{ sessionId: string; createdAt: string; deviceName?: string } | null>;
   getAuthFilePath: () => string;
-  isAuthenticated: () => boolean;
+  isAuthenticated: () => Promise<boolean>;
 }
 
 /**
@@ -31,5 +31,5 @@ export interface AuthStatusDeps {
   session: AuthStatusSessionOps;
   getVersion: () => string;
   /** Read local machine config (no backend sync) */
-  loadMachineConfig: () => MachineConfig | null;
+  loadMachineConfig: () => Promise<MachineConfig | null>;
 }

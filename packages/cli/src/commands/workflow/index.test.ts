@@ -192,9 +192,9 @@ describe('createWorkflow', () => {
         query: vi.fn(),
       },
       session: {
-        getSessionId: () => 'test-session',
+        getSessionId: async () => 'test-session',
         getConvexUrl: () => 'http://test:3210',
-        getOtherSessionUrls: () => [],
+        getOtherSessionUrls: async () => [],
       },
     };
 
@@ -252,9 +252,9 @@ describe('createWorkflow', () => {
         query: vi.fn(),
       },
       session: {
-        getSessionId: () => 'test-session',
+        getSessionId: async () => 'test-session',
         getConvexUrl: () => 'http://test:3210',
-        getOtherSessionUrls: () => [],
+        getOtherSessionUrls: async () => [],
       },
     };
 
@@ -320,9 +320,9 @@ describe('viewStep', () => {
         query: querySpy,
       },
       session: {
-        getSessionId: () => 'test-session',
+        getSessionId: async () => 'test-session',
         getConvexUrl: () => 'http://test:3210',
-        getOtherSessionUrls: () => [],
+        getOtherSessionUrls: async () => [],
       },
     };
 
@@ -388,9 +388,9 @@ describe('viewStep', () => {
         query: querySpy,
       },
       session: {
-        getSessionId: () => 'test-session',
+        getSessionId: async () => 'test-session',
         getConvexUrl: () => 'http://test:3210',
-        getOtherSessionUrls: () => [],
+        getOtherSessionUrls: async () => [],
       },
     };
 

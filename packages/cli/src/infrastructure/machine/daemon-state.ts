@@ -26,7 +26,7 @@
  * }
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -81,11 +81,8 @@ function agentKey(chatroomId: string, role: string): string {
 }
 
 /** Ensure the state directory tree exists */
-function ensureStateDir(): void {
-  if (!existsSync(STATE_DIR)) {
-    // SECURITY: 0o700 restricts directory access to owner only.
-    mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
-  }
+async function ensureStateDir(): Promise<void> {
+  await fs.mkdir(STATE_DIR, { recursive: true, mode: 0o700 });
 }
 
 /** Path to the state file for a given machine */
@@ -101,17 +98,17 @@ function stateFilePath(machineId: string): string {
  * Load the daemon state file for a machine.
  * Returns null if the file doesn't exist or is unreadable.
  */
-export function loadDaemonState(machineId: string): DaemonStateFile | null {
+export async function loadDaemonState(machineId: string): Promise<DaemonStateFile | null> {
   const filePath = stateFilePath(machineId);
 
-  if (!existsSync(filePath)) {
-    return null;
-  }
-
   try {
-    const content = readFileSync(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(content) as DaemonStateFile;
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+
     // Corrupted file — caller should treat as empty
     return null;
   }
@@ -120,25 +117,25 @@ export function loadDaemonState(machineId: string): DaemonStateFile | null {
 /**
  * Save the daemon state file using atomic write (write-to-tmp then rename).
  */
-function saveDaemonState(state: DaemonStateFile): void {
-  ensureStateDir();
+async function saveDaemonState(state: DaemonStateFile): Promise<void> {
+  await ensureStateDir();
   const filePath = stateFilePath(state.machineId);
   const tempPath = `${filePath}.tmp`;
   const content = JSON.stringify(state, null, 2);
 
   // SECURITY: 0o600 restricts file access to owner only.
-  writeFileSync(tempPath, content, { encoding: 'utf-8', mode: 0o600 });
+  await fs.writeFile(tempPath, content, { mode: 0o600 });
 
   // Atomic rename — safe against crashes mid-write.
-  renameSync(tempPath, filePath);
+  await fs.rename(tempPath, filePath);
 }
 
 /**
  * Load or create a fresh state file for the given machine.
  */
-function loadOrCreate(machineId: string): DaemonStateFile {
+async function loadOrCreate(machineId: string): Promise<DaemonStateFile> {
   return (
-    loadDaemonState(machineId) ?? {
+    (await loadDaemonState(machineId)) ?? {
       version: STATE_VERSION,
       machineId,
       updatedAt: new Date().toISOString(),
@@ -156,14 +153,14 @@ function loadOrCreate(machineId: string): DaemonStateFile {
  *
  * Called after a successful agent start so the daemon can recover it on restart.
  */
-export function persistAgentPid(
+export async function persistAgentPid(
   machineId: string,
   chatroomId: string,
   role: string,
   pid: number,
   harness: AgentHarness
-): void {
-  const state = loadOrCreate(machineId);
+): Promise<void> {
+  const state = await loadOrCreate(machineId);
 
   state.agents[agentKey(chatroomId, role)] = {
     pid,
@@ -172,7 +169,7 @@ export function persistAgentPid(
   };
   state.updatedAt = new Date().toISOString();
 
-  saveDaemonState(state);
+  await saveDaemonState(state);
 }
 
 /**
@@ -180,8 +177,12 @@ export function persistAgentPid(
  *
  * Called after a successful agent stop or when a stale PID is detected.
  */
-export function clearAgentPid(machineId: string, chatroomId: string, role: string): void {
-  const state = loadDaemonState(machineId);
+export async function clearAgentPid(
+  machineId: string,
+  chatroomId: string,
+  role: string
+): Promise<void> {
+  const state = await loadDaemonState(machineId);
   if (!state) return;
 
   const key = agentKey(chatroomId, role);
@@ -190,7 +191,7 @@ export function clearAgentPid(machineId: string, chatroomId: string, role: strin
   delete state.agents[key];
   state.updatedAt = new Date().toISOString();
 
-  saveDaemonState(state);
+  await saveDaemonState(state);
 }
 
 /**
@@ -199,10 +200,10 @@ export function clearAgentPid(machineId: string, chatroomId: string, role: strin
  * Returns an array of { chatroomId, role, entry } for iteration during
  * recovery. Returns an empty array when no state file exists.
  */
-export function listAgentEntries(
+export async function listAgentEntries(
   machineId: string
-): { chatroomId: string; role: string; entry: DaemonAgentEntry }[] {
-  const state = loadDaemonState(machineId);
+): Promise<{ chatroomId: string; role: string; entry: DaemonAgentEntry }[]> {
+  const state = await loadDaemonState(machineId);
   if (!state) return [];
 
   const results: { chatroomId: string; role: string; entry: DaemonAgentEntry }[] = [];
@@ -225,12 +226,12 @@ export function listAgentEntries(
  * Best-effort: if the write fails, logs a warning but does not throw.
  * Call this after each processed batch of stream events to survive daemon restarts.
  */
-export function persistEventCursor(machineId: string, lastSeenEventId: string): void {
+export async function persistEventCursor(machineId: string, lastSeenEventId: string): Promise<void> {
   try {
-    const state = loadOrCreate(machineId);
+    const state = await loadOrCreate(machineId);
     state.lastSeenEventId = lastSeenEventId;
     state.updatedAt = new Date().toISOString();
-    saveDaemonState(state);
+    await saveDaemonState(state);
   } catch (err) {
     // Best-effort: log and continue — never block command processing
     console.warn(`⚠️  Failed to persist event cursor: ${(err as Error).message}`);
@@ -243,7 +244,7 @@ export function persistEventCursor(machineId: string, lastSeenEventId: string): 
  * Returns the last seen event ID string if present, or null if none is stored.
  * Called at daemon startup to resume the stream from the correct position.
  */
-export function loadEventCursor(machineId: string): string | null {
-  const state = loadDaemonState(machineId);
+export async function loadEventCursor(machineId: string): Promise<string | null> {
+  const state = await loadDaemonState(machineId);
   return state?.lastSeenEventId ?? null;
 }

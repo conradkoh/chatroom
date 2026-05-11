@@ -41,8 +41,8 @@ async function createDefaultDeps(): Promise<SkillDeps> {
 
 // ─── Auth Helper ─────────────────────────────────────────────────────────────
 
-function requireAuth(d: SkillDeps): string {
-  const sessionId = d.session.getSessionId();
+async function requireAuth(d: SkillDeps): Promise<string> {
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -61,7 +61,7 @@ export async function listSkills(
   deps?: SkillDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
 
   try {
     const skills = await d.backend.query(api.skills.list, {
@@ -103,7 +103,7 @@ export async function activateSkill(
   deps?: SkillDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
 
   try {
     const convexUrl = d.session.getConvexUrl();

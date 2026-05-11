@@ -15,7 +15,6 @@ import { createSpawnPrompt } from '../spawn-prompt.js';
 // Spawn lifecycle helpers
 // ---------------------------------------------------------------------------
 
-
 function createMockDeps(
   overrides?: Partial<OpenCodeSdkAgentServiceDeps>
 ): OpenCodeSdkAgentServiceDeps {
@@ -169,46 +168,52 @@ describe('OpenCodeSdkAgentService', () => {
   });
 
   describe('isInstalled', () => {
-    it('returns true when the opencode CLI is on PATH (SDK is bundled, no runtime resolve)', () => {
+    it('returns true when the opencode CLI is on PATH (SDK is bundled, no runtime resolve)', async () => {
       const deps = createMockDeps({ execSync: vi.fn() });
       const service = new OpenCodeSdkAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when opencode command is missing', () => {
+    it('returns false when opencode command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which opencode') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new OpenCodeSdkAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses semantic version from opencode --version output', () => {
+    it('parses semantic version from opencode --version output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v1.14.22')),
       });
       const service = new OpenCodeSdkAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.14.22', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.14.22', major: 1 });
     });
 
-    it('parses version without v prefix', () => {
+    it('parses version without v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('1.0.3')),
       });
       const service = new OpenCodeSdkAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.0.3', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.0.3', major: 1 });
     });
 
-    it('returns null when version cannot be parsed', () => {
+    it('returns null when version cannot be parsed', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('unknown')),
       });
       const service = new OpenCodeSdkAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 
@@ -224,7 +229,8 @@ describe('OpenCodeSdkAgentService', () => {
       expect(models).toEqual(['anthropic/claude-3.5-sonnet', 'openai/gpt-4o']);
     });
 
-    it('returns empty array when CLI also fails', async () => {
+    it('returns empty array and warns when CLI also fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('failed');
@@ -232,6 +238,14 @@ describe('OpenCodeSdkAgentService', () => {
       });
       const service = new OpenCodeSdkAgentService(deps);
       expect(await service.listModels()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toEqual({
+        event: 'list-models-error',
+        harness: 'opencode-sdk',
+        reason: 'failed',
+        attempts: 3,
+      });
+      warnSpy.mockRestore();
     });
   });
 

@@ -7,14 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureMachineRegistered, getMachineId } from './storage.js';
 import { MACHINE_CONFIG_VERSION } from './types.js';
 
-
 vi.mock('../convex/client.js', () => ({
   getConvexUrl: vi.fn(() => 'https://unit-test.convex.cloud'),
 }));
 
 vi.mock('./detection.js', () => ({
-  detectAvailableHarnesses: vi.fn(() => []),
-  detectHarnessVersions: vi.fn(() => ({})),
+  detectAvailableHarnesses: vi.fn(() => Promise.resolve([])),
+  detectHarnessVersions: vi.fn(() => Promise.resolve({})),
 }));
 
 describe('ensureMachineRegistered', () => {
@@ -34,22 +33,22 @@ describe('ensureMachineRegistered', () => {
     vi.unstubAllEnvs();
   });
 
-  it('throws when no local config exists and allowCreate is not set', () => {
-    expect(() => ensureMachineRegistered()).toThrow(/Machine not registered for endpoint/);
-    expect(() => ensureMachineRegistered({})).toThrow(/chatroom machine start/);
+  it('throws when no local config exists and allowCreate is not set', async () => {
+    await expect(ensureMachineRegistered()).rejects.toThrow(/Machine not registered for endpoint/);
+    await expect(ensureMachineRegistered({})).rejects.toThrow(/chatroom machine start/);
   });
 
-  it('mints identity when allowCreate is true', () => {
-    const info = ensureMachineRegistered({ allowCreate: true });
+  it('mints identity when allowCreate is true', async () => {
+    const info = await ensureMachineRegistered({ allowCreate: true });
     expect(info.machineId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     );
-    expect(ensureMachineRegistered()).toEqual(
+    expect(await ensureMachineRegistered()).toEqual(
       expect.objectContaining({ machineId: info.machineId })
     );
   });
 
-  it('refreshes harness metadata when config already exists (default allowCreate)', () => {
+  it('refreshes harness metadata when config already exists (default allowCreate)', async () => {
     const chatroomDir = join(testHome, '.chatroom');
     mkdirSync(chatroomDir, { recursive: true });
     const machineId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -76,7 +75,7 @@ describe('ensureMachineRegistered', () => {
       'utf-8'
     );
 
-    const info = ensureMachineRegistered();
+    const info = await ensureMachineRegistered();
     expect(info.machineId).toBe(machineId);
     expect(Array.isArray(info.availableHarnesses)).toBe(true);
   });
@@ -96,7 +95,7 @@ describe('getMachineId', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns null when not registered (does not create config)', () => {
-    expect(getMachineId()).toBeNull();
+  it('returns null when not registered (does not create config)', async () => {
+    await expect(getMachineId()).resolves.toBeNull();
   });
 });

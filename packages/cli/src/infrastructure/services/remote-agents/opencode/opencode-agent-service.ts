@@ -31,33 +31,23 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(OPENCODE_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(OPENCODE_COMMAND);
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const output = this.deps
-        .execSync(`${OPENCODE_COMMAND} models`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000,
-        })
-        .toString()
-        .trim();
+    const output = await this.runListCommand('opencode', `${OPENCODE_COMMAND} models`);
 
-      if (!output) return [];
+    if (output === null) return [];
 
-      return output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-    } catch {
-      return [];
-    }
+    return output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

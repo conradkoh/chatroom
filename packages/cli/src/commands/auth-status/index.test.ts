@@ -26,12 +26,12 @@ function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
       query: vi.fn().mockResolvedValue({ valid: true, userName: 'Test User' }),
     },
     session: {
-      loadAuthData: vi.fn().mockReturnValue(TEST_AUTH_DATA),
+      loadAuthData: vi.fn().mockResolvedValue(TEST_AUTH_DATA),
       getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.jsonc'),
-      isAuthenticated: vi.fn().mockReturnValue(true),
+      isAuthenticated: vi.fn().mockResolvedValue(true),
     },
     getVersion: vi.fn().mockReturnValue('1.0.0'),
-    loadMachineConfig: vi.fn().mockReturnValue({
+    loadMachineConfig: vi.fn().mockResolvedValue({
       machineId: 'machine-123',
       hostname: 'test-host',
       os: 'darwin',
@@ -71,9 +71,9 @@ describe('authStatus', () => {
     it('shows not authenticated when not logged in', async () => {
       const deps = createMockDeps({
         session: {
-          loadAuthData: vi.fn().mockReturnValue(null),
+          loadAuthData: vi.fn().mockResolvedValue(null),
           getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.jsonc'),
-          isAuthenticated: vi.fn().mockReturnValue(false),
+          isAuthenticated: vi.fn().mockResolvedValue(false),
         },
       });
 
@@ -129,7 +129,7 @@ describe('authStatus', () => {
 
     it('shows machine not registered when no local config exists', async () => {
       const deps = createMockDeps({
-        loadMachineConfig: vi.fn().mockReturnValue(null),
+        loadMachineConfig: vi.fn().mockResolvedValue(null),
       });
 
       await authStatus(deps);

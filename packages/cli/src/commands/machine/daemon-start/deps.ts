@@ -29,7 +29,7 @@ import type { TryConsumeResult } from '../../../infrastructure/services/harness-
  */
 export interface MachineStateOps {
   /** Clear an agent's PID from local state */
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
+  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
   /** Persist a spawned agent's PID for restart recovery */
   persistAgentPid: (
     machineId: string,
@@ -37,15 +37,15 @@ export interface MachineStateOps {
     role: string,
     pid: number,
     harness: AgentHarness
-  ) => void;
+  ) => Promise<void>;
   /** List all persisted agent entries for a machine */
   listAgentEntries: (
     machineId: string
-  ) => { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[];
+  ) => Promise<{ chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]>;
   /** Persist the event stream cursor (last processed event ID) */
-  persistEventCursor: (machineId: string, lastSeenEventId: string) => void;
+  persistEventCursor: (machineId: string, lastSeenEventId: string) => Promise<void>;
   /** Load the event stream cursor from persisted state. Returns null if absent. */
-  loadEventCursor: (machineId: string) => string | null;
+  loadEventCursor: (machineId: string) => Promise<string | null>;
 }
 
 // ─── Per-Handler Dep Interfaces ─────────────────────────────────────────────
