@@ -39,9 +39,9 @@ function createTestContext(): DaemonContext {
       machine: {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
-        listAgentEntries: vi.fn().mockReturnValue([]),
+        listAgentEntries: vi.fn().mockResolvedValue([]),
         persistEventCursor: vi.fn(),
-        loadEventCursor: vi.fn().mockReturnValue(null),
+        loadEventCursor: vi.fn().mockResolvedValue(null),
       },
       clock: {
         now: () => Date.now(),

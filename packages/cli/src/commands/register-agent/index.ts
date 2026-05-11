@@ -59,9 +59,9 @@ export async function registerAgent(
   const { role, type, allowTypeChange } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
     const currentUrl = d.session.getConvexUrl();
 
     console.error(`❌ Not authenticated for: ${currentUrl}`);
@@ -119,12 +119,12 @@ export async function registerAgent(
     //
     // Machine registration + model discovery is owned by the daemon (`machine start`).
     // We only read the machineId from local config here.
-    const machineId = getMachineId();
+    const machineId = await getMachineId();
     if (!machineId) {
       console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
       process.exit(1);
     }
-    const config = loadMachineConfig();
+    const config = await loadMachineConfig();
 
     try {
       await d.backend.mutation(api.machines.recordRemoteAgentRegistered, {

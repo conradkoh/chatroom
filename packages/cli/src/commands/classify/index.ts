@@ -63,9 +63,9 @@ export async function classify(
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
 
     console.error(`❌ Not authenticated for: ${convexUrl}`);
 

@@ -23,10 +23,10 @@ import { getConvexClient, getConvexUrl } from '../convex/client.js';
 // ---------------------------------------------------------------------------
 
 vi.mock('./storage.js', () => ({
-  isAuthenticated: vi.fn().mockReturnValue(true),
-  getSessionId: vi.fn().mockReturnValue('session-test-123'),
+  isAuthenticated: vi.fn().mockResolvedValue(true),
+  getSessionId: vi.fn().mockResolvedValue('session-test-123'),
   getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.json'),
-  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+  getOtherSessionUrls: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../convex/client.js', () => ({
@@ -75,8 +75,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   // Re-establish defaults
-  vi.mocked(isAuthenticated).mockReturnValue(true);
-  vi.mocked(getSessionId).mockReturnValue('session-test-123' as any);
+  vi.mocked(isAuthenticated).mockResolvedValue(true);
+  vi.mocked(getSessionId).mockResolvedValue('session-test-123' as any);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   vi.mocked(isNetworkError).mockReturnValue(false);
   vi.mocked(getConvexClient).mockResolvedValue({
@@ -109,7 +109,7 @@ describe('requireAuth() — default fast-fail mode', () => {
   });
 
   it('exits when not authenticated locally', async () => {
-    vi.mocked(isAuthenticated).mockReturnValue(false);
+    vi.mocked(isAuthenticated).mockResolvedValue(false);
 
     await requireAuth();
 
@@ -117,7 +117,7 @@ describe('requireAuth() — default fast-fail mode', () => {
   });
 
   it('exits when session ID is missing from auth file', async () => {
-    vi.mocked(getSessionId).mockReturnValue(null as any);
+    vi.mocked(getSessionId).mockResolvedValue(null as any);
 
     await requireAuth();
 
@@ -265,7 +265,7 @@ describe('requireAuth({ retryOnNetworkError: true })', () => {
   });
 
   it('still exits on local auth failure even when retryOnNetworkError is true', async () => {
-    vi.mocked(isAuthenticated).mockReturnValue(false);
+    vi.mocked(isAuthenticated).mockResolvedValue(false);
 
     await requireAuth({ retryOnNetworkError: true });
 

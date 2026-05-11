@@ -9,9 +9,9 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 export interface SessionOps {
   /** Get the current session ID, or null if not authenticated */
-  getSessionId: () => SessionId | null;
+  getSessionId: () => Promise<SessionId | null>;
   /** Get the Convex deployment URL */
   getConvexUrl: () => string;
   /** Get URLs of other authenticated sessions (for error guidance) */
-  getOtherSessionUrls: () => string[];
+  getOtherSessionUrls: () => Promise<string[]>;
 }

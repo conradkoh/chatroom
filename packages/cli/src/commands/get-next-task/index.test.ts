@@ -25,8 +25,8 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('../../infrastructure/auth/storage.js', () => ({
-  getSessionId: vi.fn().mockReturnValue('test-session-id'),
-  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+  getSessionId: vi.fn().mockResolvedValue('test-session-id'),
+  getOtherSessionUrls: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('./session.js', () => ({

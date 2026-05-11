@@ -56,7 +56,7 @@ export async function viewGuidelines(
   }
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -88,7 +88,7 @@ export async function listGuidelineTypes(deps?: GuidelinesDeps): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);

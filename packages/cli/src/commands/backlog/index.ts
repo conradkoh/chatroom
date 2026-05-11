@@ -154,8 +154,8 @@ async function createDefaultDeps(): Promise<BacklogDeps> {
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────
 
-function requireAuth(d: BacklogDeps): string {
-  const sessionId = d.session.getSessionId();
+async function requireAuth(d: BacklogDeps): Promise<string> {
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -188,7 +188,7 @@ export async function listBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   const limit = options.limit ?? 100;
@@ -268,7 +268,7 @@ export async function addBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate content
@@ -308,7 +308,7 @@ export async function completeBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate backlog item ID
@@ -345,7 +345,7 @@ export async function reopenBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate backlog item ID
@@ -386,7 +386,7 @@ export async function patchBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate backlog item ID
@@ -475,7 +475,7 @@ export async function scoreBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate backlog item ID
@@ -567,7 +567,7 @@ export async function markForReviewBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Validate backlog item ID
@@ -609,7 +609,7 @@ export async function historyBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   // Parse date range
@@ -729,7 +729,7 @@ export async function updateBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
@@ -771,7 +771,7 @@ export async function closeBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
@@ -849,7 +849,7 @@ export async function exportBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   if (!d.fs) {
@@ -924,7 +924,7 @@ export async function importBacklog(
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
+  const sessionId = await requireAuth(d);
   validateChatroomId(chatroomId);
 
   if (!d.fs) {

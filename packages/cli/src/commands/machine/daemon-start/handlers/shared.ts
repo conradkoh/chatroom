@@ -26,5 +26,5 @@ export async function clearAgentPidEverywhere(
   } catch (e) {
     console.log(`   ⚠️  Failed to clear PID in backend: ${getErrorMessage(e)}`);
   }
-  ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
+  await ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 }

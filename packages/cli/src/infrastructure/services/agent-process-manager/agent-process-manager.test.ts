@@ -1,6 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
-
 import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
@@ -20,8 +19,8 @@ function createMockService() {
     id: 'opencode',
     displayName: 'OpenCode',
     command: 'opencode',
-    isInstalled: vi.fn().mockReturnValue(true),
-    getVersion: vi.fn().mockReturnValue({ version: '1.0.0', major: 1 }),
+    isInstalled: vi.fn().mockResolvedValue(true),
+    getVersion: vi.fn().mockResolvedValue({ version: '1.0.0', major: 1 }),
     listModels: vi.fn().mockResolvedValue([]),
     spawn: vi.fn().mockResolvedValue({
       pid: PID,
@@ -61,7 +60,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     persistence: {
       persistAgentPid: vi.fn(),
       clearAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue([]),
+      listAgentEntries: vi.fn().mockResolvedValue([]),
     },
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
@@ -641,7 +640,7 @@ describe('AgentProcessManager', () => {
 
   describe('recover', () => {
     test('alive PIDs are restored to running state', async () => {
-      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 1234, harness: 'opencode' } },
       ]);
 
@@ -658,7 +657,7 @@ describe('AgentProcessManager', () => {
     });
 
     test('dead PIDs are cleaned up', async () => {
-      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 9999, harness: 'opencode' } },
       ]);
 

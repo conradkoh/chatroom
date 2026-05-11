@@ -73,11 +73,17 @@ export interface RemoteAgentService {
   /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'agent') */
   readonly command: string;
 
-  /** Is the agent runtime installed on this machine? */
-  isInstalled(): boolean;
+  /**
+   * Is the agent runtime installed on this machine?
+   * Performs I/O (shell command execution) and may take time.
+   */
+  isInstalled(): Promise<boolean>;
 
-  /** What version is installed? Returns null if not installed or undetectable. */
-  getVersion(): VersionInfo | null;
+  /**
+   * What version is installed? Returns null if not installed or undetectable.
+   * Performs I/O (shell command execution) and may take time.
+   */
+  getVersion(): Promise<VersionInfo | null>;
 
   /** List available AI models from the runtime. */
   listModels(): Promise<string[]>;

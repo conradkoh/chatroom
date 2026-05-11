@@ -16,55 +16,61 @@ function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentService
 
 describe('PiAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when pi command exists', () => {
+    it('returns true when pi command exists', async () => {
       const deps = createMockDeps({ execSync: vi.fn() });
       const service = new PiAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when pi command is missing', () => {
+    it('returns false when pi command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which pi') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new PiAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses version 0.55.0 correctly', () => {
+    it('parses version 0.55.0 correctly', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('0.55.0')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
     });
 
-    it('parses version with v prefix', () => {
+    it('parses version with v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v1.2.3')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.2.3', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.2.3', major: 1 });
     });
 
-    it('returns null for garbage output', () => {
+    it('returns null for garbage output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('not a version')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
 
-    it('captures version from stderr (Pi CLI writes to stderr)', () => {
+    it('captures version from stderr (Pi CLI writes to stderr)', async () => {
       // Pi CLI may write version info to stderr, so checkVersion uses 2>&1
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('0.55.0')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
 
       // Verify execSync was called with the 2>&1 redirect
       expect(deps.execSync).toHaveBeenCalledWith(
@@ -73,14 +79,14 @@ describe('PiAgentService', () => {
       );
     });
 
-    it('returns null when command fails', () => {
+    it('returns null when command fails', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('command not found');
         }),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 
@@ -129,7 +135,8 @@ describe('PiAgentService', () => {
       expect(await service.listModels()).toEqual([]);
     });
 
-    it('returns empty array when command fails', async () => {
+    it('returns empty array and warns when command fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('failed');
@@ -137,6 +144,14 @@ describe('PiAgentService', () => {
       });
       const service = new PiAgentService(deps);
       expect(await service.listModels()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toEqual({
+        event: 'list-models-error',
+        harness: 'pi',
+        reason: 'failed',
+        attempts: 3,
+      });
+      warnSpy.mockRestore();
     });
 
     it('captures output from stderr (Pi CLI writes to stderr)', async () => {

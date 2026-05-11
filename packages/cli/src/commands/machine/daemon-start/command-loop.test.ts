@@ -108,7 +108,7 @@ describe('refreshModels', () => {
       services.map(({ harness, isInstalled: installed, models }) => [
         harness,
         {
-          isInstalled: vi.fn().mockReturnValue(installed),
+          isInstalled: vi.fn().mockResolvedValue(installed),
           listModels:
             models instanceof Error
               ? vi.fn().mockRejectedValue(models)
@@ -127,9 +127,9 @@ describe('refreshModels', () => {
       machine: {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
-        listAgentEntries: vi.fn().mockReturnValue([]),
+        listAgentEntries: vi.fn().mockResolvedValue([]),
         persistEventCursor: vi.fn(),
-        loadEventCursor: vi.fn().mockReturnValue(null),
+        loadEventCursor: vi.fn().mockResolvedValue(null),
       },
       clock: {
         now: vi.fn().mockReturnValue(Date.now()),
@@ -438,9 +438,9 @@ function createDispatchCtx(): DaemonContext {
     machine: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue([]),
+      listAgentEntries: vi.fn().mockResolvedValue([]),
       persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+      loadEventCursor: vi.fn().mockResolvedValue(null),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),

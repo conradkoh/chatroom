@@ -73,9 +73,9 @@ export async function createArtifact(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
+    formatAuthError(d.session.getConvexUrl(), await d.session.getOtherSessionUrls());
     process.exit(1);
     return;
   }
@@ -156,9 +156,9 @@ export async function viewArtifact(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
+    formatAuthError(d.session.getConvexUrl(), await d.session.getOtherSessionUrls());
     process.exit(1);
     return;
   }
@@ -226,9 +226,9 @@ export async function viewManyArtifacts(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
+    formatAuthError(d.session.getConvexUrl(), await d.session.getOtherSessionUrls());
     process.exit(1);
     return;
   }

@@ -50,7 +50,7 @@ export async function getSystemPrompt(
   const { role } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);

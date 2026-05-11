@@ -67,7 +67,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     // The SDK is a runtime dependency of this CLI package (declared in our
     // package.json), so it's guaranteed to be present whenever this code
     // executes. The only meaningful gate is the `opencode` binary itself.
@@ -79,30 +79,20 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     return this.checkInstalled(OPENCODE_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(OPENCODE_COMMAND);
   }
 
   async listModels(): Promise<string[]> {
     // Fall back to CLI
-    try {
-      const output = this.deps
-        .execSync(`${OPENCODE_COMMAND} models`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000,
-        })
-        .toString()
-        .trim();
+    const output = await this.runListCommand('opencode-sdk', `${OPENCODE_COMMAND} models`);
 
-      if (!output) return [];
+    if (output === null) return [];
 
-      return output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-    } catch {
-      return [];
-    }
+    return output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   }
 
   override async stop(pid: number): Promise<void> {
