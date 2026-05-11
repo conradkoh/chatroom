@@ -6,6 +6,7 @@
  */
 
 import { v } from 'convex/values';
+
 import { internalMutation } from '../../_generated/server';
 
 // ─── Internal Mutations ───────────────────────────────────────────────────────
@@ -21,10 +22,10 @@ export const updateWebhookRegistration = internalMutation({
     webhookSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    const integration = await ctx.db.get(args.integrationId);
+    const integration = await ctx.db.get("chatroom_integrations", args.integrationId);
     if (!integration) return;
 
-    await ctx.db.patch(args.integrationId, {
+    await ctx.db.patch("chatroom_integrations", args.integrationId, {
       config: {
         ...integration.config,
         webhookUrl: args.webhookUrl || undefined,

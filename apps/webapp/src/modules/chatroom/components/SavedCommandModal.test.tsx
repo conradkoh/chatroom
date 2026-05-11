@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// ── Imports ───────────────────────────────────────────────────────────────────
+
+import { checkDuplicateName, SavedCommandModal } from './SavedCommandModal';
+import type { SavedCommand } from '../types/savedCommand';
+
 // ── Mocks (must be before imports that use them) ─────────────────────────────
 
 const mockCreateSavedCommand = vi.fn();
@@ -29,14 +34,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-// ── Imports ───────────────────────────────────────────────────────────────────
-
-import { checkDuplicateName, SavedCommandModal } from './SavedCommandModal';
-import type { SavedCommand } from '../types/savedCommand';
-
 // Helper to create a typed SavedCommand for tests without importing Id
 const makeCmd = (overrides?: Partial<SavedCommand>): SavedCommand => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   _id: 'cmd-abc' as any,
   type: 'prompt',
   name: 'Old Name',

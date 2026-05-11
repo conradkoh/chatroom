@@ -75,14 +75,14 @@ export class ClaudeStreamReader {
     type?: string;
     subtype?: string;
     message?: {
-      content: Array<{
+      content: {
         type: string;
         text?: string;
         thinking?: string;
         name?: string;
         input?: unknown;
         tool_use_id?: string;
-      }>;
+      }[];
     };
     result?: string;
     is_error?: boolean;

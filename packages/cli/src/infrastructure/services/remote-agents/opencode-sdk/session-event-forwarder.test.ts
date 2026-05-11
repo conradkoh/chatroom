@@ -1,5 +1,6 @@
+import type { Writable } from 'node:stream';
+
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { Writable } from 'node:stream';
 
 import {
   startSessionEventForwarder,
@@ -642,5 +643,46 @@ describe('SessionEventForwarder', () => {
       .map((c: unknown[]) => c[0] as string)
       .filter((l: string) => l.includes('tool: bash'));
     expect(toolLines).toHaveLength(2);
+  }, 10000);
+
+  it('filter: session.created with non-matching info.id is ignored', async () => {
+    vi.useFakeTimers();
+    async function* sessionCreatedOtherStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'session.created',
+        properties: { info: { id: 'other-session-99', title: 'Other', version: '1' } },
+      };
+    }
+    const fakeClient = createMockClient(sessionCreatedOtherStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    // The session.created for a different session must be dropped by the sessionID filter
+    expect(target.write).not.toHaveBeenCalled();
+  }, 10000);
+
+  it('filter: session.updated with matching info.id is allowed through', async () => {
+    vi.useFakeTimers();
+    async function* sessionUpdatedOwnStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      // baseOptions.sessionId is 'sess-1'
+      yield {
+        type: 'session.updated',
+        properties: { info: { id: 'sess-1', title: 'Updated title', version: '1' } },
+      };
+    }
+    const fakeClient = createMockClient(sessionUpdatedOwnStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    // session.updated has no handler that writes to target, but it must not be silently
+    // misrouted — the important assertion is that sessionStarted is set (write was called
+    // for the 'Started' line) which only happens after the filter passes the event through.
+    const allLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string);
+    expect(allLines.some((l) => l.includes('Started'))).toBe(true);
   }, 10000);
 });

@@ -1,8 +1,8 @@
 import { EventEmitter, Readable } from 'node:stream';
-import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {

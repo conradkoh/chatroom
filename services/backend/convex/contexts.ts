@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import type { QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 import { getTeamEntryPoint } from '../src/domain/entities/team';

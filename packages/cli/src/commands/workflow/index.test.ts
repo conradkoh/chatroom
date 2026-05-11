@@ -12,9 +12,9 @@ import { parseSections } from './index.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let exitSpy: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let errorSpy: any;
 
 beforeEach(() => {

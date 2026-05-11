@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { checkSession, type CheckSessionDeps } from './validate-session';
 
 function createMockDeps(overrides: Partial<CheckSessionDeps> = {}): CheckSessionDeps {

@@ -1,14 +1,15 @@
 'use client';
 
-import { Files, MessagesSquare } from 'lucide-react';
+import { Files, MessageCircle, MessagesSquare } from 'lucide-react';
 import { memo } from 'react';
 
 import { useCommandDialog } from '../context/CommandDialogContext';
+
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ActivityView = 'explorer' | 'messages';
+export type ActivityView = 'explorer' | 'messages' | 'direct-harness';
 
 interface ActivityBarProps {
   /** Currently active view */
@@ -82,6 +83,12 @@ export const ActivityBar = memo(function ActivityBar({
         label="Messages"
         isActive={activeView === 'messages'}
         onClick={() => onViewChange('messages')}
+      />
+      <ActivityBarItem
+        icon={<MessageCircle size={20} />}
+        label="Direct Harness"
+        isActive={activeView === 'direct-harness'}
+        onClick={() => onViewChange('direct-harness')}
       />
 
       {/* Spacer to push chatroom switch to bottom */}

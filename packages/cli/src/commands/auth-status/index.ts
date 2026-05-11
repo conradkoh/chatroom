@@ -12,8 +12,8 @@ import {
 } from '../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../infrastructure/convex/client.js';
 import { loadMachineConfig } from '../../infrastructure/machine/index.js';
-import { getVersion } from '../../version.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { getVersion } from '../../version.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 

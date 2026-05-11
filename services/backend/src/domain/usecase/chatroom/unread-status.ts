@@ -38,7 +38,7 @@ export async function markChatroomUnread(
     if (isHandoff) {
       update.hasUnreadHandoff = true;
     }
-    await ctx.db.patch(existing._id, update);
+    await ctx.db.patch("chatroom_unreadStatus", existing._id, update);
   } else {
     await ctx.db.insert('chatroom_unreadStatus', {
       chatroomId,
@@ -65,7 +65,7 @@ export async function clearChatroomUnread(
     .first();
 
   if (existing) {
-    await ctx.db.patch(existing._id, {
+    await ctx.db.patch("chatroom_unreadStatus", existing._id, {
       hasUnread: false,
       hasUnreadHandoff: false,
     });

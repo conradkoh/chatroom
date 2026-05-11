@@ -43,7 +43,7 @@ export async function registerWorkspace(
   if (existing) {
     if (existing.removedAt !== undefined) {
       // Reactivate soft-deleted workspace
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("chatroom_workspaces", existing._id, {
         removedAt: undefined,
         hostname,
         registeredBy,

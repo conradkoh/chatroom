@@ -1,4 +1,4 @@
-import { Readable, Writable } from 'node:stream';
+import type { Readable, Writable } from 'node:stream';
 
 export function forwardFiltered(
   source: Readable | undefined,

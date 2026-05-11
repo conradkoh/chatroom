@@ -79,9 +79,9 @@ export function useFullDiff(
       return () => {
         cancelled = true;
       };
-    } else {
+    } 
       setDecompressedContent(null);
-    }
+    
   }, [result]);
 
   const state: FullDiffState = useMemo(() => {
@@ -196,9 +196,9 @@ export function useCommitDetail(
       return () => {
         cancelled = true;
       };
-    } else {
+    } 
       setDecompressedContent(null);
-    }
+    
   }, [result]);
 
   const state: CommitDetailState = useMemo(() => {

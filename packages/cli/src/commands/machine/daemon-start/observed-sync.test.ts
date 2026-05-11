@@ -1,6 +1,6 @@
+import { OBSERVED_SAFETY_POLL_MS } from '@workspace/backend/config/reliability.js';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { OBSERVED_SAFETY_POLL_MS } from '@workspace/backend/config/reliability.js';
 
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';

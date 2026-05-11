@@ -2,13 +2,14 @@
  * Backlog commands for managing task queue and backlog
  */
 
+import { createHash } from 'node:crypto';
+import * as nodePath from 'node:path';
+
 import type { BacklogDeps, BacklogFsOps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
-import { createHash } from 'node:crypto';
-import * as nodePath from 'node:path';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 

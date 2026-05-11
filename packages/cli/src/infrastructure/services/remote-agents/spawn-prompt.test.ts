@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { CHATROOM_PROMPT_SEPARATOR } from './opencode-sdk/compose-system-prompt';
 import { createSpawnPrompt, DEFAULT_TRIGGER_PROMPT, type SpawnPrompt } from './spawn-prompt';
 

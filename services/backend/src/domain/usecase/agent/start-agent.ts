@@ -15,6 +15,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { transitionAgentStatus } from './transition-agent-status';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -23,7 +24,6 @@ import {
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { transitionAgentStatus } from './transition-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

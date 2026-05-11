@@ -1,9 +1,9 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

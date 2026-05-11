@@ -78,7 +78,7 @@ export const updateSavedCommand = mutation({
     command: v.optional(v.union(v.object({ type: v.literal('prompt'), prompt: v.string() }))),
   },
   handler: async (ctx, args) => {
-    const command = await ctx.db.get(args.commandId);
+    const command = await ctx.db.get("chatroom_savedCommands", args.commandId);
     if (!command) {
       throw new ConvexError({
         code: 'SAVED_COMMAND_NOT_FOUND',
@@ -117,7 +117,7 @@ export const updateSavedCommand = mutation({
       }
     }
 
-    await ctx.db.patch(args.commandId, updates);
+    await ctx.db.patch("chatroom_savedCommands", args.commandId, updates);
   },
 });
 
@@ -130,7 +130,7 @@ export const deleteSavedCommand = mutation({
     commandId: v.id('chatroom_savedCommands'),
   },
   handler: async (ctx, args) => {
-    const command = await ctx.db.get(args.commandId);
+    const command = await ctx.db.get("chatroom_savedCommands", args.commandId);
     if (!command) {
       throw new ConvexError({
         code: 'SAVED_COMMAND_NOT_FOUND',
@@ -141,6 +141,6 @@ export const deleteSavedCommand = mutation({
     // Verify the caller has access to the chatroom this command belongs to
     await requireChatroomAccess(ctx, args.sessionId, command.chatroomId);
 
-    await ctx.db.delete(args.commandId);
+    await ctx.db.delete("chatroom_savedCommands", args.commandId);
   },
 });

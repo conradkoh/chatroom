@@ -7,11 +7,13 @@
  * Mutations/queries are in internal.ts (Convex runtime).
  */
 
-import { v, ConvexError } from 'convex/values';
 import { randomBytes } from 'crypto';
-import { internalAction } from '../../_generated/server';
-import { internal } from '../../_generated/api';
+
+import { v, ConvexError } from 'convex/values';
+
 import type { GetMeResponse, WebhookResponse } from './types';
+import { internal } from '../../_generated/api';
+import { internalAction } from '../../_generated/server';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

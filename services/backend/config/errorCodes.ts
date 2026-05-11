@@ -117,6 +117,12 @@ export type BackendErrorCode =
   | 'HANDOFF_RESTRICTED'
   | 'CHATROOM_NO_TEAM_ID'
 
+  // ── Direct Harness Sessions ──────────────────────────────────────────
+  | 'HARNESS_SESSION_INVALID_AGENT'
+  | 'HARNESS_SESSION_INVALID_PROMPT'
+  | 'HARNESS_SESSION_CLOSED'
+  | 'HARNESS_SESSION_UNKNOWN_AGENT'
+
   // ── Skills ──────────────────────────────────────────────────────────
   | 'SKILL_NOT_FOUND_OR_DISABLED'
   | 'MISSING_FEATURE_METADATA'
@@ -300,6 +306,16 @@ export const BACKEND_ERROR_CODES = {
   /** Chatroom has no teamId — cannot build agent config key */
   CHATROOM_NO_TEAM_ID: 'CHATROOM_NO_TEAM_ID',
 
+  // ── Direct Harness Sessions ──────────────────────────────────────────
+  /** Agent name is required but was empty or missing */
+  HARNESS_SESSION_INVALID_AGENT: 'HARNESS_SESSION_INVALID_AGENT',
+  /** Prompt parts are required but were empty */
+  HARNESS_SESSION_INVALID_PROMPT: 'HARNESS_SESSION_INVALID_PROMPT',
+  /** Cannot submit prompt to a closed or failed session */
+  HARNESS_SESSION_CLOSED: 'HARNESS_SESSION_CLOSED',
+  /** Agent name not found in the machine registry */
+  HARNESS_SESSION_UNKNOWN_AGENT: 'HARNESS_SESSION_UNKNOWN_AGENT',
+
   // ── Skills ────────────────────────────────────────────────────────────
   /** Skill not found or disabled */
   SKILL_NOT_FOUND_OR_DISABLED: 'SKILL_NOT_FOUND_OR_DISABLED',
@@ -469,6 +485,12 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
 
   // Workflow
   BACKEND_ERROR_CODES.WORKFLOW_REQUIRED,
+
+  // Direct Harness Sessions
+  BACKEND_ERROR_CODES.HARNESS_SESSION_INVALID_AGENT,
+  BACKEND_ERROR_CODES.HARNESS_SESSION_INVALID_PROMPT,
+  BACKEND_ERROR_CODES.HARNESS_SESSION_CLOSED,
+  BACKEND_ERROR_CODES.HARNESS_SESSION_UNKNOWN_AGENT,
 ] as const;
 
 /**

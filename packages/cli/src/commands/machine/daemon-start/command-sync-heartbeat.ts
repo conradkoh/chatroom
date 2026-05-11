@@ -17,7 +17,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
  * Discover and sync commands for all tracked workspaces.
  */
 export async function pushCommands(ctx: DaemonContext): Promise<void> {
-  let workspaces: Array<{ workingDir: string }>;
+  let workspaces: { workingDir: string }[];
   try {
     workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
       sessionId: ctx.sessionId,

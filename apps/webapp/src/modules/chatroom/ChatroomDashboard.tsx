@@ -1,7 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
@@ -21,19 +19,14 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
-import { MessageFeed } from './components/MessageFeed';
-import { PromptModal } from './components/PromptModal';
-import { SavedCommandModal } from './components/SavedCommandModal';
-import { SendForm } from './components/SendForm';
-import { SetupChecklistModal } from './components/SetupChecklistModal';
-import { WorkQueue } from './components/WorkQueue';
-import { AttachmentsProvider } from './context/AttachmentsContext';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -41,42 +34,43 @@ import {
   type SettingsTab,
   type CommandItem,
 } from './components/CommandPalette';
+import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { MessageFeed } from './components/MessageFeed';
 import { ProcessManager } from './components/ProcessManager';
+import { PromptModal } from './components/PromptModal';
+import { SavedCommandModal } from './components/SavedCommandModal';
+import { SendForm } from './components/SendForm';
+import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
+import { WorkQueue } from './components/WorkQueue';
+import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
+import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
+import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
+import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
-import { exhaustive } from '@/lib/exhaustive';
-import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { FileContentViewer } from './workspace/components/FileContentViewer';
 import {
   FileExplorerPanel,
   FILE_EXPLORER_REFRESH_EVENT,
 } from './workspace/components/FileExplorerPanel';
-import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FileTabBar } from './workspace/components/FileTabBar';
-import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
-import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
-import { useFileTabs } from './workspace/hooks/useFileTabs';
+import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
+import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
-import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { useMultiWorkspaceFiles } from './hooks/useMultiWorkspaceFiles';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,19 +81,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+import { getAppTitle } from '@/lib/environment';
+import { exhaustive } from '@/lib/exhaustive';
+import { toRepoHttpsUrl } from '@/lib/git-url';
+import { openExternalUrl } from '@/lib/navigation';
+import { cn } from '@/lib/utils';
+import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';
-import { cn } from '@/lib/utils';
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
-import { useSendLocalAction } from '@/hooks/useSendLocalAction';
-import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
-import { getAppTitle } from '@/lib/environment';
-import { openExternalUrl } from '@/lib/navigation';
-import { toRepoHttpsUrl } from '@/lib/git-url';
-import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
-import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
@@ -408,6 +408,22 @@ export function ChatroomDashboard({
     endResize,
   } = useScrollController();
 
+  // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
+  const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
+  const {
+    fileTabs,
+    activityView: activeView,
+    setActivityView,
+    activeWorkspace,
+    workspaces: chatroomWorkspaces,
+    splitMode,
+    setSplitMode,
+    selectedHarnessSessionId,
+    setSelectedHarnessSessionId,
+    explorerSplitViewEnabled,
+    setExplorerSplitViewEnabled,
+  } = chatroomLifecycle;
+
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
@@ -453,14 +469,8 @@ export function ChatroomDashboard({
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
 
-  // Activity bar — single active view at a time
-  const [activeView, setActiveView] = useState<ActivityView>('messages');
-
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
-
-  // Explorer split view state: show messages panel alongside explorer
-  const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] = useState(false);
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -478,7 +488,7 @@ export function ChatroomDashboard({
         }
       } else {
         // Switch to different view
-        setActiveView(view);
+        setActivityView(view);
         // Focus message input when switching to messages
         if (view === 'messages') {
           setTimeout(() => focusSendFormRef.current?.(), 0);
@@ -487,9 +497,6 @@ export function ChatroomDashboard({
     },
     [activeView]
   );
-
-  // File tabs state
-  const fileTabs = useFileTabs({ chatroomId });
 
   // File select handler: single click = preview, double click = pin
   const handleFileSelect = useCallback(
@@ -704,15 +711,6 @@ export function ChatroomDashboard({
   // Use hook to get aggregate status (event stream + lifecycle)
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
-  // Workspace bar data
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
-
-  // Active workspace — the workspace currently used for file explorer, Cmd+P, git, etc.
-  // Defaults to the first connected workspace. Index-based to support future switching UI.
-  const [activeWorkspaceIndex] = useState(0);
-  const activeWorkspace =
-    chatroomWorkspaces.filter((ws) => ws.machineId)[activeWorkspaceIndex] ?? null;
-
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
     chatroomId,
@@ -730,7 +728,7 @@ export function ChatroomDashboard({
   const handleOpenInExplorer = useCallback(
     (filePath: string) => {
       fileTabs.pinTab(filePath);
-      setActiveView('explorer');
+      setActivityView('explorer');
       setExplorerSidebarVisible(true);
       setRevealPath(filePath);
     },
@@ -1083,6 +1081,15 @@ export function ChatroomDashboard({
   // Inline command output — direct reactive state (no closures, no stale refs)
   const inlineCommand = useInlineCommandOutput(commandRunner);
 
+  // Clean up inline command output when switching chatrooms.
+  const inlineCommandRef = useRef(inlineCommand);
+  inlineCommandRef.current = inlineCommand;
+  useEffect(() => {
+    return () => {
+      inlineCommandRef.current.close();
+    };
+  }, [chatroomId]);
+
   // Handler to open Process Manager from command palette
   const handleOpenProcessManager = useCallback(() => {
     setProcessManagerInitialCommand(null);
@@ -1158,15 +1165,17 @@ export function ChatroomDashboard({
     onOpenProcessManager: handleOpenProcessManager,
     onShowExplorer: activeWorkspace
       ? () => {
-          setActiveView('explorer');
+          setActivityView('explorer');
           setExplorerSidebarVisible(true);
           // Dispatch refresh event so the file tree reloads
           window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
         }
       : null,
-    onShowMessages: () => setActiveView('messages'),
+    onShowMessages: () => setActivityView('messages'),
     onToggleChatSplitPanel:
-      activeView === 'explorer' ? () => setExplorerSplitViewEnabled((prev) => !prev) : null,
+      activeView === 'explorer'
+        ? () => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)
+        : null,
     workspaceCommands,
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
@@ -1475,7 +1484,7 @@ export function ChatroomDashboard({
                   {activeView === 'explorer' && (
                     <button
                       className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                      onClick={() => setExplorerSplitViewEnabled((prev) => !prev)}
+                      onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
                       title={
                         explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
                       }
@@ -1502,28 +1511,30 @@ export function ChatroomDashboard({
                       />
                     </div>
 
-                    {/* Right: Message Feed (split view) */}
-                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                      <MessageFeed
-                        chatroomId={chatroomId}
-                        activeTask={activeTask}
-                        controller={scrollController}
-                        isPinned={isPinned}
-                        scrollToBottom={scrollToBottom}
-                        onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                        machines={machineNameMap}
-                      />
-                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                        <SendForm
-                          chatroomId={chatroomId}
-                          onBeforeResize={beginResize}
-                          onAfterResize={endResize}
-                          onRegisterFocus={handleRegisterSendFormFocus}
-                          files={autocompleteFiles}
-                          onCreateCommand={handleOpenSavedCommandModal}
-                        />
-                      </div>
-                    </div>
+                    {/* Right: Mode-switchable panel (Messages | Direct Harness) */}
+                    {/* Note: the mode dropdown is desktop-only since the split-view toggle is hidden on mobile */}
+                    <RightSplitPanel
+                      chatroomId={
+                        chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
+                      }
+                      messagesPanelProps={{
+                        activeTask,
+                        controller: scrollController,
+                        isPinned,
+                        scrollToBottom,
+                        onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                        machines: machineNameMap,
+                        onBeforeResize: beginResize,
+                        onAfterResize: endResize,
+                        onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                        autocompleteFiles,
+                        onCreateCommand: handleOpenSavedCommandModal,
+                      }}
+                      selectedHarnessSessionId={selectedHarnessSessionId}
+                      setSelectedHarnessSessionId={setSelectedHarnessSessionId}
+                      mode={splitMode}
+                      setMode={setSplitMode}
+                    />
                   </div>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
@@ -1547,6 +1558,10 @@ export function ChatroomDashboard({
                         onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>
+                  </div>
+                ) : activeView === 'direct-harness' ? (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */

@@ -1,8 +1,8 @@
 import { EventEmitter, Readable } from 'node:stream';
-import { createSpawnPrompt } from '../spawn-prompt.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import { CursorAgentService, type CursorAgentServiceDeps } from './cursor-agent-service.js';
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {

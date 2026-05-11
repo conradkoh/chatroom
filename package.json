@@ -1,6 +1,6 @@
 {
   "name": "chatroom",
-  "version": "1.37.3",
+  "version": "1.38.0",
   "description": "",
   "packageManager": "pnpm@10.15.1",
   "main": "index.js",
@@ -17,10 +17,12 @@
     "format:fix": "prettier --write .",
     "typecheck": "turbo run typecheck",
     "typecheck:scripts": "tsc --project scripts/tsconfig.json",
+    "find-deadcode": "knip",
     "prepare": "husky",
     "local": "bash scripts/local.sh",
     "local:stop": "bash scripts/local-stop.sh",
-    "local:update": "bash scripts/local-update.sh"
+    "local:update": "bash scripts/local-update.sh",
+    "dev:convex": "cd services/backend && npx convex run --internal dev:cleanup"
   },
   "lint-staged": {
     "**/*.{ts,tsx,js,jsx}": [
@@ -51,6 +53,7 @@
     "eslint-plugin-react-you-might-not-need-an-effect": "^0.9.2",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
+    "knip": "^6.12.2",
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.0",
     "turbo": "^2.9.6",
