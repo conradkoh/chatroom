@@ -27,11 +27,7 @@ export interface MachineInfo {
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /**
-   * @deprecated v1.38.4 — removed from listMachines response. Use getMachineModels query
-   * (via useMachineModels hook) instead. Kept here as optional during transition.
-   */
-  availableModels?: Record<string, string[]>;
+  // availableModels removed in v1.38.4 — now served via getMachineModels query / useMachineModels hook
 }
 
 export interface AgentConfig {

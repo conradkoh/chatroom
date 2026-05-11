@@ -137,6 +137,9 @@ async function upsertMachineModels(
 
   if (existing) {
     // Skip write if content is identical — prevents subscription invalidation churn.
+    // JSON.stringify is safe here: JS object key order is insertion-order-stable and
+    // daemons write the same harness key order on every call. A true reordering would
+    // indicate a genuine harness-list change and trigger a real write (correct behaviour).
     if (JSON.stringify(existing.availableModels) === JSON.stringify(availableModels)) {
       return;
     }
