@@ -44,6 +44,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     machines: {
+      getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
       requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
@@ -59,9 +60,6 @@ function mkMachine(id: string, hostname: string): MachineInfo {
     os: 'linux',
     availableHarnesses: ['cursor'],
     harnessVersions: {},
-    availableModels: { cursor: ['openai/gpt-4o'] },
-    daemonConnected: true,
-    lastSeenAt: 0,
   };
 }
 

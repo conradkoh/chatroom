@@ -19,6 +19,7 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
@@ -236,10 +237,10 @@ export function useAgentControls({
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
   }, [agentConfigs, role]);
 
-  // Check if there's a running agent
+  // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
-  }, [roleConfigs]);
+    return roleConfigs.find((c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId));
+  }, [roleConfigs, connectedMachines]);
 
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {
@@ -285,11 +286,11 @@ export function useAgentControls({
   }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
 
   // Available models from the selected machine filtered by selected harness
-  const availableModelsForHarness = useMemo(() => {
-    if (!selectedMachineId || !selectedHarness) return [];
-    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableModels[selectedHarness] ?? [];
-  }, [selectedMachineId, selectedHarness, connectedMachines]);
+  const machineModels = useMachineModels(selectedMachineId ?? undefined);
+  const availableModelsForHarness = useMemo(
+    () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
+    [machineModels, selectedMachineId, selectedHarness],
+  );
 
   // Machine-level model filter — used to exclude blacklisted models from
   // automatic selection and the model combobox.
@@ -866,8 +867,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
                   daemonConnected={
-                    connectedMachines.find((m) => m.machineId === displayMachineId)
-                      ?.daemonConnected ?? false
+                    connectedMachines.some((m) => m.machineId === displayMachineId)
                   }
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />
