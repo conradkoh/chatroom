@@ -33,6 +33,7 @@ export interface MessagesPanelProps {
   onAfterResize?: () => void;
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   autocompleteFiles?: FileEntry[];
+  refreshAutocompleteFiles?: () => void;
   onCreateCommand?: () => void;
   workspaceId?: Id<'chatroom_workspaces'> | null;
 }
@@ -51,6 +52,7 @@ export function MessagesPanel({
   onAfterResize,
   onRegisterSendFormFocus,
   autocompleteFiles,
+  refreshAutocompleteFiles,
   onCreateCommand,
 }: MessagesPanelProps) {
   return (
@@ -71,6 +73,7 @@ export function MessagesPanel({
           onAfterResize={onAfterResize}
           onRegisterFocus={onRegisterSendFormFocus}
           files={autocompleteFiles}
+          onAtTriggerActivate={refreshAutocompleteFiles}
           onCreateCommand={onCreateCommand}
         />
       </div>

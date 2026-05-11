@@ -719,7 +719,8 @@ export function ChatroomDashboard({
   });
 
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
-  const autocompleteFiles = useMultiWorkspaceFiles(chatroomWorkspaces);
+  const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
+    useMultiWorkspaceFiles(chatroomWorkspaces);
 
   const handleFilePreviewClose = useCallback(() => {
     fileSelector.selectFile('');
@@ -1528,6 +1529,7 @@ export function ChatroomDashboard({
                         onAfterResize: endResize,
                         onRegisterSendFormFocus: handleRegisterSendFormFocus,
                         autocompleteFiles,
+                        refreshAutocompleteFiles,
                         onCreateCommand: handleOpenSavedCommandModal,
                       }}
                       selectedHarnessSessionId={selectedHarnessSessionId}
@@ -1555,6 +1557,7 @@ export function ChatroomDashboard({
                         onAfterResize={endResize}
                         onRegisterFocus={handleRegisterSendFormFocus}
                         files={autocompleteFiles}
+                        onAtTriggerActivate={refreshAutocompleteFiles}
                         onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>

@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { useFileEntries } from './useFileEntries';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
@@ -24,6 +26,11 @@ interface WorkspaceSlot {
   machineId: string;
   workingDir: string;
   workspaceId: string;
+}
+
+interface UseMultiWorkspaceFilesResult {
+  files: FileEntry[];
+  refreshAll: () => void;
 }
 
 // ─── Internals ────────────────────────────────────────────────────────────────
@@ -74,7 +81,9 @@ function tagEntries(entries: FileEntry[], workspaceId: string | undefined): File
  * Uses a fixed-slot approach to satisfy React's rules of hooks: we always call
  * `useFileTree` exactly MAX_WORKSPACES times, using 'skip' for empty slots.
  */
-export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
+export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspaceFilesResult {
+  const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+
   // Memoize the slot computation to avoid unnecessary re-renders.
   //
   // Why JSON.stringify for the dependency?
@@ -84,16 +93,25 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
   // up to 20 deps. Instead we serialize the identity-significant fields
   // (machineId + workingDir) into a single string. The array is capped at 10
   // items so serialization cost is negligible.
-   
-  const slots = useMemo(
-    () => prepareSlots(workspaces),
-    [
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      JSON.stringify(
-        workspaces.slice(0, MAX_WORKSPACES).map((w) => `${w.machineId}::${w.workingDir}`)
-      ),
-    ]
+  const workspaceSlotsKey = JSON.stringify(
+    workspaces.slice(0, MAX_WORKSPACES).map((w) => `${w.machineId}::${w.workingDir}`)
   );
+  const slots = useMemo(() => prepareSlots(workspaces), [workspaceSlotsKey]);
+
+  const refreshAll = useCallback(() => {
+    for (const slot of slots) {
+      if (!slot) continue;
+      requestFileTreeMutation({ machineId: slot.machineId, workingDir: slot.workingDir }).catch(
+        () => {
+          // Non-blocking — tree may already be cached.
+        }
+      );
+    }
+  }, [requestFileTreeMutation, slots]);
+
+  useEffect(() => {
+    refreshAll();
+  }, [refreshAll]);
 
   // ── Fixed hook calls (one per slot) ──────────────────────────────────────
   // IMPORTANT: These must be unconditional, fixed-count calls.
@@ -120,7 +138,7 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
   const entries9 = useFileEntries(tree9);
 
   // ── Merge & tag ──────────────────────────────────────────────────────────
-  return useMemo(() => {
+  const files = useMemo(() => {
     const allEntries = [
       entries0,
       entries1,
@@ -154,4 +172,6 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): FileEntry[] {
     entries9,
     slots,
   ]);
+
+  return useMemo(() => ({ files, refreshAll }), [files, refreshAll]);
 }

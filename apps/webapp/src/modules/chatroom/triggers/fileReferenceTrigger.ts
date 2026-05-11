@@ -4,7 +4,10 @@ import { fuzzyMatch } from '@/lib/fuzzyMatch';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
 
-export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinition<FileEntry> {
+export function createFileReferenceTrigger(
+  files: FileEntry[],
+  onActivate?: () => void
+): TriggerDefinition<FileEntry> {
   return {
     triggerChar: '@',
     isValidPosition: (_textBeforeCursor, triggerIndex) => {
@@ -23,6 +26,7 @@ export function createFileReferenceTrigger(files: FileEntry[]): TriggerDefinitio
         .slice(0, MAX_DISPLAY);
     },
     serialize: (item) => item.path,
+    onActivate,
     maxDisplayItems: MAX_DISPLAY,
   };
 }

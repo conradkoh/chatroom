@@ -33,6 +33,9 @@ export interface TriggerDefinition<T = unknown> {
    */
   serialize: (item: T) => string;
 
+  /** Called once when this trigger starts a new visible autocomplete activation. */
+  onActivate?: () => void;
+
   /** Max items to display in the dropdown */
   maxDisplayItems?: number;
 }
@@ -99,6 +102,8 @@ export function useTriggerAutocomplete<T = unknown>(
   /** Ref for activeTrigger to avoid stale closure */
   const activeTriggerRef = useRef<TriggerDefinition<T> | null>(activeTrigger);
   activeTriggerRef.current = activeTrigger;
+  /** Tracks the current trigger activation so onActivate fires once per show cycle. */
+  const activationKeyRef = useRef<string | null>(null);
 
   // Clean up the debounce timer on unmount so we don't fire a setState on
   // an unmounted component (or keep a stale timeout running).
@@ -115,7 +120,7 @@ export function useTriggerAutocomplete<T = unknown>(
       const textBeforeCursor = text.slice(0, cursorPos);
 
       // Check triggers in priority order — first enabled match wins
-      for (const trigger of triggers) {
+      for (const [triggerOrder, trigger] of triggers.entries()) {
         if (!trigger.isEnabled()) continue;
 
         const lastTriggerIndex = textBeforeCursor.lastIndexOf(trigger.triggerChar);
@@ -129,6 +134,11 @@ export function useTriggerAutocomplete<T = unknown>(
 
         // Found a valid trigger — show dropdown immediately, debounce query
         triggerIndexRef.current = lastTriggerIndex;
+        const activationKey = `${triggerOrder}:${trigger.triggerChar}:${lastTriggerIndex}`;
+        if (activationKeyRef.current !== activationKey) {
+          activationKeyRef.current = activationKey;
+          trigger.onActivate?.();
+        }
         setVisible(true);
 
         // Calculate position from caret if available, otherwise use default
@@ -157,6 +167,7 @@ export function useTriggerAutocomplete<T = unknown>(
       if (debounceRef.current) clearTimeout(debounceRef.current);
       setVisible(false);
       setActiveTrigger(null);
+      activationKeyRef.current = null;
       triggerIndexRef.current = null;
     },
     [triggers, options]
@@ -187,6 +198,7 @@ export function useTriggerAutocomplete<T = unknown>(
       // Dismiss
       setVisible(false);
       setActiveTrigger(null);
+      activationKeyRef.current = null;
       triggerIndexRef.current = null;
 
       return { newText, newCursorPos };
@@ -200,6 +212,7 @@ export function useTriggerAutocomplete<T = unknown>(
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setVisible(false);
     setActiveTrigger(null);
+    activationKeyRef.current = null;
     triggerIndexRef.current = null;
   }, []);
 
