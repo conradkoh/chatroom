@@ -45,11 +45,11 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(CLAUDE_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(CLAUDE_COMMAND);
   }
 

@@ -101,11 +101,11 @@ export class CursorAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(CURSOR_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(CURSOR_COMMAND);
   }
 

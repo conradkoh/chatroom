@@ -43,48 +43,38 @@ export class PiAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(PI_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(PI_COMMAND);
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
-      // write output to stderr (e.g. Pi) are also captured.
-      const output = this.deps
-        .execSync(`${PI_COMMAND} --list-models 2>&1`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000,
-        })
-        .toString()
-        .trim();
+    // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
+    // write output to stderr (e.g. Pi) are also captured.
+    const output = await this.runListCommand('pi', `${PI_COMMAND} --list-models 2>&1`);
 
-      if (!output) return [];
+    if (output === null) return [];
 
-      // Parse table output: first two columns are provider + model, joined as "provider/model".
-      // Expected format (tab or whitespace separated):
-      //   anthropic   claude-3-5-sonnet   ...
-      const models: string[] = [];
-      for (const line of output.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
-        const cols = trimmed.split(/\s+/);
-        // Skip header row (first line: "provider  model  context  max-out  thinking  images")
-        if (cols[0] === 'provider') continue;
-        if (cols.length >= 2) {
-          models.push(`${cols[0]}/${cols[1]}`);
-        } else if (cols.length === 1 && cols[0]) {
-          models.push(cols[0]);
-        }
+    // Parse table output: first two columns are provider + model, joined as "provider/model".
+    // Expected format (tab or whitespace separated):
+    //   anthropic   claude-3-5-sonnet   ...
+    const models: string[] = [];
+    for (const line of output.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
+      const cols = trimmed.split(/\s+/);
+      // Skip header row (first line: "provider  model  context  max-out  thinking  images")
+      if (cols[0] === 'provider') continue;
+      if (cols.length >= 2) {
+        models.push(`${cols[0]}/${cols[1]}`);
+      } else if (cols.length === 1 && cols[0]) {
+        models.push(cols[0]);
       }
-      return models;
-    } catch {
-      return [];
     }
+    return models;
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

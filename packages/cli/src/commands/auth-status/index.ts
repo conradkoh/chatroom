@@ -76,7 +76,7 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
       }
 
       // Display local machine info (read-only — machine registration is owned by the daemon)
-      const machineConfig = d.loadMachineConfig();
+      const machineConfig = await d.loadMachineConfig();
       if (machineConfig) {
         console.log(`\n🖥️  Machine: ${machineConfig.hostname}`);
         console.log(`   ID: ${machineConfig.machineId}`);

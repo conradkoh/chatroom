@@ -37,12 +37,12 @@ export class CopilotAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     // Check if copilot binary is installed
     return this.checkInstalled(COPILOT_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     // Check version using copilot --version
     return this.checkVersion(COPILOT_COMMAND);
   }

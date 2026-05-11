@@ -119,12 +119,12 @@ export async function registerAgent(
     //
     // Machine registration + model discovery is owned by the daemon (`machine start`).
     // We only read the machineId from local config here.
-    const machineId = getMachineId();
+    const machineId = await getMachineId();
     if (!machineId) {
       console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
       process.exit(1);
     }
-    const config = loadMachineConfig();
+    const config = await loadMachineConfig();
 
     try {
       await d.backend.mutation(api.machines.recordRemoteAgentRegistered, {

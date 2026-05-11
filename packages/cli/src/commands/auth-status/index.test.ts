@@ -31,7 +31,7 @@ function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
       isAuthenticated: vi.fn().mockReturnValue(true),
     },
     getVersion: vi.fn().mockReturnValue('1.0.0'),
-    loadMachineConfig: vi.fn().mockReturnValue({
+    loadMachineConfig: vi.fn().mockResolvedValue({
       machineId: 'machine-123',
       hostname: 'test-host',
       os: 'darwin',
@@ -129,7 +129,7 @@ describe('authStatus', () => {
 
     it('shows machine not registered when no local config exists', async () => {
       const deps = createMockDeps({
-        loadMachineConfig: vi.fn().mockReturnValue(null),
+        loadMachineConfig: vi.fn().mockResolvedValue(null),
       });
 
       await authStatus(deps);

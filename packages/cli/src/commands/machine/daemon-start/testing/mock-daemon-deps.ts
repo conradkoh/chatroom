@@ -41,9 +41,9 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
     machine: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue([]),
+      listAgentEntries: vi.fn().mockResolvedValue([]),
       persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+      loadEventCursor: vi.fn().mockResolvedValue(null),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),

@@ -16,8 +16,8 @@ import { registerAgent, type RegisterAgentOptions } from './index.js';
 // ---------------------------------------------------------------------------
 
 vi.mock('../../infrastructure/machine/index.js', () => ({
-  getMachineId: vi.fn().mockReturnValue('machine_123'),
-  loadMachineConfig: vi.fn().mockReturnValue({
+  getMachineId: vi.fn().mockResolvedValue('machine_123'),
+  loadMachineConfig: vi.fn().mockResolvedValue({
     machineId: 'machine_123',
     hostname: 'test-host',
     os: 'darwin',
@@ -183,7 +183,7 @@ describe('registerAgent', () => {
   describe('machine not registered (remote)', () => {
     it('exits with code 1 when machine is not registered', async () => {
       const { getMachineId } = await import('../../infrastructure/machine/index.js');
-      (getMachineId as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
+      (getMachineId as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
       const deps = createMockDeps();
 

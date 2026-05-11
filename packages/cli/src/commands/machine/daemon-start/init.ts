@@ -4,6 +4,7 @@
 
 import { stat } from 'node:fs/promises';
 
+import { Effect } from 'effect';
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
 
@@ -55,17 +56,46 @@ import { acquireLock, releaseLock } from '../pid.js';
 export async function discoverModels(
   agentServices: Map<string, RemoteAgentService>
 ): Promise<Record<string, string[]>> {
-  const results: Record<string, string[]> = {};
-  for (const [harness, service] of agentServices) {
-    if (service.isInstalled()) {
-      try {
-        results[harness] = await service.listModels();
-      } catch {
-        results[harness] = [];
-      }
+  const discoverOne = ([harness, service]: [string, RemoteAgentService]) =>
+    Effect.promise(() => service.isInstalled()).pipe(
+      Effect.flatMap((installed) => {
+        if (!installed) {
+          return Effect.succeed(undefined);
+        }
+
+        return Effect.tryPromise({
+          try: () => service.listModels(),
+          catch: (reason) => reason,
+        }).pipe(
+          Effect.map((models) => ({ harness, models })),
+          Effect.catchAll((reason) => {
+            console.warn(
+              JSON.stringify({
+                event: 'discover-models-error',
+                harness,
+                reason: getErrorMessage(reason),
+              })
+            );
+            return Effect.succeed({ harness, models: [] as string[] });
+          })
+        );
+      })
+    );
+
+  const results = await Effect.runPromise(
+    Effect.forEach(Array.from(agentServices.entries()), discoverOne, {
+      concurrency: 'unbounded',
+    })
+  );
+
+  const discovered: Record<string, string[]> = {};
+  for (const result of results) {
+    if (result) {
+      discovered[result.harness] = result.models;
     }
   }
-  return results;
+
+  return discovered;
 }
 
 // ─── Default Dependencies ───────────────────────────────────────────────────
@@ -198,14 +228,14 @@ async function validateSession(
  * Register machine (or refresh harness detection if already registered).
  * Returns the full machine config (guaranteed non-null).
  */
-function setupMachine(): MachineConfig {
+async function setupMachine(): Promise<MachineConfig> {
   // Daemon bootstrap is the only path that may mint a new machine ID for this endpoint.
   // Mid-session callers use ensureMachineRegistered() without allowCreate so a missing
   // ~/.chatroom config surfaces as an explicit error instead of a silent UUID.
-  ensureMachineRegistered({ allowCreate: true });
+  await ensureMachineRegistered({ allowCreate: true });
 
   // Load the full machine config (guaranteed non-null after ensureMachineRegistered)
-  const config = loadMachineConfig()!;
+  const config = (await loadMachineConfig())!;
   return config;
 }
 
@@ -371,7 +401,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     try {
       typedSessionId = await validateSession(client, typedSessionId, convexUrl);
 
-      const config = setupMachine();
+      const config = await setupMachine();
       const { machineId } = config;
 
       // Populate harness registry and build service map from it

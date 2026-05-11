@@ -13,6 +13,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
+import { Effect, Schedule, Duration } from 'effect';
 
 import type {
   RemoteAgentService,
@@ -22,6 +23,48 @@ import type {
   ProcessInfo,
   VersionInfo,
 } from './remote-agent-service.js';
+import { DetectionResult, isInstalled, DETECTION_RETRY_POLICY } from './detection-result.js';
+
+// ─── Error Classification ─────────────────────────────────────────────────────
+
+interface ExecSyncError extends Error {
+  status?: number;
+  stderr?: Buffer | string;
+  stdout?: Buffer | string;
+  signal?: string;
+}
+
+function isExecSyncError(error: unknown): error is ExecSyncError {
+  return error instanceof Error && ('status' in error || 'stderr' in error || 'signal' in error);
+}
+
+function isStderrEmpty(stderr: Buffer | string | undefined): boolean {
+  if (!stderr) return true;
+  const str = Buffer.isBuffer(stderr) ? stderr.toString() : stderr;
+  return str.trim().length === 0;
+}
+
+// ─── Transient Error Type ─────────────────────────────────────────────────────
+
+/**
+ * Transient error type — only these get retried.
+ * Module-scoped so it isn't recreated per call.
+ */
+class TransientDetectionError {
+  readonly _tag = 'TransientDetectionError' as const;
+  constructor(readonly reason: string) {}
+}
+
+// ─── Command Outcome ──────────────────────────────────────────────────────────
+
+/**
+ * Discriminated union for the result of running a command with retry.
+ * Internal type — not exported from the package index.
+ */
+type CommandOutcome =
+  | { readonly _tag: 'Output'; readonly stdout: string }
+  | { readonly _tag: 'NotInstalled' }
+  | { readonly _tag: 'Failure'; readonly reason: string; readonly attempts: number };
 
 // ─── Dependency Injection ─────────────────────────────────────────────────────
 
@@ -47,6 +90,16 @@ function defaultDeps(): CLIAgentServiceDeps {
 const KILL_TIMEOUT_MS = 5000;
 const POLL_INTERVAL_MS = 200;
 
+// ─── Retry Schedule ───────────────────────────────────────────────────────────
+
+const retrySchedule = Schedule.exponential(
+  Duration.millis(DETECTION_RETRY_POLICY.initialDelayMs),
+  DETECTION_RETRY_POLICY.backoffFactor
+).pipe(
+  Schedule.either(Schedule.spaced(Duration.millis(DETECTION_RETRY_POLICY.maxDelayMs))),
+  Schedule.compose(Schedule.recurs(DETECTION_RETRY_POLICY.maxAttempts - 1))
+);
+
 // ─── Base Class ───────────────────────────────────────────────────────────────
 
 export abstract class BaseCLIAgentService implements RemoteAgentService {
@@ -63,15 +116,106 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    *
    * Subclasses implement the no-arg `isInstalled()` from RemoteAgentService
    * by calling this with their specific command name.
+   *
+   * @see checkInstalledDetailedEffect for the underlying Effect program.
    */
-  protected checkInstalled(command: string): boolean {
-    try {
-      const checkCmd = process.platform === 'win32' ? `where ${command}` : `which ${command}`;
-      this.deps.execSync(checkCmd, { stdio: 'ignore' });
-      return true;
-    } catch {
-      return false;
-    }
+  protected checkInstalled(command: string): Promise<boolean> {
+    return Effect.runPromise(
+      this.checkInstalledDetailedEffect(command).pipe(Effect.map(isInstalled))
+    );
+  }
+
+  /**
+   * Run a shell command with exponential-backoff retry and classification.
+   *
+   * Returns an Effect program (not run) that:
+   * - Executes the command via execSync
+   * - Classifies failures as terminal (NotInstalled) or transient (retryable)
+   * - Retries transient failures with exponential backoff
+   * - Maps exhausted retries to Failure
+   *
+   * The returned Effect has error channel `never` — it always succeeds with
+   * a CommandOutcome so callers can safely use Effect.runPromise.
+   */
+  protected runCommandWithRetryEffect(
+    command: string,
+    options: {
+      stdio?: any;
+      timeout?: number;
+      classifyNotInstalled?: (err: unknown) => boolean;
+    } = {}
+  ): Effect.Effect<CommandOutcome, never> {
+    const {
+      stdio = ['pipe', 'pipe', 'pipe'],
+      timeout,
+      classifyNotInstalled = () => false,
+    } = options;
+    const deps = this.deps;
+    let attempts = 0;
+
+    // Detection effect: classify execSync outcome into success (terminal) or transient failure
+    const detection: Effect.Effect<CommandOutcome, TransientDetectionError> = Effect.suspend(
+      (): Effect.Effect<CommandOutcome, TransientDetectionError> => {
+        attempts++;
+        try {
+          const buffer = deps.execSync(command, {
+            stdio,
+            ...(timeout !== undefined ? { timeout } : {}),
+          });
+          return Effect.succeed({ _tag: 'Output', stdout: buffer ? buffer.toString() : '' });
+        } catch (error: unknown) {
+          // Terminal classification — caller decides what "not installed" means
+          if (classifyNotInstalled(error)) {
+            return Effect.succeed({ _tag: 'NotInstalled' });
+          }
+          // All other failures are transient (retryable)
+          const reason = error instanceof Error ? error.message : String(error);
+          return Effect.fail(new TransientDetectionError(reason));
+        }
+      }
+    );
+
+    // Run with retry, then map remaining failure to Failure
+    const program = detection.pipe(
+      Effect.retry(retrySchedule),
+      Effect.catchAll((err: TransientDetectionError) =>
+        Effect.succeed({ _tag: 'Failure' as const, reason: err.reason, attempts })
+      )
+    );
+
+    return program;
+  }
+
+  /**
+   * Effect-native tri-state detection of CLI command availability.
+   *
+   * Returns an Effect program (not run) that:
+   * - Classifies execSync outcome into success (terminal) or transient failure
+   * - Retries transient failures with exponential backoff
+   * - Maps exhausted retries to DetectionError
+   *
+   * The returned Effect has error channel `never` — it always succeeds with
+   * a DetectionResult so callers can safely use Effect.runPromise.
+   */
+  protected checkInstalledDetailedEffect(command: string): Effect.Effect<DetectionResult, never> {
+    const checkCmd = process.platform === 'win32' ? `where ${command}` : `which ${command}`;
+
+    return this.runCommandWithRetryEffect(checkCmd, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      classifyNotInstalled: (error) =>
+        isExecSyncError(error) && error.status === 1 && isStderrEmpty(error.stderr),
+    }).pipe(
+      Effect.map((outcome) => {
+        switch (outcome._tag) {
+          case 'Output':
+            return DetectionResult.Installed();
+          case 'NotInstalled':
+            return DetectionResult.NotInstalled();
+          case 'Failure':
+            return DetectionResult.DetectionError(outcome.reason, outcome.attempts);
+        }
+      })
+    );
   }
 
   /**
@@ -82,18 +226,18 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    * Subclasses implement the no-arg `getVersion()` from RemoteAgentService
    * by calling this with their specific command name.
    */
-  protected checkVersion(command: string): VersionInfo | null {
+  protected async checkVersion(command: string): Promise<VersionInfo | null> {
     try {
-      // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
-      // write version info to stderr (e.g. Pi) are also captured.
-      const output = this.deps
-        .execSync(`${command} --version 2>&1`, {
+      const outcome = await Effect.runPromise(
+        this.runCommandWithRetryEffect(`${command} --version 2>&1`, {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 5000,
         })
-        .toString()
-        .trim();
+      );
 
+      if (outcome._tag !== 'Output') return null;
+
+      const output = outcome.stdout.trim();
       const match = output.match(/v?(\d+)\.(\d+)\.(\d+)/);
       if (!match) return null;
 
@@ -104,6 +248,40 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Runs a `list models` style command with retry and structured warning on
+   * exhausted retries.
+   */
+  protected async runListCommand(
+    harnessName: string,
+    command: string,
+    options?: { timeout?: number }
+  ): Promise<string | null> {
+    const outcome = await Effect.runPromise(
+      this.runCommandWithRetryEffect(command, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: options?.timeout ?? 10000,
+      })
+    );
+
+    if (outcome._tag === 'Output') {
+      return outcome.stdout.trim();
+    }
+
+    if (outcome._tag === 'Failure') {
+      console.warn(
+        JSON.stringify({
+          event: 'list-models-error',
+          harness: harnessName,
+          reason: outcome.reason,
+          attempts: outcome.attempts,
+        })
+      );
+    }
+
+    return null;
   }
 
   /**
@@ -187,8 +365,28 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
   abstract readonly displayName: string;
   abstract readonly command: string;
 
-  abstract isInstalled(): boolean;
-  abstract getVersion(): VersionInfo | null;
+  abstract isInstalled(): Promise<boolean>;
+  abstract getVersion(): Promise<VersionInfo | null>;
   abstract listModels(): Promise<string[]>;
   abstract spawn(options: SpawnOptions): Promise<SpawnResult>;
+
+  /**
+   * Effect-native tri-state detection of the configured CLI command.
+   *
+   * Returns an Effect program (not run) that can be composed into larger
+   * Effect pipelines, e.g. `Effect.forEach` for parallel detection.
+   */
+  public detectInstallationEffect(): Effect.Effect<DetectionResult, never> {
+    return this.checkInstalledDetailedEffect(this.command);
+  }
+
+  /**
+   * Tri-state detection of the configured CLI command.
+   *
+   * Returns `Installed`, `NotInstalled` (terminal), or `DetectionError` (retryable).
+   * @see checkInstalledDetailedEffect for the underlying Effect program.
+   */
+  public detectInstallation(): Promise<DetectionResult> {
+    return Effect.runPromise(this.checkInstalledDetailedEffect(this.command));
+  }
 }

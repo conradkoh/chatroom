@@ -31,5 +31,5 @@ export interface AuthStatusDeps {
   session: AuthStatusSessionOps;
   getVersion: () => string;
   /** Read local machine config (no backend sync) */
-  loadMachineConfig: () => MachineConfig | null;
+  loadMachineConfig: () => Promise<MachineConfig | null>;
 }

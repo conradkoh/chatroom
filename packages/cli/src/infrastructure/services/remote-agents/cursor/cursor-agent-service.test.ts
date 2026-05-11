@@ -16,56 +16,62 @@ function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgen
 
 describe('CursorAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when agent command exists', () => {
+    it('returns true when agent command exists', async () => {
       const deps = createMockDeps({ execSync: vi.fn() });
       const service = new CursorAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when agent command is missing', () => {
+    it('returns false when agent command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which agent') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new CursorAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses semantic version from agent --version output', () => {
+    it('parses semantic version from agent --version output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v0.48.7')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.48.7', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.48.7', major: 0 });
     });
 
-    it('parses version without v prefix', () => {
+    it('parses version without v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('1.0.0')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.0.0', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.0.0', major: 1 });
     });
 
-    it('returns null when version cannot be parsed', () => {
+    it('returns null when version cannot be parsed', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('unknown')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
 
-    it('returns null when command fails', () => {
+    it('returns null when command fails', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('command not found');
         }),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 

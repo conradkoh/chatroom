@@ -45,14 +45,14 @@ vi.mock('../../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/machine/index.js', () => ({
-  ensureMachineRegistered: vi.fn().mockReturnValue({
+  ensureMachineRegistered: vi.fn().mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   }),
-  loadMachineConfig: vi.fn().mockReturnValue({
+  loadMachineConfig: vi.fn().mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
@@ -63,9 +63,9 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
   }),
   clearAgentPid: vi.fn(),
   persistAgentPid: vi.fn(),
-  listAgentEntries: vi.fn().mockReturnValue([]),
+  listAgentEntries: vi.fn().mockResolvedValue([]),
   persistEventCursor: vi.fn(),
-  loadEventCursor: vi.fn().mockReturnValue(null),
+  loadEventCursor: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../../utils/error-formatting.js', () => ({
@@ -84,8 +84,8 @@ vi.mock('./handlers/state-recovery.js', () => ({
 vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
   return {
     OpenCodeAgentService: class MockOpenCodeAgentService {
-      isInstalled = vi.fn().mockReturnValue(true);
-      getVersion = vi.fn().mockReturnValue({ version: '0.1.0', major: 0 });
+      isInstalled = vi.fn().mockResolvedValue(true);
+      getVersion = vi.fn().mockResolvedValue({ version: '0.1.0', major: 0 });
       listModels = vi.fn().mockResolvedValue([]);
       spawn = vi.fn();
       stop = vi.fn();
@@ -99,8 +99,8 @@ vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () =
 vi.mock('../../../infrastructure/services/remote-agents/opencode-sdk/index.js', () => {
   return {
     OpenCodeSdkAgentService: class MockOpenCodeSdkAgentService {
-      isInstalled = vi.fn().mockReturnValue(false);
-      getVersion = vi.fn().mockReturnValue(null);
+      isInstalled = vi.fn().mockResolvedValue(false);
+      getVersion = vi.fn().mockResolvedValue(null);
       listModels = vi.fn().mockResolvedValue([]);
       spawn = vi.fn();
       stop = vi.fn();
@@ -142,14 +142,14 @@ beforeEach(() => {
     mutation: vi.fn().mockResolvedValue(undefined),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   } as never);
-  vi.mocked(ensureMachineRegistered).mockReturnValue({
+  vi.mocked(ensureMachineRegistered).mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   } as never);
-  vi.mocked(loadMachineConfig).mockReturnValue({
+  vi.mocked(loadMachineConfig).mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
@@ -186,9 +186,17 @@ async function getMockClient() {
 // ---------------------------------------------------------------------------
 
 describe('discoverModels', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns models from the remote agent service', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['gpt-4', 'claude-3']),
     } as any;
 
@@ -200,7 +208,7 @@ describe('discoverModels', () => {
 
   it('returns empty record entry when service throws (non-critical)', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockRejectedValue(new Error('Service broken')),
     } as any;
 
@@ -211,7 +219,7 @@ describe('discoverModels', () => {
 
   it('returns empty record when service is not installed', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(false),
+      isInstalled: vi.fn().mockResolvedValue(false),
       listModels: vi.fn().mockResolvedValue([]),
     } as any;
 
@@ -222,11 +230,11 @@ describe('discoverModels', () => {
 
   it('discovers models from multiple harnesses independently', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi
         .fn()
         .mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
@@ -246,11 +254,11 @@ describe('discoverModels', () => {
 
   it('excludes pi harness when pi is not installed, keeps opencode', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(false),
+      isInstalled: vi.fn().mockResolvedValue(false),
       listModels: vi.fn(),
     } as any;
 
@@ -267,11 +275,11 @@ describe('discoverModels', () => {
 
   it('keeps successful harness when other harness listModels throws', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockRejectedValue(new Error('opencode broke')),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['github-copilot/gpt-4o']),
     } as any;
 
@@ -284,6 +292,105 @@ describe('discoverModels', () => {
     expect(models).toEqual({
       opencode: [], // failed → empty array fallback
       pi: ['github-copilot/gpt-4o'],
+    });
+  });
+
+  it('runs harnesses in parallel', async () => {
+    const startedAt: Array<[string, number]> = [];
+
+    const createService = (name: string, delayMs: number) => ({
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockImplementation(
+        () =>
+          new Promise<string[]>((resolve) => {
+            startedAt.push([name, Date.now()]);
+            setTimeout(() => resolve([`${name}/model`]), delayMs);
+          })
+      ),
+    });
+
+    const agentServices = new Map([
+      ['alpha', createService('alpha', 300)],
+      ['beta', createService('beta', 200)],
+      ['gamma', createService('gamma', 100)],
+    ]) as any;
+
+    const discovery = discoverModels(agentServices);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(startedAt).toHaveLength(3);
+    expect(startedAt.map(([name]) => name)).toEqual(['alpha', 'beta', 'gamma']);
+    expect(new Set(startedAt.map(([, time]) => time)).size).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(300);
+    await expect(discovery).resolves.toEqual({
+      alpha: ['alpha/model'],
+      beta: ['beta/model'],
+      gamma: ['gamma/model'],
+    });
+  });
+
+  it('skips not-installed harnesses', async () => {
+    const installedService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockResolvedValue(['installed/model']),
+    } as any;
+    const missingService = {
+      isInstalled: vi.fn().mockResolvedValue(false),
+      listModels: vi.fn(),
+    } as any;
+
+    const agentServices = new Map([
+      ['installed', installedService],
+      ['missing', missingService],
+    ]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({
+      installed: ['installed/model'],
+    });
+    expect(missingService.listModels).not.toHaveBeenCalled();
+  });
+
+  it('returns [] for harness whose listModels throws and warns with structured JSON', async () => {
+    const brokenService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockImplementation(() => {
+        throw new Error('broken harness');
+      }),
+    } as any;
+
+    const agentServices = new Map([['broken', brokenService]]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({ broken: [] });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    const [warning] = warnSpy.mock.calls[0] ?? [];
+    expect(typeof warning).toBe('string');
+    expect(JSON.parse(warning)).toEqual({
+      event: 'discover-models-error',
+      harness: 'broken',
+      reason: 'broken harness',
+    });
+  });
+
+  it('resolves when all harnesses fail', async () => {
+    const firstService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockRejectedValue(new Error('first failed')),
+    } as any;
+    const secondService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockRejectedValue(new Error('second failed')),
+    } as any;
+
+    const agentServices = new Map([
+      ['first', firstService],
+      ['second', secondService],
+    ]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({
+      first: [],
+      second: [],
     });
   });
 });
