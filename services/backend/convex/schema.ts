@@ -1387,22 +1387,6 @@ export default defineSchema({
       })
     ),
 
-    // Recent commits (only when status === 'available')
-    recentCommits: v.optional(
-      v.array(
-        v.object({
-          sha: v.string(),
-          shortSha: v.string(),
-          message: v.string(),
-          author: v.string(),
-          date: v.string(),
-        })
-      )
-    ),
-
-    // Pagination
-    hasMoreCommits: v.optional(v.boolean()),
-
     // Open pull requests for the current branch (only when status === 'available')
     openPullRequests: v.optional(
       v.array(
