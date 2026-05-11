@@ -640,6 +640,33 @@ export const upsertWorkspaceGitState = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
+
+    if (args.status === 'available' && args.recentCommits !== undefined) {
+      const existingRecentCommits = await ctx.db
+        .query('chatroom_workspaceRecentCommits')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        )
+        .first();
+
+      const recentCommitsData = {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        commits: args.recentCommits,
+        hasMoreCommits: args.hasMoreCommits ?? false,
+        updatedAt: now,
+      };
+
+      if (existingRecentCommits) {
+        await ctx.db.patch('chatroom_workspaceRecentCommits', existingRecentCommits._id, {
+          commits: recentCommitsData.commits,
+          hasMoreCommits: recentCommitsData.hasMoreCommits,
+          updatedAt: recentCommitsData.updatedAt,
+        });
+      } else {
+        await ctx.db.insert('chatroom_workspaceRecentCommits', recentCommitsData);
+      }
+    }
   },
 });
 
