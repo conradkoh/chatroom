@@ -30,6 +30,8 @@ interface SendFormProps {
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
+  /** Refreshes autocomplete files when the @ trigger opens. */
+  onAtTriggerActivate?: () => void;
   /** Callback to open the Create Command modal */
   onCreateCommand?: () => void;
 }
@@ -115,6 +117,7 @@ export const SendForm = memo(function SendForm({
   onAfterResize: _onAfterResize,
   onRegisterFocus,
   files = [],
+  onAtTriggerActivate,
   onCreateCommand,
 }: SendFormProps) {
   const [message, setMessage] = useState('');
@@ -134,7 +137,10 @@ export const SendForm = memo(function SendForm({
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 
   // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
-  const fileRefTrigger = useMemo(() => createFileReferenceTrigger(files), [files]);
+  const fileRefTrigger = useMemo(
+    () => createFileReferenceTrigger(files, onAtTriggerActivate),
+    [files, onAtTriggerActivate]
+  );
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
   const getCaretPosition = useCallback(() => {

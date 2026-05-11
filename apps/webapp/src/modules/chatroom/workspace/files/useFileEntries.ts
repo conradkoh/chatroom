@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { FileEntry } from '../components/FileSelector/useFileSelector';
+import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 
 interface TreeResult {
   treeJson: string | null;
