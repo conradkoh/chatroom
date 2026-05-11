@@ -8,8 +8,8 @@
  * Session storage operations for auth-logout (clear, check, path).
  */
 export interface AuthLogoutSessionOps {
-  isAuthenticated: () => boolean;
-  clearAuthData: () => boolean;
+  isAuthenticated: () => Promise<boolean>;
+  clearAuthData: () => Promise<boolean>;
   getAuthFilePath: () => string;
 }
 

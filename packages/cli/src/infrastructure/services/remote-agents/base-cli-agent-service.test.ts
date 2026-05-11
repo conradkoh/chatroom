@@ -69,13 +69,15 @@ class TestAgentService extends BaseCLIAgentService {
   }
 }
 
-function createMockDeps(overrides?: Partial<CLIAgentServiceDeps>): CLIAgentServiceDeps {
+function createMockDeps(
+  overrides?: Partial<Record<keyof CLIAgentServiceDeps, unknown>>
+): CLIAgentServiceDeps {
   return {
-    execSync: vi.fn(),
-    spawn: vi.fn(),
-    kill: vi.fn(),
+    execSync: vi.fn() as CLIAgentServiceDeps['execSync'],
+    spawn: vi.fn() as CLIAgentServiceDeps['spawn'],
+    kill: vi.fn() as CLIAgentServiceDeps['kill'],
     ...overrides,
-  };
+  } as CLIAgentServiceDeps;
 }
 
 const defaultContext = {

@@ -20,12 +20,12 @@ export interface AuthData {
 
 /** Auth storage operations. */
 export interface AuthStorageOps {
-  isAuthenticated: () => boolean;
+  isAuthenticated: () => Promise<boolean>;
   getAuthFilePath: () => string;
-  saveAuthData: (data: AuthData) => void;
-  getDeviceName: () => string;
+  saveAuthData: (data: AuthData) => Promise<void>;
+  getDeviceName: () => Promise<string>;
   getCliVersion: () => string;
-  getSessionId: () => SessionId | null;
+  getSessionId: () => Promise<SessionId | null>;
 }
 
 /** Browser launch abstraction — stubbed in tests. */

@@ -56,9 +56,9 @@ export async function taskRead(
   const convexUrl = d.session.getConvexUrl();
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
 
     console.error(`❌ Not authenticated for: ${convexUrl}`);
 

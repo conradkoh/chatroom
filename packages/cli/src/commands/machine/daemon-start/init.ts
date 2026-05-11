@@ -152,7 +152,7 @@ async function waitForAuthentication(convexUrl: string): Promise<string> {
   const startTime = Date.now();
   while (Date.now() - startTime < AUTH_WAIT_TIMEOUT_MS) {
     await new Promise((resolve) => setTimeout(resolve, AUTH_POLL_INTERVAL_MS));
-    const sessionId = getSessionId();
+    const sessionId = await getSessionId();
     if (sessionId) {
       console.log(`\n✅ Authentication detected. Resuming daemon initialization...`);
       return sessionId;
@@ -169,12 +169,12 @@ async function waitForAuthentication(convexUrl: string): Promise<string> {
  * Returns the session ID if valid, or waits for the user to authenticate.
  */
 async function validateAuthentication(convexUrl: string): Promise<string> {
-  const sessionId = getSessionId();
+  const sessionId = await getSessionId();
   if (sessionId) {
     return sessionId;
   }
 
-  const otherUrls = getOtherSessionUrls();
+  const otherUrls = await getOtherSessionUrls();
   console.error(`❌ Not authenticated for: ${convexUrl}`);
 
   if (otherUrls.length > 0) {

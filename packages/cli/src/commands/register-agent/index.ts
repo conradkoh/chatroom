@@ -59,9 +59,9 @@ export async function registerAgent(
   const { role, type, allowTypeChange } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
     const currentUrl = d.session.getConvexUrl();
 
     console.error(`❌ Not authenticated for: ${currentUrl}`);

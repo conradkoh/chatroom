@@ -56,8 +56,8 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
   const retryIntervalMs = opts.retryIntervalMs ?? DEFAULT_AUTH_RETRY_INTERVAL_MS;
 
   // Check local auth file first — this is network-free and always fast-fails.
-  if (!isAuthenticated()) {
-    const otherUrls = getOtherSessionUrls();
+  if (!await isAuthenticated()) {
+    const otherUrls = await getOtherSessionUrls();
     const currentUrl = getConvexUrl();
 
     console.error(`\n❌ Error: Not authenticated for: ${currentUrl}`);
@@ -76,7 +76,7 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
     process.exit(1);
   }
 
-  const sessionId = getSessionId();
+  const sessionId = await getSessionId();
   if (!sessionId) {
     console.error(`\n❌ Error: Invalid auth file`);
     console.error(`   Path: ${getAuthFilePath()}`);
@@ -161,11 +161,11 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
  * Returns auth context if authenticated, null otherwise
  */
 export async function checkAuth(): Promise<AuthContext | null> {
-  if (!isAuthenticated()) {
+  if (!await isAuthenticated()) {
     return null;
   }
 
-  const sessionId = getSessionId();
+  const sessionId = await getSessionId();
   if (!sessionId) {
     return null;
   }

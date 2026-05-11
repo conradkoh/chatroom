@@ -46,9 +46,9 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
   console.log(`🔐 AUTHENTICATION STATUS`);
   console.log(`${'═'.repeat(50)}`);
 
-  const authData = d.session.loadAuthData();
+  const authData = await d.session.loadAuthData();
 
-  if (!d.session.isAuthenticated() || !authData) {
+  if (!await d.session.isAuthenticated() || !authData) {
     console.log(`\n❌ Not authenticated`);
     console.log(`\n   Run: chatroom auth login`);
     return;

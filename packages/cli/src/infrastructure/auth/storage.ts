@@ -5,7 +5,7 @@
  * Sessions are stored per Convex URL to support multiple environments.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
@@ -50,10 +50,8 @@ interface LegacyAuthData extends AuthData {
 /**
  * Ensure the chatroom config directory exists
  */
-function ensureConfigDir(): void {
-  if (!existsSync(CHATROOM_DIR)) {
-    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
-  }
+async function ensureConfigDir(): Promise<void> {
+  await fs.mkdir(CHATROOM_DIR, { recursive: true, mode: 0o700 });
 }
 
 /**
@@ -77,17 +75,21 @@ function parseJsonc(content: string): unknown {
 /**
  * Load the raw auth file data
  */
-function loadRawAuthData(): MultiEnvAuthData | LegacyAuthData | null {
+async function loadRawAuthData(): Promise<MultiEnvAuthData | LegacyAuthData | null> {
   const authPath = getAuthFilePath();
 
-  if (!existsSync(authPath)) {
-    return null;
-  }
-
   try {
-    const content = readFileSync(authPath, 'utf-8');
+    const content = await fs.readFile(authPath, 'utf-8');
     return parseJsonc(content) as MultiEnvAuthData | LegacyAuthData;
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+
+    const err = error as Error;
+    console.warn(`⚠️  Failed to read auth file at ${authPath}: ${err.message}`);
+    console.warn(`   The CLI will re-authenticate on the next command.`);
+    console.warn(`   If this is unexpected, check the file for corruption.`);
     return null;
   }
 }
@@ -110,8 +112,8 @@ const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 /**
  * Load the stored authentication data for the current environment
  */
-export function loadAuthData(): AuthData | null {
-  const rawData = loadRawAuthData();
+export async function loadAuthData(): Promise<AuthData | null> {
+  const rawData = await loadRawAuthData();
   if (!rawData) {
     return null;
   }
@@ -136,15 +138,15 @@ export function loadAuthData(): AuthData | null {
 /**
  * Save authentication data for the current environment
  */
-export function saveAuthData(data: AuthData): void {
-  ensureConfigDir();
+export async function saveAuthData(data: AuthData): Promise<void> {
+  await ensureConfigDir();
 
   const authPath = getAuthFilePath();
   const convexUrl = getConvexUrl();
 
   // Load existing data or create new structure
   let multiEnvData: MultiEnvAuthData;
-  const rawData = loadRawAuthData();
+  const rawData = await loadRawAuthData();
 
   if (isMultiEnvFormat(rawData)) {
     // Use existing multi-env data
@@ -183,17 +185,17 @@ export function saveAuthData(data: AuthData): void {
 ${JSON.stringify(multiEnvData, null, 2)}
 `;
 
-  writeFileSync(authPath, content, { encoding: 'utf-8', mode: 0o600 });
+  await fs.writeFile(authPath, content, { encoding: 'utf-8', mode: 0o600 });
 }
 
 /**
  * Clear authentication data for the current environment (logout)
  */
-export function clearAuthData(): boolean {
+export async function clearAuthData(): Promise<boolean> {
   const authPath = getAuthFilePath();
   const convexUrl = getConvexUrl();
 
-  const rawData = loadRawAuthData();
+  const rawData = await loadRawAuthData();
   if (!rawData) {
     return false;
   }
@@ -208,9 +210,12 @@ export function clearAuthData(): boolean {
     // If no sessions left, delete the file
     if (Object.keys(rawData.sessions).length === 0) {
       try {
-        unlinkSync(authPath);
+        await fs.unlink(authPath);
         return true;
-      } catch {
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return false;
+        }
         return false;
       }
     }
@@ -223,15 +228,18 @@ export function clearAuthData(): boolean {
 // To logout, run: chatroom auth logout
 ${JSON.stringify(rawData, null, 2)}
 `;
-    writeFileSync(authPath, content, { encoding: 'utf-8', mode: 0o600 });
+    await fs.writeFile(authPath, content, { encoding: 'utf-8', mode: 0o600 });
     return true;
   }
 
   // Handle legacy format - just delete the file
   try {
-    unlinkSync(authPath);
+    await fs.unlink(authPath);
     return true;
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false;
+    }
     return false;
   }
 }
@@ -239,24 +247,24 @@ ${JSON.stringify(rawData, null, 2)}
 /**
  * Check if CLI is authenticated
  */
-export function isAuthenticated(): boolean {
-  const data = loadAuthData();
+export async function isAuthenticated(): Promise<boolean> {
+  const data = await loadAuthData();
   return data !== null && !!data.sessionId;
 }
 
 /**
  * Get the current session ID
  */
-export function getSessionId(): SessionId | null {
-  const data = loadAuthData();
+export async function getSessionId(): Promise<SessionId | null> {
+  const data = await loadAuthData();
   return data?.sessionId ?? null;
 }
 
 /**
  * Get all available sessions (for debugging/error messages)
  */
-export function getAllSessions(): { url: string; sessionId: string; createdAt?: string }[] {
-  const rawData = loadRawAuthData();
+export async function getAllSessions(): Promise<{ url: string; sessionId: string; createdAt?: string }[]> {
+  const rawData = await loadRawAuthData();
   if (!rawData) {
     return [];
   }
@@ -288,16 +296,16 @@ export function getAllSessions(): { url: string; sessionId: string; createdAt?: 
  * Check if there are sessions for URLs OTHER than the current one
  * Returns the URLs that have sessions
  */
-export function getOtherSessionUrls(): string[] {
+export async function getOtherSessionUrls(): Promise<string[]> {
   const currentUrl = getConvexUrl();
-  const allSessions = getAllSessions();
+  const allSessions = await getAllSessions();
   return allSessions.filter((s) => s.url !== currentUrl).map((s) => s.url);
 }
 
 /**
  * Get device name for auth requests
  */
-export function getDeviceName(): string {
+export async function getDeviceName(): Promise<string> {
   const os = process.platform;
   const host = hostname();
   return `${host} (${os})`;

@@ -32,8 +32,8 @@ vi.mock('../pid.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/auth/storage.js', () => ({
-  getSessionId: vi.fn().mockReturnValue('session-123'),
-  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+  getSessionId: vi.fn().mockResolvedValue('session-123'),
+  getOtherSessionUrls: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../../infrastructure/convex/client.js', () => ({
@@ -135,8 +135,8 @@ beforeEach(() => {
   // vi.restoreAllMocks() clears implementations set by tests, so we
   // need to set them here to get predictable defaults.
   vi.mocked(acquireLock).mockReturnValue(true);
-  vi.mocked(getSessionId).mockReturnValue('session-123' as never);
-  vi.mocked(getOtherSessionUrls).mockReturnValue([]);
+  vi.mocked(getSessionId).mockResolvedValue('session-123' as never);
+  vi.mocked(getOtherSessionUrls).mockResolvedValue([]);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   vi.mocked(getConvexClient).mockResolvedValue({
     mutation: vi.fn().mockResolvedValue(undefined),
@@ -411,8 +411,8 @@ describe('initDaemon', () => {
   it('waits for auth and resumes when session ID is initially missing', async () => {
     // First call returns null (unauthenticated), subsequent calls return valid session
     vi.mocked(getSessionId)
-      .mockReturnValueOnce(null)
-      .mockReturnValue('session-123' as never);
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
 
     const ctx = await initDaemon();
 
@@ -424,9 +424,9 @@ describe('initDaemon', () => {
 
   it('shows other session URLs when waiting for auth', async () => {
     vi.mocked(getSessionId)
-      .mockReturnValueOnce(null)
-      .mockReturnValue('session-123' as never);
-    vi.mocked(getOtherSessionUrls).mockReturnValue(['http://other:3210']);
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
+    vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
 
     const ctx = await initDaemon();
 
@@ -444,8 +444,8 @@ describe('initDaemon', () => {
 
     // getSessionId returns valid on initial check, then new session after re-auth poll
     vi.mocked(getSessionId)
-      .mockReturnValueOnce('session-123' as never)
-      .mockReturnValue('session-456' as never);
+      .mockResolvedValueOnce('session-123' as never)
+      .mockResolvedValue('session-456' as never);
 
     const ctx = await initDaemon();
 

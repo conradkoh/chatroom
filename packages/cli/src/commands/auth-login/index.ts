@@ -134,9 +134,9 @@ export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps)
   const d = deps ?? createDefaultDeps();
 
   // Check if already authenticated locally
-  if (d.auth.isAuthenticated() && !options.force) {
+  if (await d.auth.isAuthenticated() && !options.force) {
     // Validate the session against the backend — local file may be stale
-    const sessionId = d.auth.getSessionId();
+    const sessionId = await d.auth.getSessionId();
     if (sessionId) {
       try {
         const validation = await d.backend.query(api.cliAuth.validateSession, { sessionId });
@@ -164,7 +164,7 @@ export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps)
   }
 
   // Get device info
-  const deviceName = d.auth.getDeviceName();
+  const deviceName = await d.auth.getDeviceName();
   const cliVersion = d.auth.getCliVersion();
 
   // Get the Convex URL being used
@@ -235,7 +235,7 @@ export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps)
 
       if (status.status === 'approved' && status.sessionId) {
         // Success! Save the session
-        d.auth.saveAuthData({
+        await d.auth.saveAuthData({
           sessionId: status.sessionId as SessionId,
           createdAt: new Date().toISOString(),
           deviceName,

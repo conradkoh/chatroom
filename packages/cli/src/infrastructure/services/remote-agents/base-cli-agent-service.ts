@@ -13,6 +13,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
+import type { ExecSyncOptions } from 'node:child_process';
 import { Effect, Schedule, Duration } from 'effect';
 
 import type {
@@ -70,7 +71,7 @@ type CommandOutcome =
 
 export interface CLIAgentServiceDeps {
   /** Execute a synchronous command (for detection/version/model queries). */
-  execSync: (cmd: string, options?: object) => Buffer;
+  execSync: typeof execSync;
   /** Spawn a child process (for agent lifecycle). */
   spawn: typeof spawn;
   /** Send a signal to a PID. Throws if process does not exist. */
@@ -140,7 +141,7 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
   protected runCommandWithRetryEffect(
     command: string,
     options: {
-      stdio?: any;
+      stdio?: ExecSyncOptions['stdio'];
       timeout?: number;
       classifyNotInstalled?: (err: unknown) => boolean;
     } = {}
@@ -227,27 +228,23 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    * by calling this with their specific command name.
    */
   protected async checkVersion(command: string): Promise<VersionInfo | null> {
-    try {
-      const outcome = await Effect.runPromise(
-        this.runCommandWithRetryEffect(`${command} --version 2>&1`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 5000,
-        })
-      );
+    const outcome = await Effect.runPromise(
+      this.runCommandWithRetryEffect(`${command} --version 2>&1`, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 5000,
+      })
+    );
 
-      if (outcome._tag !== 'Output') return null;
+    if (outcome._tag !== 'Output') return null;
 
-      const output = outcome.stdout.trim();
-      const match = output.match(/v?(\d+)\.(\d+)\.(\d+)/);
-      if (!match) return null;
+    const output = outcome.stdout.trim();
+    const match = output.match(/v?(\d+)\.(\d+)\.(\d+)/);
+    if (!match) return null;
 
-      return {
-        version: `${match[1]}.${match[2]}.${match[3]}`,
-        major: parseInt(match[1], 10),
-      };
-    } catch {
-      return null;
-    }
+    return {
+      version: `${match[1]}.${match[2]}.${match[3]}`,
+      major: parseInt(match[1], 10),
+    };
   }
 
   /**

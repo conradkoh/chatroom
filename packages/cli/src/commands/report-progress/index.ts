@@ -57,9 +57,9 @@ export async function reportProgress(
   const { role, message } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
     const currentUrl = d.session.getConvexUrl();
     formatAuthError(currentUrl, otherUrls);
     process.exit(1);
