@@ -21,6 +21,7 @@ import {
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
@@ -345,8 +346,6 @@ const MachineRow = memo(function MachineRow({
     hostname: string;
     alias?: string;
     os: string;
-    daemonConnected: boolean;
-    lastSeenAt: number;
     registeredAt: number;
   };
 }) {
@@ -354,6 +353,11 @@ const MachineRow = memo(function MachineRow({
   const [aliasValue, setAliasValue] = useState(machine.alias || '');
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Connectivity via getDaemonStatus — tiny heartbeat payload, doesn't invalidate listMachines.
+  const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
+  const statusResult = useSessionQuery(api.machines.getDaemonStatus, { machineId: machine.machineId });
+  const lastSeenAt = statusResult?.lastSeenAt ?? 0;
 
   const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
 
@@ -414,7 +418,7 @@ const MachineRow = memo(function MachineRow({
   return (
     <div className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface">
       <div
-        className={`w-2.5 h-2.5 flex-shrink-0 ${machine.daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
+        className={`w-2.5 h-2.5 flex-shrink-0 ${daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
       />
       <div className="flex-1 min-w-0">
         {isEditing ? (
@@ -458,14 +462,14 @@ const MachineRow = memo(function MachineRow({
         )}
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
           {machine.alias ? `${machine.hostname} · ` : ''}
-          {machine.daemonConnected ? 'online' : 'offline'} · {machine.os}
+          {daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
-      {machine.lastSeenAt && (
+      {lastSeenAt ? (
         <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-          {new Date(machine.lastSeenAt).toLocaleTimeString()}
+          {new Date(lastSeenAt).toLocaleTimeString()}
         </div>
-      )}
+      ) : null}
     </div>
   );
 });

@@ -200,7 +200,7 @@ describe('Machine Status', () => {
     expect(status!.lastTransitionAt).toBe(setTime);
   });
 
-  test('queries read from machineStatus not machineLiveness', async () => {
+  test('getDaemonStatus reads from machineStatus not machineLiveness', async () => {
     const { sessionId } = await createTestSession('test-ms-query-source');
     const machineId = 'machine-ms-query-source';
 
@@ -223,11 +223,15 @@ describe('Machine Status', () => {
       }
     });
 
-    // machineStatus is still "online" — queries should show connected
+    // listMachines no longer returns connectivity — use getDaemonStatus instead.
+    // machineStatus is still "online" — getDaemonStatus should reflect that.
     const result = await t.query(api.machines.listMachines, { sessionId });
     const machine = result.machines.find((m) => m.machineId === machineId);
-
     expect(machine).toBeDefined();
-    expect(machine!.daemonConnected).toBe(true);
+    // listMachines no longer carries daemonConnected — verified separately:
+    expect((machine as Record<string, unknown>).daemonConnected).toBeUndefined();
+
+    const status = await t.query(api.machines.getDaemonStatus, { sessionId, machineId });
+    expect(status.connected).toBe(true);
   });
 });

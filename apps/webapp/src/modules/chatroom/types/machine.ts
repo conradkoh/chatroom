@@ -29,8 +29,6 @@ export interface MachineInfo {
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
   /** Available AI models discovered dynamically, keyed by harness name */
   availableModels: Record<string, string[]>;
-  daemonConnected: boolean;
-  lastSeenAt: number;
 }
 
 export interface AgentConfig {
@@ -41,7 +39,7 @@ export interface AgentConfig {
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
-  daemonConnected: boolean;
+  daemonConnected?: boolean;
   availableHarnesses: AgentHarness[];
   updatedAt: number;
   spawnedAgentPid?: number;

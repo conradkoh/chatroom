@@ -236,10 +236,10 @@ export function useAgentControls({
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
   }, [agentConfigs, role]);
 
-  // Check if there's a running agent
+  // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
-  }, [roleConfigs]);
+    return roleConfigs.find((c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId));
+  }, [roleConfigs, connectedMachines]);
 
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {
@@ -866,8 +866,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
                   daemonConnected={
-                    connectedMachines.find((m) => m.machineId === displayMachineId)
-                      ?.daemonConnected ?? false
+                    connectedMachines.some((m) => m.machineId === displayMachineId)
                   }
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />

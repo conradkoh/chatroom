@@ -517,47 +517,17 @@ export const listMachines = query({
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect();
 
-    // Join with machineStatus table for materialized online/offline state
-    const machineIds = machines.map((m) => m.machineId);
-    const statusMap = new Map<string, { status: string }>();
-    for (const machineId of machineIds) {
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      if (machineStatus) {
-        statusMap.set(machineId, { status: machineStatus.status });
-      }
-    }
-
-    // Read lastSeenAt from liveness table (still updated on every heartbeat)
-    const livenessData = new Map<string, number>();
-    for (const machineId of machineIds) {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      if (liveness) {
-        livenessData.set(machineId, liveness.lastSeenAt);
-      }
-    }
-
     return {
-      machines: machines.map((m) => {
-        const status = statusMap.get(m.machineId);
-        return {
-          machineId: m.machineId,
-          hostname: m.hostname,
-          alias: m.alias,
-          os: m.os,
-          availableHarnesses: m.availableHarnesses,
-          harnessVersions: m.harnessVersions ?? {},
-          availableModels: m.availableModels ?? {},
-          daemonConnected: status?.status === 'online',
-          lastSeenAt: livenessData.get(m.machineId) ?? 0,
-          registeredAt: m.registeredAt,
-        };
-      }),
+      machines: machines.map((m) => ({
+        machineId: m.machineId,
+        hostname: m.hostname,
+        alias: m.alias,
+        os: m.os,
+        availableHarnesses: m.availableHarnesses,
+        harnessVersions: m.harnessVersions ?? {},
+        availableModels: m.availableModels ?? {},
+        registeredAt: m.registeredAt,
+      })),
     };
   },
 });

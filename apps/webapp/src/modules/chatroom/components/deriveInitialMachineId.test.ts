@@ -11,8 +11,6 @@ function mkMachine(id: string, hostname: string): MachineInfo {
     availableHarnesses: ['cursor'],
     harnessVersions: {},
     availableModels: { cursor: [] },
-    daemonConnected: true,
-    lastSeenAt: 0,
   };
 }
 

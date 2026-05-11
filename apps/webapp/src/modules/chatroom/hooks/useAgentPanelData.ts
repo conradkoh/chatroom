@@ -4,6 +4,7 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback, useState, useEffect } from 'react';
 
+import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import type { AgentPreference } from '../components/AgentConfigTabs';
 import type { MachineInfo, AgentConfig } from '../types/machine';
 
@@ -41,9 +42,24 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     [statusResult?.teamRoles]
   );
 
-  const connectedMachines = useMemo<MachineInfo[]>(
-    () => ((machineResult?.machines ?? []) as MachineInfo[]).filter((m) => m.daemonConnected),
+  const allMachines = useMemo<MachineInfo[]>(
+    () => (machineResult?.machines ?? []) as MachineInfo[],
     [machineResult?.machines]
+  );
+
+  const allMachineIds = useMemo(
+    () => allMachines.map((m) => m.machineId),
+    [allMachines]
+  );
+
+  // Per-machine daemon connectivity — lightweight, heartbeat-driven subscription
+  // that does NOT invalidate the heavier listMachines subscription.
+  const daemonConnectivity = useDaemonConnectivity(allMachineIds);
+
+  // Filter to machines where the daemon is currently connected.
+  const connectedMachines = useMemo<MachineInfo[]>(
+    () => allMachines.filter((m) => daemonConnectivity.get(m.machineId)?.connected === true),
+    [allMachines, daemonConnectivity]
   );
 
   const machineConfigs = useMemo<AgentConfig[]>(
