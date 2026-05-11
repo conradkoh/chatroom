@@ -331,6 +331,27 @@ export const dropEmbeddedRecentCommits = migrations.define({
 // --- Saved Commands Migrations ---
 // (none currently — type field shipped with the feature in v1.34.0; production has no legacy rows)
 
+/**
+ * Migration: Drop embedded availableModels from chatroom_machines.
+ * The field was extracted to chatroom_machineModels in v1.38.4. This migration
+ * cleans up legacy rows so the heavy payload no longer rides along on
+ * listMachines re-pushes.
+ *
+ * Run via:
+ *   cd services/backend && npx convex run migrations:run '{"fn":"migrations:dropEmbeddedAvailableModels"}'
+ *
+ * Idempotent: rows already cleaned are skipped (returns undefined = no patch).
+ */
+export const dropEmbeddedAvailableModels = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (_ctx, row) => {
+    const r = row as Record<string, unknown>;
+    if (r.availableModels !== undefined) {
+      return { availableModels: undefined };
+    }
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -361,4 +382,6 @@ export const runAll = migrations.runner([
   internal.migrations.purgeWorkspaceCommitDetails,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,
+  // Machine Models
+  internal.migrations.dropEmbeddedAvailableModels,
 ]);
