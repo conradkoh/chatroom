@@ -581,10 +581,46 @@ export const listMachines = query({
         os: m.os,
         availableHarnesses: m.availableHarnesses,
         harnessVersions: m.harnessVersions ?? {},
-        availableModels: m.availableModels ?? {},
         registeredAt: m.registeredAt,
       })),
     };
+  },
+});
+
+/**
+ * Per-machine available model list, read from the new chatroom_machineModels table.
+ * Falls back to the legacy chatroom_machines.availableModels field for machines that
+ * have not yet been back-filled by the dropEmbeddedAvailableModels migration.
+ */
+export const getMachineModels = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return { availableModels: {} as Record<string, string[]> };
+
+    // Verify ownership
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) {
+      return { availableModels: {} as Record<string, string[]> };
+    }
+
+    // Prefer new table; fall back to legacy field if migration hasn't backfilled yet.
+    const newRow = await ctx.db
+      .query('chatroom_machineModels')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (newRow) {
+      return { availableModels: newRow.availableModels };
+    }
+
+    // Legacy fallback: machine.availableModels may be Record OR legacy string[].
+    const legacy = machine.availableModels;
+    if (legacy && !Array.isArray(legacy)) return { availableModels: legacy };
+    if (Array.isArray(legacy)) return { availableModels: { opencode: legacy } };
+    return { availableModels: {} as Record<string, string[]> };
   },
 });
 

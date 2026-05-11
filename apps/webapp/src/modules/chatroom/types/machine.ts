@@ -27,8 +27,11 @@ export interface MachineInfo {
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /** Available AI models discovered dynamically, keyed by harness name */
-  availableModels: Record<string, string[]>;
+  /**
+   * @deprecated v1.38.4 — removed from listMachines response. Use getMachineModels query
+   * (via useMachineModels hook) instead. Kept here as optional during transition.
+   */
+  availableModels?: Record<string, string[]>;
 }
 
 export interface AgentConfig {

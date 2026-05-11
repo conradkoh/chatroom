@@ -201,3 +201,100 @@ describe('chatroom_machineModels dual-write', () => {
     expect(row!.availableModels).toEqual(models);
   });
 });
+
+describe('getMachineModels query', () => {
+  test('returns models from new chatroom_machineModels table when row exists', async () => {
+    const { sessionId } = await createTestSession('gmm-new-table');
+    const machineId = 'gmm-machine-new-table';
+    const models = { opencode: ['provider/claude-4'], pi: ['pi-model'] };
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: models,
+    });
+
+    const result = await t.query(api.machines.getMachineModels, { sessionId, machineId });
+    expect(result.availableModels).toEqual(models);
+  });
+
+  test('falls back to legacy field when chatroom_machineModels row is absent', async () => {
+    const { sessionId } = await createTestSession('gmm-legacy-fallback');
+    const machineId = 'gmm-machine-legacy-fallback';
+    const models = { opencode: ['provider/legacy-model'] };
+
+    // Register without models (so no chatroom_machineModels row is created)
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      // No availableModels — chatroom_machineModels row will NOT be created
+    });
+
+    // Manually patch the legacy field on chatroom_machines to simulate a
+    // pre-migration machine that has models on the parent row only.
+    await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      await ctx.db.patch('chatroom_machines', machine!._id, { availableModels: models });
+    });
+
+    const result = await t.query(api.machines.getMachineModels, { sessionId, machineId });
+    // New table row doesn't exist; should fall back to legacy field
+    expect(result.availableModels).toEqual(models);
+  });
+
+  test('returns empty object when machine has no models in either location', async () => {
+    const { sessionId } = await createTestSession('gmm-empty');
+    const machineId = 'gmm-machine-empty';
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      // No availableModels
+    });
+
+    // No chatroom_machineModels row was created (skipped because undefined)
+    const result = await t.query(api.machines.getMachineModels, { sessionId, machineId });
+    expect(result.availableModels).toEqual({});
+  });
+
+  test('returns empty object when sessionId is unauthenticated', async () => {
+    const result = await t.query(api.machines.getMachineModels, {
+      sessionId: 'not-a-real-session' as import('convex-helpers/server/sessions').SessionId,
+      machineId: 'any-machine',
+    });
+    expect(result.availableModels).toEqual({});
+  });
+
+  test('listMachines response no longer carries availableModels', async () => {
+    const { sessionId } = await createTestSession('gmm-list-slim');
+    const machineId = 'gmm-machine-list-slim';
+    const models = { opencode: ['provider/claude-4'] };
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: models,
+    });
+
+    const list = await t.query(api.machines.listMachines, { sessionId });
+    const m = list.machines.find((x) => x.machineId === machineId);
+    expect(m).toBeDefined();
+    // availableModels must NOT be on the listMachines response anymore
+    expect((m as Record<string, unknown>)['availableModels']).toBeUndefined();
+  });
+});
