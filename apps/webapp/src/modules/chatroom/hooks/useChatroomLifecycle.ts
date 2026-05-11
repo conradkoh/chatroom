@@ -4,26 +4,14 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
-import { useExplorerSplitViewEnabled } from './useExplorerSplitViewEnabled';
-import { usePersistedState } from './usePersistedState';
-import type { ActivityView } from '../components/ActivityBar';
-import { useExplorerSplitPanelMode } from '../explorer-split-panels/useExplorerSplitPanelMode';
-import type { ExplorerSplitPanelMode } from '../explorer-split-panels/useExplorerSplitPanelMode';
+import { useActivityView } from './persistence/useActivityView';
+import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
+import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
+import { useExplorerSplitViewEnabled } from './persistence/useExplorerSplitViewEnabled';
+import { useHarnessSessionId } from './persistence/useHarnessSessionId';
 import type { Workspace } from '../types/workspace';
 import { useFileTabs } from '../workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
-
-// ─── localStorage keys ─────────────────────────────────────────────────────────
-
-const ACTIVITY_VIEW_KEY = (chatroomId: string) => `chatroom:${chatroomId}:activityView`;
-
-const HARNESS_SESSION_KEY = (chatroomId: string) =>
-  `chatroom:${chatroomId}:harnessPanel:selectedSessionId`;
-
-// ─── Validators ────────────────────────────────────────────────────────────────
-
-const isValidActivityView = (v: unknown): v is ActivityView =>
-  v === 'messages' || v === 'explorer' || v === 'direct-harness';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,9 +28,9 @@ export interface UseChatroomLifecycleReturn {
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
   /** Current activity view ('messages' | 'explorer' | 'direct-harness'), persisted per chatroom. */
-  activityView: ActivityView;
+  activityView: import('../components/ActivityBar').ActivityView;
   /** Setter for the activity view. */
-  setActivityView: (view: ActivityView) => void;
+  setActivityView: (view: import('../components/ActivityBar').ActivityView) => void;
   /** Selected direct-harness session ID (null = "new session"), persisted per chatroom. */
   selectedHarnessSessionId: string | null;
   /** Setter for the selected harness session ID. */
@@ -66,20 +54,8 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
   const fileTabs = useFileTabs({ chatroomId: chatroomId as string });
   const [splitMode, setSplitMode] = useExplorerSplitPanelMode(chatroomId);
   const { activeWorkspace, workspaces } = useChatroomActiveWorkspace(chatroomId);
-
-  const activityViewKey = ACTIVITY_VIEW_KEY(chatroomId as string);
-  const [activityView, setActivityView] = usePersistedState<ActivityView>(
-    activityViewKey,
-    'messages',
-    { validate: isValidActivityView }
-  );
-
-  const harnessSessionKey = HARNESS_SESSION_KEY(chatroomId as string);
-  const [selectedHarnessSessionId, setSelectedHarnessSessionId] = usePersistedState<string | null>(
-    harnessSessionKey,
-    null
-  );
-
+  const [activityView, setActivityView] = useActivityView(chatroomId);
+  const [selectedHarnessSessionId, setSelectedHarnessSessionId] = useHarnessSessionId(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
 

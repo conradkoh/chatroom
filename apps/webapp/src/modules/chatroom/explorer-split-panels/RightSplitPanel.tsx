@@ -18,7 +18,7 @@ import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
 import {
   useExplorerSplitPanelMode,
   type ExplorerSplitPanelMode,
-} from './useExplorerSplitPanelMode';
+} from '../hooks/persistence/useExplorerSplitPanelMode';
 import {
   Select,
   SelectContent,

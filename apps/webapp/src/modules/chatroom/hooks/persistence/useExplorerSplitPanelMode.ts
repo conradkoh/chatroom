@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { usePersistedState } from '../hooks/usePersistedState';
+import { usePersistedState } from '../usePersistedState';
 
 export type ExplorerSplitPanelMode = 'messages' | 'direct-harness';
 

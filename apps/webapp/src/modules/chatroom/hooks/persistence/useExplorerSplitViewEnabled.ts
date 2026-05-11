@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { usePersistedState } from '../hooks/usePersistedState';
+import { usePersistedState } from '../usePersistedState';
 
 const STORAGE_KEY = (chatroomId: string) => `chatroom:${chatroomId}:explorerSplitViewEnabled`;
 
