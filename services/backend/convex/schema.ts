@@ -1387,7 +1387,12 @@ export default defineSchema({
       })
     ),
 
-    // Recent commits (only when status === 'available')
+    /**
+     * @deprecated Use chatroom_workspaceRecentCommits instead.
+     * Kept as optional so legacy rows continue to validate until the
+     * `dropEmbeddedRecentCommits` migration runs against the deployment.
+     * After the migration has run on all environments, this field can be removed.
+     */
     recentCommits: v.optional(
       v.array(
         v.object({
@@ -1399,8 +1404,9 @@ export default defineSchema({
         })
       )
     ),
-
-    // Pagination
+    /**
+     * @deprecated See `recentCommits` above.
+     */
     hasMoreCommits: v.optional(v.boolean()),
 
     // Open pull requests for the current branch (only when status === 'available')

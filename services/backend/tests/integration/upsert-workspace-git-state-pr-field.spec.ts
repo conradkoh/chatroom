@@ -43,8 +43,6 @@ describe('upsertWorkspaceGitState — PR number field', () => {
       branch: 'main',
       isDirty: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-      recentCommits: [],
-      hasMoreCommits: false,
       openPullRequests: [
         {
           prNumber: 42,
@@ -83,8 +81,6 @@ describe('upsertWorkspaceGitState — PR number field', () => {
       branch: 'main',
       isDirty: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-      recentCommits: [],
-      hasMoreCommits: false,
       openPullRequests: [
         {
           number: 7,
@@ -123,8 +119,6 @@ describe('upsertWorkspaceGitState — PR number field', () => {
         branch: 'main',
         isDirty: false,
         diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-        recentCommits: [],
-        hasMoreCommits: false,
         openPullRequests: [],
         allPullRequests: [
           {

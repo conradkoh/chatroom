@@ -75,10 +75,6 @@ export type WorkspaceGitState =
       branch: string;
       isDirty: boolean;
       diffStat: DiffStat;
-      /** Recent commits from `git log -20`. May be empty for a clean repo. */
-      recentCommits: GitCommit[];
-      /** True if there are more commits beyond the current page. */
-      hasMoreCommits: boolean;
       /** Open pull requests for the current branch. Empty if none or gh unavailable. */
       openPullRequests: GitPullRequest[];
       /** All pull requests (open, closed, merged) for the repository. Up to 20 most recent. */
