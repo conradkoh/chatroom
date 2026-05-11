@@ -10,7 +10,6 @@ function mkMachine(id: string, hostname: string): MachineInfo {
     os: 'linux',
     availableHarnesses: ['cursor'],
     harnessVersions: {},
-    availableModels: { cursor: [] },
   };
 }
 

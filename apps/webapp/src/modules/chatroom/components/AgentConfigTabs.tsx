@@ -19,6 +19,7 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
@@ -285,11 +286,11 @@ export function useAgentControls({
   }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
 
   // Available models from the selected machine filtered by selected harness
-  const availableModelsForHarness = useMemo(() => {
-    if (!selectedMachineId || !selectedHarness) return [];
-    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableModels[selectedHarness] ?? [];
-  }, [selectedMachineId, selectedHarness, connectedMachines]);
+  const machineModels = useMachineModels(selectedMachineId ?? undefined);
+  const availableModelsForHarness = useMemo(
+    () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
+    [machineModels, selectedMachineId, selectedHarness],
+  );
 
   // Machine-level model filter — used to exclude blacklisted models from
   // automatic selection and the model combobox.
