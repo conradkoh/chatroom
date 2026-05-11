@@ -107,6 +107,53 @@ async function getOwnedMachine(
 }
 
 // ============================================================================
+// MACHINE MODELS — EXTRACTED TABLE
+// ============================================================================
+
+/**
+ * Upsert per-machine row in chatroom_machineModels.
+ *
+ * One row per machine; the whole Record<harness, models[]> lives in a single row.
+ * Skips the write when availableModels is undefined (don't clobber existing data
+ * with an empty/absent payload from old daemons that don't send models).
+ * Also skips when the content is structurally identical to the existing row
+ * (JSON.stringify deep-equality) — no-op writes still invalidate Convex
+ * subscriptions, so we must suppress them to achieve the bandwidth goal.
+ */
+async function upsertMachineModels(
+  ctx: MutationCtx,
+  machineId: string,
+  availableModels: Record<string, string[]> | undefined,
+): Promise<void> {
+  if (availableModels === undefined) {
+    // Don't clobber existing models when caller didn't supply them.
+    return;
+  }
+
+  const existing = await ctx.db
+    .query('chatroom_machineModels')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
+
+  if (existing) {
+    // Skip write if content is identical — prevents subscription invalidation churn.
+    if (JSON.stringify(existing.availableModels) === JSON.stringify(availableModels)) {
+      return;
+    }
+    await ctx.db.patch('chatroom_machineModels', existing._id, {
+      availableModels,
+      updatedAt: Date.now(),
+    });
+  } else {
+    await ctx.db.insert('chatroom_machineModels', {
+      machineId,
+      availableModels,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
+// ============================================================================
 // MACHINE REGISTRATION
 // ============================================================================
 
@@ -164,6 +211,9 @@ export const register = mutation({
         lastSeenAt: now,
       });
 
+      // Dual-write into dedicated models table (re-register / update path)
+      await upsertMachineModels(ctx, args.machineId, args.availableModels);
+
       return { machineId: args.machineId, isNew: false };
     }
 
@@ -180,6 +230,9 @@ export const register = mutation({
       lastSeenAt: now,
       daemonConnected: false,
     });
+
+    // Dual-write into dedicated models table (new-insert path)
+    await upsertMachineModels(ctx, args.machineId, args.availableModels);
 
     return { machineId: args.machineId, isNew: true };
   },
@@ -254,6 +307,9 @@ export const refreshCapabilities = mutation({
       availableModels: args.availableModels,
       lastSeenAt: Date.now(),
     });
+
+    // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
+    await upsertMachineModels(ctx, args.machineId, args.availableModels);
   },
 });
 
