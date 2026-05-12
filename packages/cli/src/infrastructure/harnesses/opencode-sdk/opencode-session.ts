@@ -1,4 +1,4 @@
-import type { OpencodeClient, Event as SdkEvent, Part, SessionPromptResponses } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent, Part } from '@opencode-ai/sdk';
 import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 
@@ -39,6 +39,8 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   private _sseEventCount = 0;
   /** Set to true when at least one SSE event is received during the current prompt() call. */
   private _sseDeliveredForCurrentPrompt = false;
+  /** Resolve callback to unblock prompt() when session.idle arrives via SSE. */
+  private _idleResolve: (() => void) | null = null;
 
   get sseDeliveredForCurrentPrompt(): boolean { return this._sseDeliveredForCurrentPrompt; }
 
@@ -53,7 +55,20 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
     this._sseDeliveredForCurrentPrompt = false;
-    const response = await this.client.session.prompt({
+
+    // Create a promise that resolves when session.idle arrives via SSE.
+    // The idle event signals that the LLM has finished generating.
+    const idlePromise = new Promise<void>((resolve) => {
+      this._idleResolve = resolve;
+    });
+
+    const IDLE_TIMEOUT_MS = 300_000; // 5 minutes
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('Timed out waiting for session.idle')), IDLE_TIMEOUT_MS);
+    });
+
+    // Submit prompt asynchronously — returns 204 immediately; content comes via SSE.
+    await this.client.session.promptAsync({
       path: { id: this.opencodeSessionId },
       body: {
         agent: input.agent,
@@ -64,33 +79,21 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       },
     });
 
-    // The HTTP response contains the full LLM response (synchronous completion).
-    // Only emit HTTP response parts when SSE did NOT deliver any events during
-    // this prompt() call. This prevents double-emission when SSE is working.
-    const responseData = (response as { data?: SessionPromptResponses[200] }).data;
-    const parts: Part[] = responseData?.parts ?? [];
-    if (!this._sseDeliveredForCurrentPrompt) {
-      // SSE didn't deliver anything — emit from HTTP response as fallback
-      for (const p of parts) {
-        if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0) {
-          this._emit({
-            type: 'message.part.updated',
-            payload: {
-              part: { id: p.id, messageID: p.messageID, type: p.type },
-              delta: p.text,
-            },
-            timestamp: Date.now(),
-          });
-        }
-      }
-      console.log(`[opencode-session] HTTP fallback: emitted ${parts.length} parts (SSE did not deliver)`);
-    } else {
-      console.log(`[opencode-session] SSE delivered events — skipping HTTP response emission`);
-    }
-    console.log(`[opencode-session] prompt() completed: sseDelivered=${this._sseDeliveredForCurrentPrompt} httpParts=${parts.length} session=${this.opencodeSessionId}`);
+    console.log(`[opencode-session] promptAsync submitted for session ${this.opencodeSessionId}, waiting for session.idle via SSE`);
 
-    // Signal that the agent has finished generating.
-    this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
+    // Wait for session.idle (delivered by SSE) or timeout.
+    try {
+      await Promise.race([idlePromise, timeoutPromise]);
+      console.log(`[opencode-session] session.idle received via SSE for session ${this.opencodeSessionId}`);
+    } catch (err) {
+      console.warn(`[opencode-session] ${err instanceof Error ? err.message : String(err)} — session ${this.opencodeSessionId}`);
+      // On timeout, emit session.idle manually as fallback so the pipeline can finalize.
+      this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
+    } finally {
+      this._idleResolve = null;
+    }
+
+    console.log(`[opencode-session] prompt() completed: sseEvents=${this._sseEventCount} session=${this.opencodeSessionId}`);
   }
 
   onEvent(listener: (event: DirectHarnessSessionEvent) => void): () => void {
@@ -154,6 +157,10 @@ export class OpencodeSdkSession implements DirectHarnessSession {
           this._sseEventCount++;
           this._sseDeliveredForCurrentPrompt = true;
           console.log(`[opencode-session] SSE event received: type=${event.type} session=${this.opencodeSessionId} (total: ${this._sseEventCount})`);
+          // Unblock prompt() if session.idle just arrived
+          if (event.type === 'session.idle') {
+            this._idleResolve?.();
+          }
         }
         console.log(`[opencode-session] SSE stream ended for session ${this.opencodeSessionId} (received ${receivedEvents ? 'events' : 'no events'})`);
         if (receivedEvents) delayMs = 500; // reset backoff after healthy stream

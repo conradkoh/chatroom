@@ -5,13 +5,13 @@ import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/e
 
 // ─── Mock client ─────────────────────────────────────────────────────────────
 
-const mockPrompt = vi.fn();
+const mockPromptAsync = vi.fn();
 const mockAbort = vi.fn();
 const mockSubscribe = vi.fn();
 
 /** A reusable mock OpencodeClient — shared by tests to verify client sharing. */
 const mockClient = {
-  session: { prompt: mockPrompt, abort: mockAbort },
+  session: { promptAsync: mockPromptAsync, abort: mockAbort },
   event: { subscribe: mockSubscribe },
 };
 
@@ -50,6 +50,11 @@ function eventStream(events: unknown[]): AsyncGenerator<unknown> {
   };
 }
 
+/** SSE stream that delivers a single session.idle for the given session, then ends. */
+function idleStream(sessionId = 'sess-123'): AsyncGenerator<unknown> {
+  return eventStream([{ type: 'session.idle', properties: { sessionID: sessionId } }]);
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('OpencodeSdkSession', () => {
@@ -59,16 +64,18 @@ describe('OpencodeSdkSession', () => {
 
   // ── prompt() ────────────────────────────────────────────────────────────────
 
-  it('calls session.prompt with the correct args', async () => {
-    mockPrompt.mockResolvedValue({});
+  it('calls session.promptAsync with the correct args', async () => {
+    mockSubscribe.mockResolvedValue({ stream: idleStream() });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
+    session.onEvent(() => {}); // start SSE stream
     await session.prompt({
       agent: 'builder',
       parts: [{ type: 'text', text: 'hello' }],
     });
 
-    expect(mockPrompt).toHaveBeenCalledWith({
+    expect(mockPromptAsync).toHaveBeenCalledWith({
       path: { id: 'sess-123' },
       body: {
         agent: 'builder',
@@ -77,10 +84,12 @@ describe('OpencodeSdkSession', () => {
     });
   });
 
-  it('passes optional model, system, tools to session.prompt', async () => {
-    mockPrompt.mockResolvedValue({});
+  it('passes optional model, system, tools to session.promptAsync', async () => {
+    mockSubscribe.mockResolvedValue({ stream: idleStream() });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
+    session.onEvent(() => {});
     await session.prompt({
       agent: 'planner',
       parts: [{ type: 'text', text: 'design' }],
@@ -89,7 +98,7 @@ describe('OpencodeSdkSession', () => {
       tools: { task: false },
     });
 
-    expect(mockPrompt).toHaveBeenCalledWith({
+    expect(mockPromptAsync).toHaveBeenCalledWith({
       path: { id: 'sess-123' },
       body: {
         agent: 'planner',
@@ -110,70 +119,42 @@ describe('OpencodeSdkSession', () => {
     })).rejects.toThrow('Session is closed');
   });
 
-  it('emits message.part.updated events for text and reasoning parts in the HTTP response', async () => {
-    mockPrompt.mockResolvedValue({
-      data: {
-        parts: [
-          { id: 'p1', messageID: 'msg-1', type: 'text', text: 'Hello world' },
-          { id: 'p2', messageID: 'msg-1', type: 'reasoning', text: 'Thinking...' },
-        ],
-      },
+  it('prompt() resolves when session.idle arrives via SSE', async () => {
+    mockSubscribe.mockResolvedValue({
+      stream: eventStream([
+        { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hello' } },
+        { type: 'session.idle', properties: { sessionID: 'sess-123' } },
+      ]),
     });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
-    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
+    const events: DirectHarnessSessionEvent[] = [];
     session.onEvent((e) => events.push(e));
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
 
-    // Should emit message.part.updated for each text/reasoning part, then session.idle
-    expect(events).toHaveLength(3);
-    expect(events[0]).toMatchObject({
-      type: 'message.part.updated',
-      payload: { part: { id: 'p1', messageID: 'msg-1', type: 'text' }, delta: 'Hello world' },
-    });
-    expect(events[1]).toMatchObject({
-      type: 'message.part.updated',
-      payload: { part: { id: 'p2', messageID: 'msg-1', type: 'reasoning' }, delta: 'Thinking...' },
-    });
-    expect(events[2]).toMatchObject({ type: 'session.idle' });
+    expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+    expect(session.sseDeliveredForCurrentPrompt).toBe(true);
   });
 
-  it('emits session.idle even when there are no parts in the HTTP response', async () => {
-    mockPrompt.mockResolvedValue({});
+  it('prompt() emits session.idle manually as fallback when SSE times out', async () => {
+    vi.useFakeTimers();
+    // SSE stream never delivers session.idle
+    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
-    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
+    const events: DirectHarnessSessionEvent[] = [];
     session.onEvent((e) => events.push(e));
 
-    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    await vi.advanceTimersByTimeAsync(300_001);
+    await promptDone;
 
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ type: 'session.idle' });
-  });
-
-  it('skips parts with empty text or non-text type', async () => {
-    // SDK Part type guarantees id, messageID are always present.
-    // We only skip parts with empty/missing text or non-text type.
-    mockPrompt.mockResolvedValue({
-      data: {
-        parts: [
-          { id: 'p1', messageID: 'msg-1', type: 'text', text: '' },         // empty text
-          { id: 'p2', messageID: 'msg-1', type: 'text' },                    // no text field
-          { id: 'p5', messageID: 'msg-1', type: 'image', text: 'img.png' }, // non-text type
-        ],
-      },
-    });
-
-    const session = createSession();
-    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
-    session.onEvent((e) => events.push(e));
-
-    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
-
-    // Only session.idle should be emitted (no valid parts)
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ type: 'session.idle' });
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+    vi.useRealTimers();
   });
 
   // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
@@ -406,56 +387,15 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe(before); // unchanged
   });
 
-  it('when SSE delivers events during prompt(), HTTP response parts are NOT emitted', async () => {
-    // Simulate SSE delivering an event for this session
+  it('SSE events arrive before session.idle — all delivered to listeners', async () => {
+    // SSE delivers content then idle
     mockSubscribe.mockResolvedValue({
-      stream: (async function* () {
-        // Small delay to ensure this arrives DURING the prompt() HTTP call
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        yield { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'from-sse' } };
-      })(),
+      stream: eventStream([
+        { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'chunk1' } },
+        { type: 'session.idle', properties: { sessionID: 'sess-123' } },
+      ]),
     });
-
-    // HTTP response also has parts (which should NOT be emitted when SSE delivered).
-    // Delay the HTTP response so SSE has time to deliver its event first.
-    mockPrompt.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () => resolve({ data: { parts: [{ id: 'p1', messageID: 'msg-1', type: 'text', text: 'from-http' }] } }),
-            50
-          )
-        )
-    );
-
-    const session = createSession();
-    const events: DirectHarnessSessionEvent[] = [];
-    session.onEvent((e) => events.push(e));
-
-    // Call prompt() — SSE will deliver its event during the delayed HTTP call
-    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
-
-    // Should NOT have the 'from-http' part (SSE delivered, so HTTP emission was skipped)
-    const textEvents = events.filter((e) => e.type === 'message.part.updated');
-    const httpEvent = textEvents.find((e) => (e.payload as { delta?: string }).delta === 'from-http');
-    expect(httpEvent).toBeUndefined();
-    // session.idle must always be emitted
-    const idleEvents = events.filter((e) => e.type === 'session.idle');
-    expect(idleEvents).toHaveLength(1);
-  });
-
-  it('when SSE does NOT deliver events during prompt(), HTTP response parts ARE emitted as fallback', async () => {
-    // SSE stream produces no events for this session
-    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
-
-    // HTTP response has parts
-    mockPrompt.mockResolvedValue({
-      data: {
-        parts: [
-          { id: 'p1', messageID: 'msg-1', type: 'text', text: 'from-http' },
-        ],
-      },
-    });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
     const events: DirectHarnessSessionEvent[] = [];
@@ -463,28 +403,9 @@ describe('OpencodeSdkSession', () => {
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
 
-    // Should have: HTTP part emitted + session.idle
-    const httpEvents = events.filter(
-      (e) => e.type === 'message.part.updated' && (e.payload as { delta?: string }).delta === 'from-http'
-    );
-    expect(httpEvents).toHaveLength(1);
-    // session.idle must always be emitted
-    const idleEvents = events.filter((e) => e.type === 'session.idle');
-    expect(idleEvents).toHaveLength(1);
-  });
-
-  it('session.idle is always emitted regardless of SSE delivery', async () => {
-    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
-    mockPrompt.mockResolvedValue({});
-
-    const session = createSession();
-    const events: DirectHarnessSessionEvent[] = [];
-    session.onEvent((e) => events.push(e));
-
-    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
-
-    const idleEvents = events.filter((e) => e.type === 'session.idle');
-    expect(idleEvents).toHaveLength(1);
+    // Content event and idle both delivered from SSE
+    expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
   });
 
   // ── sseDeliveredForCurrentPrompt flag ─────────────────────────────────────
@@ -502,8 +423,6 @@ describe('OpencodeSdkSession', () => {
       })(),
     });
 
-    mockPrompt.mockResolvedValue({});
-
     const session = createSession();
     session.onEvent(() => {}); // register listener to start SSE stream
 
@@ -514,21 +433,22 @@ describe('OpencodeSdkSession', () => {
   });
 
   it('sseDeliveredForCurrentPrompt resets to false at the start of prompt()', async () => {
-    // First, make the flag true by simulating SSE delivery
-    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
-    mockPrompt.mockResolvedValue({});
+    // Provide idle via SSE so prompt() can resolve
+    mockSubscribe.mockResolvedValue({ stream: idleStream() });
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
-    // Manually set the flag via internal access to simulate prior SSE delivery
+    session.onEvent(() => {});
+    // Manually set the flag to simulate prior SSE delivery
     (session as unknown as { _sseDeliveredForCurrentPrompt: boolean })._sseDeliveredForCurrentPrompt = true;
     expect(session.sseDeliveredForCurrentPrompt).toBe(true);
 
     // Calling prompt() should reset it before making the HTTP call
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'test' }] });
 
-    // After prompt() completes, the flag reflects what happened DURING this prompt,
-    // which is false because the mock SSE stream is empty
-    expect(session.sseDeliveredForCurrentPrompt).toBe(false);
+    // After prompt() completes: flag reflects whether SSE delivered events DURING this prompt.
+    // idleStream() delivers session.idle which counts as an SSE event, so flag is true.
+    expect(session.sseDeliveredForCurrentPrompt).toBe(true);
   });
 
   // ── properties ──────────────────────────────────────────────────────────────
