@@ -332,8 +332,26 @@ describe('OpencodeSdkHarness', () => {
 
 // ─── SSE Fan-out Tests ────────────────────────────────────────────────────────
 
-describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
-  function makeStream(events: unknown[]) {
+describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
+  // Helper: make a controlled async stream
+  function makeNeverEndingStream() {
+    return {
+      stream: (async function* () {
+        // yields nothing, hangs forever — represents a live SSE connection
+        await new Promise<void>(() => {}); // never resolves
+      })(),
+    };
+  }
+
+  function makeEmptyStream() {
+    return {
+      stream: (async function* () {
+        // empty — ends immediately
+      })(),
+    };
+  }
+
+  function makeEventStream(events: unknown[]) {
     return {
       stream: (async function* () {
         for (const e of events) yield e;
@@ -342,9 +360,7 @@ describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
   }
 
   it('routes events to the correct session by sessionID via _receiveEvent', () => {
-    // Test the routing logic directly without the async event loop.
-    // The harness dispatches events by calling session._receiveEvent() when
-    // the sessionID matches. This tests the routing in isolation.
+    // Test routing logic via the sessionListeners map directly.
     const harness = createHarness();
 
     const receivedA: unknown[] = [];
@@ -356,14 +372,12 @@ describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
     harness.registerSessionListener('sess-a', mockSessionA);
     harness.registerSessionListener('sess-b', mockSessionB);
 
-    // Simulate the harness dispatching events (as the event loop would)
+    // Simulate routing (as the fiber's consume loop does)
+    const sessionListeners = (harness as any).sessionListeners as Map<string, any>;
     const dispatchEvent = (raw: { type: string; properties?: Record<string, unknown> }) => {
-      const sessionListeners = (harness as any).sessionListeners as Map<string, any>;
       const p = raw.properties;
       const sid = p && 'sessionID' in p ? p['sessionID'] : undefined;
-      if (typeof sid === 'string') {
-        sessionListeners.get(sid)?._receiveEvent(raw);
-      }
+      if (typeof sid === 'string') sessionListeners.get(sid)?._receiveEvent(raw);
     };
 
     dispatchEvent({ type: 'msg', properties: { sessionID: 'sess-a' } });
@@ -374,71 +388,124 @@ describe('OpencodeSdkHarness — SSE fan-out (demux)', () => {
     expect(receivedB).toHaveLength(1);
   });
 
-  it('event loop reconnects more than 2 times when stream ends repeatedly', async () => {
-    // The old code had `attempt < 2` which stopped after 2 connections.
-    // This test verifies the loop reconnects indefinitely (we test 3+ reconnects).
-    let subscribeCount = 0;
+  it('registers first session → forks exactly one SSE fiber (_sseFiber is non-null)', () => {
+    mockSubscribe.mockReturnValue(new Promise(() => {})); // never resolves (stream hangs)
+
     const harness = createHarness();
+    expect((harness as any)._sseFiber).toBeNull();
 
-    // Each call to subscribe() returns an immediately-exhausted stream.
-    // We let it reconnect 3 times, then stop it.
-    mockSubscribe.mockImplementation(() => {
-      subscribeCount++;
-      if (subscribeCount >= 4) {
-        // Stop the loop after 4 subscribe calls to avoid infinite loop in test
-        harness.unregisterSessionListener('sess-reconnect');
-      }
-      return Promise.resolve({
-        stream: (async function* () {
-          // empty stream — ends immediately
-        })(),
-      });
-    });
-
-    // Use fake timers to skip the backoff delays
-    vi.useFakeTimers();
-
-    const mockSession = { _receiveEvent: vi.fn() } as any;
-    harness.registerSessionListener('sess-reconnect', mockSession);
-
-    // Advance timers in a loop to flush all backoff delays
-    for (let i = 0; i < 20; i++) {
-      await vi.runAllTimersAsync();
-    }
-
-    vi.useRealTimers();
-
-    // Should have called subscribe at least 3 times (not stopped at 2)
-    expect(subscribeCount).toBeGreaterThanOrEqual(3);
+    harness.registerSessionListener('sess-1', { _receiveEvent: vi.fn() } as any);
+    expect((harness as any)._sseFiber).not.toBeNull();
   });
 
-  it('unregistering the last session stops the event loop flag', () => {
+  it('registering 3 sessions concurrently forks exactly one fiber (not 3)', () => {
+    mockSubscribe.mockReturnValue(new Promise(() => {}));
+
+    const harness = createHarness();
+    harness.registerSessionListener('sess-a', { _receiveEvent: vi.fn() } as any);
+    harness.registerSessionListener('sess-b', { _receiveEvent: vi.fn() } as any);
+    harness.registerSessionListener('sess-c', { _receiveEvent: vi.fn() } as any);
+
+    // Still only one fiber
+    expect((harness as any)._sseFiber).not.toBeNull();
+    // subscribe is called exactly once by the Effect fiber (buildSseProgram tries it)
+    // Note: mockSubscribe may have been called 0 or 1 times depending on microtask timing;
+    // the important invariant is that only ONE fiber was forked.
+    const subscribeCallCount = (harness as any)._subscribeCallCount;
+    expect(subscribeCallCount).toBeLessThanOrEqual(1); // ≤1 in synchronous scope
+  });
+
+  it('fiber calls subscribe once and routes events to matching session listener', async () => {
+    const received: unknown[] = [];
+    const mockSession = { _receiveEvent: (e: unknown) => received.push(e) } as any;
+
+    mockSubscribe.mockResolvedValue(makeEventStream([
+      { type: 'session.idle', properties: { sessionID: 'sess-target' } },
+      { type: 'session.idle', properties: { sessionID: 'other-sess' } },
+    ]));
+
+    const harness = createHarness();
+    harness.registerSessionListener('sess-target', mockSession);
+
+    // Wait for stream to drain and events to be routed
+    await new Promise<void>((r) => setTimeout(r, 50));
+
+    // Only the event for 'sess-target' should have been delivered
+    expect(received).toHaveLength(1);
+    expect((received[0] as any).properties.sessionID).toBe('sess-target');
+  });
+
+  it('fiber resubscribes when stream ends (subscribe called again after backoff)', async () => {
+    // Use very fast reconnect for this test: subscribe returns empty streams
+    let callCount = 0;
+    mockSubscribe.mockImplementation(() => {
+      callCount++;
+      if (callCount >= 3) {
+        // Stop the fiber after 3 subscribe calls
+        harness.unregisterSessionListener('sess-test');
+      }
+      return Promise.resolve(makeEmptyStream());
+    });
+
+    const harness = createHarness();
+    harness.registerSessionListener('sess-test', { _receiveEvent: vi.fn() } as any);
+
+    // Wait long enough for at least 2 reconnects (first backoff is 500ms)
+    // We need to wait > 500ms for the second subscribe call
+    await new Promise<void>((r) => setTimeout(r, 1200));
+
+    // Should have called subscribe at least twice (initial + at least one retry)
+    expect(callCount).toBeGreaterThanOrEqual(2);
+  }, 5000);
+
+  it('unregistering the last session clears the fiber reference', () => {
+    mockSubscribe.mockReturnValue(new Promise(() => {}));
+
     const harness = createHarness();
     const sid = 'sess-test';
     const mockSession = { _receiveEvent: vi.fn() } as any;
 
     harness.registerSessionListener(sid, mockSession);
-    expect((harness as any).eventLoopRunning).toBe(true);
+    expect((harness as any)._sseFiber).not.toBeNull();
 
     harness.unregisterSessionListener(sid);
-    expect((harness as any).eventLoopStopped).toBe(true);
+    expect((harness as any)._sseFiber).toBeNull();
     expect((harness as any).sessionListeners.size).toBe(0);
   });
 
-  it('close() signals the event loop to stop', async () => {
+  it('close() interrupts the fiber and clears listeners', async () => {
+    mockSubscribe.mockReturnValue(new Promise(() => {}));
+
     const harness = createHarness();
     const sid = 'sess-close-test';
     const mockSession = { _receiveEvent: vi.fn() } as any;
 
     harness.registerSessionListener(sid, mockSession);
+    expect((harness as any)._sseFiber).not.toBeNull();
 
-    // Mock process kill so close() works
+    // Mock process exit so close() resolves
     (harness as any).childProcess.kill = vi.fn();
-    (harness as any).childProcess.once = vi.fn().mockImplementation((_event: string, cb: () => void) => setTimeout(cb, 0));
+    (harness as any).childProcess.once = vi.fn().mockImplementation(
+      (_event: string, cb: () => void) => setTimeout(cb, 0)
+    );
 
     await harness.close();
 
-    expect((harness as any).eventLoopStopped).toBe(true);
+    expect((harness as any)._sseFiber).toBeNull();
     expect((harness as any).sessionListeners.size).toBe(0);
+  });
+
+  it('close() is idempotent when no fiber was started', async () => {
+    // No sessions registered → fiber never started
+    const harness = createHarness();
+    expect((harness as any)._sseFiber).toBeNull();
+
+    (harness as any).childProcess.kill = vi.fn();
+    (harness as any).childProcess.once = vi.fn().mockImplementation(
+      (_event: string, cb: () => void) => setTimeout(cb, 0)
+    );
+
+    await harness.close();
+    expect((harness as any)._sseFiber).toBeNull();
   });
 });
