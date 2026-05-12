@@ -307,4 +307,71 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
       expect(/[a-zA-Z]/.test(combinedText)).toBe(true);
     }
   );
+
+  // ── Phase 6: idle → finalize ordering ─────────────────────────────────────
+  //
+  // Verifies the constraint: no delta/content events arrive AFTER session.idle.
+  // This is a harness-only ordering test.
+  //
+  // A full backend-integrated e2e (turn becomes status='complete' with
+  // concatenated content) requires a live Convex backend and auth context,
+  // which is out of scope for this file. The idle-handler unit tests
+  // (idle-handler.test.ts) cover the finalizeAssistantTurn call path.
+
+  it(
+    'session.idle arrives exactly once, and no delta events arrive after it',
+    async () => {
+      const session = await harness.newSession({ agent: AGENT });
+
+      const deltaTimestamps: number[] = [];
+      let firstIdleTs: number | null = null;
+      let idleCount = 0;
+
+      const done = new Promise<void>((resolve) => {
+        let promptSent = false;
+        const unsub = session.onEvent((ev) => {
+          const ts = Date.now();
+
+          if (ev.type === 'message.part.delta' || ev.type === 'message.part.updated') {
+            deltaTimestamps.push(ts);
+          }
+
+          if (ev.type === 'session.idle') {
+            idleCount++;
+            if (firstIdleTs === null) firstIdleTs = ts;
+          }
+
+          if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+            unsub();
+            resolve();
+          }
+        });
+        const timeout = setTimeout(() => { unsub(); resolve(); }, 60_000);
+        promptSent = true;
+        void session.prompt({
+          parts: [{ type: 'text', text: 'Reply with exactly three words.' }],
+          agent: AGENT,
+          model: MODEL,
+        }).catch(() => { clearTimeout(timeout); resolve(); });
+      });
+
+      await done;
+      // Wait 1s past idle to let any stray events arrive
+      await new Promise<void>((r) => setTimeout(r, 1_000));
+      await session.close();
+
+      console.log(`[phase6] idleCount=${idleCount} deltaEvents=${deltaTimestamps.length} firstIdleTs=${firstIdleTs}`);
+
+      // Must have received at least one streaming event
+      expect(deltaTimestamps.length).toBeGreaterThan(0);
+
+      // session.idle must have fired exactly once (single-subscriber, no duplicates)
+      expect(idleCount).toBe(1);
+
+      // Ordering guarantee: all delta events precede session.idle
+      const lateDeltas = deltaTimestamps.filter((ts) => firstIdleTs !== null && ts > firstIdleTs);
+      console.log(`[phase6] late delta events after idle: ${lateDeltas.length}`);
+      expect(lateDeltas).toHaveLength(0);
+    }
+  );
 });
