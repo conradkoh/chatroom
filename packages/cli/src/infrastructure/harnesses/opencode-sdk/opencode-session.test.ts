@@ -133,6 +133,8 @@ describe('OpencodeSdkSession', () => {
     session.onEvent((e) => events.push(e));
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    // Events are delivered via the async consumer — let it drain
+    await new Promise<void>((r) => setTimeout(r, 20));
 
     expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
     expect(events.some((e) => e.type === 'session.idle')).toBe(true);
@@ -162,7 +164,7 @@ describe('OpencodeSdkSession', () => {
   // Event delivery: per-session SSE starts lazily on first onEvent() call.
   // The parent harness SSE fan-out loop also delivers events via _receiveEvent().
 
-  it('onEvent registers a listener and returns an unsubscribe function', () => {
+  it('onEvent registers a listener and returns an unsubscribe function', async () => {
     const session = createSession();
     const listener = vi.fn();
     const unsub = session.onEvent(listener);
@@ -170,37 +172,44 @@ describe('OpencodeSdkSession', () => {
     // Per-session SSE is now started on first onEvent() call
     expect(mockSubscribe).toHaveBeenCalled();
 
-    // Delivering an event via _receiveEvent dispatches to the listener
+    // Delivering an event via _receiveEvent pushes to buffer; consumer delivers async
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    // Let the consumer process the buffered event
+    await new Promise<void>((r) => setTimeout(r, 10));
     expect(listener).toHaveBeenCalledOnce();
 
     // After unsubscribing, listener no longer receives events
     unsub();
     session._receiveEvent({ type: 'server.connected', properties: {} });
+    await new Promise<void>((r) => setTimeout(r, 10));
     expect(listener).toHaveBeenCalledOnce(); // still 1
   });
 
-  it('_receiveEvent dispatches to all registered listeners', () => {
+  it('_receiveEvent dispatches to all registered listeners', async () => {
     const session = createSession();
     const a = vi.fn();
     const b = vi.fn();
     session.onEvent(a);
     session.onEvent(b);
 
+    // _receiveEvent now pushes to buffer; consumer delivers asynchronously
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    await new Promise<void>((r) => setTimeout(r, 10));
 
     expect(a).toHaveBeenCalledOnce();
     expect(b).toHaveBeenCalledOnce();
     expect(a).toHaveBeenCalledWith(expect.objectContaining({ type: 'session.idle' }));
   });
 
-  it('_receiveEvent maps properties to payload on the emitted event', () => {
+  it('_receiveEvent maps properties to payload on the emitted event', async () => {
     const session = createSession();
     const listener = vi.fn();
     session.onEvent(listener);
 
     // Use a valid SDK event — session.idle has { sessionID: string } properties
+    // _receiveEvent now pushes to buffer; consumer delivers asynchronously
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    await new Promise<void>((r) => setTimeout(r, 10));
 
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({
       type: 'session.idle',
@@ -402,6 +411,8 @@ describe('OpencodeSdkSession', () => {
     session.onEvent((e) => events.push(e));
 
     await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    // Events are delivered via the async consumer — let it drain
+    await new Promise<void>((r) => setTimeout(r, 20));
 
     // Content event and idle both delivered from SSE
     expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
@@ -457,6 +468,95 @@ describe('OpencodeSdkSession', () => {
     const session = createSession();
     expect(session.opencodeSessionId).toBe('sess-123');
     expect(session.sessionTitle).toBe('Test Session');
+  });
+
+  // ── Buffer consumer (Phase 3) ──────────────────────────────────────────────────
+
+  it('buffer consumer: _receiveEvent pushes into buffer; with a listener, event is delivered in order', async () => {
+    const session = createSession();
+    const received: DirectHarnessSessionEvent[] = [];
+
+    // Register listener — starts the consumer
+    session.onEvent((e) => received.push(e));
+
+    // Push three events via _receiveEvent (use session.idle which has correct SDK properties shape)
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // Let the consumer drain
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    // Delivered in FIFO order — 3 events received
+    expect(received).toHaveLength(3);
+    expect(received.every((e) => e.type === 'session.idle')).toBe(true);
+  });
+
+  it('buffer consumer: events pushed before listener registers are delivered when first onEvent registers', async () => {
+    const session = createSession();
+
+    // Push events BEFORE any listener registers
+    // Note: no listener yet, so consumer hasn't started; events sit in buffer
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    const received: DirectHarnessSessionEvent[] = [];
+
+    // Registering the first listener starts the consumer, which drains buffered events
+    session.onEvent((e) => received.push(e));
+
+    // Let the consumer drain the pre-buffered events
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    expect(received).toHaveLength(2);
+    expect(received[0]?.type).toBe('session.idle');
+    expect(received[1]?.type).toBe('session.idle');
+  });
+
+  it('buffer consumer: pushing session.idle resolves an in-flight prompt()', async () => {
+    // SSE stream delivers nothing — we'll push session.idle manually via _receiveEvent
+    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
+    mockPromptAsync.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    // Start prompt (it waits for session.idle)
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Allow promptAsync + consumer to start
+    await new Promise<void>((r) => setTimeout(r, 10));
+
+    // Deliver session.idle via _receiveEvent (simulating harness fan-out)
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // prompt() should resolve now
+    await promptDone;
+
+    // Consumer should have delivered the idle event to listeners too
+    await new Promise<void>((r) => setTimeout(r, 20));
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+  });
+
+  it('buffer consumer: close() drains pending buffered events to listeners before shutting down', async () => {
+    mockAbort.mockResolvedValue({});
+
+    const session = createSession();
+    const received: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => received.push(e));
+
+    // Push events that haven't been processed yet
+    // Use session.idle (correct SDK properties shape); push two to test ordering
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // close() must drain these events before clearing listeners
+    await session.close();
+
+    // Both events should have been delivered before close completed
+    expect(received).toHaveLength(2);
+    expect(received.every((e) => e.type === 'session.idle')).toBe(true);
   });
 
   it('two sessions created with the same client share the same client reference', () => {

@@ -1,6 +1,7 @@
 import type { OpencodeClient, Event as SdkEvent, Part } from '@opencode-ai/sdk';
 import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import { SseEventBuffer } from './sse-event-buffer.js';
 
 function toSessionEvent(event: SdkEvent): DirectHarnessSessionEvent {
   return { type: event.type, payload: event.properties ?? {}, timestamp: Date.now() };
@@ -42,6 +43,17 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   /** Resolve callback to unblock prompt() when session.idle arrives via SSE. */
   private _idleResolve: (() => void) | null = null;
 
+  // ── Buffer consumer (Phase 3) ─────────────────────────────────────────────────
+  /** Per-session event buffer — harness fan-out pushes raw SDK events; consumer drains them. */
+  private readonly _buffer: SseEventBuffer<SdkEvent>;
+  /** True once the async consumer loop has been started (lazy, first-onEvent). */
+  private _consumerStarted = false;
+  /**
+   * Resolves when the consumer loop exits (either buffer closed or session closed).
+   * Awaited in close() so listeners are still registered while draining.
+   */
+  private _consumerDone: Promise<void> = Promise.resolve();
+
   get sseDeliveredForCurrentPrompt(): boolean { return this._sseDeliveredForCurrentPrompt; }
 
   constructor(options: OpencodeSdkSessionOptions) {
@@ -50,6 +62,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     this._sessionTitle = options.sessionTitle;
     this.client = options.client;
     this.cwd = options.cwd;
+    this._buffer = new SseEventBuffer<SdkEvent>();
   }
 
   async prompt(input: PromptInput): Promise<void> {
@@ -98,7 +111,17 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   onEvent(listener: (event: DirectHarnessSessionEvent) => void): () => void {
     this.onEventListeners.add(listener);
+    // Start the buffer consumer lazily on first registration.
+    if (!this._consumerStarted && !this.closed) {
+      this._consumerStarted = true;
+      this._consumerDone = this._startConsumer().catch((err) => {
+        if (!this.closed) console.warn('[opencode-session] consumer error:', err);
+      });
+    }
     // Start per-session SSE stream on first subscriber
+    // TODO(step-5): remove transitional per-session SSE loop (startEventStream) when
+    // harness Effect loop is wired (step 4) and proven stable. The consumer above is
+    // the replacement; both run in parallel during the transitional phase.
     if (!this.sseRunning && !this.closed) {
       this.sseRunning = true;
       this.sseStopped = false;
@@ -112,6 +135,12 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     if (this.closed) return;
     this.closed = true;
     this.sseStopped = true; // Stop the per-session SSE loop
+    // Close the buffer so the consumer drains remaining events and exits naturally.
+    // MUST happen before onEventListeners.clear() so listeners are still registered
+    // while the consumer drains.
+    this._buffer.close();
+    // Wait for the consumer to finish draining all buffered events.
+    await this._consumerDone;
     try {
       await this.client.session.abort({ path: { id: this.opencodeSessionId } });
     } catch (err) {
@@ -125,19 +154,54 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     this._sessionTitle = title;
   }
 
-  /** Dispatch an event received from the harness-level SSE fan-out loop. */
+  /**
+   * Receive a raw SDK event from the harness-level SSE fan-out loop.
+   * Pushes the event into the per-session buffer for the consumer to drain.
+   *
+   * NOTE: direct dispatch has been removed from this method. Events are now
+   * delivered to listeners exclusively through the async consumer loop (_startConsumer).
+   */
   _receiveEvent(raw: SdkEvent): void {
-    this._emit(toSessionEvent(raw));
+    this._buffer.push(raw);
   }
 
   _emit(event: DirectHarnessSessionEvent): void {
     for (const listener of this.onEventListeners) listener(event);
   }
 
+  // ── Buffer consumer ─────────────────────────────────────────────────────────
+
+  /**
+   * Async consumer loop — drains raw SDK events from the buffer, converts them to
+   * DirectHarnessSessionEvents, and dispatches to registered listeners.
+   *
+   * Also resolves the in-flight prompt()'s idle promise when session.idle arrives.
+   *
+   * Runs until the buffer is closed (i.e., close() is called).
+   *
+   * TODO(step-5): remove transitional dual-dispatch comment — after startEventStream()
+   * is deleted in step 5, this consumer is the sole event-delivery path.
+   */
+  private async _startConsumer(): Promise<void> {
+    for await (const raw of this._buffer) {
+      const evt = toSessionEvent(raw);
+      this._sseEventCount++;
+      this._sseDeliveredForCurrentPrompt = true;
+      // TODO(step-5): remove transitional dual-dispatch — both this consumer and
+      // startEventStream() deliver events during the transitional phase (step 3).
+      // After step 5 removes startEventStream(), this is the only dispatch path.
+      for (const l of this.onEventListeners) l(evt);
+      if (raw.type === 'session.idle') this._idleResolve?.();
+    }
+  }
+
   /**
    * Per-session SSE stream for real-time token streaming.
    * Subscribes to the global event stream and filters by this session's ID.
    * Retries with exponential backoff when the stream closes.
+   *
+   * TODO(step-5): DELETE this method when harness Effect loop is proven stable.
+   * The consumer (_startConsumer) replaces this path entirely.
    */
   private async startEventStream(): Promise<void> {
     let delayMs = 500;
@@ -153,11 +217,14 @@ export class OpencodeSdkSession implements DirectHarnessSession {
           const sid = this._extractSessionId(event);
           if (sid !== this.opencodeSessionId) continue; // filter to this session only
           receivedEvents = true;
+          // Push to buffer — consumer will dispatch to listeners.
+          // TODO(step-5): remove call to _receiveEvent when startEventStream() is deleted.
           this._receiveEvent(event);
           this._sseEventCount++;
           this._sseDeliveredForCurrentPrompt = true;
           console.log(`[opencode-session] SSE event received: type=${event.type} session=${this.opencodeSessionId} (total: ${this._sseEventCount})`);
-          // Unblock prompt() if session.idle just arrived
+          // Unblock prompt() if session.idle just arrived.
+          // TODO(step-5): remove direct _idleResolve call when startEventStream() is deleted.
           if (event.type === 'session.idle') {
             this._idleResolve?.();
           }
