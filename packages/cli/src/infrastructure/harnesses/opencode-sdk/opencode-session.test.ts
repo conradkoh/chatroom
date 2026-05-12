@@ -22,6 +22,7 @@ function createSession() {
     client: mockClient as never,
     opencodeSessionId: 'sess-123',
     sessionTitle: 'Test Session',
+    cwd: '/test/dir',
   });
 }
 
@@ -243,6 +244,11 @@ describe('OpencodeSdkSession', () => {
     // Give the SSE stream time to process
     await new Promise((resolve) => setTimeout(resolve, 20));
 
+    // Subscribe must have been called with the directory parameter
+    expect(mockSubscribe).toHaveBeenCalledWith(
+      expect.objectContaining({ query: { directory: '/test/dir' } })
+    );
+
     // Only the event for 'sess-123' should have been dispatched
     expect(received).toHaveLength(1);
     expect(received[0]).toMatchObject({
@@ -413,11 +419,13 @@ describe('OpencodeSdkSession', () => {
       client: mockClient as never,
       opencodeSessionId: 'sess-a',
       sessionTitle: 'Session A',
+      cwd: '/test/dir',
     });
     const session2 = new OpencodeSdkSession({
       client: mockClient as never,
       opencodeSessionId: 'sess-b',
       sessionTitle: 'Session B',
+      cwd: '/test/dir',
     });
 
     // Both sessions use the exact same client object (verified by reference equality).

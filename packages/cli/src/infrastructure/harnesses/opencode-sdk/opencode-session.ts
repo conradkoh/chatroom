@@ -14,6 +14,8 @@ export interface OpencodeSdkSessionOptions {
   readonly client: OpencodeClient;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
+  /** The working directory for the harness — passed as the `directory` query param to SSE subscribe. */
+  readonly cwd: string;
   /**
    * Called when the session is closed so the parent harness can unregister
    * the session from its SSE fan-out map.
@@ -27,6 +29,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   private readonly client: OpencodeClient;
   private readonly options: OpencodeSdkSessionOptions;
+  private readonly cwd: string;
   private readonly onEventListeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
   /** True while the per-session SSE stream loop is running. */
@@ -39,6 +42,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     this.opencodeSessionId = options.opencodeSessionId as OpenCodeSessionId;
     this.sessionTitle = options.sessionTitle;
     this.client = options.client;
+    this.cwd = options.cwd;
   }
 
   async prompt(input: PromptInput): Promise<void> {
@@ -126,7 +130,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
     while (!this.closed && !this.sseStopped) {
       try {
-        const result = await this.client.event.subscribe();
+        const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
         const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
         let receivedEvents = false;
         for await (const raw of stream) {

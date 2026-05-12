@@ -165,6 +165,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
+      cwd: this.cwd,
       onClose: (id) => this.unregisterSessionListener(id),
     });
     this.registerSessionListener(sessionId, session);
@@ -193,6 +194,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
+      cwd: this.cwd,
       onClose: (id) => this.unregisterSessionListener(id),
     });
     this.registerSessionListener(sessionId, session);
@@ -249,9 +251,7 @@ export class OpencodeSdkHarness implements BoundHarness {
    */
   private async runEventLoop(): Promise<void> {
     let attempt = 0;
-    // Start with a long delay — per-session SSE in OpencodeSdkSession handles real-time
-    // delivery. This fan-out loop is a fallback for events without a session ID.
-    let delayMs = 30_000;
+    let delayMs = 500;
     const MAX_DELAY_MS = 30_000;
 
     while (!this.closed && !this.eventLoopStopped) {
@@ -291,7 +291,7 @@ export class OpencodeSdkHarness implements BoundHarness {
         if (this.closed || this.eventLoopStopped) break; // clean exit
         // Reset backoff when the stream was healthy and delivered events
         if (eventCount > 0) {
-          delayMs = 30_000; // keep at 30s — per-session SSE handles real-time delivery
+          delayMs = 500; // reset backoff after healthy stream
         }
       } catch {
         if (this.closed || this.eventLoopStopped) break;
