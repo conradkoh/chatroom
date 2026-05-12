@@ -277,6 +277,7 @@ export class OpencodeSdkHarness implements BoundHarness {
 
     return Effect.async<void, never>((resume) => {
       let interrupted = false;
+      let abortController: AbortController | null = null;
 
       const runLoop = async (): Promise<void> => {
         while (!interrupted && !self.closed) {
@@ -285,14 +286,17 @@ export class OpencodeSdkHarness implements BoundHarness {
           // { directory, payload } envelope.
           self._subscribeCallCount++;
           let result: Awaited<ReturnType<typeof self.client.global.event>> | null = null;
+          abortController = new AbortController();
           try {
-            result = await self.client.global.event();
+            result = await self.client.global.event({ signal: abortController.signal } as never);
           } catch (e) {
             if (interrupted || self.closed) break;
             console.warn('[opencode-harness] SSE subscribe error:', e);
             // Brief pause before retry on subscribe error
             await new Promise<void>((r) => setTimeout(r, 500));
             continue;
+          } finally {
+            abortController = null;
           }
 
           if (interrupted || self.closed) break;
@@ -324,13 +328,12 @@ export class OpencodeSdkHarness implements BoundHarness {
                 if (sid) {
                   const session = self.sessionListeners.get(sid);
                   if (session) {
-                    console.log(`[opencode-harness] Routing event type="${raw.type}" to session "${sid}"`);
                     session._receiveEvent(raw);
                   } else {
                     console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`);
                   }
                 } else if (raw?.type !== 'server.connected') {
-                  console.log(`[opencode-harness] Event type="${raw?.type}" has no sessionID (ignored)`);
+                  // Silently ignore events without a sessionID (e.g. sync, project.updated)
                 }
               } catch (e) {
                 // Never let event routing crash the loop
@@ -356,6 +359,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       // Interruption handler: signal the loop to stop and abort any in-flight subscribe
       return Effect.sync(() => {
         interrupted = true;
+        abortController?.abort();
       });
     });
   }
