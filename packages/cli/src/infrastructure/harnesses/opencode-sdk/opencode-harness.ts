@@ -73,11 +73,36 @@ export class OpencodeSdkHarness implements BoundHarness {
   /** Set to true to signal the event loop to stop on next iteration. */
   private eventLoopStopped = false;
 
+  // ── Debug instrumentation (test-only) ─────────────────────────────────────────
+  /** Counts every call to client.event.subscribe() across all consumers sharing this client. */
+  private _subscribeCallCount = 0;
+
+  /**
+   * TEST-ONLY: Returns the total number of times client.event.subscribe() has been
+   * called since this harness was constructed (counts both harness-level and
+   * per-session SSE subscriptions that share this client).
+   */
+  _debugSubscribeCount(): number {
+    return this._subscribeCallCount;
+  }
+
   constructor(options: OpencodeSdkHarnessOptions) {
     this.client = options.client;
     this.childProcess = options.process;
     this.cwd = options.cwd;
     this.baseUrl = options.baseUrl;
+
+    // Wrap client.event.subscribe to count all subscribe calls (test instrumentation).
+    // The same client instance is shared with OpencodeSdkSession instances, so this
+    // intercepts both harness-level and per-session subscriptions.
+    const self = this;
+    const origEventNs = options.client.event;
+    const origSubscribe = origEventNs.subscribe.bind(origEventNs);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (options.client.event as any).subscribe = (...args: Parameters<typeof origSubscribe>) => {
+      self._subscribeCallCount++;
+      return origSubscribe(...args);
+    };
   }
 
   /** List available models via the opencode provider list. */
