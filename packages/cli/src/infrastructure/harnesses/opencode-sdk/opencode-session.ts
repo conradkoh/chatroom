@@ -35,6 +35,12 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   private sseRunning = false;
   /** Set to true to stop the SSE loop (session closed or no more listeners). */
   private sseStopped = false;
+  /** Cumulative count of SSE events received across all streams for this session. */
+  private _sseEventCount = 0;
+  /** Set to true when at least one SSE event is received during the current prompt() call. */
+  private _sseDeliveredForCurrentPrompt = false;
+
+  get sseDeliveredForCurrentPrompt(): boolean { return this._sseDeliveredForCurrentPrompt; }
 
   constructor(options: OpencodeSdkSessionOptions) {
     this.options = options;
@@ -46,6 +52,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
+    this._sseDeliveredForCurrentPrompt = false;
     const response = await this.client.session.prompt({
       path: { id: this.opencodeSessionId },
       body: {
@@ -75,6 +82,8 @@ export class OpencodeSdkSession implements DirectHarnessSession {
         });
       }
     }
+
+    console.log(`[opencode-session] prompt() completed: sseDelivered=${this._sseDeliveredForCurrentPrompt} httpParts=${parts.length} session=${this.opencodeSessionId}`);
 
     // Signal that the agent has finished generating.
     this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
@@ -130,6 +139,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     while (!this.closed && !this.sseStopped) {
       try {
         const result = await this.client.event.subscribe({ query: { directory: this.cwd } });
+        console.log(`[opencode-session] SSE stream connected for session ${this.opencodeSessionId}`);
         let receivedEvents = false;
         for await (const event of result.stream) {
           if (this.closed || this.sseStopped) break;
@@ -137,7 +147,11 @@ export class OpencodeSdkSession implements DirectHarnessSession {
           if (sid !== this.opencodeSessionId) continue; // filter to this session only
           receivedEvents = true;
           this._receiveEvent(event);
+          this._sseEventCount++;
+          this._sseDeliveredForCurrentPrompt = true;
+          console.log(`[opencode-session] SSE event received: type=${event.type} session=${this.opencodeSessionId} (total: ${this._sseEventCount})`);
         }
+        console.log(`[opencode-session] SSE stream ended for session ${this.opencodeSessionId} (received ${receivedEvents ? 'events' : 'no events'})`);
         if (receivedEvents) delayMs = 500; // reset backoff after healthy stream
       } catch {
         // ignore errors, retry below

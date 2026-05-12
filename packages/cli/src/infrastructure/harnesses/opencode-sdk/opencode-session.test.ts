@@ -406,6 +406,50 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe(before); // unchanged
   });
 
+  // ── sseDeliveredForCurrentPrompt flag ─────────────────────────────────────
+
+  it('sseDeliveredForCurrentPrompt is false initially', () => {
+    const session = createSession();
+    expect(session.sseDeliveredForCurrentPrompt).toBe(false);
+  });
+
+  it('sseDeliveredForCurrentPrompt is set to true when SSE events arrive during generation', async () => {
+    // Simulate an SSE stream that delivers one event for this session
+    mockSubscribe.mockResolvedValue({
+      stream: (async function* () {
+        yield { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hi' } };
+      })(),
+    });
+
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {}); // register listener to start SSE stream
+
+    // Give the SSE stream time to receive and process the event
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(session.sseDeliveredForCurrentPrompt).toBe(true);
+  });
+
+  it('sseDeliveredForCurrentPrompt resets to false at the start of prompt()', async () => {
+    // First, make the flag true by simulating SSE delivery
+    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    // Manually set the flag via internal access to simulate prior SSE delivery
+    (session as unknown as { _sseDeliveredForCurrentPrompt: boolean })._sseDeliveredForCurrentPrompt = true;
+    expect(session.sseDeliveredForCurrentPrompt).toBe(true);
+
+    // Calling prompt() should reset it before making the HTTP call
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'test' }] });
+
+    // After prompt() completes, the flag reflects what happened DURING this prompt,
+    // which is false because the mock SSE stream is empty
+    expect(session.sseDeliveredForCurrentPrompt).toBe(false);
+  });
+
   // ── properties ──────────────────────────────────────────────────────────────
 
   it('exposes opencodeSessionId and sessionTitle', () => {
