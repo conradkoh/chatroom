@@ -406,6 +406,87 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe(before); // unchanged
   });
 
+  it('when SSE delivers events during prompt(), HTTP response parts are NOT emitted', async () => {
+    // Simulate SSE delivering an event for this session
+    mockSubscribe.mockResolvedValue({
+      stream: (async function* () {
+        // Small delay to ensure this arrives DURING the prompt() HTTP call
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        yield { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'from-sse' } };
+      })(),
+    });
+
+    // HTTP response also has parts (which should NOT be emitted when SSE delivered).
+    // Delay the HTTP response so SSE has time to deliver its event first.
+    mockPrompt.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ data: { parts: [{ id: 'p1', messageID: 'msg-1', type: 'text', text: 'from-http' }] } }),
+            50
+          )
+        )
+    );
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    // Call prompt() — SSE will deliver its event during the delayed HTTP call
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Should NOT have the 'from-http' part (SSE delivered, so HTTP emission was skipped)
+    const textEvents = events.filter((e) => e.type === 'message.part.updated');
+    const httpEvent = textEvents.find((e) => (e.payload as { delta?: string }).delta === 'from-http');
+    expect(httpEvent).toBeUndefined();
+    // session.idle must always be emitted
+    const idleEvents = events.filter((e) => e.type === 'session.idle');
+    expect(idleEvents).toHaveLength(1);
+  });
+
+  it('when SSE does NOT deliver events during prompt(), HTTP response parts ARE emitted as fallback', async () => {
+    // SSE stream produces no events for this session
+    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
+
+    // HTTP response has parts
+    mockPrompt.mockResolvedValue({
+      data: {
+        parts: [
+          { id: 'p1', messageID: 'msg-1', type: 'text', text: 'from-http' },
+        ],
+      },
+    });
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Should have: HTTP part emitted + session.idle
+    const httpEvents = events.filter(
+      (e) => e.type === 'message.part.updated' && (e.payload as { delta?: string }).delta === 'from-http'
+    );
+    expect(httpEvents).toHaveLength(1);
+    // session.idle must always be emitted
+    const idleEvents = events.filter((e) => e.type === 'session.idle');
+    expect(idleEvents).toHaveLength(1);
+  });
+
+  it('session.idle is always emitted regardless of SSE delivery', async () => {
+    mockSubscribe.mockResolvedValue({ stream: emptyStream() });
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    const idleEvents = events.filter((e) => e.type === 'session.idle');
+    expect(idleEvents).toHaveLength(1);
+  });
+
   // ── sseDeliveredForCurrentPrompt flag ─────────────────────────────────────
 
   it('sseDeliveredForCurrentPrompt is false initially', () => {

@@ -29,7 +29,9 @@ export type { ExtractedChunk };
  * Returned function behaviour:
  *   - message.part.updated: records partID → { messageId, partType } in an
  *     internal map; also returns an ExtractedChunk when the event carries an
- *     SDK-v1-style delta field.
+ *     SDK-v1-style delta field. All deltas are passed through — deduplication
+ *     is handled at the session level (HTTP response emission is skipped when
+ *     SSE already delivered events).
  *   - message.part.delta: looks up the partType from the map and returns an
  *     ExtractedChunk; defaults to 'text' if the mapping is not yet known.
  *   - All other event types: returns null.
@@ -37,9 +39,6 @@ export type { ExtractedChunk };
 export function createOpencodeSdkChunkExtractor(): (event: DirectHarnessSessionEvent) => ExtractedChunk | null {
   /** Maps partID → { messageId, partType } built from message.part.updated events. */
   const partMap = new Map<string, { messageId: string; partType: 'text' | 'reasoning' }>();
-  /** Tracks partIDs already extracted to avoid duplicates when both SSE and HTTP-response
-   * events arrive for the same part. Only used for message.part.updated (full state). */
-  const emittedPartIds = new Set<string>();
 
   return function extract(event: DirectHarnessSessionEvent): ExtractedChunk | null {
     // ── message.part.updated ─────────────────────────────────────────────────
@@ -64,9 +63,6 @@ export function createOpencodeSdkChunkExtractor(): (event: DirectHarnessSessionE
         // SDK v1 compat: extract delta when present on the same event
         const delta = payload?.delta;
         if (delta && delta.length > 0) {
-          // Deduplicate: skip parts already extracted (prevents SSE + HTTP response duplicates)
-          if (emittedPartIds.has(part.id)) return null;
-          emittedPartIds.add(part.id);
           return { content: delta, messageId: part.messageID, partType };
         }
       }

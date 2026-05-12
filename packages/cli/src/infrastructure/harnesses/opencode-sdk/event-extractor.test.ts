@@ -60,15 +60,17 @@ describe('createOpencodeSdkChunkExtractor', () => {
     expect(result).toEqual({ content: 'some delta', messageId: 'msg-1', partType: 'reasoning' });
   });
 
-  it('deduplicates: same partID in message.part.updated twice returns null on second call', () => {
+  it('same partID in message.part.updated with different deltas: all pass through (no dedup)', () => {
     const extract = createOpencodeSdkChunkExtractor();
-    const event = makePartUpdatedEvent('p1', 'msg-1', 'text', 'Hello');
+    const event1 = makePartUpdatedEvent('p1', 'msg-1', 'text', 'Hello');
+    const event2 = makePartUpdatedEvent('p1', 'msg-1', 'text', ' world');
 
-    const first = extract(event);
-    const second = extract(event);
+    const first = extract(event1);
+    const second = extract(event2);
 
     expect(first).toEqual({ content: 'Hello', messageId: 'msg-1', partType: 'text' });
-    expect(second).toBeNull(); // Deduplicated
+    // Second event with same partId but different delta is NOT blocked anymore
+    expect(second).toEqual({ content: ' world', messageId: 'msg-1', partType: 'text' });
   });
 
   it('does NOT deduplicate message.part.delta events (incremental streaming)', () => {

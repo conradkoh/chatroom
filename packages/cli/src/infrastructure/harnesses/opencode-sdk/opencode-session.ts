@@ -65,24 +65,28 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     });
 
     // The HTTP response contains the full LLM response (synchronous completion).
-    // Emit response parts as events so the existing chunk-extractor → journal → Convex
-    // pipeline receives the content. This is the reliable path when SSE events
-    // are not delivered (which is the common case with opencode's /event endpoint).
+    // Only emit HTTP response parts when SSE did NOT deliver any events during
+    // this prompt() call. This prevents double-emission when SSE is working.
     const responseData = (response as { data?: SessionPromptResponses[200] }).data;
     const parts: Part[] = responseData?.parts ?? [];
-    for (const p of parts) {
-      if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0) {
-        this._emit({
-          type: 'message.part.updated',
-          payload: {
-            part: { id: p.id, messageID: p.messageID, type: p.type },
-            delta: p.text,
-          },
-          timestamp: Date.now(),
-        });
+    if (!this._sseDeliveredForCurrentPrompt) {
+      // SSE didn't deliver anything — emit from HTTP response as fallback
+      for (const p of parts) {
+        if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0) {
+          this._emit({
+            type: 'message.part.updated',
+            payload: {
+              part: { id: p.id, messageID: p.messageID, type: p.type },
+              delta: p.text,
+            },
+            timestamp: Date.now(),
+          });
+        }
       }
+      console.log(`[opencode-session] HTTP fallback: emitted ${parts.length} parts (SSE did not deliver)`);
+    } else {
+      console.log(`[opencode-session] SSE delivered events — skipping HTTP response emission`);
     }
-
     console.log(`[opencode-session] prompt() completed: sseDelivered=${this._sseDeliveredForCurrentPrompt} httpParts=${parts.length} session=${this.opencodeSessionId}`);
 
     // Signal that the agent has finished generating.
