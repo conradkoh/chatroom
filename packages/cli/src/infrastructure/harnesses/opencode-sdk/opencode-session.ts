@@ -29,6 +29,10 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   private readonly options: OpencodeSdkSessionOptions;
   private readonly onEventListeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
+  /** True while the per-session SSE stream loop is running. */
+  private sseRunning = false;
+  /** Set to true to stop the SSE loop (session closed or no more listeners). */
+  private sseStopped = false;
 
   constructor(options: OpencodeSdkSessionOptions) {
     this.options = options;
@@ -75,13 +79,20 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   onEvent(listener: (event: DirectHarnessSessionEvent) => void): () => void {
     this.onEventListeners.add(listener);
-    // Event delivery is managed by the parent harness's SSE fan-out loop.
+    // Start per-session SSE stream on first subscriber
+    if (!this.sseRunning && !this.closed) {
+      this.sseRunning = true;
+      this.sseStopped = false;
+      void this.startEventStream();
+    }
+    // Event delivery is also managed by the parent harness's SSE fan-out loop.
     return () => { this.onEventListeners.delete(listener); };
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.sseStopped = true; // Stop the per-session SSE loop
     try {
       await this.client.session.abort({ path: { id: this.opencodeSessionId } });
     } catch (err) {
@@ -102,6 +113,59 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   _emit(event: DirectHarnessSessionEvent): void {
     for (const listener of this.onEventListeners) listener(event);
+  }
+
+  /**
+   * Per-session SSE stream for real-time token streaming.
+   * Subscribes to the global event stream and filters by this session's ID.
+   * Retries with exponential backoff when the stream closes.
+   */
+  private async startEventStream(): Promise<void> {
+    let delayMs = 500;
+    const MAX_DELAY_MS = 30_000;
+
+    while (!this.closed && !this.sseStopped) {
+      try {
+        const result = await this.client.event.subscribe();
+        const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
+        let receivedEvents = false;
+        for await (const raw of stream) {
+          if (this.closed || this.sseStopped) break;
+          const event = raw as { type: string; properties?: Record<string, unknown> };
+          const sid = this._extractSessionId(event);
+          if (sid !== this.opencodeSessionId) continue; // filter to this session only
+          receivedEvents = true;
+          this._receiveEvent(event);
+        }
+        if (receivedEvents) delayMs = 500; // reset backoff after healthy stream
+      } catch {
+        // ignore errors, retry below
+      }
+      if (this.closed || this.sseStopped) break;
+      await this._sseDelay(delayMs);
+      delayMs = Math.min(delayMs * 2, MAX_DELAY_MS);
+    }
+    this.sseRunning = false;
+  }
+
+  /** Extract the opencode sessionID from a raw SSE event. */
+  private _extractSessionId(event: { properties?: Record<string, unknown> }): string | undefined {
+    const p = event.properties;
+    if (!p) return undefined;
+    if (typeof p.sessionID === 'string') return p.sessionID;
+    const part = p.part as Record<string, unknown> | undefined;
+    if (part && typeof part.sessionID === 'string') return part.sessionID;
+    return undefined;
+  }
+
+  /** Sleep for `ms` milliseconds, resolving early if the session is closed. */
+  private _sseDelay(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => { clearInterval(poll); resolve(); }, ms);
+      const poll = setInterval(() => {
+        if (this.closed || this.sseStopped) { clearTimeout(timer); clearInterval(poll); resolve(); }
+      }, 50);
+    });
   }
 }
 

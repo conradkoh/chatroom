@@ -249,14 +249,15 @@ export class OpencodeSdkHarness implements BoundHarness {
    */
   private async runEventLoop(): Promise<void> {
     let attempt = 0;
-    let delayMs = 500;
+    // Start with a long delay — per-session SSE in OpencodeSdkSession handles real-time
+    // delivery. This fan-out loop is a fallback for events without a session ID.
+    let delayMs = 30_000;
     const MAX_DELAY_MS = 30_000;
 
     while (!this.closed && !this.eventLoopStopped) {
       attempt++;
       let eventCount = 0;
       try {
-        console.log(`[opencode-harness] Subscribing to SSE events for directory: ${this.cwd} (attempt ${attempt})`);
         const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
         const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
         const iterator = stream[Symbol.asyncIterator]();
@@ -290,17 +291,13 @@ export class OpencodeSdkHarness implements BoundHarness {
         if (this.closed || this.eventLoopStopped) break; // clean exit
         // Reset backoff when the stream was healthy and delivered events
         if (eventCount > 0) {
-          delayMs = 500;
+          delayMs = 30_000; // keep at 30s — per-session SSE handles real-time delivery
         }
       } catch {
         if (this.closed || this.eventLoopStopped) break;
       }
 
       if (this.closed || this.eventLoopStopped) break;
-
-      console.warn(
-        `[opencode-harness] SSE stream ended, reconnecting in ${delayMs}ms (attempt ${attempt})...`
-      );
 
       // Wait with backoff, but exit early if the loop is stopped
       await this._sleepWithEarlyExit(delayMs);

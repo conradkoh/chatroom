@@ -177,18 +177,16 @@ describe('OpencodeSdkSession', () => {
 
   // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
   //
-  // Event delivery is now managed by the parent harness's SSE fan-out loop.
-  // OpencodeSdkSession no longer subscribes to the SSE stream itself;
-  // instead the harness calls _receiveEvent() for each event addressed to
-  // this session's opencodeSessionId.
+  // Event delivery: per-session SSE starts lazily on first onEvent() call.
+  // The parent harness SSE fan-out loop also delivers events via _receiveEvent().
 
   it('onEvent registers a listener and returns an unsubscribe function', () => {
     const session = createSession();
     const listener = vi.fn();
     const unsub = session.onEvent(listener);
 
-    // No SSE subscription initiated by the session itself
-    expect(mockSubscribe).not.toHaveBeenCalled();
+    // Per-session SSE is now started on first onEvent() call
+    expect(mockSubscribe).toHaveBeenCalled();
 
     // Delivering an event via _receiveEvent dispatches to the listener
     session._receiveEvent({ type: 'test.event', properties: { sessionID: 'sess-123' } });
@@ -225,6 +223,32 @@ describe('OpencodeSdkSession', () => {
       type: 'message.part.updated',
       payload: expect.objectContaining({ delta: 'hello' }),
     }));
+  });
+
+  it('per-session SSE: only delivers events for this session ID, ignoring others', async () => {
+    // Setup: simulate SSE stream with events for two different sessions
+    mockSubscribe.mockResolvedValue({
+      stream: (async function* () {
+        // Event for a different session — should NOT be dispatched
+        yield { type: 'message.part.updated', properties: { sessionID: 'other-session', delta: 'ignore' } };
+        // Event for this session — SHOULD be dispatched
+        yield { type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hello' } };
+      })(),
+    });
+
+    const session = createSession();
+    const received: unknown[] = [];
+    session.onEvent((e) => received.push(e));
+
+    // Give the SSE stream time to process
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Only the event for 'sess-123' should have been dispatched
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({
+      type: 'message.part.updated',
+      payload: expect.objectContaining({ delta: 'hello' }),
+    });
   });
 
   // ── close() ─────────────────────────────────────────────────────────────────
