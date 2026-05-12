@@ -152,14 +152,14 @@ describe('OpencodeSdkSession', () => {
     expect(events[0]).toMatchObject({ type: 'session.idle' });
   });
 
-  it('skips parts with no text content or missing id/messageID', async () => {
+  it('skips parts with empty text or non-text type', async () => {
+    // SDK Part type guarantees id, messageID are always present.
+    // We only skip parts with empty/missing text or non-text type.
     mockPrompt.mockResolvedValue({
       data: {
         parts: [
           { id: 'p1', messageID: 'msg-1', type: 'text', text: '' },         // empty text
           { id: 'p2', messageID: 'msg-1', type: 'text' },                    // no text field
-          { messageID: 'msg-1', type: 'text', text: 'no id' },              // no id
-          { id: 'p4', type: 'text', text: 'no messageID' },                 // no messageID
           { id: 'p5', messageID: 'msg-1', type: 'image', text: 'img.png' }, // non-text type
         ],
       },
@@ -190,12 +190,12 @@ describe('OpencodeSdkSession', () => {
     expect(mockSubscribe).toHaveBeenCalled();
 
     // Delivering an event via _receiveEvent dispatches to the listener
-    session._receiveEvent({ type: 'test.event', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
     expect(listener).toHaveBeenCalledOnce();
 
     // After unsubscribing, listener no longer receives events
     unsub();
-    session._receiveEvent({ type: 'test.event2', properties: {} });
+    session._receiveEvent({ type: 'server.connected', properties: {} });
     expect(listener).toHaveBeenCalledOnce(); // still 1
   });
 
@@ -218,11 +218,12 @@ describe('OpencodeSdkSession', () => {
     const listener = vi.fn();
     session.onEvent(listener);
 
-    session._receiveEvent({ type: 'message.part.updated', properties: { delta: 'hello', sessionID: 'sess-123' } });
+    // Use a valid SDK event — session.idle has { sessionID: string } properties
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
 
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'message.part.updated',
-      payload: expect.objectContaining({ delta: 'hello' }),
+      type: 'session.idle',
+      payload: expect.objectContaining({ sessionID: 'sess-123' }),
     }));
   });
 

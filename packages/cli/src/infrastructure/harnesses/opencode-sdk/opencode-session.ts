@@ -1,11 +1,8 @@
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent, Part, SessionPromptResponses } from '@opencode-ai/sdk';
 import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 
-function toSessionEvent(event: {
-  type: string;
-  properties?: Record<string, unknown>;
-}): DirectHarnessSessionEvent {
+function toSessionEvent(event: SdkEvent): DirectHarnessSessionEvent {
   return { type: event.type, payload: event.properties ?? {}, timestamp: Date.now() };
 }
 
@@ -25,7 +22,9 @@ export interface OpencodeSdkSessionOptions {
 
 export class OpencodeSdkSession implements DirectHarnessSession {
   readonly opencodeSessionId: OpenCodeSessionId;
-  readonly sessionTitle: string;
+  /** Backing field for sessionTitle to allow mutation via setTitle(). */
+  private _sessionTitle: string;
+  get sessionTitle(): string { return this._sessionTitle; }
 
   private readonly client: OpencodeClient;
   private readonly options: OpencodeSdkSessionOptions;
@@ -40,7 +39,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   constructor(options: OpencodeSdkSessionOptions) {
     this.options = options;
     this.opencodeSessionId = options.opencodeSessionId as OpenCodeSessionId;
-    this.sessionTitle = options.sessionTitle;
+    this._sessionTitle = options.sessionTitle;
     this.client = options.client;
     this.cwd = options.cwd;
   }
@@ -62,10 +61,10 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     // Emit response parts as events so the existing chunk-extractor → journal → Convex
     // pipeline receives the content. This is the reliable path when SSE events
     // are not delivered (which is the common case with opencode's /event endpoint).
-    const parts = (response as unknown as { data?: { parts?: unknown[] } }).data?.parts ?? [];
-    for (const part of parts) {
-      const p = part as { id?: string; messageID?: string; type?: string; text?: string };
-      if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0 && p.id && p.messageID) {
+    const responseData = (response as { data?: SessionPromptResponses[200] }).data;
+    const parts: Part[] = responseData?.parts ?? [];
+    for (const p of parts) {
+      if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0) {
         this._emit({
           type: 'message.part.updated',
           payload: {
@@ -107,11 +106,11 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   }
 
   setTitle(title: string): void {
-    (this as { sessionTitle: string }).sessionTitle = title;
+    this._sessionTitle = title;
   }
 
   /** Dispatch an event received from the harness-level SSE fan-out loop. */
-  _receiveEvent(raw: { type: string; properties?: Record<string, unknown> }): void {
+  _receiveEvent(raw: SdkEvent): void {
     this._emit(toSessionEvent(raw));
   }
 
@@ -130,12 +129,10 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
     while (!this.closed && !this.sseStopped) {
       try {
-        const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
-        const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
+        const result = await this.client.event.subscribe({ query: { directory: this.cwd } });
         let receivedEvents = false;
-        for await (const raw of stream) {
+        for await (const event of result.stream) {
           if (this.closed || this.sseStopped) break;
-          const event = raw as { type: string; properties?: Record<string, unknown> };
           const sid = this._extractSessionId(event);
           if (sid !== this.opencodeSessionId) continue; // filter to this session only
           receivedEvents = true;
@@ -153,12 +150,12 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   }
 
   /** Extract the opencode sessionID from a raw SSE event. */
-  private _extractSessionId(event: { properties?: Record<string, unknown> }): string | undefined {
+  private _extractSessionId(event: SdkEvent): string | undefined {
     const p = event.properties;
-    if (!p) return undefined;
-    if (typeof p.sessionID === 'string') return p.sessionID;
-    const part = p.part as Record<string, unknown> | undefined;
-    if (part && typeof part.sessionID === 'string') return part.sessionID;
+    if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
+    if ('part' in p && p.part && typeof p.part === 'object' && 'sessionID' in p.part) {
+      return (p.part as Part).sessionID;
+    }
     return undefined;
   }
 

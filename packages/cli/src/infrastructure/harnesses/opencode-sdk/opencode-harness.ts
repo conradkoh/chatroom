@@ -14,7 +14,7 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
 
 import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
@@ -26,13 +26,11 @@ import { waitForListeningUrl } from '../../../infrastructure/services/remote-age
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Extract sessionID from a raw opencode event (mirrors the same logic in OpencodeSdkSession). */
-function harnessEventSessionId(event: { properties?: Record<string, unknown> }): string | undefined {
+function harnessEventSessionId(event: SdkEvent): string | undefined {
   const p = event.properties;
-  if (!p || typeof p !== 'object') return undefined;
   if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
-  const part = (p as Record<string, unknown>).part;
-  if (part && typeof part === 'object' && 'sessionID' in part && typeof (part as Record<string, unknown>).sessionID === 'string') {
-    return (part as Record<string, unknown>).sessionID as string;
+  if ('part' in p && p.part && typeof p.part === 'object' && 'sessionID' in p.part) {
+    return (p.part as { sessionID: string }).sessionID;
   }
   return undefined;
 }
@@ -258,11 +256,10 @@ export class OpencodeSdkHarness implements BoundHarness {
       attempt++;
       let eventCount = 0;
       try {
-        const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
-        const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
-        const iterator = stream[Symbol.asyncIterator]();
+        const result = await this.client.event.subscribe({ query: { directory: this.cwd } });
+        const iterator = result.stream[Symbol.asyncIterator]();
         while (true) {
-          let next: IteratorResult<unknown>;
+          let next: IteratorResult<SdkEvent>;
           try {
             next = await iterator.next();
           } catch {
@@ -271,7 +268,7 @@ export class OpencodeSdkHarness implements BoundHarness {
           }
           if (next.done || this.closed || this.eventLoopStopped) break;
           eventCount++;
-          const raw = next.value as { type: string; properties?: Record<string, unknown> };
+          const raw: SdkEvent = next.value;
           const sid = harnessEventSessionId(raw);
           const registeredSessions = [...this.sessionListeners.keys()];
           if (sid) {
@@ -401,7 +398,7 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
     return new OpencodeSdkHarness({
       baseUrl,
       cwd: config.workingDir,
-      client: client as unknown as OpencodeClient,
+      client: client,
       process: childProcess,
     });
   } catch (err) {
