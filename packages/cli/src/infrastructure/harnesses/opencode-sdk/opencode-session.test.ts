@@ -109,6 +109,72 @@ describe('OpencodeSdkSession', () => {
     })).rejects.toThrow('Session is closed');
   });
 
+  it('emits message.part.updated events for text and reasoning parts in the HTTP response', async () => {
+    mockPrompt.mockResolvedValue({
+      data: {
+        parts: [
+          { id: 'p1', messageID: 'msg-1', type: 'text', text: 'Hello world' },
+          { id: 'p2', messageID: 'msg-1', type: 'reasoning', text: 'Thinking...' },
+        ],
+      },
+    });
+
+    const session = createSession();
+    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Should emit message.part.updated for each text/reasoning part, then session.idle
+    expect(events).toHaveLength(3);
+    expect(events[0]).toMatchObject({
+      type: 'message.part.updated',
+      payload: { part: { id: 'p1', messageID: 'msg-1', type: 'text' }, delta: 'Hello world' },
+    });
+    expect(events[1]).toMatchObject({
+      type: 'message.part.updated',
+      payload: { part: { id: 'p2', messageID: 'msg-1', type: 'reasoning' }, delta: 'Thinking...' },
+    });
+    expect(events[2]).toMatchObject({ type: 'session.idle' });
+  });
+
+  it('emits session.idle even when there are no parts in the HTTP response', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'session.idle' });
+  });
+
+  it('skips parts with no text content or missing id/messageID', async () => {
+    mockPrompt.mockResolvedValue({
+      data: {
+        parts: [
+          { id: 'p1', messageID: 'msg-1', type: 'text', text: '' },         // empty text
+          { id: 'p2', messageID: 'msg-1', type: 'text' },                    // no text field
+          { messageID: 'msg-1', type: 'text', text: 'no id' },              // no id
+          { id: 'p4', type: 'text', text: 'no messageID' },                 // no messageID
+          { id: 'p5', messageID: 'msg-1', type: 'image', text: 'img.png' }, // non-text type
+        ],
+      },
+    });
+
+    const session = createSession();
+    const events: import('../../../domain/direct-harness/entities/direct-harness-session.js').DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Only session.idle should be emitted (no valid parts)
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'session.idle' });
+  });
+
   // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
   //
   // Event delivery is now managed by the parent harness's SSE fan-out loop.

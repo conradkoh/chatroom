@@ -39,7 +39,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
-    await this.client.session.prompt({
+    const response = await this.client.session.prompt({
       path: { id: this.opencodeSessionId },
       body: {
         agent: input.agent,
@@ -49,6 +49,28 @@ export class OpencodeSdkSession implements DirectHarnessSession {
         ...(input.tools ? { tools: input.tools } : {}),
       },
     });
+
+    // The HTTP response contains the full LLM response (synchronous completion).
+    // Emit response parts as events so the existing chunk-extractor → journal → Convex
+    // pipeline receives the content. This is the reliable path when SSE events
+    // are not delivered (which is the common case with opencode's /event endpoint).
+    const parts = (response as unknown as { data?: { parts?: unknown[] } }).data?.parts ?? [];
+    for (const part of parts) {
+      const p = part as { id?: string; messageID?: string; type?: string; text?: string };
+      if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0 && p.id && p.messageID) {
+        this._emit({
+          type: 'message.part.updated',
+          payload: {
+            part: { id: p.id, messageID: p.messageID, type: p.type },
+            delta: p.text,
+          },
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Signal that the agent has finished generating.
+    this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
   }
 
   onEvent(listener: (event: DirectHarnessSessionEvent) => void): () => void {
