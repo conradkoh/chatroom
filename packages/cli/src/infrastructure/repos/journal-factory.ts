@@ -45,15 +45,14 @@ export class BufferedJournalFactory implements JournalFactory {
       flushInProgress = true;
 
       const batch = buffer.splice(0);
+      console.log(`[journal] Flushing ${batch.length} chunks for session ${harnessSessionId}`);
       outputRepository
         .appendChunks(harnessSessionId, batch)
         .catch((err) => {
           // Re-queue failed chunks so they are not lost
           buffer.unshift(...batch);
           logger.warn(
-            'Journal flush failed, re-queued %d chunks: %s',
-            batch.length,
-            err instanceof Error ? err.message : String(err)
+            `[journal] Flush FAILED for ${harnessSessionId}: ${err instanceof Error ? err.message : String(err)}`
           );
         })
         .finally(() => {

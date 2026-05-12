@@ -213,6 +213,7 @@ export class OpencodeSdkHarness implements BoundHarness {
    */
   registerSessionListener(opencodeSessionId: string, session: OpencodeSdkSession): void {
     this.sessionListeners.set(opencodeSessionId, session);
+    console.log(`[opencode-harness] Registered session listener: "${opencodeSessionId}"`);
     if (!this.eventLoopRunning) {
       this.eventLoopRunning = true;
       this.eventLoopStopped = false;
@@ -228,6 +229,7 @@ export class OpencodeSdkHarness implements BoundHarness {
    */
   unregisterSessionListener(opencodeSessionId: string): void {
     this.sessionListeners.delete(opencodeSessionId);
+    console.log(`[opencode-harness] Unregistered session listener: "${opencodeSessionId}"`);
     if (this.sessionListeners.size === 0) {
       this.eventLoopStopped = true;
     }
@@ -254,7 +256,8 @@ export class OpencodeSdkHarness implements BoundHarness {
       attempt++;
       let eventCount = 0;
       try {
-        const result = await this.client.event.subscribe();
+        console.log(`[opencode-harness] Subscribing to SSE events for directory: ${this.cwd} (attempt ${attempt})`);
+        const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
         const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
         const iterator = stream[Symbol.asyncIterator]();
         while (true) {
@@ -269,6 +272,17 @@ export class OpencodeSdkHarness implements BoundHarness {
           eventCount++;
           const raw = next.value as { type: string; properties?: Record<string, unknown> };
           const sid = harnessEventSessionId(raw);
+          const registeredSessions = [...this.sessionListeners.keys()];
+          if (sid) {
+            const found = this.sessionListeners.has(sid);
+            if (!found) {
+              console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener (registered: ${registeredSessions.join(',') || 'none'})`);
+            } else {
+              console.log(`[opencode-harness] Routing event type="${raw.type}" to session "${sid}"`);
+            }
+          } else if (raw.type !== 'server.connected') {
+            console.log(`[opencode-harness] Event type="${raw.type}" has no sessionID (ignored)`);
+          }
           if (sid) {
             this.sessionListeners.get(sid)?._receiveEvent(raw);
           }
