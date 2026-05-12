@@ -11,7 +11,7 @@ const mockGet = vi.fn();
 const mockAbort = vi.fn();
 const mockPrompt = vi.fn();
 const mockProviderList = vi.fn();
-const mockSubscribe = vi.fn();
+const mockGlobalEvent = vi.fn();
 
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
@@ -24,8 +24,8 @@ vi.mock('@opencode-ai/sdk', () => ({
     provider: {
       list: mockProviderList,
     },
-    event: {
-      subscribe: mockSubscribe,
+    global: {
+      event: mockGlobalEvent,
     },
   })),
 }));
@@ -105,7 +105,7 @@ function createHarness(overrides?: {
     client: (overrides?.client ?? {
       session: { create: mockCreate, get: mockGet, abort: mockAbort, prompt: mockPrompt },
       provider: { list: mockProviderList },
-      event: { subscribe: mockSubscribe },
+      global: { event: mockGlobalEvent },
     }) as unknown as import('@opencode-ai/sdk').OpencodeClient,
     process: proc as unknown as import('node:child_process').ChildProcess,
   });
@@ -351,10 +351,14 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     };
   }
 
+  /**
+   * Wrap raw SDK events in GlobalEvent format (the /global/event envelope).
+   * Each raw event is wrapped as { directory: string; payload: SdkEvent }.
+   */
   function makeEventStream(events: unknown[]) {
     return {
       stream: (async function* () {
-        for (const e of events) yield e;
+        for (const e of events) yield { directory: '/test/workspace', payload: e };
       })(),
     };
   }
@@ -389,7 +393,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('registers first session → forks exactly one SSE fiber (_sseFiber is non-null)', () => {
-    mockSubscribe.mockReturnValue(new Promise(() => {})); // never resolves (stream hangs)
+    mockGlobalEvent.mockReturnValue(new Promise(() => {})); // never resolves (stream hangs)
 
     const harness = createHarness();
     expect((harness as any)._sseFiber).toBeNull();
@@ -399,7 +403,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('registering 3 sessions concurrently forks exactly one fiber (not 3)', () => {
-    mockSubscribe.mockReturnValue(new Promise(() => {}));
+    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
 
     const harness = createHarness();
     harness.registerSessionListener('sess-a', { _receiveEvent: vi.fn() } as any);
@@ -409,7 +413,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     // Still only one fiber
     expect((harness as any)._sseFiber).not.toBeNull();
     // subscribe is called exactly once by the Effect fiber (buildSseProgram tries it)
-    // Note: mockSubscribe may have been called 0 or 1 times depending on microtask timing;
+    // Note: mockGlobalEvent may have been called 0 or 1 times depending on microtask timing;
     // the important invariant is that only ONE fiber was forked.
     const subscribeCallCount = (harness as any)._subscribeCallCount;
     expect(subscribeCallCount).toBeLessThanOrEqual(1); // ≤1 in synchronous scope
@@ -419,7 +423,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     const received: unknown[] = [];
     const mockSession = { _receiveEvent: (e: unknown) => received.push(e) } as any;
 
-    mockSubscribe.mockResolvedValue(makeEventStream([
+    mockGlobalEvent.mockResolvedValue(makeEventStream([
       { type: 'session.idle', properties: { sessionID: 'sess-target' } },
       { type: 'session.idle', properties: { sessionID: 'other-sess' } },
     ]));
@@ -438,7 +442,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   it('fiber resubscribes when stream ends (subscribe called again after backoff)', async () => {
     // Use very fast reconnect for this test: subscribe returns empty streams
     let callCount = 0;
-    mockSubscribe.mockImplementation(() => {
+    mockGlobalEvent.mockImplementation(() => {
       callCount++;
       if (callCount >= 3) {
         // Stop the fiber after 3 subscribe calls
@@ -459,7 +463,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   }, 5000);
 
   it('unregistering the last session clears the fiber reference', () => {
-    mockSubscribe.mockReturnValue(new Promise(() => {}));
+    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
 
     const harness = createHarness();
     const sid = 'sess-test';
@@ -474,7 +478,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('close() interrupts the fiber and clears listeners', async () => {
-    mockSubscribe.mockReturnValue(new Promise(() => {}));
+    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
 
     const harness = createHarness();
     const sid = 'sess-close-test';
