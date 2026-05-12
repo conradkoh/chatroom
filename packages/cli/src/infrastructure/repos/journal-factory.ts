@@ -35,7 +35,7 @@ export class BufferedJournalFactory implements JournalFactory {
   constructor(private readonly options: BufferedJournalFactoryOptions) {}
 
   create(harnessSessionId: string): SessionJournal {
-    const { outputRepository, flushIntervalMs = 1000, logger = console } = this.options;
+    const { outputRepository, flushIntervalMs = 250, logger = console } = this.options;
     const buffer: OutputChunk[] = [];
     let flushInProgress = false;
 
