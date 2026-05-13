@@ -79,12 +79,13 @@ describe('messageStoreReducer — INITIALIZE', () => {
     const state = messageStoreReducer(initialState, {
       type: 'INITIALIZE',
       messages: [],
-      cursor: null,
+      cursor: 0, // backend returns chatroom._creationTime - 1 (always a number)
       hasMore: false,
     });
     expect(state.isInitialized).toBe(true);
     expect(state.messages).toHaveLength(0);
     expect(state.oldestCursor).toBeNull();
+    expect(state.newestCursor).toBe(0);
     expect(state.hasMoreOlder).toBe(false);
   });
 
@@ -678,19 +679,25 @@ describe('messageStoreReducer — MERGE_MESSAGE_METADATA', () => {
 // ── Empty-chatroom regression ────────────────────────────────────────────────
 
 describe('messageStoreReducer — empty chatroom regression', () => {
+  // The backend now guarantees a non-null cursor for empty chatrooms:
+  // cursor = chatroom._creationTime - 1. We model that here with a realistic
+  // pretend chatroom-creation-time sentinel.
+  const EMPTY_CHATROOM_CURSOR = 1_700_000_000_000 - 1; // simulated chatroom._creationTime - 1
+
   it('accepts the first APPEND_DELTA after INITIALIZE with an empty messages array', () => {
-    // Arrange: empty-chatroom initialization (cursor is null because no messages exist)
+    // Arrange: empty-chatroom initialization with the backend’s never-null cursor
     let state = messageStoreReducer(initialState, {
       type: 'INITIALIZE',
       messages: [],
-      cursor: null,
+      cursor: EMPTY_CHATROOM_CURSOR,
       hasMore: false,
     });
     expect(state.isInitialized).toBe(true);
     expect(state.messages).toHaveLength(0);
+    expect(state.newestCursor).toBe(EMPTY_CHATROOM_CURSOR);
 
-    // Act: simulate the tail subscription delivering the user's first message
-    const firstMessage = makeMessage('first', 1_000_000);
+    // Act: simulate the tail subscription delivering the user’s first message
+    const firstMessage = makeMessage('first', 1_700_000_000_001);
     state = messageStoreReducer(state, {
       type: 'APPEND_DELTA',
       messages: [firstMessage],
@@ -699,7 +706,26 @@ describe('messageStoreReducer — empty chatroom regression', () => {
     // Assert: the message MUST appear in state and newestCursor MUST advance
     expect(state.messages).toHaveLength(1);
     expect(state.messages[0]!._id).toBe('first');
-    expect(state.newestCursor).toBe(1_000_000);
+    expect(state.newestCursor).toBe(1_700_000_000_001);
+  });
+
+  it('accepts first APPEND_DELTA with backend cursor contract (numeric cursor for empty chatroom)', () => {
+    // End-to-end contract: backend returns cursor=999 for empty chatroom;
+    // first message arrives with _creationTime=1000.
+    let state = messageStoreReducer(initialState, {
+      type: 'INITIALIZE',
+      messages: [],
+      cursor: 999,
+      hasMore: false,
+    });
+    const firstMessage = makeMessage('msg1', 1000);
+    state = messageStoreReducer(state, {
+      type: 'APPEND_DELTA',
+      messages: [firstMessage],
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]!._id).toBe('msg1');
+    expect(state.newestCursor).toBe(1000);
   });
 
   it('still rejects APPEND_DELTA messages older than newestCursor (strict guard intact)', () => {
