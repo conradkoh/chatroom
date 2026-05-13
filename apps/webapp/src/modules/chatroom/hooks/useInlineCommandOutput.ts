@@ -22,6 +22,11 @@ export interface InlineCommandState {
   /** Stop the currently running command (explicit kill — for Stop button only) */
   stop: () => void;
   /**
+   * Attach the UI panel to an existing run (e.g. after page reload or panel detach).
+   * Sets the active run WITHOUT dispatching a new mutation.
+   */
+  attach: (runId: string, commandName: string, script: string) => void;
+  /**
    * Detach the UI panel from the current command WITHOUT stopping the process.
    * Use for dialog/panel close gestures. The command continues running in the background.
    */
@@ -74,6 +79,19 @@ export function useInlineCommandOutput(
     setScript(null);
   }, []);
 
+  /**
+   * Attach the UI panel to an existing run (e.g. after page reload or detach).
+   * Does NOT dispatch a new mutation — just rehydrates the panel state.
+   */
+  const attach = useCallback(
+    (runId: string, cmdName: string, scriptStr: string) => {
+      setCommandName(cmdName);
+      setScript(scriptStr);
+      commandRunner.setActiveRunId(runId);
+    },
+    [commandRunner.setActiveRunId]
+  );
+
   const close = useCallback(() => {
     stop();
     setCommandName(null);
@@ -87,6 +105,7 @@ export function useInlineCommandOutput(
     output,
     run,
     stop,
+    attach,
     detach,
     close,
   };

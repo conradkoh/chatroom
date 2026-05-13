@@ -43,6 +43,21 @@ describe('useInlineCommandOutput', () => {
     });
   });
 
+  describe('attach()', () => {
+    it('sets commandName, script, and activeRunId WITHOUT calling stopCommand', () => {
+      const { result } = renderHook(() => useInlineCommandOutput(mockRunner));
+
+      act(() => {
+        result.current.attach('run-id-existing', 'dev', 'pnpm dev');
+      });
+
+      expect(result.current.commandName).toBe('dev');
+      expect(result.current.script).toBe('pnpm dev');
+      expect(mockRunner.setActiveRunId).toHaveBeenCalledWith('run-id-existing');
+      expect(mockRunner.stopCommand).not.toHaveBeenCalled();
+    });
+  });
+
   describe('detach()', () => {
     it('clears commandName and script without calling stopCommand', async () => {
       const { result } = renderHook(() => useInlineCommandOutput(mockRunner));

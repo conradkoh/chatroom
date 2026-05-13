@@ -66,6 +66,7 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
@@ -1619,6 +1620,16 @@ export function ChatroomDashboard({
               refreshObservedChatroom={refreshObservedChatroom}
               onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
             />
+            {/* Active command runs indicator — shown in bottom-right when runs are detached */}
+            {activeWorkspace?.machineId && activeWorkspace?.workingDir && (
+              <div className="absolute bottom-9 right-3 z-10 pointer-events-auto">
+                <ActiveCommandRunsIndicator
+                  machineId={activeWorkspace.machineId}
+                  workingDir={activeWorkspace.workingDir}
+                  inlineCommand={inlineCommand}
+                />
+              </div>
+            )}
           </div>
 
           <PromptModal

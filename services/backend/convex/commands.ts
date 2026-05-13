@@ -410,6 +410,54 @@ export const listCommands = query({
 });
 
 /**
+ * List active (pending or running) command runs for a workspace.
+ * Used by the ActiveCommandRunsIndicator to show background processes.
+ */
+export const listActiveRuns = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return [];
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Query pending runs
+    const pendingRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
+      )
+      .collect();
+
+    // Query running runs
+    const runningRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'running')
+      )
+      .collect();
+
+    // Return combined, sorted by startedAt descending
+    return [...pendingRuns, ...runningRuns]
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .map((r) => ({
+        _id: r._id,
+        commandName: r.commandName,
+        script: r.script,
+        status: r.status,
+        startedAt: r.startedAt,
+      }));
+  },
+});
+
+/**
  * List command runs for a workspace.
  * Returns most recent runs first (limited to 50).
  */
