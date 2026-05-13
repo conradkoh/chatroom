@@ -1,12 +1,9 @@
 /**
  * Barrel re-export for the opencode-sdk direct harness.
+ *
+ * Only exports what external callers actually use. Internal callers (tests,
+ * harness-internal modules) import directly from the source files.
  */
 
-export { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
-export type { OpencodeSdkHarnessOptions } from './opencode-harness.js';
-
-export { OpencodeSdkSession } from './opencode-session.js';
-export type { OpencodeSdkSessionOptions } from './opencode-session.js';
-
+export { startOpencodeSdkHarness } from './opencode-harness.js';
 export { createOpencodeSdkChunkExtractor } from './event-extractor.js';
-export type { ExtractedChunk } from './event-extractor.js';

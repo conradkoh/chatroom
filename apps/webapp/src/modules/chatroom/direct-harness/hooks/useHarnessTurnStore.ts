@@ -11,8 +11,6 @@ import type {
   HarnessMessage,
 } from '@workspace/backend/src/domain/direct-harness/types';
 
-export type { HarnessTurnView };
-
 // ─── State ────────────────────────────────────────────────────────────────────
 
 interface State {

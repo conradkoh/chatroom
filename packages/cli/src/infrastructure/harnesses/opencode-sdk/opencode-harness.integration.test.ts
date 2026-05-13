@@ -20,7 +20,8 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { startOpencodeSdkHarness, OpencodeSdkHarness } from './index.js';
+import { startOpencodeSdkHarness } from './index.js';
+import type { OpencodeSdkHarness } from './opencode-harness.js';
 import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 
