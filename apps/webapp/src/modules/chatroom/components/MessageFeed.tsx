@@ -64,7 +64,7 @@ import {
 } from '../viewModels/eventStreamViewModel';
 import { useAttachments } from '../context/AttachmentsContext';
 import { useHandoffNotification } from '../hooks/useHandoffNotification';
-import { useMessageStore } from '../hooks/useMessageStore';
+import { useMessages } from '../hooks/useMessages';
 
 import {
   FixedModal,
@@ -1111,7 +1111,7 @@ export const MessageFeed = memo(function MessageFeed({
     isLoadingOlder,
     loadOlderMessages,
     purgeOldMessages,
-  } = useMessageStore(chatroomId);
+  } = useMessages(chatroomId);
 
   // Mutations for pending message controls (used in MessageFeed, not moved to WorkQueue)
   const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
