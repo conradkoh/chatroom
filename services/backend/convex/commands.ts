@@ -141,6 +141,49 @@ export const runCommand = mutation({
 
     const now = Date.now();
 
+    // ── Back-to-back dedup (1-second window) ──────────────────────────────
+    // Protect against double-click: if the same (machineId, workingDir, commandName, script)
+    // request was dispatched within the last 1 second and the run is still 'pending',
+    // return the existing runId instead of creating a duplicate.
+    const recentPending = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('commandName'), args.commandName),
+          q.eq(q.field('script'), args.script),
+          q.gte(q.field('startedAt'), now - 1000)
+        )
+      )
+      .first();
+
+    if (recentPending) {
+      // Idempotent re-issue within the dedup window — return the existing runId.
+      return recentPending._id;
+    }
+
+    // ── Kill any currently running run for this (machineId, workingDir, commandName) ──
+    // Replace semantics: mark the existing 'running' run as 'killed' + 'replaced' so the UI
+    // sees the supersession immediately. The daemon will detect the 'killed' status and
+    // terminate the process when it next processes events.
+    const activeRun = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'running')
+      )
+      .filter((q) => q.eq(q.field('commandName'), args.commandName))
+      .first();
+
+    if (activeRun) {
+      await ctx.db.patch(activeRun._id, {
+        status: 'killed',
+        terminationReason: 'replaced',
+        completedAt: now,
+      });
+    }
+
     // Create the run record
     const runId = await ctx.db.insert('chatroom_commandRuns', {
       machineId: args.machineId,
@@ -198,6 +241,9 @@ export const stopCommand = mutation({
 
     const now = Date.now();
 
+    // Mark terminationReason before the daemon stops the process
+    await ctx.db.patch(args.runId, { terminationReason: 'user-stop' });
+
     // Dispatch command.stop event to daemon
     await ctx.db.insert('chatroom_eventStream', {
       type: 'command.stop' as const,
@@ -247,6 +293,8 @@ export const updateRunStatus = mutation({
       });
 
     // State transition validation: only allow valid forward transitions
+    // Note: 'killed' is set directly by runCommand (replace semantics) and by
+    // clearStaleCommandRuns — not via this mutation.
     const validTransitions: Record<string, string[]> = {
       pending: ['running', 'failed', 'stopped'],
       running: ['completed', 'failed', 'stopped'],

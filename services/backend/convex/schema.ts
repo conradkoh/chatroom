@@ -1969,8 +1969,17 @@ export default defineSchema({
       v.literal('running'),
       v.literal('completed'),
       v.literal('failed'),
-      v.literal('stopped')
+      v.literal('stopped'),
+      v.literal('killed')
     ),
+    /**
+     * Why the run was terminated. Set on terminal states:
+     *   'replaced'    — superseded by a re-run of the same command
+     *   'user-stop'   — stopped explicitly by the user via stopCommand
+     *   'timeout-24h' — soft 24-hour timeout expired
+     *   'crash'       — daemon crash/restart detected
+     */
+    terminationReason: v.optional(v.string()),
     pid: v.optional(v.number()),
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
