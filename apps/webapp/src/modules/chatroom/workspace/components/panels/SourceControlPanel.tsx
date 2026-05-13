@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { parseDiff, basename, dirname } from '../../utils/diff-parser';
+import { getFileIcon } from '../../utils/file-icons';
 import type { FileDiffSection } from '../../utils/diff-parser';
 import type { GitCommit } from '../../types/git';
 import {
@@ -162,6 +163,19 @@ const FileList = memo(function FileList({
                   : 'border-l-2 border-transparent'
               )}
             >
+              {/* File type icon */}
+              {(() => {
+                const { Icon, color } = getFileIcon(file.filePath);
+                return (
+                  <Icon
+                    size={12}
+                    aria-hidden
+                    className="shrink-0 mt-0.5"
+                    style={color ? { color } : undefined}
+                  />
+                );
+              })()}
+              {/* Status letter (M/A/D) */}
               <span
                 className={cn('text-[10px] font-mono shrink-0 w-3 mt-0.5', {
                   'text-green-500': file.status === 'created',
