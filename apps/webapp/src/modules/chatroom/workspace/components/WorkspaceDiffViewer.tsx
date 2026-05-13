@@ -58,7 +58,7 @@ const canDiscard = (machineId?: string, workingDir?: string): boolean => {
 const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
   if (line.type === 'hunk') {
     return (
-      <div className="flex text-chatroom-text-muted font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
+      <div className="flex text-chatroom-text-secondary font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
         {/* Gutter spanning both columns */}
         <div className="w-[70px] shrink-0 px-1 text-right border-r border-chatroom-border" />
         {/* Hunk content */}
@@ -152,7 +152,7 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
   return (
     <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* File header */}
-      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-chatroom-text-secondary border-b border-chatroom-border truncate">
+      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-foreground font-medium border-b border-chatroom-border truncate">
         {section.filePath || '(unknown file)'}
       </div>
 
