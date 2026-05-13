@@ -211,3 +211,48 @@ describe('useMessages', () => {
     expect(result.current.messages).toHaveLength(0);
   });
 });
+
+describe('useMessages — empty-chatroom first-message regression', () => {
+  // This is the core regression: when a chatroom has no messages and the
+  // user sends the first one, it must appear immediately via the tail subscription.
+  // This test locks down the scenario that prompted the full pagination overhaul.
+
+  beforeEach(() => {
+    mockPaginatedStatus = 'Exhausted';
+    mockPaginatedResults = [];
+    mockTailData = [];
+    mockActiveTasks = [];
+    mockActiveTaskMessages = { messages: [] };
+    mockLoadMore.mockClear();
+  });
+
+  it('empty chatroom: tail picks up first message once paginated finishes loading', () => {
+    // Simulate: no historical messages, status=Exhausted (done loading empty chatroom)
+    mockPaginatedStatus = 'Exhausted';
+    mockPaginatedResults = [];
+    // Tail returns the first message (sinceCreationTime=0 since no historical)
+    mockTailData = [makeMsg('first-msg', 1_700_000_000_001)];
+
+    const { result } = renderHook(() => useMessages('chatroom-1'));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0]!._id).toBe('first-msg');
+    expect(result.current.messages[0]!._creationTime).toBe(1_700_000_000_001);
+  });
+
+  it('tail is skipped (no double-subscription) while historical is still loading', () => {
+    // During LoadingFirstPage, sinceCreationTime would be undefined/0 and the
+    // tail would subscribe with sinceCreationTime=0, returning all messages.
+    // We gate the tail on status !== 'LoadingFirstPage' to prevent this.
+    mockPaginatedStatus = 'LoadingFirstPage';
+    mockPaginatedResults = [];
+    mockTailData = [makeMsg('premature-msg', 500)];
+
+    const { result } = renderHook(() => useMessages('chatroom-2'));
+
+    // Tail is 'skip' — no messages should appear
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.messages).toHaveLength(0);
+  });
+});

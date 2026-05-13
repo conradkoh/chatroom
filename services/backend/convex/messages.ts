@@ -1444,6 +1444,8 @@ export const listQueued = query({
  * Messages are returned in ascending chronological order (oldest-to-newest).
  * Also returns a cursor (_creationTime of the newest message) for subsequent
  * reactive subscriptions via getMessagesSince.
+ *
+ * @deprecated Use messageList.listMessages with usePaginatedQuery instead.
  */
 export const getLatestMessages = query({
   args: {
@@ -1493,6 +1495,8 @@ export const getLatestMessages = query({
  * Subscribed to reactively via useQuery — Convex re-runs whenever new messages
  * arrive. Messages are returned in ascending chronological order.
  * Capped at 200 messages to prevent unbounded returns.
+ *
+ * @deprecated Use messageList.subscribeNewMessages instead.
  */
 export const getMessagesSince = query({
   args: {
@@ -1531,6 +1535,8 @@ export const getMessagesSince = query({
  * Called on-demand when the user scrolls up. Messages are returned in
  * ascending chronological order (oldest-to-newest). Also returns a hasMore
  * flag indicating if there are additional older messages.
+ *
+ * @deprecated Use messageList.listMessages.loadMore() via usePaginatedQuery instead.
  */
 export const getOlderMessages = query({
   args: {

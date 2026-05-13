@@ -260,6 +260,11 @@ function toMessage(m: any): Message {
 
 // ─── Hook ───────────────────────────────────────
 
+/**
+ * @deprecated Use useMessages(chatroomId) instead.
+ * This hook uses a manual cursor approach; the new hook uses Convex's
+ * built-in usePaginatedQuery for cleaner pagination.
+ */
 export function useMessageStore(chatroomId: string) {
   const [state, dispatch] = useReducer(messageStoreReducer, initialState);
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
