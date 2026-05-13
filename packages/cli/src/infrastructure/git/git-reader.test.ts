@@ -655,13 +655,11 @@ describe('getCommitStatusChecks', () => {
 
     const legacyEntry = result!.checkRuns.find((e) => e.name === 'Vercel');
     expect(legacyEntry).toBeDefined();
-    expect(legacyEntry!.source).toBe('status');
     expect(legacyEntry!.conclusion).toBe('failure');
-    expect(legacyEntry!.url).toBe('https://vercel.com/deploy/123');
 
     const modernEntry = result!.checkRuns.find((e) => e.name === 'Vercel Preview Comments');
     expect(modernEntry).toBeDefined();
-    expect(modernEntry!.source).toBe('check-run');
+    expect(modernEntry!.conclusion).toBe('success');
   });
 
   test('all-success case: both check-runs and statuses successful → success', async () => {
@@ -707,7 +705,7 @@ describe('getCommitStatusChecks', () => {
     expect(result).not.toBeNull();
     expect(result!.state).toBe('success');
     expect(result!.totalCount).toBe(1);
-    expect(result!.checkRuns[0]!.source).toBe('check-run');
+    expect(result!.checkRuns[0]!.name).toBe('build');
   });
 
   test('no check-runs, only legacy statuses', async () => {
@@ -720,8 +718,7 @@ describe('getCommitStatusChecks', () => {
     expect(result).not.toBeNull();
     expect(result!.state).toBe('success');
     expect(result!.totalCount).toBe(1);
-    expect(result!.checkRuns[0]!.source).toBe('status');
-    expect(result!.checkRuns[0]!.url).toBe('https://ci.example.com');
+    expect(result!.checkRuns[0]!.name).toBe('CI');
   });
 
   test('returns null when repo slug cannot be determined', async () => {

@@ -832,10 +832,6 @@ export interface CommitStatusCheckRun {
   name: string;
   status: string; // 'completed' | 'in_progress' | 'queued'
   conclusion: string | null; // 'success' | 'failure' | 'skipped' | 'cancelled' | 'neutral' | 'pending' | 'error' | null
-  /** Whether this entry came from the modern Check Runs API or the legacy Commit Statuses API. */
-  source: 'check-run' | 'status';
-  /** Link to the run details (target_url for legacy statuses). */
-  url?: string | null;
 }
 
 /** Combined commit status check result. */
@@ -914,7 +910,6 @@ export async function getCommitStatusChecks(
       name: cr.name,
       status: cr.status,
       conclusion: cr.conclusion,
-      source: 'check-run' as const,
     }));
 
     // Normalize legacy statuses
@@ -939,8 +934,6 @@ export async function getCommitStatusChecks(
         name: s.context,
         status,
         conclusion,
-        source: 'status' as const,
-        url: s.target_url ?? null,
       };
     });
 
