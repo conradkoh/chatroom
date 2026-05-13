@@ -76,8 +76,10 @@ const DiffSummary = memo(function DiffSummary({
       )}
     >
       <span className="text-xs font-medium text-chatroom-text-primary">Working Changes</span>
-      <span className="text-[11px] text-chatroom-text-muted">
-        {filesChanged} file{filesChanged !== 1 ? 's' : ''} · +{insertions} -{deletions}
+      <span className="inline-flex items-center gap-1.5 text-[11px]">
+        <span className="text-muted-foreground">{filesChanged} file{filesChanged !== 1 ? 's' : ''} ·</span>
+        <span className="text-green-600 dark:text-green-400">+{insertions}</span>
+        <span className="text-red-600 dark:text-red-400">-{deletions}</span>
       </span>
     </button>
   );
