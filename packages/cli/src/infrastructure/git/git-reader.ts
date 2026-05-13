@@ -815,11 +815,27 @@ export async function getCommitsAhead(workingDir: string): Promise<number> {
 
 // ─── Commit Status Checks ─────────────────────────────────────────────────────
 
-/** A single CI/CD check run. */
+/**
+ * A single CI/CD check entry. Can originate from either a modern GitHub
+ * Check Run (e.g. GitHub Actions) or a legacy Commit Status (e.g. older
+ * Vercel deployments, Jenkins).
+ *
+ * Background: GitHub exposes two separate APIs:
+ *   - `/commits/<ref>/check-runs`  — modern Check Runs API (GitHub Actions etc.)
+ *   - `/commits/<ref>/statuses`    — legacy Commit Statuses API (Vercel deploy etc.)
+ *
+ * A real PR (#463) exhibited a green tick despite a failing Vercel deployment
+ * because the legacy `/statuses` list was ignored. Both sources must be merged
+ * to produce a correct aggregate state.
+ */
 export interface CommitStatusCheckRun {
   name: string;
-  status: string; // 'completed', 'in_progress', 'queued'
-  conclusion: string | null; // 'success', 'failure', 'skipped', 'cancelled', etc.
+  status: string; // 'completed' | 'in_progress' | 'queued'
+  conclusion: string | null; // 'success' | 'failure' | 'skipped' | 'cancelled' | 'neutral' | 'pending' | 'error' | null
+  /** Whether this entry came from the modern Check Runs API or the legacy Commit Statuses API. */
+  source: 'check-run' | 'status';
+  /** Link to the run details (target_url for legacy statuses). */
+  url?: string | null;
 }
 
 /** Combined commit status check result. */
@@ -835,7 +851,26 @@ export interface CommitStatusCheck {
 /**
  * Get CI/CD commit status checks for a given ref (branch or SHA).
  *
- * Uses `gh api` to fetch check runs and combined commit status.
+ * Merges BOTH modern Check Runs and legacy Commit Statuses into a single list.
+ * This is required because the two APIs are orthogonal on GitHub:
+ *
+ *   - `/commits/<ref>/check-runs`  — GitHub Actions, newer third-party integrations
+ *   - `/commits/<ref>/statuses`    — Vercel deployments (classic), Jenkins, older CI tools
+ *
+ * Canonical reproduction (PR #463): Vercel’s deploy status comes via the legacy
+ * `/statuses` API with state='failure'. Without merging, this failure is invisible
+ * — the UI shows a green tick because check-runs were all successful.
+ *
+ * Aggregation (failure wins):
+ *   - any conclusion in ('failure','timed_out','cancelled','error') → state='failure'
+ *   - else any entry still in progress (status !== 'completed') → state='pending'
+ *   - else all completed and none failed → state='success'
+ *
+ * Legacy status `state` → (status, conclusion) mapping:
+ *   - 'success' → status='completed', conclusion='success'
+ *   - 'failure' | 'error' → status='completed', conclusion='failure'
+ *   - 'pending' → status='in_progress', conclusion=null
+ *
  * Returns null if `gh` is unavailable or any error occurs (non-blocking).
  */
 export async function getCommitStatusChecks(
@@ -846,48 +881,86 @@ export async function getCommitStatusChecks(
   if (!repoSlug) return null;
 
   try {
-    // Fetch check runs and combined status in parallel
-    const [checkRunsResult, statusResult] = await Promise.all([
+    // Fetch modern check-runs and legacy statuses list in parallel
+    const [checkRunsResult, legacyStatusesResult] = await Promise.all([
       runCommand(
         `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/check-runs --jq '{check_runs: [.check_runs[] | {name: .name, status: .status, conclusion: .conclusion}], total_count: .total_count}'`,
         cwd
       ),
       runCommand(
-        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/status --jq '.state'`,
+        // Fetch all status events for this commit, deduplicate per context keeping the most
+        // recent entry, and return minimal fields. The /status rollup is NOT used because
+        // it can mask failures when check-runs are also present.
+        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/statuses --jq '[group_by(.context)[] | max_by(.created_at) | {context: .context, state: .state, target_url: .target_url}]'`,
         cwd
       ),
     ]);
 
-    if ('error' in checkRunsResult || 'error' in statusResult) return null;
+    if ('error' in checkRunsResult || 'error' in legacyStatusesResult) return null;
 
     const checkRunsData = JSON.parse(checkRunsResult.stdout.trim()) as {
       check_runs: { name: string; status: string; conclusion: string | null }[];
       total_count: number;
     };
 
-    const combinedState = statusResult.stdout.trim() || 'pending';
+    const legacyStatuses = JSON.parse(legacyStatusesResult.stdout.trim()) as {
+      context: string;
+      state: string;
+      target_url: string | null;
+    }[];
 
-    // Determine overall state: prefer check runs conclusion over legacy status API
-    let state = combinedState;
-    if (checkRunsData.total_count > 0) {
-      const conclusions = checkRunsData.check_runs.map((cr) => cr.conclusion);
-      if (conclusions.some((c) => c === 'failure' || c === 'timed_out')) {
-        state = 'failure';
-      } else if (conclusions.every((c) => c === 'success' || c === 'skipped' || c === 'neutral')) {
-        state = 'success';
-      } else if (checkRunsData.check_runs.some((cr) => cr.status !== 'completed')) {
-        state = 'pending';
+    // Normalize modern check-runs
+    const modernEntries: CommitStatusCheckRun[] = checkRunsData.check_runs.map((cr) => ({
+      name: cr.name,
+      status: cr.status,
+      conclusion: cr.conclusion,
+      source: 'check-run' as const,
+    }));
+
+    // Normalize legacy statuses
+    const legacyEntries: CommitStatusCheckRun[] = legacyStatuses.map((s) => {
+      let status: string;
+      let conclusion: string | null;
+      switch (s.state) {
+        case 'success':
+          status = 'completed';
+          conclusion = 'success';
+          break;
+        case 'failure':
+        case 'error':
+          status = 'completed';
+          conclusion = 'failure';
+          break;
+        default: // 'pending'
+          status = 'in_progress';
+          conclusion = null;
       }
+      return {
+        name: s.context,
+        status,
+        conclusion,
+        source: 'status' as const,
+        url: s.target_url ?? null,
+      };
+    });
+
+    const merged = [...modernEntries, ...legacyEntries];
+
+    // Aggregation: failure wins
+    const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'error']);
+    let state: string;
+    if (merged.some((e) => e.conclusion !== null && FAILURE_CONCLUSIONS.has(e.conclusion))) {
+      state = 'failure';
+    } else if (merged.some((e) => e.status !== 'completed')) {
+      state = 'pending';
+    } else {
+      state = 'success';
     }
 
     return {
       state,
-      checkRuns: checkRunsData.check_runs.map((cr) => ({
-        name: cr.name,
-        status: cr.status,
-        conclusion: cr.conclusion,
-      })),
-      totalCount: checkRunsData.total_count,
+      checkRuns: merged,
+      totalCount: merged.length,
     };
   } catch {
     return null;
