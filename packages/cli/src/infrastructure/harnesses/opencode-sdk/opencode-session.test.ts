@@ -1,18 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkSession } from './opencode-session.js';
 import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 
 // ─── Mock client ─────────────────────────────────────────────────────────────
 
-const mockPrompt = vi.fn();
+const mockPromptAsync = vi.fn();
 const mockAbort = vi.fn();
-const mockSubscribe = vi.fn();
 
 /** A reusable mock OpencodeClient — shared by tests to verify client sharing. */
 const mockClient = {
-  session: { prompt: mockPrompt, abort: mockAbort },
-  event: { subscribe: mockSubscribe },
+  session: { promptAsync: mockPromptAsync, abort: mockAbort },
+  event: {},
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -22,31 +21,18 @@ function createSession() {
     client: mockClient as never,
     opencodeSessionId: 'sess-123',
     sessionTitle: 'Test Session',
+    cwd: '/test/dir',
   });
 }
 
-function emptyStream(): AsyncGenerator<unknown> {
-  // An async generator that yields no events and completes immediately
-  return {
-    next: async () => ({ done: true as const, value: undefined }),
-    return: async () => ({ done: true as const, value: undefined }),
-    throw: async () => ({ done: true as const, value: undefined }),
-    [Symbol.asyncIterator]() { return this; },
-  };
-}
-
-function eventStream(events: unknown[]): AsyncGenerator<unknown> {
-  const iter = events[Symbol.iterator]();
-  return {
-    next: async () => {
-      const next = iter.next();
-      if (next.done) return { done: true as const, value: undefined };
-      return { done: false as const, value: next.value };
-    },
-    return: async () => ({ done: true as const, value: undefined }),
-    throw: async () => ({ done: true as const, value: undefined }),
-    [Symbol.asyncIterator]() { return this; },
-  };
+/**
+ * Deliver a session.idle event to a session via _receiveEvent after a short
+ * delay. Used to unblock prompt() in tests that only care about promptAsync args.
+ */
+function deliverIdleAsync(session: OpencodeSdkSession, delayMs = 5): void {
+  setTimeout(() => {
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+  }, delayMs);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -58,16 +44,19 @@ describe('OpencodeSdkSession', () => {
 
   // ── prompt() ────────────────────────────────────────────────────────────────
 
-  it('calls session.prompt with the correct args', async () => {
-    mockPrompt.mockResolvedValue({});
+  it('calls session.promptAsync with the correct args', async () => {
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
+    session.onEvent(() => {}); // start consumer
+    deliverIdleAsync(session);
+
     await session.prompt({
       agent: 'builder',
       parts: [{ type: 'text', text: 'hello' }],
     });
 
-    expect(mockPrompt).toHaveBeenCalledWith({
+    expect(mockPromptAsync).toHaveBeenCalledWith({
       path: { id: 'sess-123' },
       body: {
         agent: 'builder',
@@ -76,10 +65,13 @@ describe('OpencodeSdkSession', () => {
     });
   });
 
-  it('passes optional model, system, tools to session.prompt', async () => {
-    mockPrompt.mockResolvedValue({});
+  it('passes optional model, system, tools to session.promptAsync', async () => {
+    mockPromptAsync.mockResolvedValue({});
 
     const session = createSession();
+    session.onEvent(() => {}); // start consumer
+    deliverIdleAsync(session);
+
     await session.prompt({
       agent: 'planner',
       parts: [{ type: 'text', text: 'design' }],
@@ -88,7 +80,7 @@ describe('OpencodeSdkSession', () => {
       tools: { task: false },
     });
 
-    expect(mockPrompt).toHaveBeenCalledWith({
+    expect(mockPromptAsync).toHaveBeenCalledWith({
       path: { id: 'sess-123' },
       body: {
         agent: 'planner',
@@ -109,32 +101,71 @@ describe('OpencodeSdkSession', () => {
     })).rejects.toThrow('Session is closed');
   });
 
+  it('prompt() resolves when session.idle arrives via _receiveEvent (harness fan-out)', async () => {
+    mockPromptAsync.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    // Start prompt (waits for session.idle)
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Allow promptAsync to be submitted
+    await new Promise<void>((r) => setTimeout(r, 5));
+
+    // Deliver content then idle via harness fan-out
+    session._receiveEvent({ type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hello' } as never });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    await promptDone;
+    // Let consumer drain
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+  });
+
+  it('prompt() emits session.idle manually as fallback when SSE times out', async () => {
+    vi.useFakeTimers();
+    mockPromptAsync.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    await vi.advanceTimersByTimeAsync(300_001);
+    await promptDone;
+
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+    vi.useRealTimers();
+  });
+
   // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
   //
-  // Event delivery is now managed by the parent harness's SSE fan-out loop.
-  // OpencodeSdkSession no longer subscribes to the SSE stream itself;
-  // instead the harness calls _receiveEvent() for each event addressed to
-  // this session's opencodeSessionId.
+  // Event delivery: harness SSE fan-out pushes events via _receiveEvent() into the
+  // session buffer; the async consumer loop drains the buffer and dispatches to listeners.
 
-  it('onEvent registers a listener and returns an unsubscribe function', () => {
+  it('onEvent registers a listener and returns an unsubscribe function', async () => {
     const session = createSession();
     const listener = vi.fn();
     const unsub = session.onEvent(listener);
 
-    // No SSE subscription initiated by the session itself
-    expect(mockSubscribe).not.toHaveBeenCalled();
-
-    // Delivering an event via _receiveEvent dispatches to the listener
-    session._receiveEvent({ type: 'test.event', properties: { sessionID: 'sess-123' } });
+    // Delivering an event via _receiveEvent pushes to buffer; consumer delivers async
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    // Let the consumer process the buffered event
+    await new Promise<void>((r) => setTimeout(r, 10));
     expect(listener).toHaveBeenCalledOnce();
 
     // After unsubscribing, listener no longer receives events
     unsub();
-    session._receiveEvent({ type: 'test.event2', properties: {} });
+    session._receiveEvent({ type: 'server.connected', properties: {} });
+    await new Promise<void>((r) => setTimeout(r, 10));
     expect(listener).toHaveBeenCalledOnce(); // still 1
   });
 
-  it('_receiveEvent dispatches to all registered listeners', () => {
+  it('_receiveEvent dispatches to all registered listeners', async () => {
     const session = createSession();
     const a = vi.fn();
     const b = vi.fn();
@@ -142,22 +173,24 @@ describe('OpencodeSdkSession', () => {
     session.onEvent(b);
 
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    await new Promise<void>((r) => setTimeout(r, 10));
 
     expect(a).toHaveBeenCalledOnce();
     expect(b).toHaveBeenCalledOnce();
     expect(a).toHaveBeenCalledWith(expect.objectContaining({ type: 'session.idle' }));
   });
 
-  it('_receiveEvent maps properties to payload on the emitted event', () => {
+  it('_receiveEvent maps properties to payload on the emitted event', async () => {
     const session = createSession();
     const listener = vi.fn();
     session.onEvent(listener);
 
-    session._receiveEvent({ type: 'message.part.updated', properties: { delta: 'hello', sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    await new Promise<void>((r) => setTimeout(r, 10));
 
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'message.part.updated',
-      payload: expect.objectContaining({ delta: 'hello' }),
+      type: 'session.idle',
+      payload: expect.objectContaining({ sessionID: 'sess-123' }),
     }));
   });
 
@@ -309,6 +342,31 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe(before); // unchanged
   });
 
+  it('SSE events arrive before session.idle — all delivered to listeners', async () => {
+    mockPromptAsync.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Allow promptAsync to submit
+    await new Promise<void>((r) => setTimeout(r, 5));
+
+    // Deliver content then idle via harness fan-out
+    session._receiveEvent({ type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'chunk1' } as never });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    await promptDone;
+    // Let consumer drain
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    // Content event and idle both delivered
+    expect(events.some((e) => e.type === 'message.part.updated')).toBe(true);
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+  });
+
   // ── properties ──────────────────────────────────────────────────────────────
 
   it('exposes opencodeSessionId and sessionTitle', () => {
@@ -317,22 +375,106 @@ describe('OpencodeSdkSession', () => {
     expect(session.sessionTitle).toBe('Test Session');
   });
 
+  // ── Buffer consumer ────────────────────────────────────────────────────────
+
+  it('buffer consumer: _receiveEvent pushes into buffer; with a listener, event is delivered in order', async () => {
+    const session = createSession();
+    const received: DirectHarnessSessionEvent[] = [];
+
+    // Register listener — starts the consumer
+    session.onEvent((e) => received.push(e));
+
+    // Push three events via _receiveEvent
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // Let the consumer drain
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    // Delivered in FIFO order — 3 events received
+    expect(received).toHaveLength(3);
+    expect(received.every((e) => e.type === 'session.idle')).toBe(true);
+  });
+
+  it('buffer consumer: events pushed before listener registers are delivered when first onEvent registers', async () => {
+    const session = createSession();
+
+    // Push events BEFORE any listener registers
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    const received: DirectHarnessSessionEvent[] = [];
+
+    // Registering the first listener starts the consumer, which drains buffered events
+    session.onEvent((e) => received.push(e));
+
+    // Let the consumer drain the pre-buffered events
+    await new Promise<void>((r) => setTimeout(r, 20));
+
+    expect(received).toHaveLength(2);
+    expect(received[0]?.type).toBe('session.idle');
+    expect(received[1]?.type).toBe('session.idle');
+  });
+
+  it('buffer consumer: pushing session.idle resolves an in-flight prompt()', async () => {
+    mockPromptAsync.mockResolvedValue({});
+
+    const session = createSession();
+    const events: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => events.push(e));
+
+    // Start prompt (it waits for session.idle)
+    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+
+    // Allow promptAsync + consumer to start
+    await new Promise<void>((r) => setTimeout(r, 10));
+
+    // Deliver session.idle via _receiveEvent (simulating harness fan-out)
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // prompt() should resolve now
+    await promptDone;
+
+    // Consumer should have delivered the idle event to listeners too
+    await new Promise<void>((r) => setTimeout(r, 20));
+    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+  });
+
+  it('buffer consumer: close() drains pending buffered events to listeners before shutting down', async () => {
+    mockAbort.mockResolvedValue({});
+
+    const session = createSession();
+    const received: DirectHarnessSessionEvent[] = [];
+    session.onEvent((e) => received.push(e));
+
+    // Push events that haven't been processed yet
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+    session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
+
+    // close() must drain these events before clearing listeners
+    await session.close();
+
+    // Both events should have been delivered before close completed
+    expect(received).toHaveLength(2);
+    expect(received.every((e) => e.type === 'session.idle')).toBe(true);
+  });
+
   it('two sessions created with the same client share the same client reference', () => {
-    // Both sessions receive the same mockClient — they share one HTTP client.
     const session1 = new OpencodeSdkSession({
       client: mockClient as never,
       opencodeSessionId: 'sess-a',
       sessionTitle: 'Session A',
+      cwd: '/test/dir',
     });
     const session2 = new OpencodeSdkSession({
       client: mockClient as never,
       opencodeSessionId: 'sess-b',
       sessionTitle: 'Session B',
+      cwd: '/test/dir',
     });
 
     // Both sessions use the exact same client object (verified by reference equality).
-    // When sessions are created from a harness, the harness passes `this.client`,
-    // so all sessions for one workspace share a single connection pool.
     expect((session1 as unknown as { client: unknown }).client).toBe(
       (session2 as unknown as { client: unknown }).client
     );

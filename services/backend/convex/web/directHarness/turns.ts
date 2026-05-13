@@ -160,9 +160,18 @@ export const getOlderTurns = query({
  * rows ordered by _creationTime ascending so the client can append new tokens
  * incrementally.
  *
- * By returning only the tail of the chunk stream, Convex only re-evaluates
- * this query when new chunks arrive — and returns at most O(limit) rows
- * regardless of how long the generation has been running.
+ * ## Cursor-based incremental fetching (afterCreationTime)
+ *
+ * When `afterCreationTime` is supplied the query returns only chunks with
+ * `_creationTime >= afterCreationTime` in ascending order — eliminating the
+ * O(N) wire payload that grows with every new chunk when no cursor is used.
+ * The client's Set-based dedup handles the gte boundary so no chunk is lost.
+ *
+ * Without a cursor the legacy behaviour is preserved: fetch the newest `limit`
+ * chunks descending and resort ascending (initial load path).
+ *
+ * The `by_messageId` index implicitly includes `_creationTime` as a trailing
+ * sort field (Convex appends it to every index), so no schema change is needed.
  *
  * When the streaming turn finalizes (status flips to 'complete'), the frontend
  * drops this subscription (passes 'skip') and uses the canonical textContent /
@@ -175,6 +184,14 @@ export const getStreamingTurnChunks = query({
     messageId: v.string(),
     /** Maximum number of chunks to return. Defaults to 200. */
     limit: v.optional(v.number()),
+    /**
+     * Cursor: only return chunks with _creationTime >= this value.
+     * Use gte (not gt) so chunks sharing the same _creationTime as the last
+     * seen are still included — the client deduplicates via a Set of _ids.
+     * When absent the query falls back to the initial-load "newest N desc →
+     * resort asc" behaviour.
+     */
+    afterCreationTime: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
@@ -182,16 +199,23 @@ export const getStreamingTurnChunks = query({
 
     const limit = args.limit ?? 200;
 
-    // Fetch newest `limit` chunks (desc), then sort by _creationTime asc so the client
-    // can concatenate in insertion order. This bounds the query to O(limit) rows
-    // regardless of how many chunks have accumulated.
-    const rows = await ctx.db
+    const baseIdx = ctx.db
       .query('chatroom_harnessSessionMessages')
-      .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
-      .order('desc')
-      .take(limit);
+      .withIndex('by_messageId', (q) => {
+        const eq = q.eq('messageId', args.messageId);
+        return args.afterCreationTime !== undefined
+          ? eq.gte('_creationTime', args.afterCreationTime)
+          : eq;
+      });
 
-    // Restore ascending order for the client
+    if (args.afterCreationTime !== undefined) {
+      // Cursor path: return chunks from the cursor forward in asc order.
+      return await baseIdx.order('asc').take(limit);
+    }
+
+    // Initial-load path: fetch newest `limit` chunks (desc), then sort asc
+    // so the client can concatenate in insertion order.
+    const rows = await baseIdx.order('desc').take(limit);
     rows.sort((a, b) => a._creationTime - b._creationTime);
     return rows;
   },

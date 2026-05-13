@@ -21,6 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startOpencodeSdkHarness } from './index.js';
+import type { OpencodeSdkHarness } from './opencode-harness.js';
 import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 
@@ -156,4 +157,222 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
 
     await Promise.all([s1.close(), s2.close()]);
   });
+
+  // ── SSE subscribe-count regression (Phase 2 repro) ────────────────────────────
+  // Tests #1 and #2 are expected to FAIL on current code — they pin the bug.
+  // Test #3 should pass on current code.
+
+  it(
+    'opens exactly one event.subscribe call across the harness lifetime, even with 2 sessions',
+    async () => {
+      const h = harness as OpencodeSdkHarness;
+      const subscribeBefore = h._debugSubscribeCount();
+
+      const [s1, s2] = await Promise.all([
+        harness.newSession({ agent: AGENT }),
+        harness.newSession({ agent: AGENT }),
+      ]);
+
+      // Attach listeners (triggers per-session SSE loops in current code)
+      const makeSessionDone = (session: Awaited<ReturnType<typeof harness.newSession>>) => {
+        return new Promise<void>((resolve) => {
+          let promptSent = false;
+          const unsub = session.onEvent((ev) => {
+            if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+              unsub();
+              resolve();
+            }
+          });
+          const timeout = setTimeout(() => { unsub(); resolve(); }, 60_000);
+          promptSent = true;
+          void session.prompt({
+            parts: [{ type: 'text', text: 'Say "ok" and nothing else.' }],
+            agent: AGENT,
+            model: MODEL,
+          }).catch(() => { clearTimeout(timeout); resolve(); });
+        });
+      };
+
+      await Promise.all([makeSessionDone(s1), makeSessionDone(s2)]);
+      await Promise.all([s1.close(), s2.close()]);
+
+      const subscribeCallsForTest = h._debugSubscribeCount() - subscribeBefore;
+      console.log(`[repro-test-1] subscribe calls during test: ${subscribeCallsForTest}`);
+
+      // EXPECTED TO FAIL on current code: current code opens ≥3 subscribe calls
+      // (1 harness-level + 1 per session × 2 = 3).
+      expect(subscribeCallsForTest).toBe(1);
+    }
+  );
+
+  it(
+    'streams text deltas via SSE only — no events arrive after session.idle',
+    async () => {
+      const session = await harness.newSession({ agent: AGENT });
+
+      const deltaEventsWithTimestamp: Array<{ type: string; ts: number }> = [];
+      let firstIdleTs: number | null = null;
+
+      const done = new Promise<void>((resolve) => {
+        let promptSent = false;
+        const unsub = session.onEvent((ev) => {
+          const ts = Date.now();
+
+          if (ev.type === 'message.part.delta' || ev.type === 'message.part.updated') {
+            deltaEventsWithTimestamp.push({ type: ev.type, ts });
+          }
+
+          if (ev.type === 'session.idle' || ev.type === 'session.ready') {
+            if (firstIdleTs === null) firstIdleTs = ts;
+          }
+
+          if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+            unsub();
+            resolve();
+          }
+        });
+        const timeout = setTimeout(() => { unsub(); resolve(); }, 60_000);
+        promptSent = true;
+        void session.prompt({
+          parts: [{ type: 'text', text: 'Reply with exactly three words.' }],
+          agent: AGENT,
+          model: MODEL,
+        }).catch(() => { clearTimeout(timeout); resolve(); });
+      });
+
+      await done;
+
+      // Wait 2 seconds past idle to let any stray events arrive
+      await new Promise<void>((r) => setTimeout(r, 2_000));
+
+      await session.close();
+
+      console.log(
+        `[repro-test-2] firstIdleTs=${firstIdleTs} deltaEvents=${deltaEventsWithTimestamp.length}`
+      );
+
+      // Must have received at least some streaming events
+      expect(deltaEventsWithTimestamp.length).toBeGreaterThan(0);
+
+      // EXPECTED TO FAIL on current code: duplicate SSE streams deliver delta events
+      // after session.idle due to interleaved delivery from two independent subscribers.
+      const lateEvents = deltaEventsWithTimestamp.filter(
+        (e) => firstIdleTs !== null && e.ts > firstIdleTs
+      );
+      console.log(`[repro-test-2] late delta events after idle: ${lateEvents.length}`);
+      expect(lateEvents).toHaveLength(0);
+    }
+  );
+
+  it(
+    'aggregated text from streamed chunks matches a non-empty response',
+    async () => {
+      const session = await harness.newSession({ agent: AGENT });
+
+      const chunksByMessage = new Map<string, string[]>();
+      const extractChunk = createOpencodeSdkChunkExtractor();
+
+      const done = new Promise<void>((resolve) => {
+        let promptSent = false;
+        const unsub = session.onEvent((ev) => {
+          const extracted = extractChunk(ev);
+          if (extracted) {
+            const existing = chunksByMessage.get(extracted.messageId) ?? [];
+            existing.push(extracted.content);
+            chunksByMessage.set(extracted.messageId, existing);
+          }
+          if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+            unsub();
+            resolve();
+          }
+        });
+        const timeout = setTimeout(() => { unsub(); resolve(); }, 60_000);
+        promptSent = true;
+        void session.prompt({
+          parts: [{ type: 'text', text: 'Reply with exactly three words.' }],
+          agent: AGENT,
+          model: MODEL,
+        }).catch(() => { clearTimeout(timeout); resolve(); });
+      });
+
+      await done;
+      await session.close();
+
+      const allTexts = [...chunksByMessage.values()].map((chunks) => chunks.join(''));
+      const combinedText = allTexts.join('');
+
+      console.log(`[repro-test-3] aggregated text (first 200 chars): ${combinedText.slice(0, 200)}`);
+
+      // EXPECTED TO PASS on current code
+      expect(combinedText.length).toBeGreaterThan(0);
+      expect(/[a-zA-Z]/.test(combinedText)).toBe(true);
+    }
+  );
+
+  // ── Phase 6: idle → finalize ordering ─────────────────────────────────────
+  //
+  // Verifies the constraint: no delta/content events arrive AFTER session.idle.
+  // This is a harness-only ordering test.
+  //
+  // A full backend-integrated e2e (turn becomes status='complete' with
+  // concatenated content) requires a live Convex backend and auth context,
+  // which is out of scope for this file. The idle-handler unit tests
+  // (idle-handler.test.ts) cover the finalizeAssistantTurn call path.
+
+  it(
+    'session.idle arrives exactly once, and no delta events arrive after it',
+    async () => {
+      const session = await harness.newSession({ agent: AGENT });
+
+      const deltaTimestamps: number[] = [];
+      let firstIdleTs: number | null = null;
+      let idleCount = 0;
+
+      const done = new Promise<void>((resolve) => {
+        let promptSent = false;
+        const unsub = session.onEvent((ev) => {
+          const ts = Date.now();
+
+          if (ev.type === 'message.part.delta' || ev.type === 'message.part.updated') {
+            deltaTimestamps.push(ts);
+          }
+
+          if (ev.type === 'session.idle') {
+            idleCount++;
+            if (firstIdleTs === null) firstIdleTs = ts;
+          }
+
+          if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+            unsub();
+            resolve();
+          }
+        });
+        const timeout = setTimeout(() => { unsub(); resolve(); }, 60_000);
+        promptSent = true;
+        void session.prompt({
+          parts: [{ type: 'text', text: 'Reply with exactly three words.' }],
+          agent: AGENT,
+          model: MODEL,
+        }).catch(() => { clearTimeout(timeout); resolve(); });
+      });
+
+      await done;
+      // Wait 1s past idle to let any stray events arrive
+      await new Promise<void>((r) => setTimeout(r, 1_000));
+      await session.close();
+
+      console.log(`[phase6] idleCount=${idleCount} deltaEvents=${deltaTimestamps.length} firstIdleTs=${firstIdleTs}`);
+
+      // Must have received at least one streaming event
+      expect(deltaTimestamps.length).toBeGreaterThan(0);
+
+      // session.idle must have fired exactly once (single-subscriber, no duplicates)
+      expect(idleCount).toBe(1);
+
+      // Ordering guarantee: all delta events precede session.idle
+      const lateDeltas = deltaTimestamps.filter((ts) => firstIdleTs !== null && ts > firstIdleTs);
+      console.log(`[phase6] late delta events after idle: ${lateDeltas.length}`);
+      expect(lateDeltas).toHaveLength(0);
+    }
+  );
 });

@@ -29,7 +29,9 @@ export type { ExtractedChunk };
  * Returned function behaviour:
  *   - message.part.updated: records partID → { messageId, partType } in an
  *     internal map; also returns an ExtractedChunk when the event carries an
- *     SDK-v1-style delta field.
+ *     SDK-v1-style delta field. All deltas are passed through — deduplication
+ *     is handled at the session level (HTTP response emission is skipped when
+ *     SSE already delivered events).
  *   - message.part.delta: looks up the partType from the map and returns an
  *     ExtractedChunk; defaults to 'text' if the mapping is not yet known.
  *   - All other event types: returns null.

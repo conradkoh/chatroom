@@ -297,6 +297,138 @@ describe('turns.getStreamingTurnChunks', () => {
     expect(chunksA[0]!.content).toBe('from-a');
   });
 
+  // ─── afterCreationTime cursor tests ──────────────────────────────────────
+
+  test('without afterCreationTime: returns latest chunks in asc order (initial load)', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-cursor-none');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const testMessageId = 'msg-cursor-none';
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [
+        { content: 'alpha', timestamp: 1000, messageId: testMessageId },
+        { content: 'beta', timestamp: 1001, messageId: testMessageId },
+        { content: 'gamma', timestamp: 1002, messageId: testMessageId },
+      ],
+    });
+
+    const chunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+      // no afterCreationTime → legacy path
+    });
+
+    expect(chunks).toHaveLength(3);
+    // Must be in ascending _creationTime order
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i]!._creationTime).toBeGreaterThanOrEqual(chunks[i - 1]!._creationTime);
+    }
+  });
+
+  test('with afterCreationTime equal to highest seen: returns only newer + same-time chunks', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-cursor-top');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const testMessageId = 'msg-cursor-top';
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [
+        { content: 'old1', timestamp: 1000, messageId: testMessageId },
+        { content: 'old2', timestamp: 1001, messageId: testMessageId },
+        { content: 'new1', timestamp: 1002, messageId: testMessageId },
+      ],
+    });
+
+    // Fetch all first so we know the actual _creationTime of the last chunk
+    const allChunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+    });
+    expect(allChunks).toHaveLength(3);
+    const highestCreationTime = allChunks[allChunks.length - 1]!._creationTime;
+
+    // Cursor at the highest seen — should return at least 'new1' (gte, not gt)
+    const chunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+      afterCreationTime: highestCreationTime,
+    });
+
+    // gte: 'new1' (the chunk at highestCreationTime) must be included
+    expect(chunks.length).toBeGreaterThanOrEqual(1);
+    expect(chunks[chunks.length - 1]!.content).toBe('new1');
+    // Must be ascending
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i]!._creationTime).toBeGreaterThanOrEqual(chunks[i - 1]!._creationTime);
+    }
+  });
+
+  test('with afterCreationTime past all chunks: returns empty array', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-cursor-past');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const testMessageId = 'msg-cursor-past';
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [{ content: 'only', timestamp: 1000, messageId: testMessageId }],
+    });
+
+    // Use a far-future timestamp so nothing matches
+    const farFuture = Date.now() + 1_000_000_000;
+    const chunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+      afterCreationTime: farFuture,
+    });
+
+    expect(chunks).toHaveLength(0);
+  });
+
+  test('with afterCreationTime older than oldest: returns all chunks asc, capped at limit', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-cursor-before-all');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    const testMessageId = 'msg-cursor-before-all';
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId: rowId,
+      chunks: [
+        { content: 'x1', timestamp: 1000, messageId: testMessageId },
+        { content: 'x2', timestamp: 1001, messageId: testMessageId },
+        { content: 'x3', timestamp: 1002, messageId: testMessageId },
+        { content: 'x4', timestamp: 1003, messageId: testMessageId },
+        { content: 'x5', timestamp: 1004, messageId: testMessageId },
+      ],
+    });
+
+    // Cursor at epoch 0 — older than all chunks — with limit=3
+    const chunks = await t.query(api.web.directHarness.turns.getStreamingTurnChunks, {
+      sessionId,
+      harnessSessionId: rowId,
+      messageId: testMessageId,
+      afterCreationTime: 0,
+      limit: 3,
+    });
+
+    // Cursor path with gte(0): all 5 chunks match, but limit=3 → oldest 3 in asc order
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]!.content).toBe('x1');
+    expect(chunks[1]!.content).toBe('x2');
+    expect(chunks[2]!.content).toBe('x3');
+    // Ascending order
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i]!._creationTime).toBeGreaterThanOrEqual(chunks[i - 1]!._creationTime);
+    }
+  });
+
   test('respects the limit parameter — returns only the newest N chunks in _creationTime order', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('gstc-limit');
     const { sessionId: rowId } = await createSession(sessionId, workspaceId);

@@ -10,8 +10,10 @@
 
 import type { ConvexClient } from 'convex/browser';
 
-import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { createOpencodeSdkChunkExtractor } from '../../../../infrastructure/harnesses/opencode-sdk/event-extractor.js';
+import {
+  startOpencodeSdkHarness,
+  createOpencodeSdkChunkExtractor,
+} from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { handleSessionIdle } from './idle-handler.js';
 import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';

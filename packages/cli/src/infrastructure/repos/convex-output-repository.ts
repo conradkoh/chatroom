@@ -27,16 +27,23 @@ export class ConvexOutputRepository implements OutputRepository {
 
     if (chunks.length === 0) return;
 
-    await backend.mutation(api.daemon.directHarness.messages.appendMessages, {
-      sessionId,
-      harnessSessionId,
-      chunks: chunks.map((c) => ({
-        content: c.content,
-        timestamp: c.timestamp,
-        messageId: c.messageId,
-        partType: c.partType,
-      })),
-    });
+    console.log(`[output-repo] Calling appendMessages: harnessSessionId="${harnessSessionId}", ${chunks.length} chunks`);
+    try {
+      await backend.mutation(api.daemon.directHarness.messages.appendMessages, {
+        sessionId,
+        harnessSessionId,
+        chunks: chunks.map((c) => ({
+          content: c.content,
+          timestamp: c.timestamp,
+          messageId: c.messageId,
+          partType: c.partType,
+        })),
+      });
+      console.log(`[output-repo] appendMessages succeeded for "${harnessSessionId}"`);
+    } catch (err) {
+      console.error(`[output-repo] appendMessages FAILED for "${harnessSessionId}": ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
+    }
   }
 
 }
