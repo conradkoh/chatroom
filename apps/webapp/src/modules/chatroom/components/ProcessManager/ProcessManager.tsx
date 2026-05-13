@@ -30,7 +30,7 @@ export interface CommandRun {
   _id: string;
   commandName: string;
   script: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
   pid?: number;
   startedAt: number;
   completedAt?: number;
