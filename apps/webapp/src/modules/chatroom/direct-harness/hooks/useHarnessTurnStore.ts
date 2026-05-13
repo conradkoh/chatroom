@@ -264,13 +264,28 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
 
   // Derive streaming overlay (computed, not stored in state)
   const streamingOverlay: StreamingOverlay | null = useMemo(() => {
-    if (!streamingTurn || !chunksData) {
-      // No active streaming turn — reset accumulator
+    if (!streamingTurn) {
+      // True "no active streaming turn" — reset all accumulator state.
       overlayTextRef.current = '';
       overlayReasoningRef.current = '';
       mergedIdsRef.current = new Set();
       lastMessageIdRef.current = null;
       return null;
+    }
+
+    if (!chunksData) {
+      // Transient: useSessionQuery returns undefined while the cursor-driven
+      // resubscription is in flight. Do NOT reset accumulator state — hold
+      // what we have and return the previous overlay so the UI stays stable.
+      // Without this guard, every cursor advance would briefly wipe the
+      // overlay and the next push (containing only the gte-boundary chunk)
+      // would render as a single token, producing a "one-token-at-a-time"
+      // flicker.
+      return {
+        turnId: streamingTurn._id,
+        textContent: overlayTextRef.current,
+        reasoningContent: overlayReasoningRef.current,
+      };
     }
 
     // Reset accumulator when the turn changes (new messageId)

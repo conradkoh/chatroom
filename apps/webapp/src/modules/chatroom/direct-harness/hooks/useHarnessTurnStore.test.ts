@@ -298,4 +298,48 @@ describe('useHarnessTurnStore — streaming cursor (afterCreationTime)', () => {
       expect(lastChunkQueryArgs?.afterCreationTime as number).toBeLessThan(2000);
     });
   });
+
+  // Regression: a transient `chunksData === undefined` (which Convex returns
+  // momentarily while the cursor-driven query is resubscribing) MUST NOT wipe
+  // the accumulated overlay state. Without this guard the UI would flash to
+  // blank between every chunk batch and the next push (containing only the
+  // gte-boundary chunk) would render as a single token — the "one-token-at-a-time"
+  // bug.
+  it('preserves overlay state across a transient chunksData=undefined (resubscribe in flight)', async () => {
+    // Phase 1: initial render with 2 chunks. Overlay should accumulate "hello world".
+    mockChunkData = [
+      { _id: 'c1', _creationTime: 1000, content: 'hello ', partType: 'text' },
+      { _id: 'c2', _creationTime: 1001, content: 'world', partType: 'text' },
+    ];
+    const streamTurn = makeStreamingTurn('t-resub', 1, 'msg-resub');
+    mockQuery.mockResolvedValue({ turns: [streamTurn], hasMore: false, newestTurnSeq: 1 });
+
+    const { result, rerender } = renderHook(() => useHarnessTurnStore(HARNESS_SESSION_ID));
+    await vi.waitFor(() => expect(result.current.isLoading).toBe(false));
+    await vi.waitFor(() =>
+      expect(result.current.streamingOverlay?.textContent).toBe('hello world')
+    );
+
+    // Phase 2: simulate Convex returning `undefined` while resubscribing with
+    // the new cursor. The streaming turn is still active.
+    mockChunkData = undefined as unknown as typeof mockChunkData;
+    rerender();
+
+    // Overlay must remain intact — not reset to empty.
+    expect(result.current.streamingOverlay).not.toBeNull();
+    expect(result.current.streamingOverlay!.textContent).toBe('hello world');
+    expect(result.current.streamingOverlay!.turnId).toBe(streamTurn._id);
+
+    // Phase 3: new subscription returns just the gte-boundary chunk + 1 new
+    // chunk. The boundary is deduped via mergedIdsRef and the new chunk is
+    // appended — overlay grows to "hello world!".
+    mockChunkData = [
+      { _id: 'c2', _creationTime: 1001, content: 'world', partType: 'text' },
+      { _id: 'c3', _creationTime: 1002, content: '!', partType: 'text' },
+    ];
+    rerender();
+    await vi.waitFor(() =>
+      expect(result.current.streamingOverlay!.textContent).toBe('hello world!')
+    );
+  });
 });
