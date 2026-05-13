@@ -10,8 +10,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { useInlineCommandOutput } from './useInlineCommandOutput';
 import type { useCommandRunner } from './useCommandRunner';
+import { useInlineCommandOutput } from './useInlineCommandOutput';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

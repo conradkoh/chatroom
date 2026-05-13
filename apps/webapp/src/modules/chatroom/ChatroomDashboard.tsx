@@ -24,6 +24,7 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -66,7 +67,6 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
