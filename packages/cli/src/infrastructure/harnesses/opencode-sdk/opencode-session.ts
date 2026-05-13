@@ -1,11 +1,9 @@
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
 import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import { SseEventBuffer } from './sse-event-buffer.js';
 
-function toSessionEvent(event: {
-  type: string;
-  properties?: Record<string, unknown>;
-}): DirectHarnessSessionEvent {
+function toSessionEvent(event: SdkEvent): DirectHarnessSessionEvent {
   return { type: event.type, payload: event.properties ?? {}, timestamp: Date.now() };
 }
 
@@ -14,6 +12,8 @@ export interface OpencodeSdkSessionOptions {
   readonly client: OpencodeClient;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
+  /** The working directory for the harness. */
+  readonly cwd: string;
   /**
    * Called when the session is closed so the parent harness can unregister
    * the session from its SSE fan-out map.
@@ -23,27 +23,51 @@ export interface OpencodeSdkSessionOptions {
 
 export class OpencodeSdkSession implements DirectHarnessSession {
   readonly opencodeSessionId: OpenCodeSessionId;
-  readonly sessionTitle: string;
+  /** Backing field for sessionTitle to allow mutation via setTitle(). */
+  private _sessionTitle: string;
+  get sessionTitle(): string { return this._sessionTitle; }
 
   private readonly client: OpencodeClient;
   private readonly options: OpencodeSdkSessionOptions;
   private readonly onEventListeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
-  /** True while the per-session SSE stream loop is running. */
-  private sseRunning = false;
-  /** Set to true to stop the SSE loop (session closed or no more listeners). */
-  private sseStopped = false;
+  /** Resolve callback to unblock prompt() when session.idle arrives via SSE. */
+  private _idleResolve: (() => void) | null = null;
+
+  // ── Buffer consumer ───────────────────────────────────────────────────────────
+  /** Per-session event buffer — harness fan-out pushes raw SDK events; consumer drains them. */
+  private readonly _buffer: SseEventBuffer<SdkEvent>;
+  /** True once the async consumer loop has been started (lazy, first-onEvent). */
+  private _consumerStarted = false;
+  /**
+   * Resolves when the consumer loop exits (either buffer closed or session closed).
+   * Awaited in close() so listeners are still registered while draining.
+   */
+  private _consumerDone: Promise<void> = Promise.resolve();
 
   constructor(options: OpencodeSdkSessionOptions) {
     this.options = options;
     this.opencodeSessionId = options.opencodeSessionId as OpenCodeSessionId;
-    this.sessionTitle = options.sessionTitle;
+    this._sessionTitle = options.sessionTitle;
     this.client = options.client;
+    this._buffer = new SseEventBuffer<SdkEvent>();
   }
 
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
-    const response = await this.client.session.prompt({
+    // Create a promise that resolves when session.idle arrives via SSE.
+    // The idle event signals that the LLM has finished generating.
+    const idlePromise = new Promise<void>((resolve) => {
+      this._idleResolve = resolve;
+    });
+
+    const IDLE_TIMEOUT_MS = 300_000; // 5 minutes
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('Timed out waiting for session.idle')), IDLE_TIMEOUT_MS);
+    });
+
+    // Submit prompt asynchronously — returns 204 immediately; content comes via SSE.
+    await this.client.session.promptAsync({
       path: { id: this.opencodeSessionId },
       body: {
         agent: input.agent,
@@ -54,45 +78,45 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       },
     });
 
-    // The HTTP response contains the full LLM response (synchronous completion).
-    // Emit response parts as events so the existing chunk-extractor → journal → Convex
-    // pipeline receives the content. This is the reliable path when SSE events
-    // are not delivered (which is the common case with opencode's /event endpoint).
-    const parts = (response as unknown as { data?: { parts?: unknown[] } }).data?.parts ?? [];
-    for (const part of parts) {
-      const p = part as { id?: string; messageID?: string; type?: string; text?: string };
-      if ((p.type === 'text' || p.type === 'reasoning') && p.text && p.text.length > 0 && p.id && p.messageID) {
-        this._emit({
-          type: 'message.part.updated',
-          payload: {
-            part: { id: p.id, messageID: p.messageID, type: p.type },
-            delta: p.text,
-          },
-          timestamp: Date.now(),
-        });
-      }
+    console.log(`[opencode-session] promptAsync submitted for session ${this.opencodeSessionId}, waiting for session.idle via SSE`);
+
+    // Wait for session.idle (delivered by the harness SSE fan-out) or timeout.
+    try {
+      await Promise.race([idlePromise, timeoutPromise]);
+      console.log(`[opencode-session] session.idle received via SSE for session ${this.opencodeSessionId}`);
+    } catch (err) {
+      console.warn(`[opencode-session] ${err instanceof Error ? err.message : String(err)} — session ${this.opencodeSessionId}`);
+      // On timeout, emit session.idle manually as fallback so the pipeline can finalize.
+      this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
+    } finally {
+      this._idleResolve = null;
     }
 
-    // Signal that the agent has finished generating.
-    this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
+    console.log(`[opencode-session] prompt() completed for session ${this.opencodeSessionId}`);
   }
 
   onEvent(listener: (event: DirectHarnessSessionEvent) => void): () => void {
     this.onEventListeners.add(listener);
-    // Start per-session SSE stream on first subscriber
-    if (!this.sseRunning && !this.closed) {
-      this.sseRunning = true;
-      this.sseStopped = false;
-      void this.startEventStream();
+    // Start the buffer consumer lazily on first registration.
+    // Events are delivered exclusively through the consumer loop (harness fan-out → buffer → consumer).
+    if (!this._consumerStarted && !this.closed) {
+      this._consumerStarted = true;
+      this._consumerDone = this._startConsumer().catch((err) => {
+        if (!this.closed) console.warn('[opencode-session] consumer error:', err);
+      });
     }
-    // Event delivery is also managed by the parent harness's SSE fan-out loop.
     return () => { this.onEventListeners.delete(listener); };
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.sseStopped = true; // Stop the per-session SSE loop
+    // Close the buffer so the consumer drains remaining events and exits naturally.
+    // MUST happen before onEventListeners.clear() so listeners are still registered
+    // while the consumer drains.
+    this._buffer.close();
+    // Wait for the consumer to finish draining all buffered events.
+    await this._consumerDone;
     try {
       await this.client.session.abort({ path: { id: this.opencodeSessionId } });
     } catch (err) {
@@ -103,69 +127,39 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   }
 
   setTitle(title: string): void {
-    (this as { sessionTitle: string }).sessionTitle = title;
+    this._sessionTitle = title;
   }
 
-  /** Dispatch an event received from the harness-level SSE fan-out loop. */
-  _receiveEvent(raw: { type: string; properties?: Record<string, unknown> }): void {
-    this._emit(toSessionEvent(raw));
+  /**
+   * Receive a raw SDK event from the harness-level SSE fan-out loop.
+   * Pushes the event into the per-session buffer for the consumer to drain.
+   */
+  _receiveEvent(raw: SdkEvent): void {
+    this._buffer.push(raw);
   }
 
   _emit(event: DirectHarnessSessionEvent): void {
     for (const listener of this.onEventListeners) listener(event);
   }
 
+  // ── Buffer consumer ─────────────────────────────────────────────────────────
+
   /**
-   * Per-session SSE stream for real-time token streaming.
-   * Subscribes to the global event stream and filters by this session's ID.
-   * Retries with exponential backoff when the stream closes.
+   * Async consumer loop — drains raw SDK events from the buffer, converts them to
+   * DirectHarnessSessionEvents, and dispatches to registered listeners.
+   *
+   * Also resolves the in-flight prompt()'s idle promise when session.idle arrives.
+   *
+   * Runs until the buffer is closed (i.e., close() is called).
+   * This is the sole event-delivery path — events arrive from the harness Effect fiber
+   * via _receiveEvent(), are buffered, and drained here.
    */
-  private async startEventStream(): Promise<void> {
-    let delayMs = 500;
-    const MAX_DELAY_MS = 30_000;
-
-    while (!this.closed && !this.sseStopped) {
-      try {
-        const result = await this.client.event.subscribe();
-        const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
-        let receivedEvents = false;
-        for await (const raw of stream) {
-          if (this.closed || this.sseStopped) break;
-          const event = raw as { type: string; properties?: Record<string, unknown> };
-          const sid = this._extractSessionId(event);
-          if (sid !== this.opencodeSessionId) continue; // filter to this session only
-          receivedEvents = true;
-          this._receiveEvent(event);
-        }
-        if (receivedEvents) delayMs = 500; // reset backoff after healthy stream
-      } catch {
-        // ignore errors, retry below
-      }
-      if (this.closed || this.sseStopped) break;
-      await this._sseDelay(delayMs);
-      delayMs = Math.min(delayMs * 2, MAX_DELAY_MS);
+  private async _startConsumer(): Promise<void> {
+    for await (const raw of this._buffer) {
+      const evt = toSessionEvent(raw);
+      for (const l of this.onEventListeners) l(evt);
+      if (raw.type === 'session.idle') this._idleResolve?.();
     }
-    this.sseRunning = false;
-  }
-
-  /** Extract the opencode sessionID from a raw SSE event. */
-  private _extractSessionId(event: { properties?: Record<string, unknown> }): string | undefined {
-    const p = event.properties;
-    if (!p) return undefined;
-    if (typeof p.sessionID === 'string') return p.sessionID;
-    const part = p.part as Record<string, unknown> | undefined;
-    if (part && typeof part.sessionID === 'string') return part.sessionID;
-    return undefined;
-  }
-
-  /** Sleep for `ms` milliseconds, resolving early if the session is closed. */
-  private _sseDelay(ms: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const timer = setTimeout(() => { clearInterval(poll); resolve(); }, ms);
-      const poll = setInterval(() => {
-        if (this.closed || this.sseStopped) { clearTimeout(timer); clearInterval(poll); resolve(); }
-      }, 50);
-    });
   }
 }
 

@@ -11,8 +11,6 @@ import type {
   HarnessMessage,
 } from '@workspace/backend/src/domain/direct-harness/types';
 
-export type { HarnessTurnView };
-
 // ─── State ────────────────────────────────────────────────────────────────────
 
 interface State {
@@ -157,6 +155,7 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
       dispatch({ type: 'RESET' });
       processedOlderSeqRef.current = null;
       setInitialLoadRequested(false);
+      setLastCreationTime(0);
     }
   }, [harnessSessionId]);
 
@@ -233,9 +232,18 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
     (t) => t.role === 'assistant' && t.status === 'streaming' && t.messageId
   );
 
+  // Cursor: tracks the highest _creationTime chunk already merged into the
+  // overlay. Passed to getStreamingTurnChunks so each Convex push delivers
+  // only the delta (gte boundary) instead of the full latest-N backlog.
+  // useState (not useRef) so changing it causes a re-render → Convex
+  // resubscribes with the updated lower bound.
+  const [lastCreationTime, setLastCreationTime] = useState(0);
+
   const chunksData = useSessionQuery(
     api.web.directHarness.turns.getStreamingTurnChunks,
-    streamingTurn?.messageId ? { harnessSessionId, messageId: streamingTurn.messageId } : 'skip'
+    streamingTurn?.messageId
+      ? { harnessSessionId, messageId: streamingTurn.messageId, afterCreationTime: lastCreationTime }
+      : 'skip'
   ) as HarnessMessage[] | undefined;
 
   // Incremental overlay accumulation.
@@ -247,16 +255,35 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
   const overlayReasoningRef = useRef('');
   const mergedIdsRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
+  // Tracks the messageId for which lastCreationTime was last reset/advanced.
+  // Separate from lastMessageIdRef (which drives the overlay reset) so the
+  // two concerns remain decoupled.
+  const cursorMessageIdRef = useRef<string | null>(null);
 
   // Derive streaming overlay (computed, not stored in state)
   const streamingOverlay: StreamingOverlay | null = useMemo(() => {
-    if (!streamingTurn || !chunksData) {
-      // No active streaming turn — reset accumulator
+    if (!streamingTurn) {
+      // True "no active streaming turn" — reset all accumulator state.
       overlayTextRef.current = '';
       overlayReasoningRef.current = '';
       mergedIdsRef.current = new Set();
       lastMessageIdRef.current = null;
       return null;
+    }
+
+    if (!chunksData) {
+      // Transient: useSessionQuery returns undefined while the cursor-driven
+      // resubscription is in flight. Do NOT reset accumulator state — hold
+      // what we have and return the previous overlay so the UI stays stable.
+      // Without this guard, every cursor advance would briefly wipe the
+      // overlay and the next push (containing only the gte-boundary chunk)
+      // would render as a single token, producing a "one-token-at-a-time"
+      // flicker.
+      return {
+        turnId: streamingTurn._id,
+        textContent: overlayTextRef.current,
+        reasoningContent: overlayReasoningRef.current,
+      };
     }
 
     // Reset accumulator when the turn changes (new messageId)
@@ -289,6 +316,40 @@ export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessio
       reasoningContent: overlayReasoningRef.current,
     };
   }, [streamingTurn, chunksData]);
+
+  // ── Advance / reset the streaming cursor ───────────────────────────────
+  // Runs after each Convex push (chunksData changes) and after each render
+  // where the streaming messageId changes.
+  //
+  // Why useEffect (not useMemo): setState must not be called during render.
+  // This effect fires after the DOM has committed, advancing lastCreationTime
+  // so the next Convex subscription uses the updated lower bound.
+  //
+  // Reset path (messageId changed): setLastCreationTime(0) is called first;
+  // then the advancement runs immediately below with the current chunks so
+  // the cursor reaches the right level in one render cycle instead of two.
+  // React 18 batches both calls: the functional updater sees prev=0, so the
+  // result is max(0, newChunksMax) = newChunksMax. This is always ≤ the
+  // old cursor (2000 → newChunksMax), satisfying the reset contract.
+  useEffect(() => {
+    const currentMsgId = streamingTurn?.messageId ?? null;
+
+    if (cursorMessageIdRef.current !== currentMsgId) {
+      // messageId changed (or first mount) — reset cursor.
+      // Do NOT return early: fall through so the cursor immediately advances
+      // from the chunks already in chunksData for this messageId, saving a
+      // round-trip render cycle.
+      cursorMessageIdRef.current = currentMsgId;
+      setLastCreationTime(0);
+    }
+
+    if (!chunksData || chunksData.length === 0) return;
+
+    const maxTime = chunksData.reduce((max, c) => Math.max(max, c._creationTime), 0);
+    // Functional update: prev is 0 if we just reset above (React batches both
+    // calls), so the result is maxTime — correct for both advance and reset paths.
+    setLastCreationTime((prev) => (maxTime > prev ? maxTime : prev));
+  }, [chunksData, streamingTurn?.messageId]);
 
   // ── Public API ───────────────────────────────────────────────────────────
 

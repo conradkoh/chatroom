@@ -19,7 +19,7 @@ export interface SessionEventForwarderHandle {
   onAgentEnd: (cb: () => void) => void;
 }
 
-export interface OpenCodeEvent {
+interface OpenCodeEvent {
   type: string;
   properties?: Record<string, unknown>;
 }

@@ -9,30 +9,40 @@
  *   4. `models()` reads providers/models from the running SDK server.
  *   5. `isAlive()` checks the child process.
  *   6. `close()` sends SIGTERM and cleans up.
+ *
+ * SSE architecture (Phase 4+):
+ *   A single Effect fiber (`_sseFiber`) owns the SSE event loop.
+ *   It is forked lazily when the first session listener is registered, and
+ *   interrupted when the last listener unregisters or the harness is closed.
+ *   The inner loop is a plain async while-loop (not Effect.async) to avoid
+ *   interaction issues between Effect's fiber scheduler and async iterator stepping.
+ *   Events are dispatched to sessions via `session._receiveEvent()`, which pushes
+ *   into each session's SseEventBuffer for async consumer delivery.
  */
 
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
+import { Effect, Fiber } from 'effect';
 
 import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import type { GlobalEvent } from '@opencode-ai/sdk';
 import { OpencodeSdkSession } from './opencode-session.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract sessionID from a raw opencode event (mirrors the same logic in OpencodeSdkSession). */
-function harnessEventSessionId(event: { properties?: Record<string, unknown> }): string | undefined {
+/** Extract sessionID from a raw opencode event payload. */
+function harnessEventSessionId(event: SdkEvent): string | undefined {
   const p = event.properties;
-  if (!p || typeof p !== 'object') return undefined;
+  if (!p) return undefined;
   if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
-  const part = (p as Record<string, unknown>).part;
-  if (part && typeof part === 'object' && 'sessionID' in part && typeof (part as Record<string, unknown>).sessionID === 'string') {
-    return (part as Record<string, unknown>).sessionID as string;
+  if ('part' in p && p.part && typeof p.part === 'object' && 'sessionID' in p.part) {
+    return (p.part as { sessionID: string }).sessionID;
   }
   return undefined;
 }
@@ -67,13 +77,26 @@ export class OpencodeSdkHarness implements BoundHarness {
   private readonly baseUrl: string;
   private closed = false;
 
-  // ── SSE fan-out ──────────────────────────────────────────────────────────────────
+  // ── SSE fan-out ─────────────────────────────────────────────────────────────
   /** Sessions listening for events from this harness, keyed by opencodeSessionId. */
   private readonly sessionListeners = new Map<string, OpencodeSdkSession>();
-  /** True while the shared SSE event loop is running. Guards against double-start. */
-  private eventLoopRunning = false;
-  /** Set to true to signal the event loop to stop on next iteration. */
-  private eventLoopStopped = false;
+
+  /**
+   * The single Effect fiber that owns the SSE subscription loop.
+   * Forked on first listener registration; interrupted on last removal or close().
+   */
+  private _sseFiber: Fiber.RuntimeFiber<void, never> | null = null;
+
+  // ── Debug instrumentation (test-only) ──────────────────────────────────────
+  /**
+   * Counts harness-level calls to client.event.subscribe().
+   * TEST-ONLY — used by integration tests to assert single-subscribe behaviour.
+   */
+  private _subscribeCallCount = 0;
+
+  _debugSubscribeCount(): number {
+    return this._subscribeCallCount;
+  }
 
   constructor(options: OpencodeSdkHarnessOptions) {
     this.client = options.client;
@@ -165,6 +188,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
+      cwd: this.cwd,
       onClose: (id) => this.unregisterSessionListener(id),
     });
     this.registerSessionListener(sessionId, session);
@@ -193,6 +217,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       client: this.client,
       opencodeSessionId: sessionId,
       sessionTitle,
+      cwd: this.cwd,
       onClose: (id) => this.unregisterSessionListener(id),
     });
     this.registerSessionListener(sessionId, session);
@@ -205,125 +230,137 @@ export class OpencodeSdkHarness implements BoundHarness {
     return this.childProcess.exitCode === null && this.childProcess.killed === false;
   }
 
-  // ── SSE fan-out lifecycle ───────────────────────────────────────────────────────────────
+  // ── SSE fan-out lifecycle ────────────────────────────────────────────────────
 
   /**
    * Register a session to receive events from the harness-level SSE stream.
-   * Starts the shared event loop if it’s not already running.
+   * Forks the single SSE fiber on first registration.
    */
   registerSessionListener(opencodeSessionId: string, session: OpencodeSdkSession): void {
     this.sessionListeners.set(opencodeSessionId, session);
     console.log(`[opencode-harness] Registered session listener: "${opencodeSessionId}"`);
-    if (!this.eventLoopRunning) {
-      this.eventLoopRunning = true;
-      this.eventLoopStopped = false;
-      void this.runEventLoop().catch((err) => {
-        if (!this.closed) console.warn('[opencode-harness] SSE event loop error:', err);
-      });
+    if (this._sseFiber === null && !this.closed) {
+      this._sseFiber = Effect.runFork(this.buildSseProgram());
     }
   }
 
   /**
    * Unregister a session from the SSE fan-out map.
-   * Signals the event loop to stop when the last listener is removed.
+   * Interrupts the fiber when the last listener is removed.
    */
   unregisterSessionListener(opencodeSessionId: string): void {
     this.sessionListeners.delete(opencodeSessionId);
     console.log(`[opencode-harness] Unregistered session listener: "${opencodeSessionId}"`);
-    if (this.sessionListeners.size === 0) {
-      this.eventLoopStopped = true;
+    if (this.sessionListeners.size === 0 && this._sseFiber !== null) {
+      const fiber = this._sseFiber;
+      this._sseFiber = null;
+      // Fire-and-forget interrupt when no more sessions are listening
+      Effect.runFork(Fiber.interrupt(fiber));
     }
   }
 
-  /**
-   * Shared SSE event loop.
-   *
-   * Subscribes once to `client.event.subscribe()`, then dispatches every
-   * received event to the registered session whose opencodeSessionId matches
-   * `harnessEventSessionId(event)`. Runs until the harness is closed or the
-   * last session listener unregisters.
-   *
-   * Retries indefinitely with exponential backoff (500ms → 30s) when the
-   * stream ends or errors. Backoff resets to 500ms after a successful stream
-   * that delivered at least one event.
-   */
-  private async runEventLoop(): Promise<void> {
-    let attempt = 0;
-    // Start with a long delay — per-session SSE in OpencodeSdkSession handles real-time
-    // delivery. This fan-out loop is a fallback for events without a session ID.
-    let delayMs = 30_000;
-    const MAX_DELAY_MS = 30_000;
+  // ── Effect SSE program ───────────────────────────────────────────────────────
 
-    while (!this.closed && !this.eventLoopStopped) {
-      attempt++;
-      let eventCount = 0;
-      try {
-        const result = await this.client.event.subscribe({ query: { directory: this.cwd } } as Parameters<typeof this.client.event.subscribe>[0]);
-        const stream = (result as unknown as { stream: AsyncGenerator<unknown> }).stream;
-        const iterator = stream[Symbol.asyncIterator]();
-        while (true) {
-          let next: IteratorResult<unknown>;
+  /**
+   * Builds the Effect program that manages the single SSE subscription.
+   *
+   * Wraps a plain async while-loop in Effect.async so it can be managed
+   * as an interruptible Fiber. The inner loop uses direct iterator.next()
+   * calls (not for-await) to avoid interaction issues between Effect's
+   * fiber scheduler and JavaScript's async iterator protocol.
+   *
+   * On stream end or error, reconnects immediately (no backoff) to minimize
+   * the window where events could be missed during reconnection.
+   */
+  private buildSseProgram(): Effect.Effect<void, never, never> {
+    const self = this;
+
+    return Effect.async<void, never>((resume) => {
+      let interrupted = false;
+      let abortController: AbortController | null = null;
+
+      const runLoop = async (): Promise<void> => {
+        while (!interrupted && !self.closed) {
+          // Subscribe to the global event stream (/global/event) which stays alive
+          // in serve mode and delivers events for all directories with a wrapping
+          // { directory, payload } envelope.
+          self._subscribeCallCount++;
+          let result: Awaited<ReturnType<typeof self.client.global.event>> | null = null;
+          abortController = new AbortController();
           try {
-            next = await iterator.next();
-          } catch {
-            // Stream error — break inner loop and retry
-            break;
+            result = await self.client.global.event({ signal: abortController.signal } as never);
+          } catch (e) {
+            if (interrupted || self.closed) break;
+            console.warn('[opencode-harness] SSE subscribe error:', e);
+            // Brief pause before retry on subscribe error
+            await new Promise<void>((r) => setTimeout(r, 500));
+            continue;
+          } finally {
+            abortController = null;
           }
-          if (next.done || this.closed || this.eventLoopStopped) break;
-          eventCount++;
-          const raw = next.value as { type: string; properties?: Record<string, unknown> };
-          const sid = harnessEventSessionId(raw);
-          const registeredSessions = [...this.sessionListeners.keys()];
-          if (sid) {
-            const found = this.sessionListeners.has(sid);
-            if (!found) {
-              console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener (registered: ${registeredSessions.join(',') || 'none'})`);
-            } else {
-              console.log(`[opencode-harness] Routing event type="${raw.type}" to session "${sid}"`);
+
+          if (interrupted || self.closed) break;
+
+          // Guard: subscribe returned null/undefined (shouldn't happen in production,
+          // but guards against cleared mocks in tests or unexpected SDK behavior).
+          if (!result || !(result as { stream?: unknown }).stream) {
+            await new Promise<void>((r) => setTimeout(r, 100));
+            continue;
+          }
+
+          // Drain the global event stream using manual iterator.next() calls
+          // (avoids for-await cleanup semantics that can close the iterator early)
+          const iterator = (result.stream as AsyncIterable<unknown>)[Symbol.asyncIterator]();
+          try {
+            while (!interrupted && !self.closed) {
+              let next: IteratorResult<unknown>;
+              try {
+                next = await iterator.next();
+              } catch {
+                break; // stream error — reconnect
+              }
+              if (next.done) break; // stream ended — reconnect
+
+              const globalEvent = next.value as GlobalEvent;
+              const raw = globalEvent.payload as SdkEvent;
+              try {
+                const sid = harnessEventSessionId(raw);
+                if (sid) {
+                  const session = self.sessionListeners.get(sid);
+                  if (session) {
+                    session._receiveEvent(raw);
+                  } else {
+                    console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`);
+                  }
+                } else if (raw?.type !== 'server.connected') {
+                  // Silently ignore events without a sessionID (e.g. sync, project.updated)
+                }
+              } catch (e) {
+                // Never let event routing crash the loop
+                console.warn('[opencode-harness] Error routing event:', e);
+              }
             }
-          } else if (raw.type !== 'server.connected') {
-            console.log(`[opencode-harness] Event type="${raw.type}" has no sessionID (ignored)`);
+          } finally {
+            // Always release the iterator when we exit the inner loop
+            void iterator.return?.();
           }
-          if (sid) {
-            this.sessionListeners.get(sid)?._receiveEvent(raw);
+          // Stream ended or errored — short pause before reconnect
+          // (avoids tight CPU loop if server closes immediately after connect)
+          if (!interrupted && !self.closed) {
+            await new Promise<void>((r) => setTimeout(r, 100));
           }
         }
-        if (this.closed || this.eventLoopStopped) break; // clean exit
-        // Reset backoff when the stream was healthy and delivered events
-        if (eventCount > 0) {
-          delayMs = 30_000; // keep at 30s — per-session SSE handles real-time delivery
-        }
-      } catch {
-        if (this.closed || this.eventLoopStopped) break;
-      }
+        // Outer loop exited cleanly — signal the fiber is done
+        resume(Effect.succeed(undefined));
+      };
 
-      if (this.closed || this.eventLoopStopped) break;
+      void runLoop();
 
-      // Wait with backoff, but exit early if the loop is stopped
-      await this._sleepWithEarlyExit(delayMs);
-
-      delayMs = Math.min(delayMs * 2, MAX_DELAY_MS);
-    }
-    this.eventLoopRunning = false;
-  }
-
-  /**
-   * Sleep for `ms` milliseconds, but resolve immediately if the harness is
-   * closed or the event loop is stopped. Polls every 50ms.
-   */
-  private _sleepWithEarlyExit(ms: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        clearInterval(poll);
-        resolve();
-      }, ms);
-      const poll = setInterval(() => {
-        if (this.closed || this.eventLoopStopped) {
-          clearTimeout(timer);
-          clearInterval(poll);
-          resolve();
-        }
-      }, 50);
+      // Interruption handler: signal the loop to stop and abort any in-flight subscribe
+      return Effect.sync(() => {
+        interrupted = true;
+        abortController?.abort();
+      });
     });
   }
 
@@ -341,8 +378,14 @@ export class OpencodeSdkHarness implements BoundHarness {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    // Signal the SSE event loop to stop
-    this.eventLoopStopped = true;
+
+    // Interrupt the SSE fiber (if running) and wait for it to stop
+    if (this._sseFiber !== null) {
+      const fiber = this._sseFiber;
+      this._sseFiber = null;
+      await Effect.runPromise(Fiber.interrupt(fiber));
+    }
+
     this.sessionListeners.clear();
 
     // Send SIGTERM, then SIGKILL after a grace period
@@ -401,7 +444,7 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
     return new OpencodeSdkHarness({
       baseUrl,
       cwd: config.workingDir,
-      client: client as unknown as OpencodeClient,
+      client: client,
       process: childProcess,
     });
   } catch (err) {
