@@ -491,3 +491,50 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(queuedAfter.length).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// getLatestMessages — cursor invariant
+// ---------------------------------------------------------------------------
+
+describe('getLatestMessages cursor', () => {
+  test('returns a number cursor for empty chatroom (chatroom._creationTime - 1)', async () => {
+    const { sessionId } = await createTestSession('cursor-empty-session');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.query(api.messages.getLatestMessages, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result.messages).toHaveLength(0);
+    expect(typeof result.cursor).toBe('number');
+    // cursor must be a number, not null
+    expect(result.cursor).not.toBeNull();
+    // The cursor for an empty chatroom is chatroom._creationTime - 1, which
+    // is always a positive number (chatrooms are created with Date.now()).
+    expect(result.cursor).toBeGreaterThan(0);
+  });
+
+  test('returns newest message _creationTime as cursor for non-empty chatroom', async () => {
+    const { sessionId } = await createTestSession('cursor-nonempty-session');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Send a message so the chatroom is non-empty
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'hello world',
+      type: 'message',
+    });
+
+    const result = await t.query(api.messages.getLatestMessages, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(typeof result.cursor).toBe('number');
+    expect(result.cursor).toBe(result.messages[0]!._creationTime);
+  });
+});

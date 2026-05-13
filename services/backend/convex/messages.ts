@@ -1452,7 +1452,7 @@ export const getLatestMessages = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const limit = args.limit ?? 5;
 
@@ -1474,11 +1474,14 @@ export const getLatestMessages = query({
     // Enrich with task status, attachments, and latest progress
     const enrichedMessages = await enrichMessages(ctx, messages);
 
-    // Cursor is the _creationTime of the newest message, or null if empty
+    // Cursor is the _creationTime of the newest message.
+    // For empty chatrooms, fall back to chatroom._creationTime - 1 so the
+    // cursor is always a number. The invariant: any message with
+    // _creationTime > cursor is unseen by the client.
     const cursor =
       enrichedMessages.length > 0
         ? enrichedMessages[enrichedMessages.length - 1]._creationTime
-        : null;
+        : chatroom._creationTime - 1;
 
     return {
       messages: enrichedMessages,

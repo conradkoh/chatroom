@@ -104,7 +104,7 @@ describe('getLatestMessages', () => {
     expect(result.cursor).toBe(newestMessage._creationTime);
   });
 
-  test('cursor is null when no messages exist', async () => {
+  test('cursor is a number (chatroom._creationTime - 1) when no messages exist', async () => {
     const { sessionId } = await createTestSession('cursor-latest-5');
     const chatroomId = await createPairTeamChatroom(sessionId);
 
@@ -115,7 +115,10 @@ describe('getLatestMessages', () => {
     });
 
     expect(result.messages).toHaveLength(0);
-    expect(result.cursor).toBeNull();
+    // cursor is never null — for empty chatrooms it falls back to
+    // chatroom._creationTime - 1 so APPEND_DELTA can accept the first message.
+    expect(typeof result.cursor).toBe('number');
+    expect(result.cursor).toBeGreaterThan(0);
     expect(result.hasMore).toBe(false);
   });
 
