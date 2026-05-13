@@ -674,3 +674,46 @@ describe('messageStoreReducer — MERGE_MESSAGE_METADATA', () => {
     expect(state).toBe(initial);
   });
 });
+
+// ── Empty-chatroom regression ────────────────────────────────────────────────
+
+describe('messageStoreReducer — empty chatroom regression', () => {
+  it('accepts the first APPEND_DELTA after INITIALIZE with an empty messages array', () => {
+    // Arrange: empty-chatroom initialization (cursor is null because no messages exist)
+    let state = messageStoreReducer(initialState, {
+      type: 'INITIALIZE',
+      messages: [],
+      cursor: null,
+      hasMore: false,
+    });
+    expect(state.isInitialized).toBe(true);
+    expect(state.messages).toHaveLength(0);
+
+    // Act: simulate the tail subscription delivering the user's first message
+    const firstMessage = makeMessage('first', 1_000_000);
+    state = messageStoreReducer(state, {
+      type: 'APPEND_DELTA',
+      messages: [firstMessage],
+    });
+
+    // Assert: the message MUST appear in state and newestCursor MUST advance
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]!._id).toBe('first');
+    expect(state.newestCursor).toBe(1_000_000);
+  });
+
+  it('still rejects APPEND_DELTA messages older than newestCursor (strict guard intact)', () => {
+    let state = messageStoreReducer(initialState, {
+      type: 'INITIALIZE',
+      messages: [makeMessage('existing', 5_000_000)],
+      cursor: 5_000_000,
+      hasMore: false,
+    });
+    state = messageStoreReducer(state, {
+      type: 'APPEND_DELTA',
+      messages: [makeMessage('stale', 4_000_000)],
+    });
+    expect(state.messages).toHaveLength(1); // stale message rejected
+    expect(state.messages[0]!._id).toBe('existing');
+  });
+});
