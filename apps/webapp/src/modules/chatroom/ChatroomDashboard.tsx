@@ -71,6 +71,8 @@ import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
+import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
+import { PullRequestsPanel } from './workspace/components/panels/PullRequestsPanel';
 
 import {
   AlertDialog,
@@ -1567,6 +1569,20 @@ export function ChatroomDashboard({
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
+                ) : activeView === 'source-control' ? (
+                  /* Source Control — replaces the entire workspace area */
+                  <SourceControlPanel
+                    machineId={activeWorkspace?.machineId ?? ''}
+                    workingDir={activeWorkspace?.workingDir ?? ''}
+                    chatroomId={chatroomId}
+                  />
+                ) : activeView === 'pull-requests' ? (
+                  /* Pull Requests — replaces the entire workspace area */
+                  <PullRequestsPanel
+                    machineId={activeWorkspace?.machineId ?? ''}
+                    workingDir={activeWorkspace?.workingDir ?? ''}
+                    chatroomId={chatroomId}
+                  />
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
                   <ExplorerContent
