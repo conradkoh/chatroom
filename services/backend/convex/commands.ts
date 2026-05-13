@@ -266,10 +266,12 @@ export const updateRunStatus = mutation({
       v.literal('running'),
       v.literal('completed'),
       v.literal('failed'),
-      v.literal('stopped')
+      v.literal('stopped'),
+      v.literal('killed')
     ),
     pid: v.optional(v.number()),
     exitCode: v.optional(v.number()),
+    terminationReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
@@ -296,8 +298,8 @@ export const updateRunStatus = mutation({
     // Note: 'killed' is set directly by runCommand (replace semantics) and by
     // clearStaleCommandRuns — not via this mutation.
     const validTransitions: Record<string, string[]> = {
-      pending: ['running', 'failed', 'stopped'],
-      running: ['completed', 'failed', 'stopped'],
+      pending: ['running', 'failed', 'stopped', 'killed'],
+      running: ['completed', 'failed', 'stopped', 'killed'],
     };
     const allowed = validTransitions[run.status];
     if (!allowed || !allowed.includes(args.status)) {
@@ -309,13 +311,20 @@ export const updateRunStatus = mutation({
       pid?: number;
       exitCode?: number;
       completedAt?: number;
+      terminationReason?: string;
     } = { status: args.status };
 
     if (args.pid !== undefined) update.pid = args.pid;
     if (args.exitCode !== undefined) update.exitCode = args.exitCode;
+    if (args.terminationReason !== undefined) update.terminationReason = args.terminationReason;
 
     // Set completedAt for terminal states
-    if (args.status === 'completed' || args.status === 'failed' || args.status === 'stopped') {
+    if (
+      args.status === 'completed' ||
+      args.status === 'failed' ||
+      args.status === 'stopped' ||
+      args.status === 'killed'
+    ) {
       update.completedAt = Date.now();
     }
 
