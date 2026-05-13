@@ -66,7 +66,8 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     (event: React.KeyboardEvent | KeyboardEvent) => {
       if (outputPanelVisible) {
         event.preventDefault();
-        inlineCommandRef.current.close();
+        // Detach UI only — do NOT stop the process. The command keeps running.
+        inlineCommandRef.current.detach();
         // NOTE: intentionally do NOT clear searchValue here
       } else if (searchValueRef.current) {
         event.preventDefault();
@@ -78,10 +79,10 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     [outputPanelVisible, closeDialog]
   );
 
-  // Clean up inline command state and search when dialog closes
+  // Detach inline command state when dialog closes (don't kill the running process)
   useEffect(() => {
     if (!open) {
-      inlineCommandRef.current.close();
+      inlineCommandRef.current.detach();
       setSearchValue('');
     }
   }, [open]);
@@ -169,9 +170,9 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     }
   }, []);
 
-  // Close the output panel (stop + clear)
+  // Detach the output panel (don't kill the running command)
   const handleCloseOutputPanel = useCallback(() => {
-    inlineCommandRef.current.close();
+    inlineCommandRef.current.detach();
   }, []);
 
   const renderCommandItem = (command: CommandItem) => (

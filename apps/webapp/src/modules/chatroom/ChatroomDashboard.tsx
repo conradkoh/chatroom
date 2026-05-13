@@ -1082,12 +1082,12 @@ export function ChatroomDashboard({
   // Inline command output — direct reactive state (no closures, no stale refs)
   const inlineCommand = useInlineCommandOutput(commandRunner);
 
-  // Clean up inline command output when switching chatrooms.
+  // Detach inline command output when switching chatrooms (don't kill the process).
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
     return () => {
-      inlineCommandRef.current.close();
+      inlineCommandRef.current.detach();
     };
   }, [chatroomId]);
 

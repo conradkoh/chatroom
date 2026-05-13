@@ -19,9 +19,14 @@ export interface InlineCommandState {
   output: string[];
   /** Start or restart a command by name and script */
   run: (commandName: string, script: string) => void;
-  /** Stop the currently running command */
+  /** Stop the currently running command (explicit kill — for Stop button only) */
   stop: () => void;
-  /** Close the output panel (stop + clear state) */
+  /**
+   * Detach the UI panel from the current command WITHOUT stopping the process.
+   * Use for dialog/panel close gestures. The command continues running in the background.
+   */
+  detach: () => void;
+  /** Close the output panel (stop + clear state). Kept for backward compatibility — prefer detach() for panel-close gestures. */
   close: () => void;
 }
 
@@ -63,6 +68,12 @@ export function useInlineCommandOutput(
     }
   }, [commandRunner.activeRunId, commandRunner.stopCommand]);
 
+  /** Detach the UI panel without killing the process. */
+  const detach = useCallback(() => {
+    setCommandName(null);
+    setScript(null);
+  }, []);
+
   const close = useCallback(() => {
     stop();
     setCommandName(null);
@@ -76,6 +87,7 @@ export function useInlineCommandOutput(
     output,
     run,
     stop,
+    detach,
     close,
   };
 }
