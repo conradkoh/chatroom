@@ -1485,10 +1485,7 @@ export default defineSchema({
     // Default branch name (e.g. 'main', 'master')
     defaultBranch: v.optional(v.union(v.string(), v.null())),
 
-    // CI/CD status checks for the current branch head commit.
-    // Each entry merges modern check-runs and legacy commit-statuses; the optional
-    // `source` and `url` fields were added in v1.38.7 (see PR #476). They are
-    // optional here so we accept rows produced by older daemons and clients.
+    // CI/CD status checks for the current branch head commit
     headCommitStatus: v.optional(
       v.union(
         v.object({
@@ -1498,8 +1495,6 @@ export default defineSchema({
               name: v.string(),
               status: v.string(),
               conclusion: v.union(v.string(), v.null()),
-              source: v.optional(v.string()),
-              url: v.optional(v.union(v.string(), v.null())),
             })
           ),
           totalCount: v.number(),
@@ -1508,8 +1503,7 @@ export default defineSchema({
       )
     ),
 
-    // CI/CD status checks for the latest default branch commit. Same shape as
-    // headCommitStatus — see comment there.
+    // CI/CD status checks for the latest default branch commit
     defaultBranchStatus: v.optional(
       v.union(
         v.object({
@@ -1519,8 +1513,6 @@ export default defineSchema({
               name: v.string(),
               status: v.string(),
               conclusion: v.union(v.string(), v.null()),
-              source: v.optional(v.string()),
-              url: v.optional(v.union(v.string(), v.null())),
             })
           ),
           totalCount: v.number(),
