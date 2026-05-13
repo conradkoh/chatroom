@@ -19,7 +19,7 @@ interface TerminalOutputPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   commandName: string | null;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed' | null;
   output: string;
   onStop: () => void;
   onRestart?: () => void;
@@ -60,6 +60,13 @@ function StatusBadge({ status }: { status: TerminalOutputPanelProps['status'] })
         <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400 text-xs font-bold uppercase tracking-wider">
           <AlertTriangle size={12} />
           Stopped
+        </span>
+      );
+    case 'killed':
+      return (
+        <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400 text-xs font-bold uppercase tracking-wider">
+          <AlertTriangle size={12} />
+          Replaced
         </span>
       );
     default:

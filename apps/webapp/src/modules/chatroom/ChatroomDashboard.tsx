@@ -24,6 +24,7 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -1082,12 +1083,12 @@ export function ChatroomDashboard({
   // Inline command output — direct reactive state (no closures, no stale refs)
   const inlineCommand = useInlineCommandOutput(commandRunner);
 
-  // Clean up inline command output when switching chatrooms.
+  // Detach inline command output when switching chatrooms (don't kill the process).
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
     return () => {
-      inlineCommandRef.current.close();
+      inlineCommandRef.current.detach();
     };
   }, [chatroomId]);
 
@@ -1619,6 +1620,16 @@ export function ChatroomDashboard({
               refreshObservedChatroom={refreshObservedChatroom}
               onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
             />
+            {/* Active command runs indicator — shown in bottom-right when runs are detached */}
+            {activeWorkspace?.machineId && activeWorkspace?.workingDir && (
+              <div className="absolute bottom-9 right-3 z-10 pointer-events-auto">
+                <ActiveCommandRunsIndicator
+                  machineId={activeWorkspace.machineId}
+                  workingDir={activeWorkspace.workingDir}
+                  inlineCommand={inlineCommand}
+                />
+              </div>
+            )}
           </div>
 
           <PromptModal

@@ -141,6 +141,49 @@ export const runCommand = mutation({
 
     const now = Date.now();
 
+    // ── Back-to-back dedup (1-second window) ──────────────────────────────
+    // Protect against double-click: if the same (machineId, workingDir, commandName, script)
+    // request was dispatched within the last 1 second and the run is still 'pending',
+    // return the existing runId instead of creating a duplicate.
+    const recentPending = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('commandName'), args.commandName),
+          q.eq(q.field('script'), args.script),
+          q.gte(q.field('startedAt'), now - 1000)
+        )
+      )
+      .first();
+
+    if (recentPending) {
+      // Idempotent re-issue within the dedup window — return the existing runId.
+      return recentPending._id;
+    }
+
+    // ── Kill any currently running run for this (machineId, workingDir, commandName) ──
+    // Replace semantics: mark the existing 'running' run as 'killed' + 'replaced' so the UI
+    // sees the supersession immediately. The daemon will detect the 'killed' status and
+    // terminate the process when it next processes events.
+    const activeRun = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'running')
+      )
+      .filter((q) => q.eq(q.field('commandName'), args.commandName))
+      .first();
+
+    if (activeRun) {
+      await ctx.db.patch(activeRun._id, {
+        status: 'killed',
+        terminationReason: 'replaced',
+        completedAt: now,
+      });
+    }
+
     // Create the run record
     const runId = await ctx.db.insert('chatroom_commandRuns', {
       machineId: args.machineId,
@@ -198,6 +241,9 @@ export const stopCommand = mutation({
 
     const now = Date.now();
 
+    // Mark terminationReason before the daemon stops the process
+    await ctx.db.patch(args.runId, { terminationReason: 'user-stop' });
+
     // Dispatch command.stop event to daemon
     await ctx.db.insert('chatroom_eventStream', {
       type: 'command.stop' as const,
@@ -220,10 +266,12 @@ export const updateRunStatus = mutation({
       v.literal('running'),
       v.literal('completed'),
       v.literal('failed'),
-      v.literal('stopped')
+      v.literal('stopped'),
+      v.literal('killed')
     ),
     pid: v.optional(v.number()),
     exitCode: v.optional(v.number()),
+    terminationReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
@@ -247,9 +295,11 @@ export const updateRunStatus = mutation({
       });
 
     // State transition validation: only allow valid forward transitions
+    // Note: 'killed' is set directly by runCommand (replace semantics) and by
+    // clearStaleCommandRuns — not via this mutation.
     const validTransitions: Record<string, string[]> = {
-      pending: ['running', 'failed', 'stopped'],
-      running: ['completed', 'failed', 'stopped'],
+      pending: ['running', 'failed', 'stopped', 'killed'],
+      running: ['completed', 'failed', 'stopped', 'killed'],
     };
     const allowed = validTransitions[run.status];
     if (!allowed || !allowed.includes(args.status)) {
@@ -261,13 +311,20 @@ export const updateRunStatus = mutation({
       pid?: number;
       exitCode?: number;
       completedAt?: number;
+      terminationReason?: string;
     } = { status: args.status };
 
     if (args.pid !== undefined) update.pid = args.pid;
     if (args.exitCode !== undefined) update.exitCode = args.exitCode;
+    if (args.terminationReason !== undefined) update.terminationReason = args.terminationReason;
 
     // Set completedAt for terminal states
-    if (args.status === 'completed' || args.status === 'failed' || args.status === 'stopped') {
+    if (
+      args.status === 'completed' ||
+      args.status === 'failed' ||
+      args.status === 'stopped' ||
+      args.status === 'killed'
+    ) {
       update.completedAt = Date.now();
     }
 
@@ -349,6 +406,54 @@ export const listCommands = query({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
+  },
+});
+
+/**
+ * List active (pending or running) command runs for a workspace.
+ * Used by the ActiveCommandRunsIndicator to show background processes.
+ */
+export const listActiveRuns = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return [];
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    // Query pending runs
+    const pendingRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
+      )
+      .collect();
+
+    // Query running runs
+    const runningRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'running')
+      )
+      .collect();
+
+    // Return combined, sorted by startedAt descending
+    return [...pendingRuns, ...runningRuns]
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .map((r) => ({
+        _id: r._id,
+        commandName: r.commandName,
+        script: r.script,
+        status: r.status,
+        startedAt: r.startedAt,
+      }));
   },
 });
 

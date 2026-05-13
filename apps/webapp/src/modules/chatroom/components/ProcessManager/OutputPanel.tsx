@@ -51,6 +51,12 @@ function StatusBadge({ status }: { status: CommandRun['status'] }) {
       color: 'text-orange-500 dark:text-orange-400',
       spin: false,
     },
+    killed: {
+      icon: AlertTriangle,
+      text: 'Replaced',
+      color: 'text-orange-500 dark:text-orange-400',
+      spin: false,
+    },
   };
   const config = configs[status];
   const Icon = config.icon;

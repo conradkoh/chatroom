@@ -20,16 +20,28 @@ import { formatTimestamp } from '../utils.js';
 interface RunningProcess {
   process: ChildProcess;
   runId: string;
+  /** Composite key: `${machineId}|${workingDir}|${commandName}` */
+  commandKey: string;
   outputBuffer: string;
   chunkIndex: number;
   flushTimer: ReturnType<typeof setInterval>;
-  timeoutTimer: ReturnType<typeof setTimeout> | null;
+  softTimeoutTimer: ReturnType<typeof setTimeout> | null;
 }
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
-// @internal — exported for tests only
+/**
+ * Primary index: runId → tracked process.
+ * @internal — exported for tests only
+ */
 export const runningProcesses = new Map<string, RunningProcess>();
+
+/**
+ * Secondary index: commandKey → runId.
+ * Allows O(1) lookup of the current process for a (machineId, workingDir, commandName) tuple.
+ * @internal — exported for tests only
+ */
+export const runningProcessesByCommand = new Map<string, string>();
 
 /** Map of runId → timestamp for stops that arrived before the process was spawned.
  *  Used to prevent zombie processes when command.stop arrives before command.run. */
@@ -55,16 +67,22 @@ const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
 /** Maximum buffer size before forcing a flush (100KB). */
 const MAX_BUFFER_SIZE = 100 * 1024;
 
-/** Default timeout for command processes (30 minutes). After this, the process is killed. */
-const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
+/** Soft timeout for command processes (24 hours). After this, the process is killed. */
+const SOFT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How long to wait after SIGTERM before force-killing with SIGKILL (ms).
- * Applies to both explicit stops (command.stop event) and the 30-min watchdog.
  */
 const SIGTERM_GRACE_PERIOD_MS = 5_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Build the composite key used for command-level process lookup.
+ */
+function buildCommandKey(machineId: string, workingDir: string, commandName: string): string {
+  return `${machineId}|${workingDir}|${commandName}`;
+}
 
 /**
  * Report a run as failed to the backend. Used when validation fails before spawn.
@@ -124,10 +142,61 @@ function appendToBuffer(ctx: DaemonContext, tracked: RunningProcess, data: strin
   }
 }
 
+/**
+ * Send SIGTERM to the child process.
+ * Without `detached: true`, a plain `child.kill('SIGTERM')` is sufficient.
+ */
+function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
+  try {
+    child.kill(signal);
+  } catch {
+    // Already dead
+  }
+}
+
+/**
+ * Wait up to `ms` milliseconds for the process to exit (i.e. be removed from runningProcesses).
+ * Resolves true if the process exited within the timeout, false otherwise.
+ */
+function waitForExit(runIdStr: string, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const interval = 100;
+    let elapsed = 0;
+    const timer = setInterval(() => {
+      if (!runningProcesses.has(runIdStr)) {
+        clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= ms) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, interval);
+  });
+}
+
+/**
+ * Kill a tracked process with SIGTERM → wait grace period → SIGKILL.
+ * Cleans up the tracked process from both maps.
+ */
+async function killTrackedProcess(tracked: RunningProcess): Promise<void> {
+  killProcess(tracked.process, 'SIGTERM');
+  const exited = await waitForExit(tracked.runId, SIGTERM_GRACE_PERIOD_MS);
+  if (!exited) {
+    console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${tracked.runId}`);
+    killProcess(tracked.process, 'SIGKILL');
+    await waitForExit(tracked.runId, 1_000);
+  }
+}
+
 // ─── Event Handlers ─────────────────────────────────────────────────────────
 
 /**
- * Handle a command.run event: spawn the process and set up output streaming.
+ * Handle a command.run event: kill any prior running process for the same
+ * (machineId, workingDir, commandName), then spawn the new process and
+ * set up output streaming.
  */
 export async function onCommandRun(
   ctx: DaemonContext,
@@ -140,6 +209,7 @@ export async function onCommandRun(
 ): Promise<void> {
   const { workingDir, commandName, script, runId } = event;
   const runIdStr = runId.toString();
+  const commandKey = buildCommandKey(ctx.machineId, workingDir, commandName);
 
   // Prevent double-spawning
   if (runningProcesses.has(runIdStr)) {
@@ -148,14 +218,11 @@ export async function onCommandRun(
   }
 
   // Check for a pending stop that arrived before this run event.
-  // If a stop was already received, skip spawning — the run is already marked
-  // as 'stopped' in the backend, and spawning would create a zombie process.
   if (pendingStops.has(runIdStr)) {
     pendingStops.delete(runIdStr);
     console.log(
       `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
     );
-    // Backend should already be in 'stopped' state from onCommandStop, but ensure it
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -169,6 +236,23 @@ export async function onCommandRun(
       );
     }
     return;
+  }
+
+  // ── Replace semantics: kill any prior process for this (machineId, workingDir, commandName) ──
+  const priorRunId = runningProcessesByCommand.get(commandKey);
+  if (priorRunId) {
+    const priorTracked = runningProcesses.get(priorRunId);
+    if (priorTracked) {
+      console.log(
+        `[${formatTimestamp()}] 🔄 Replacing prior run ${priorRunId} with ${runIdStr} for ${commandName}`
+      );
+      clearInterval(priorTracked.flushTimer);
+      if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
+      await killTrackedProcess(priorTracked);
+      // Maps cleaned up by the 'exit' handler — but if not (SIGKILL silent), clean manually
+      runningProcesses.delete(priorRunId);
+      runningProcessesByCommand.delete(commandKey);
+    }
   }
 
   console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
@@ -191,62 +275,62 @@ export async function onCommandRun(
     return;
   }
 
-  // Spawn the process using a new process group so we can kill the entire tree
+  // Spawn the process. No `detached: true` — children die with the daemon.
   const child = spawn('sh', ['-c', script], {
     cwd: workingDir,
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true, // Creates a new process group
   });
-
-  // Start a watchdog timer that kills the process if it runs too long
-  const timeoutTimer = setTimeout(() => {
-    console.log(
-      `[${formatTimestamp()}] ⏰ Command timed out after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes: ${commandName} (runId: ${runIdStr})`
-    );
-    // Kill the process group (negative PID) to ensure all child processes are terminated
-    const pid = child.pid;
-    if (pid) {
-      try {
-        process.kill(-pid, 'SIGTERM');
-      } catch {
-        child.kill('SIGTERM');
-      }
-    } else {
-      child.kill('SIGTERM');
-    }
-    // Force-kill after delay if still alive
-    setTimeout(() => {
-      if (!runningProcesses.has(runIdStr)) return;
-      console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
-      if (pid) {
-        try {
-          process.kill(-pid, 'SIGKILL');
-        } catch {
-          child.kill('SIGKILL');
-        }
-      } else {
-        child.kill('SIGKILL');
-      }
-    }, SIGTERM_GRACE_PERIOD_MS);
-  }, DEFAULT_COMMAND_TIMEOUT_MS);
-  timeoutTimer.unref?.();
 
   const tracked: RunningProcess = {
     process: child,
     runId: runIdStr,
+    commandKey,
     outputBuffer: '',
     chunkIndex: 0,
     flushTimer: setInterval(() => {
       flushOutput(ctx, tracked).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
-    timeoutTimer,
+    softTimeoutTimer: null,
   };
-
-  // Unref the timer so it doesn't keep the process alive
   tracked.flushTimer.unref?.();
 
+  // Register in both indexes before async work so replace/stop lookups work immediately
   runningProcesses.set(runIdStr, tracked);
+  runningProcessesByCommand.set(commandKey, runIdStr);
+
+  // Start 24-hour soft timeout
+  const softTimeoutTimer = setTimeout(async () => {
+    console.log(
+      `[${formatTimestamp()}] ⏰ Command soft timeout (24h): ${commandName} (runId: ${runIdStr})`
+    );
+    const currentTracked = runningProcesses.get(runIdStr);
+    if (!currentTracked) return;
+
+    // Set terminationReason before killing
+    try {
+      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: ctx.sessionId as SessionId,
+        machineId: ctx.machineId,
+        runId,
+        status: 'killed' as any,
+        terminationReason: 'timeout-24h',
+      });
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️ Failed to mark run as killed (timeout): ${getErrorMessage(err)}`
+      );
+    }
+
+    killProcess(child, 'SIGTERM');
+    setTimeout(() => {
+      if (!runningProcesses.has(runIdStr)) return;
+      console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
+      killProcess(child, 'SIGKILL');
+    }, SIGTERM_GRACE_PERIOD_MS);
+  }, SOFT_TIMEOUT_MS);
+  softTimeoutTimer.unref?.();
+  tracked.softTimeoutTimer = softTimeoutTimer;
 
   // Update status to running with PID
   try {
@@ -284,8 +368,12 @@ export async function onCommandRun(
 
     // Clean up timers and state
     clearInterval(tracked.flushTimer);
-    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
     runningProcesses.delete(runIdStr);
+    // Only delete the command key if it still points to this run (a replace may have already updated it)
+    if (runningProcessesByCommand.get(commandKey) === runIdStr) {
+      runningProcessesByCommand.delete(commandKey);
+    }
 
     // Determine final status
     const status = code === 0 ? 'completed' : signal ? 'stopped' : 'failed';
@@ -310,8 +398,11 @@ export async function onCommandRun(
     console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
 
     clearInterval(tracked.flushTimer);
-    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
     runningProcesses.delete(runIdStr);
+    if (runningProcessesByCommand.get(commandKey) === runIdStr) {
+      runningProcessesByCommand.delete(commandKey);
+    }
 
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
@@ -329,64 +420,13 @@ export async function onCommandRun(
 }
 
 /**
- * Send a signal to a process group (negative PID), falling back to the child directly.
- */
-function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
-  const pid = child.pid;
-  if (pid) {
-    try {
-      process.kill(-pid, signal);
-      return;
-    } catch {
-      // Process group may already be dead; fall through to direct kill
-    }
-  }
-  try {
-    child.kill(signal);
-  } catch {
-    // Already dead
-  }
-}
-
-/**
- * Wait up to `ms` milliseconds for the process to exit (i.e. be removed from runningProcesses).
- * Resolves true if the process exited within the timeout, false otherwise.
- */
-function waitForExit(runIdStr: string, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const interval = 100;
-    let elapsed = 0;
-    const timer = setInterval(() => {
-      if (!runningProcesses.has(runIdStr)) {
-        clearInterval(timer);
-        resolve(true);
-        return;
-      }
-      elapsed += interval;
-      if (elapsed >= ms) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, interval);
-  });
-}
-
-/**
  * Handle a command.stop event: kill the running process.
- *
- * Stop logic:
- * 1. Check if a tracked process exists for this runId.
- * 2. If not, register a pending stop and mark the backend record as stopped.
- * 3. If yes, send SIGTERM and wait up to 10s for the process to exit.
- * 4. If still running after 10s, send SIGKILL.
- * 5. If still running after SIGKILL, log a stop failure.
- * 6. In all cases, mark the backend record as stopped.
  */
 export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
   const runIdStr = event.runId.toString();
   const tracked = runningProcesses.get(runIdStr);
 
-  // Step 1 & 2: No tracked process — register pending stop and mark backend stopped.
+  // No tracked process — register pending stop and mark backend stopped.
   if (!tracked) {
     console.log(
       `[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr} — marking as stopped`
@@ -410,33 +450,23 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
 
   console.log(`[${formatTimestamp()}] 🛑 Stopping command run: ${runIdStr}`);
 
-  // Clear the timeout watchdog since we're explicitly stopping
-  if (tracked.timeoutTimer) {
-    clearTimeout(tracked.timeoutTimer);
-    tracked.timeoutTimer = null;
+  // Clear the soft timeout since we're explicitly stopping
+  if (tracked.softTimeoutTimer) {
+    clearTimeout(tracked.softTimeoutTimer);
+    tracked.softTimeoutTimer = null;
   }
 
-  // Step 3: Send SIGTERM and wait up to 10s for graceful exit.
+  // Send SIGTERM and wait for graceful exit
   killProcess(tracked.process, 'SIGTERM');
   const exitedAfterSigterm = await waitForExit(runIdStr, SIGTERM_GRACE_PERIOD_MS);
 
   if (!exitedAfterSigterm) {
-    // Step 4: Still running — send SIGKILL.
     console.log(`[${formatTimestamp()}] 🔪 Force-killing process: ${runIdStr}`);
     killProcess(tracked.process, 'SIGKILL');
-
-    // Give SIGKILL a moment to take effect (kernel-level, should be near-instant)
-    const exitedAfterSigkill = await waitForExit(runIdStr, 1_000);
-
-    if (!exitedAfterSigkill) {
-      // Step 5: Still alive after SIGKILL — log failure.
-      console.error(
-        `[${formatTimestamp()}] ❌ Failed to stop process for run: ${runIdStr} — process did not exit after SIGKILL`
-      );
-    }
+    await waitForExit(runIdStr, 1_000);
   }
 
-  // Step 6: Always mark the backend record as stopped.
+  // Always mark the backend record as stopped.
   try {
     await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
       sessionId: ctx.sessionId as SessionId,
@@ -454,8 +484,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
 /**
  * Kill all currently running command processes during daemon shutdown.
  *
- * Flushes buffered output, sends SIGTERM to each process group, waits 3 seconds
+ * Flushes buffered output, sends SIGTERM to each process, waits 3 seconds
  * for graceful exit, then force-kills any survivors with SIGKILL.
+ * Marks each run as `status='killed'` with `terminationReason='daemon-shutdown'`.
  * No-op if no commands are running.
  */
 export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
@@ -465,50 +496,49 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
     `[${formatTimestamp()}] Shutting down ${runningProcesses.size} running command(s)...`
   );
 
-  for (const [, tracked] of runningProcesses) {
+  // Snapshot the current runs before async work
+  const trackedEntries = [...runningProcesses.entries()];
+
+  for (const [, tracked] of trackedEntries) {
     clearInterval(tracked.flushTimer);
-    if (tracked.timeoutTimer) clearTimeout(tracked.timeoutTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
 
     // Best-effort flush — don't block shutdown
     await flushOutput(ctx, tracked).catch(() => {});
 
-    // SIGTERM the process group so all child processes are terminated
-    const pid = tracked.process.pid;
-    if (pid) {
-      try {
-        process.kill(-pid, 'SIGTERM');
-      } catch {
-        tracked.process.kill('SIGTERM');
-      }
-    } else {
-      tracked.process.kill('SIGTERM');
+    // Mark run as killed in backend (best-effort)
+    try {
+      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: ctx.sessionId as SessionId,
+        machineId: ctx.machineId,
+        runId: tracked.runId as any,
+        status: 'killed' as any,
+        terminationReason: 'daemon-shutdown',
+      });
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
+      );
     }
+
+    // SIGTERM the process
+    killProcess(tracked.process, 'SIGTERM');
   }
 
-  // Grace period — give processes time to exit cleanly before force-killing
+  // Grace period — give processes time to exit cleanly
   await new Promise<void>((resolve) => {
     const t = setTimeout(resolve, 3_000);
     t.unref?.();
   });
 
   // Force-kill any survivors
-  for (const [, tracked] of runningProcesses) {
-    const pid = tracked.process.pid;
-    if (pid) {
-      try {
-        process.kill(-pid, 'SIGKILL');
-      } catch {
-        /* already dead */
-      }
-    } else {
-      try {
-        tracked.process.kill('SIGKILL');
-      } catch {
-        /* already dead */
-      }
+  for (const [, tracked] of trackedEntries) {
+    if (runningProcesses.has(tracked.runId)) {
+      killProcess(tracked.process, 'SIGKILL');
     }
   }
 
   runningProcesses.clear();
+  runningProcessesByCommand.clear();
   console.log(`[${formatTimestamp()}] All commands stopped`);
 }
