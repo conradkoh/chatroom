@@ -66,7 +66,14 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
       if (state.isInitialized) return state;
       const messages = action.messages;
       const oldestCursor = messages.length > 0 ? messages[0]._creationTime : null;
-      const newestCursor = action.cursor;
+      // Coerce null cursor to 0 so APPEND_DELTA's strict null-guard works even for
+      // empty-chatroom initialization (cursor is null when no messages exist).
+      // This matches the tail-subscription pattern (`tailCursorRef.current ?? 0`).
+      // Bug: without this coercion, the first APPEND_DELTA after INITIALIZE([], null)
+      // is silently dropped because APPEND_DELTA treats newestCursor=null as
+      // 'store uninitialized' and rejects all incoming messages.
+      // Note: oldestCursor intentionally stays null (no messages → no oldest entry).
+      const newestCursor = action.cursor ?? 0;
       return {
         ...state,
         messages,
@@ -97,8 +104,9 @@ export function messageStoreReducer(state: MessageStoreState, action: Action): M
       // This prevents stale/purged messages from re-appearing if the reactive
       // subscription returns outdated data (e.g. after a Convex re-evaluation).
       // newestCursor MUST be set — if null, all messages are rejected.
-      // This should never happen because the tail subscription is skipped until
-      // initialization completes, which sets newestCursor.
+      // Since INITIALIZE now coerces null cursor to 0 (empty chatroom case),
+      // this null-guard is a defensive belt against miscalled APPEND_DELTA before
+      // initialization. In normal operation it is unreachable.
       if (action.messages.length === 0) return state;
       if (state.newestCursor == null) return state;
       const newMessages = deduplicateMessages(state.messages, action.messages);
