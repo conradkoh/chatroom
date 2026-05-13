@@ -39,6 +39,13 @@ interface WorkspaceDiffViewerProps {
   workingDir?: string;
   /** Callback when changes are discarded (to refresh diff). */
   onDiscard?: () => void;
+  /**
+   * When false, the embedded file-list sidebar is not rendered. Use this when
+   * the parent already provides a file-picker UI (e.g. SourceControlPanel) and
+   * the viewer should only show the diff content for the selected file.
+   * Defaults to true.
+   */
+  showFileList?: boolean;
 }
 
 // Make git operations available when machineId is provided
@@ -270,6 +277,7 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   machineId,
   workingDir,
   onDiscard,
+  showFileList = true,
 }: WorkspaceDiffViewerProps) {
   const [selectedFileIdx, setSelectedFileIdx] = useState<number>(0);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -346,8 +354,8 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   return (
     <>
       <div className="flex flex-row h-full">
-        {/* File list sidebar with context menu */}
-        {showDiscard ? (
+        {/* File list sidebar with context menu — hidden when the parent supplies its own file picker */}
+        {showFileList && showDiscard ? (
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
@@ -378,13 +386,13 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-        ) : (
+        ) : showFileList ? (
           <FileListSidebar
             sections={sections}
             selectedIdx={selectedFileIdx}
             onSelect={setSelectedFileIdx}
           />
-        )}
+        ) : null}
 
         {/* Diff content area */}
         <div className="flex-1 overflow-y-auto">

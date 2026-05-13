@@ -201,6 +201,7 @@ const FileDiff = memo(function FileDiff({
     <div className="flex-1 overflow-hidden">
       <WorkspaceDiffViewer
         state={{ status: 'available', content: fileDiffContent, truncated: false, diffStat: { filesChanged: 1, insertions: 0, deletions: 0 } }}
+        showFileList={false}
       />
     </div>
   );
