@@ -528,7 +528,9 @@ export const upsertWorkspaceGitState = mutation({
     commitsAhead: v.optional(v.number()),
     // Default branch name
     defaultBranch: v.optional(v.union(v.string(), v.null())),
-    // CI/CD status checks for current branch head
+    // CI/CD status checks for current branch head.
+    // `source` and `url` were added in v1.38.7 (PR #476) — optional so we accept
+    // payloads from older daemons too.
     headCommitStatus: v.optional(
       v.union(
         v.object({
@@ -538,6 +540,8 @@ export const upsertWorkspaceGitState = mutation({
               name: v.string(),
               status: v.string(),
               conclusion: v.union(v.string(), v.null()),
+              source: v.optional(v.string()),
+              url: v.optional(v.union(v.string(), v.null())),
             })
           ),
           totalCount: v.number(),
@@ -545,7 +549,7 @@ export const upsertWorkspaceGitState = mutation({
         v.null()
       )
     ),
-    // CI/CD status checks for default branch
+    // CI/CD status checks for default branch — same shape as headCommitStatus.
     defaultBranchStatus: v.optional(
       v.union(
         v.object({
@@ -555,6 +559,8 @@ export const upsertWorkspaceGitState = mutation({
               name: v.string(),
               status: v.string(),
               conclusion: v.union(v.string(), v.null()),
+              source: v.optional(v.string()),
+              url: v.optional(v.union(v.string(), v.null())),
             })
           ),
           totalCount: v.number(),
