@@ -201,6 +201,51 @@ describe('BufferedJournalFactory', () => {
     expect(chunks[2]).toMatchObject({ content: 'c', timestamp: 3 });
   });
 
+  it('defaults flushIntervalMs to 500ms when not specified', async () => {
+    const repo = mockOutputRepository();
+    const factory = new BufferedJournalFactory({
+      outputRepository: repo,
+      logger: { warn: warnSpy },
+    });
+
+    const journal = factory.create('row-1');
+    journal.record({ content: 'tick', timestamp: 100 });
+
+    // Just under 500ms — interval should not have fired yet.
+    await vi.advanceTimersByTimeAsync(400);
+    expect(repo.appendChunks).not.toHaveBeenCalled();
+
+    // Past 500ms — should now have flushed.
+    await vi.advanceTimersByTimeAsync(150);
+    expect(repo.appendChunks).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a per-chunk trace on record() with session, messageId, partType, and bytes', () => {
+    const repo = mockOutputRepository();
+    const logSpy = vi.fn();
+    const factory = new BufferedJournalFactory({
+      outputRepository: repo,
+      flushIntervalMs: 500,
+      logger: { warn: warnSpy, log: logSpy },
+    });
+
+    const journal = factory.create('row-xyz');
+    journal.record({
+      content: 'hello world',
+      timestamp: 100,
+      messageId: 'msg_42',
+      partType: 'reasoning',
+    });
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line).toContain('[journal] chunk recorded');
+    expect(line).toContain('session=row-xyz');
+    expect(line).toContain('messageId=msg_42');
+    expect(line).toContain('partType=reasoning');
+    expect(line).toContain('bytes=11');
+  });
+
   // ─── flush() ────────────────────────────────────────────────────────────────
 
   it('flush() drains the buffer immediately without stopping the interval', async () => {
