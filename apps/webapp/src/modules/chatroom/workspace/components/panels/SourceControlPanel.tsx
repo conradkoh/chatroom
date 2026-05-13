@@ -37,6 +37,27 @@ interface SourceControlPanelProps {
 
 type ActiveSource = { type: 'working-tree' } | { type: 'commit'; sha: string };
 
+// ─── Shared: Section Header ─────────────────────────────────────────────────
+
+interface SectionHeaderProps {
+  label: string;
+  className?: string;
+}
+
+const SectionHeader = memo(function SectionHeader({ label, className }: SectionHeaderProps) {
+  return (
+    <div
+      className={cn(
+        'sticky top-0 z-10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider',
+        'text-foreground bg-muted/40 border-b border-border shrink-0',
+        className
+      )}
+    >
+      {label}
+    </div>
+  );
+});
+
 // ─── Left Rail: Diff Summary ──────────────────────────────────────────────────
 
 interface DiffSummaryProps {
@@ -358,9 +379,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
       <div className="w-[280px] shrink-0 flex flex-col border-r border-border overflow-hidden">
         {/* Diff summary */}
         <div className="shrink-0 border-b border-border">
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Changes
-          </div>
+          <SectionHeader label="Changes" />
           {gitState.status === 'loading' ? (
             <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
               <Loader2 size={12} className="animate-spin" />
@@ -380,9 +399,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
         {/* Commit history */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
-            History
-          </div>
+          <SectionHeader label="History" className="border-t border-border" />
           <div className="flex-1 overflow-y-auto">
             <WorkspaceGitLog
               commits={commits}
@@ -400,9 +417,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
       {/* ── Middle: File List ────────────────────────────────────── */}
       <div className="w-[220px] shrink-0 flex flex-col border-r border-border overflow-hidden">
-        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 border-b border-border">
-          Files
-        </div>
+        <SectionHeader label="Files" />
         {!activeSource ? (
           <div className="flex-1 flex items-center justify-center px-4 py-3 text-xs text-muted-foreground text-center">
             Select a change or commit to see files.
