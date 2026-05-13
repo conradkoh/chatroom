@@ -487,19 +487,52 @@ const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskPro
 });
 
 // Full progress history - loaded on demand when expanded
-// Note: getProgressForTask backend query was removed; component shows empty state.
 const TaskProgressHistory = memo(function TaskProgressHistory({
-  chatroomId: _chatroomId,
-  taskId: _taskId,
+  chatroomId,
+  taskId,
 }: {
   chatroomId: string;
   taskId?: string;
 }) {
-  // Backend query (getProgressForTask) was removed from the API.
-  // Always render the empty state until a replacement is implemented.
+  const progressMessages = useSessionQuery(
+    api.messages.getProgressForTask,
+    taskId
+      ? {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          taskId: taskId as Id<'chatroom_tasks'>,
+        }
+      : 'skip'
+  );
+
+  if (!progressMessages || progressMessages.length === 0) {
+    return (
+      <div className="px-3 py-2 text-[11px] text-chatroom-text-muted/60">
+        No progress updates yet.
+      </div>
+    );
+  }
+
   return (
-    <div className="px-3 py-2 text-[11px] text-chatroom-text-muted/60">
-      No progress updates yet.
+    <div className="px-3 py-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-chatroom-border">
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {progressMessages.map(
+          (progress: {
+            _id: string;
+            content: string;
+            senderRole: string;
+            _creationTime: number;
+          }) => (
+            <React.Fragment key={progress._id}>
+              <span className="text-[10px] text-chatroom-text-muted flex-shrink-0 tabular-nums whitespace-nowrap">
+                {formatTime(progress._creationTime)}
+              </span>
+              <span className="text-[11px] text-chatroom-text-primary leading-snug">
+                {progress.content}
+              </span>
+            </React.Fragment>
+          )
+        )}
+      </div>
     </div>
   );
 });

@@ -1436,6 +1436,44 @@ export const listQueued = query({
 
 
 /**
+ * Returns all progress messages for a given task, ordered chronologically.
+ * Used by TaskProgressHistory in MessageFeed to display progress updates
+ * when the user expands the progress history view.
+ */
+export const getProgressForTask = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Verify task belongs to this chatroom
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task || task.chatroomId !== args.chatroomId) {
+      return [];
+    }
+
+    // Fetch all progress messages for this task, ordered chronologically
+    const progressMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_taskId', (q) => q.eq('taskId', args.taskId))
+      .filter((q) => q.eq(q.field('type'), 'progress'))
+      .order('asc')
+      .collect();
+
+    return progressMessages.map((msg) => ({
+      _id: msg._id,
+      content: msg.content,
+      senderRole: msg.senderRole,
+      _creationTime: msg._creationTime,
+    }));
+  },
+});
+
+/**
  * Returns messages for active tasks in the chatroom.
  * Used by the frontend to subscribe to classification/metadata updates for
  * messages that are still being processed. When a task's source message gets
