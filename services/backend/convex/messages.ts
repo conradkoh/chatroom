@@ -125,9 +125,9 @@ async function enrichMessageAttachments(
 /**
  * Enriches an array of chatroom messages with task status, attachments, and
  * latest progress information. Shared by getLatestMessages,
- * getMessagesSince, and getOlderMessages to ensure consistent message shape.
+ * getMessagesSince, getOlderMessages, and the new messageList module.
  */
-async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
+export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
   // Batch task lookups: collect unique taskIds, fetch in parallel
   const uniqueTaskIds = [
     ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
