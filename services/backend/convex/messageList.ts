@@ -3,8 +3,7 @@
  *
  * This module provides the new paginated message queries built on Convex's
  * built-in pagination primitives. The legacy queries (getLatestMessages,
- * getMessagesSince, getOlderMessages) in messages.ts remain in place and
- * will be marked @deprecated once the frontend migration is complete.
+ * getMessagesSince, getOlderMessages) have been removed from messages.ts.
  *
  * Queries:
  *   - listMessages        — paginated historical messages (newest-first per page)
