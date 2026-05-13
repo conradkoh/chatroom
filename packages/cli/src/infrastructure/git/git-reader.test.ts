@@ -625,60 +625,103 @@ describe('getCommitsAhead', () => {
 // ─── getCommitStatusChecks ──────────────────────────────────────────────────
 
 describe('getCommitStatusChecks', () => {
-  test('returns status checks when gh api succeeds', async () => {
-    // First call: getOriginRepoSlug -> git remote get-url origin
+  // Helper to mock the 3-call sequence: git-remote, check-runs, statuses
+  function mockCheckRuns(checkRunsPayload: object, statusesPayload: unknown[] = []) {
+    mockSuccess('https://github.com/owner/repo.git\n'); // git remote
+    mockSuccess(JSON.stringify(checkRunsPayload)); // check-runs
+    mockSuccess(JSON.stringify(statusesPayload)); // statuses
+  }
+
+  test('PR #463 reproduction: failing legacy Vercel status + successful check-run → failure', async () => {
+    // Mirrors the exact scenario that triggered the bug:
+    //   - 'Vercel Preview Comments' check-run: success
+    //   - 'Vercel' legacy commit status: failure
     mockSuccess('https://github.com/owner/repo.git\n');
-    // Second call: gh api check-runs
     mockSuccess(
       JSON.stringify({
+        check_runs: [{ name: 'Vercel Preview Comments', status: 'completed', conclusion: 'success' }],
+        total_count: 1,
+      })
+    );
+    mockSuccess(
+      JSON.stringify([{ context: 'Vercel', state: 'failure', target_url: 'https://vercel.com/deploy/123' }])
+    );
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).not.toBeNull();
+    expect(result!.state).toBe('failure'); // failure wins
+    expect(result!.totalCount).toBe(2); // both entries merged
+    expect(result!.checkRuns).toHaveLength(2);
+
+    const legacyEntry = result!.checkRuns.find((e) => e.name === 'Vercel');
+    expect(legacyEntry).toBeDefined();
+    expect(legacyEntry!.source).toBe('status');
+    expect(legacyEntry!.conclusion).toBe('failure');
+    expect(legacyEntry!.url).toBe('https://vercel.com/deploy/123');
+
+    const modernEntry = result!.checkRuns.find((e) => e.name === 'Vercel Preview Comments');
+    expect(modernEntry).toBeDefined();
+    expect(modernEntry!.source).toBe('check-run');
+  });
+
+  test('all-success case: both check-runs and statuses successful → success', async () => {
+    mockCheckRuns(
+      {
         check_runs: [
           { name: 'build', status: 'completed', conclusion: 'success' },
           { name: 'test', status: 'completed', conclusion: 'success' },
         ],
         total_count: 2,
-      })
+      },
+      [{ context: 'deploy', state: 'success', target_url: null }]
     );
-    // Third call: gh api status
-    mockSuccess('success\n');
 
     const result = await getCommitStatusChecks('/repo', 'main');
     expect(result).not.toBeNull();
     expect(result!.state).toBe('success');
-    expect(result!.checkRuns).toHaveLength(2);
-    expect(result!.totalCount).toBe(2);
+    expect(result!.totalCount).toBe(3);
+    expect(result!.checkRuns.every((e) => e.conclusion === 'success')).toBe(true);
   });
 
-  test('returns failure state when a check run fails', async () => {
-    mockSuccess('https://github.com/owner/repo.git\n');
-    mockSuccess(
-      JSON.stringify({
-        check_runs: [
-          { name: 'build', status: 'completed', conclusion: 'failure' },
-          { name: 'test', status: 'completed', conclusion: 'success' },
-        ],
-        total_count: 2,
-      })
+  test('pending legacy status while check-runs complete → pending', async () => {
+    mockCheckRuns(
+      { check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }], total_count: 1 },
+      [{ context: 'deploy', state: 'pending', target_url: null }]
     );
-    mockSuccess('failure\n');
 
     const result = await getCommitStatusChecks('/repo', 'main');
     expect(result).not.toBeNull();
-    expect(result!.state).toBe('failure');
+    expect(result!.state).toBe('pending'); // legacy pending pulls down state
   });
 
-  test('returns pending state when checks are in progress', async () => {
-    mockSuccess('https://github.com/owner/repo.git\n');
-    mockSuccess(
-      JSON.stringify({
-        check_runs: [{ name: 'build', status: 'in_progress', conclusion: null }],
+  test('empty statuses list → check-runs only, no crash', async () => {
+    mockCheckRuns(
+      {
+        check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }],
         total_count: 1,
-      })
+      },
+      [] // no legacy statuses
     );
-    mockSuccess('pending\n');
 
     const result = await getCommitStatusChecks('/repo', 'main');
     expect(result).not.toBeNull();
-    expect(result!.state).toBe('pending');
+    expect(result!.state).toBe('success');
+    expect(result!.totalCount).toBe(1);
+    expect(result!.checkRuns[0]!.source).toBe('check-run');
+  });
+
+  test('no check-runs, only legacy statuses', async () => {
+    mockCheckRuns(
+      { check_runs: [], total_count: 0 },
+      [{ context: 'CI', state: 'success', target_url: 'https://ci.example.com' }]
+    );
+
+    const result = await getCommitStatusChecks('/repo', 'main');
+    expect(result).not.toBeNull();
+    expect(result!.state).toBe('success');
+    expect(result!.totalCount).toBe(1);
+    expect(result!.checkRuns[0]!.source).toBe('status');
+    expect(result!.checkRuns[0]!.url).toBe('https://ci.example.com');
   });
 
   test('returns null when repo slug cannot be determined', async () => {
@@ -696,7 +739,6 @@ describe('getCommitStatusChecks', () => {
     expect(result).toBeNull();
   });
 });
-
 // ─── getDefaultBranch ───────────────────────────────────────────────────────
 
 describe('getDefaultBranch', () => {
