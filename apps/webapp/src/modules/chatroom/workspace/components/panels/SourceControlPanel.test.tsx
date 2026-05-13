@@ -307,3 +307,58 @@ describe('SourceControlPanel', () => {
     expect(screen.getByText(/Select a file to view its diff/i)).toBeTruthy();
   });
 });
+
+// ─── groupFilesByDirectory unit tests ────────────────────────────────────────
+
+import { groupFilesByDirectory } from './SourceControlPanel';
+import type { FileDiffSection } from '../../utils/diff-parser';
+
+const makeFile = (filePath: string): FileDiffSection => ({
+  filePath,
+  status: 'modified',
+  lines: [],
+});
+
+describe('groupFilesByDirectory', () => {
+  it('places root-level files in the "." group', () => {
+    const files = [makeFile('README.md'), makeFile('package.json')];
+    const groups = groupFilesByDirectory(files);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].dir).toBe('.');
+    expect(groups[0].files.map((f) => f.filePath)).toEqual(['package.json', 'README.md']);
+  });
+
+  it('groups nested files by directory', () => {
+    const files = [makeFile('src/foo.ts'), makeFile('src/bar.ts'), makeFile('lib/baz.ts')];
+    const groups = groupFilesByDirectory(files);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].dir).toBe('lib');
+    expect(groups[1].dir).toBe('src');
+  });
+
+  it('handles mixed root and nested files', () => {
+    const files = [makeFile('index.ts'), makeFile('src/utils.ts'), makeFile('src/types.ts')];
+    const groups = groupFilesByDirectory(files);
+    // Groups sorted alphabetically: "." < "src"
+    expect(groups[0].dir).toBe('.');
+    expect(groups[1].dir).toBe('src');
+    // Files within src sorted by basename
+    expect(groups[1].files.map((f) => f.filePath)).toEqual(['src/types.ts', 'src/utils.ts']);
+  });
+
+  it('sorts groups alphabetically and files within group alphabetically by basename', () => {
+    const files = [
+      makeFile('z/z.ts'),
+      makeFile('a/b.ts'),
+      makeFile('a/a.ts'),
+      makeFile('m/m.ts'),
+    ];
+    const groups = groupFilesByDirectory(files);
+    expect(groups.map((g) => g.dir)).toEqual(['a', 'm', 'z']);
+    expect(groups[0].files.map((f) => f.filePath)).toEqual(['a/a.ts', 'a/b.ts']);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(groupFilesByDirectory([])).toEqual([]);
+  });
+});

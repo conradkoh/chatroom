@@ -13,7 +13,7 @@
 import { Loader2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { parseDiff, basename } from '../../utils/diff-parser';
+import { parseDiff, basename, dirname } from '../../utils/diff-parser';
 import type { FileDiffSection } from '../../utils/diff-parser';
 import type { GitCommit } from '../../types/git';
 import {
@@ -121,6 +121,8 @@ const FileList = memo(function FileList({
   isLoading,
   onSelectFile,
 }: FileListProps) {
+  const groups = useMemo(() => groupFilesByDirectory(files), [files]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-20 gap-1.5 text-xs text-muted-foreground">
@@ -138,32 +140,46 @@ const FileList = memo(function FileList({
 
   return (
     <div className="overflow-y-auto flex-1">
-      {files.map((file) => (
-        <button
-          key={file.filePath}
-          type="button"
-          onClick={() => onSelectFile(file.filePath)}
-          className={cn(
-            'w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors hover:bg-chatroom-bg-hover cursor-pointer',
-            selectedFile === file.filePath
-              ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
-              : 'border-l-2 border-transparent'
-          )}
-        >
-          <span
-            className={cn('text-[10px] font-mono shrink-0 w-3', {
-              'text-green-500': file.status === 'created',
-              'text-red-500': file.status === 'deleted',
-              'text-yellow-500': file.status === 'modified',
-            })}
+      {groups.map(({ dir, files: groupFiles }) => (
+        <div key={dir}>
+          {/* Sticky directory header */}
+          <div
+            className="sticky top-0 z-10 bg-chatroom-bg-secondary px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-chatroom-border truncate"
+            title={dir}
           >
-            {file.status === 'created' ? 'A' : file.status === 'deleted' ? 'D' : 'M'}
-          </span>
-          <span className="text-xs text-chatroom-text-primary truncate" title={file.filePath}>
-            {basename(file.filePath)}
-          </span>
-          <span className="text-[10px] text-muted-foreground truncate">{file.filePath}</span>
-        </button>
+            {dir}
+          </div>
+          {/* Files in this directory */}
+          {groupFiles.map((file) => (
+            <button
+              key={file.filePath}
+              type="button"
+              onClick={() => onSelectFile(file.filePath)}
+              className={cn(
+                'w-full text-left px-3 py-1.5 flex items-start gap-2 transition-colors hover:bg-chatroom-bg-hover cursor-pointer min-w-0',
+                selectedFile === file.filePath
+                  ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
+                  : 'border-l-2 border-transparent'
+              )}
+            >
+              <span
+                className={cn('text-[10px] font-mono shrink-0 w-3 mt-0.5', {
+                  'text-green-500': file.status === 'created',
+                  'text-red-500': file.status === 'deleted',
+                  'text-yellow-500': file.status === 'modified',
+                })}
+              >
+                {file.status === 'created' ? 'A' : file.status === 'deleted' ? 'D' : 'M'}
+              </span>
+              <span className="flex flex-col min-w-0">
+                <span className="font-medium text-xs text-foreground">{basename(file.filePath)}</span>
+                <span className="text-[10px] text-muted-foreground truncate" title={file.filePath}>
+                  {dirname(file.filePath)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -452,3 +468,37 @@ export const SourceControlPanel = memo(function SourceControlPanel({
     </div>
   );
 });
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+interface FileGroup {
+  dir: string;
+  files: FileDiffSection[];
+}
+
+/**
+ * Groups a list of FileDiffSection entries by their directory.
+ * Groups and files within each group are sorted alphabetically.
+ * Root-level files (no directory) are placed in the "." group.
+ */
+export function groupFilesByDirectory(files: FileDiffSection[]): FileGroup[] {
+  const map = new Map<string, FileDiffSection[]>();
+
+  for (const file of files) {
+    const dir = dirname(file.filePath);
+    if (!map.has(dir)) {
+      map.set(dir, []);
+    }
+    map.get(dir)!.push(file);
+  }
+
+  // Sort files within each group alphabetically by basename
+  for (const groupFiles of map.values()) {
+    groupFiles.sort((a, b) => basename(a.filePath).localeCompare(basename(b.filePath)));
+  }
+
+  // Sort groups alphabetically by directory name
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dir, groupFiles]) => ({ dir, files: groupFiles }));
+}
