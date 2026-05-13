@@ -47,11 +47,12 @@ import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
+import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
-import { useMultiWorkspaceFiles } from './workspace/files';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
@@ -65,14 +66,13 @@ import {
 } from './workspace/components/FileExplorerPanel';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
+import { PullRequestsPanel } from './workspace/components/panels/PullRequestsPanel';
+import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
-import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
-import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
-import { PullRequestsPanel } from './workspace/components/panels/PullRequestsPanel';
 
 import {
   AlertDialog,
@@ -1629,7 +1629,7 @@ export function ChatroomDashboard({
               workspaces={chatroomWorkspaces}
               chatroomId={chatroomId}
               refreshObservedChatroom={refreshObservedChatroom}
-              onRegisterOpenGitPanel={undefined}
+              onSwitchToSourceControl={handleSwitchToSourceControl}
             />
             {/* Active command runs indicator — shown in bottom-right when runs are detached */}
             {activeWorkspace?.machineId && activeWorkspace?.workingDir && (
