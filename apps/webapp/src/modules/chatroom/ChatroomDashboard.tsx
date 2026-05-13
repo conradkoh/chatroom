@@ -764,15 +764,9 @@ export function ChatroomDashboard({
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
-  const openGitPanelRef = useRef<((tab?: string) => void) | null>(null);
   const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
-
-  // Registration callbacks (stable refs, no re-renders)
-  const handleRegisterOpenGitPanel = useCallback((fn: (tab?: string) => void) => {
-    openGitPanelRef.current = fn;
-  }, []);
 
   const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
     openEventStreamRef.current = fn;
@@ -792,13 +786,15 @@ export function ChatroomDashboard({
     setSettingsModalOpen(true);
   }, []);
 
-  const handleCmdOpenGitPanel = useCallback(() => {
-    openGitPanelRef.current?.();
-  }, []);
+  // Switch to Source Control activity view
+  const handleSwitchToSourceControl = useCallback(() => {
+    setActivityView('source-control');
+  }, [setActivityView]);
 
-  const handleCmdOpenPRReview = useCallback(() => {
-    openGitPanelRef.current?.('prs');
-  }, []);
+  // Switch to Pull Requests activity view
+  const handleSwitchToPullRequests = useCallback(() => {
+    setActivityView('pull-requests');
+  }, [setActivityView]);
 
   const handleCmdOpenEventStream = useCallback(() => {
     openEventStreamRef.current?.();
@@ -866,9 +862,9 @@ export function ChatroomDashboard({
     () => ({
       sendAction,
       openExternalUrl,
-      onOpenGitPanel: () => openGitPanelRef.current?.(),
+      onOpenGitPanel: handleSwitchToSourceControl,
     }),
-    [sendAction]
+    [sendAction, handleSwitchToSourceControl]
   );
 
   // Start all remote agents handler
@@ -1150,7 +1146,6 @@ export function ChatroomDashboard({
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
-    onOpenGitPanel: handleCmdOpenGitPanel,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
@@ -1159,10 +1154,10 @@ export function ChatroomDashboard({
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
-    onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
-    onOpenWorkspaceDetails: activeWorkspace ? handleCmdOpenGitPanel : null,
+    onSwitchToSourceControl: activeWorkspace ? handleSwitchToSourceControl : null,
+    onSwitchToPullRequests: activeWorkspace ? handleSwitchToPullRequests : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
@@ -1634,7 +1629,7 @@ export function ChatroomDashboard({
               workspaces={chatroomWorkspaces}
               chatroomId={chatroomId}
               refreshObservedChatroom={refreshObservedChatroom}
-              onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
+              onRegisterOpenGitPanel={undefined}
             />
             {/* Active command runs indicator — shown in bottom-right when runs are detached */}
             {activeWorkspace?.machineId && activeWorkspace?.workingDir && (

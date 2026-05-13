@@ -39,7 +39,8 @@ export type { SavedCommand };
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
   onOpenEventStream: () => void;
-  onOpenGitPanel: () => void;
+  /** @deprecated Use onSwitchToSourceControl instead. */
+  onOpenGitPanel?: (() => void) | null;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
   /** Navigation callbacks */
@@ -50,10 +51,16 @@ interface UseCommandPaletteCommandsProps {
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
+  /** @deprecated Use onSwitchToPullRequests instead. */
   onOpenPRReview?: (() => void) | null;
   onViewGitHubPullRequests?: (() => void) | null;
   onViewGitHubRepository?: (() => void) | null;
+  /** @deprecated Use onSwitchToSourceControl instead. */
   onOpenWorkspaceDetails?: (() => void) | null;
+  /** Switch to the Source Control activity view */
+  onSwitchToSourceControl?: (() => void) | null;
+  /** Switch to the Pull Requests activity view */
+  onSwitchToPullRequests?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: Array<{ name: string; script: string; source: string }>;
   /** Callback to open the Process Manager with a specific command selected */
@@ -136,6 +143,8 @@ export function useCommandPaletteCommands({
   onDeleteSavedCommand,
   confirmingDeleteCommandId,
   onRefreshWorkspaceState,
+  onSwitchToSourceControl,
+  onSwitchToPullRequests,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -308,35 +317,37 @@ export function useCommandPaletteCommands({
         });
       }
 
-      if (onOpenPROnGitHub) {
+      if (onOpenPROnGitHub || onSwitchToPullRequests) {
         commands.push({
           id: 'action-open-pr-github',
           label: 'Github: View Current Pull Request',
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
           keywords: ['PR', 'pull request', 'Github PR'],
-          action: onOpenPROnGitHub,
+          // Switch to Pull Requests panel (auto-selects current-branch PR)
+          action: onSwitchToPullRequests ?? onOpenPROnGitHub!,
         });
       }
 
-      if (onOpenPRReview) {
+      if (onSwitchToPullRequests || onOpenPRReview) {
         commands.push({
           id: 'action-pr-review-diff',
-          label: 'Chatroom: Review Pull Requests',
+          label: 'View: Pull Requests',
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'PRs', 'Review'],
-          action: onOpenPRReview,
+          keywords: ['PR', 'PRs', 'Review', 'pull requests panel'],
+          action: onSwitchToPullRequests ?? onOpenPRReview!,
         });
       }
 
-      if (onOpenWorkspaceDetails) {
+      if (onSwitchToSourceControl || onOpenWorkspaceDetails) {
         commands.push({
           id: 'action-open-workspace-details',
-          label: 'Machine: Workspace Details',
+          label: 'View: Source Control',
           icon: <PanelBottomOpen size={14} />,
           category: 'Actions',
-          action: onOpenWorkspaceDetails,
+          keywords: ['git', 'source control', 'diff', 'history', 'workspace details'],
+          action: onSwitchToSourceControl ?? onOpenWorkspaceDetails!,
         });
       }
 
@@ -365,10 +376,11 @@ export function useCommandPaletteCommands({
     commands.push(
       {
         id: 'panel-git',
-        label: 'Chatroom: Git Panel',
+        label: 'View: Source Control',
         icon: <GitBranch size={14} />,
         category: 'Panels',
-        action: onOpenGitPanel,
+        keywords: ['git', 'git panel', 'source control', 'diff', 'history'],
+        action: onSwitchToSourceControl ?? onOpenGitPanel ?? (() => {}),
       },
       {
         id: 'panel-configuration',
@@ -539,5 +551,7 @@ export function useCommandPaletteCommands({
     onDeleteSavedCommand,
     confirmingDeleteCommandId,
     onRefreshWorkspaceState,
+    onSwitchToSourceControl,
+    onSwitchToPullRequests,
   ]);
 }
