@@ -25,17 +25,17 @@ import type {
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;
-  /** Flush interval in milliseconds. Default 1000ms. */
+  /** Flush interval in milliseconds. Default 500ms. */
   readonly flushIntervalMs?: number;
-  /** Optional logger for debug/warnings. */
-  readonly logger?: Pick<Console, 'warn'>;
+  /** Optional logger for debug/warnings + per-chunk record traces. */
+  readonly logger?: Pick<Console, 'warn'> & Partial<Pick<Console, 'log'>>;
 }
 
 export class BufferedJournalFactory implements JournalFactory {
   constructor(private readonly options: BufferedJournalFactoryOptions) {}
 
   create(harnessSessionId: string): SessionJournal {
-    const { outputRepository, flushIntervalMs = 1000, logger = console } = this.options;
+    const { outputRepository, flushIntervalMs = 500, logger = console } = this.options;
     const buffer: OutputChunk[] = [];
     let flushInProgress = false;
 
@@ -78,6 +78,11 @@ export class BufferedJournalFactory implements JournalFactory {
           messageId: chunk.messageId,
           partType: chunk.partType,
         });
+        // Per-chunk trace so the daemon log shows individual chunks arriving
+        // (the periodic flush log only fires every flushIntervalMs ms).
+        logger.log?.(
+          `[journal] chunk recorded session=${harnessSessionId} messageId=${chunk.messageId ?? '-'} partType=${chunk.partType ?? 'text'} bytes=${chunk.content.length}`
+        );
       },
 
       async flush(): Promise<void> {
