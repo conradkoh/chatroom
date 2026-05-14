@@ -109,6 +109,19 @@ const DiffSummary = memo(function DiffSummary({
 
 // ─── Middle: File List ────────────────────────────────────────────────────────
 
+/** Memoized file-type icon — resolves the correct icon+color for a file path. */
+const FileTypeIcon = memo(function FileTypeIcon({ filePath }: { filePath: string }) {
+  const { Icon, color } = getFileIcon(filePath);
+  return (
+    <Icon
+      size={12}
+      aria-hidden
+      className="shrink-0"
+      style={color ? { color } : undefined}
+    />
+  );
+});
+
 interface FileListProps {
   files: FileDiffSection[];
   selectedFile: string | null;
@@ -157,27 +170,15 @@ const FileList = memo(function FileList({
               type="button"
               onClick={() => onSelectFile(file.filePath)}
               className={cn(
-                'w-full text-left px-3 py-1.5 flex items-start gap-2 transition-colors hover:bg-chatroom-bg-hover cursor-pointer min-w-0',
+                'w-full text-left px-3 py-1.5 flex flex-row items-center gap-2 transition-colors hover:bg-chatroom-bg-hover cursor-pointer min-w-0',
                 selectedFile === file.filePath
                   ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
                   : 'border-l-2 border-transparent'
               )}
             >
-              {/* File type icon */}
-              {(() => {
-                const { Icon, color } = getFileIcon(file.filePath);
-                return (
-                  <Icon
-                    size={12}
-                    aria-hidden
-                    className="shrink-0 mt-0.5"
-                    style={color ? { color } : undefined}
-                  />
-                );
-              })()}
-              {/* Status letter (M/A/D) */}
+              {/* Status badge — vertically centered, spans both content rows */}
               <span
-                className={cn('text-[10px] font-mono shrink-0 w-3 mt-0.5', {
+                className={cn('text-[10px] font-mono shrink-0 self-center w-3', {
                   'text-green-500': file.status === 'created',
                   'text-red-500': file.status === 'deleted',
                   'text-yellow-500': file.status === 'modified',
@@ -185,11 +186,22 @@ const FileList = memo(function FileList({
               >
                 {file.status === 'created' ? 'A' : file.status === 'deleted' ? 'D' : 'M'}
               </span>
-              <span className="flex flex-col min-w-0">
-                <span className="font-medium text-xs text-foreground">{basename(file.filePath)}</span>
-                <span className="text-[10px] text-muted-foreground truncate" title={file.filePath}>
-                  {dirname(file.filePath)}
+              {/* Right column: top row = icon + filename; bottom row = directory */}
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <FileTypeIcon filePath={file.filePath} />
+                  <span className="text-xs font-medium text-chatroom-text-primary truncate">
+                    {basename(file.filePath)}
+                  </span>
                 </span>
+                {dirname(file.filePath) !== '.' && (
+                  <span
+                    className="text-[10px] text-muted-foreground truncate"
+                    title={file.filePath}
+                  >
+                    {dirname(file.filePath)}
+                  </span>
+                )}
               </span>
             </button>
           ))}
