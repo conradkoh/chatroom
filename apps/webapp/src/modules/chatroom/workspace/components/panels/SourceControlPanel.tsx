@@ -27,6 +27,11 @@ import {
 import { WorkspaceGitLog } from '../WorkspaceGitLog';
 import { WorkspaceDiffViewer } from '../WorkspaceDiffViewer';
 import { cn } from '@/lib/utils';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -416,82 +421,92 @@ export const SourceControlPanel = memo(function SourceControlPanel({
     recentCommitsState.status === 'available' ? recentCommitsState.hasMoreCommits : false;
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
-      {/* ── Left Rail ──────────────────────────────────────────── */}
-      <div className="w-[280px] shrink-0 flex flex-col border-r border-border overflow-hidden">
-        {/* Diff summary */}
-        <div className="shrink-0 border-b border-border">
-          <SectionHeader label="Changes" />
-          {gitState.status === 'loading' ? (
-            <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
-              <Loader2 size={12} className="animate-spin" />
-              Loading…
+    <ResizablePanelGroup className="h-full">
+      {/* ── Left Rail ────────────────────────────────────────────── */}
+      <ResizablePanel defaultSize={28} minSize={15}>
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Diff summary */}
+          <div className="shrink-0 border-b border-border">
+            <SectionHeader label="Changes" />
+            {gitState.status === 'loading' ? (
+              <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
+                <Loader2 size={12} className="animate-spin" />
+                Loading…
+              </div>
+            ) : (
+              <DiffSummary
+                isDirty={isDirty}
+                filesChanged={diffStat.filesChanged}
+                insertions={diffStat.insertions}
+                deletions={diffStat.deletions}
+                isSelected={activeSource?.type === 'working-tree'}
+                onSelect={handleSelectWorkingTree}
+              />
+            )}
+          </div>
+
+          {/* Commit history */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <SectionHeader label="History" className="border-t border-border" />
+            <div className="flex-1 overflow-y-auto">
+              <WorkspaceGitLog
+                commits={commits}
+                hasMore={hasMoreCommits}
+                status={recentCommitsState.status}
+                selectedSha={selectedSha}
+                loadingMore={isLoadingMore}
+                onSelectCommit={handleSelectCommit}
+                onRequest={requestRecentCommits}
+                onLoadMore={loadMoreCommits}
+              />
+            </div>
+          </div>
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      {/* ── Middle: File List ─────────────────────────────────────── */}
+      <ResizablePanel defaultSize={22} minSize={12}>
+        <div className="flex flex-col h-full overflow-hidden">
+          <SectionHeader label="Files" />
+          {!activeSource ? (
+            <div className="flex-1 flex items-center justify-center px-4 py-3 text-xs text-muted-foreground text-center">
+              Select a change or commit to see files.
             </div>
           ) : (
-            <DiffSummary
-              isDirty={isDirty}
-              filesChanged={diffStat.filesChanged}
-              insertions={diffStat.insertions}
-              deletions={diffStat.deletions}
-              isSelected={activeSource?.type === 'working-tree'}
-              onSelect={handleSelectWorkingTree}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <FileList
+                files={files}
+                selectedFile={selectedFile}
+                isLoading={isMiddleLoading}
+                onSelectFile={setSelectedFile}
+              />
+            </div>
+          )}
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      {/* ── Right: File Diff ──────────────────────────────────────── */}
+      <ResizablePanel defaultSize={50} minSize={20}>
+        <div className="flex flex-col h-full overflow-hidden">
+          {!selectedFile ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+              Select a file to view its diff.
+            </div>
+          ) : (
+            <FileDiff
+              files={files}
+              selectedFile={selectedFile}
+              fullContent={fullDiffContent}
+              isLoading={isRightLoading}
             />
           )}
         </div>
-
-        {/* Commit history */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <SectionHeader label="History" className="border-t border-border" />
-          <div className="flex-1 overflow-y-auto">
-            <WorkspaceGitLog
-              commits={commits}
-              hasMore={hasMoreCommits}
-              status={recentCommitsState.status}
-              selectedSha={selectedSha}
-              loadingMore={isLoadingMore}
-              onSelectCommit={handleSelectCommit}
-              onRequest={requestRecentCommits}
-              onLoadMore={loadMoreCommits}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Middle: File List ────────────────────────────────────── */}
-      <div className="w-[220px] shrink-0 flex flex-col border-r border-border overflow-hidden">
-        <SectionHeader label="Files" />
-        {!activeSource ? (
-          <div className="flex-1 flex items-center justify-center px-4 py-3 text-xs text-muted-foreground text-center">
-            Select a change or commit to see files.
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <FileList
-              files={files}
-              selectedFile={selectedFile}
-              isLoading={isMiddleLoading}
-              onSelectFile={setSelectedFile}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── Right: File Diff ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {!selectedFile ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-            Select a file to view its diff.
-          </div>
-        ) : (
-          <FileDiff
-            files={files}
-            selectedFile={selectedFile}
-            fullContent={fullDiffContent}
-            isLoading={isRightLoading}
-          />
-        )}
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 });
 
