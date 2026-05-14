@@ -299,7 +299,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
         </div>
       </ResizablePanel>
 
-      <ResizableHandle withHandle />
+      <ResizableHandle />
 
       {/* ── Right: PR Review ──────────────────────────────────── */}
       <ResizablePanel id="pr-detail" defaultSize={sizes[1]} minSize={30}>

@@ -547,7 +547,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         </div>
       </ResizablePanel>
 
-      <ResizableHandle withHandle />
+      <ResizableHandle />
 
       {/* ── Content: Header + File List + Diff ─────────────────────── */}
       <ResizablePanel id="sc-content" defaultSize={outerSizes[1]} minSize={40}>
@@ -582,7 +582,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
               </div>
             </ResizablePanel>
 
-            <ResizableHandle withHandle />
+            <ResizableHandle />
 
             {/* ── Right: File Diff ──────────────────────────────────────── */}
             <ResizablePanel id="sc-right" defaultSize={innerSizes[1]} minSize={30}>
