@@ -5,6 +5,7 @@ import { memo, useState, useEffect, useCallback } from 'react';
 
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
+import { getFileIcon } from '../utils/file-icons';
 
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 
@@ -152,8 +153,19 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
   return (
     <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* File header */}
-      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-foreground font-medium border-b border-chatroom-border truncate">
-        {section.filePath || '(unknown file)'}
+      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-foreground font-medium border-b border-chatroom-border flex items-center gap-1.5">
+        {(() => {
+          const { Icon, color } = getFileIcon(section.filePath ?? '');
+          return (
+            <Icon
+              size={12}
+              aria-hidden
+              className={cn('shrink-0', !color && 'text-muted-foreground')}
+              style={color ? { color } : undefined}
+            />
+          );
+        })()}
+        <span className="truncate">{section.filePath || '(unknown file)'}</span>
       </div>
 
       {/* Diff lines */}
