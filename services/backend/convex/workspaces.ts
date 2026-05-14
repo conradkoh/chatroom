@@ -774,6 +774,7 @@ export const appendMoreCommits = mutation({
         sha: v.string(),
         shortSha: v.string(),
         message: v.string(),
+        body: v.optional(v.string()),
         author: v.string(),
         date: v.string(),
       })
@@ -1697,6 +1698,7 @@ export const upsertCommitDetailV2 = mutation({
       })
     ),
     message: v.optional(v.string()),
+    body: v.optional(v.string()),
     author: v.optional(v.string()),
     date: v.optional(v.string()),
     errorMessage: v.optional(v.string()),
@@ -1733,6 +1735,7 @@ export const upsertCommitDetailV2 = mutation({
       truncated: args.truncated,
       diffStat: args.diffStat,
       message: args.message,
+      body: args.body,
       author: args.author,
       date: args.date,
       errorMessage: args.errorMessage,

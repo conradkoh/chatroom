@@ -50,6 +50,8 @@ export interface GitCommit {
   shortSha: string;
   /** First line of the commit message. */
   message: string;
+  /** Rest of the commit message after the subject line, trimmed. Empty/omitted when there is no body. */
+  body?: string;
   /** Author display name. */
   author: string;
   /** ISO 8601 date string. */
