@@ -27,6 +27,7 @@ import {
 import { WorkspaceGitLog } from '../WorkspaceGitLog';
 import { WorkspaceDiffViewer } from '../WorkspaceDiffViewer';
 import { cn } from '@/lib/utils';
+import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -308,6 +309,13 @@ function buildFileDiffContent(section: FileDiffSection, fullContent: string): st
   return lines.slice(startIdx, endIdx).join('\n');
 }
 
+// ─── Layout Persistence ─────────────────────────────────────────────────────
+
+const SC_LAYOUT_KEY = 'webapp:sourceControlPanelSizes';
+const SC_DEFAULT_LAYOUT: readonly number[] = [28, 22, 50] as const;
+const isValidLayout = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.length === 3 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const SourceControlPanel = memo(function SourceControlPanel({
@@ -315,6 +323,19 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   workingDir,
   chatroomId: _chatroomId,
 }: SourceControlPanelProps) {
+  // Layout persistence
+  const [sizes, setSizes] = usePersistedState<number[]>(SC_LAYOUT_KEY, [...SC_DEFAULT_LAYOUT], {
+    validate: isValidLayout,
+  });
+  // onLayoutChanged fires only after pointer release — no debounce needed
+  const handleLayoutChanged = useCallback(
+    (layout: { [id: string]: number }) => {
+      const next = [layout['sc-left'] ?? sizes[0], layout['sc-middle'] ?? sizes[1], layout['sc-right'] ?? sizes[2]];
+      if (isValidLayout(next)) setSizes(next);
+    },
+    [setSizes, sizes]
+  );
+
   // Git state (branch, dirty status, diff stats)
   const gitState = useWorkspaceGit(machineId, workingDir);
 
@@ -421,9 +442,9 @@ export const SourceControlPanel = memo(function SourceControlPanel({
     recentCommitsState.status === 'available' ? recentCommitsState.hasMoreCommits : false;
 
   return (
-    <ResizablePanelGroup className="h-full">
+    <ResizablePanelGroup className="h-full" onLayoutChanged={handleLayoutChanged}>
       {/* ── Left Rail ────────────────────────────────────────────── */}
-      <ResizablePanel defaultSize={28} minSize={15}>
+      <ResizablePanel id="sc-left" defaultSize={sizes[0]} minSize={15}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Diff summary */}
           <div className="shrink-0 border-b border-border">
@@ -467,7 +488,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
       <ResizableHandle withHandle />
 
       {/* ── Middle: File List ─────────────────────────────────────── */}
-      <ResizablePanel defaultSize={22} minSize={12}>
+      <ResizablePanel id="sc-middle" defaultSize={sizes[1]} minSize={12}>
         <div className="flex flex-col h-full overflow-hidden">
           <SectionHeader label="Files" />
           {!activeSource ? (
@@ -490,7 +511,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
       <ResizableHandle withHandle />
 
       {/* ── Right: File Diff ──────────────────────────────────────── */}
-      <ResizablePanel defaultSize={50} minSize={20}>
+      <ResizablePanel id="sc-right" defaultSize={sizes[2]} minSize={20}>
         <div className="flex flex-col h-full overflow-hidden">
           {!selectedFile ? (
             <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
