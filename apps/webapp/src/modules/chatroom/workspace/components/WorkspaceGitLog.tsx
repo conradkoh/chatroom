@@ -42,12 +42,12 @@ const CommitRow = memo(function CommitRow({ commit, isSelected, onSelect }: Comm
           : 'border-l-2 border-transparent',
       ].join(' ')}
     >
-      {/* First line: SHA + message */}
-      <div className="flex items-center gap-2 min-w-0">
+      {/* First line: SHA + message (allow message to wrap to 2 lines) */}
+      <div className="flex items-start gap-2 min-w-0">
         <span className="font-mono text-[11px] text-chatroom-accent shrink-0">
           {commit.shortSha}
         </span>
-        <span className="text-xs text-chatroom-text-primary truncate">{commit.message}</span>
+        <span className="text-xs text-chatroom-text-primary line-clamp-2">{commit.message}</span>
       </div>
       {/* Second line: author + relative date */}
       <div className="flex items-center gap-2 text-[11px] text-chatroom-text-muted">
