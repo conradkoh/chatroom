@@ -28,6 +28,9 @@ import { WorkspaceGitLog } from '../WorkspaceGitLog';
 import { WorkspaceDiffViewer } from '../WorkspaceDiffViewer';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
+import { linkifyGitHubRefs } from '@/lib/github-refs';
+import { parseRepoSlug } from '@/lib/git-remote';
+import { formatRelativeTime } from '../shared';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -309,12 +312,46 @@ function buildFileDiffContent(section: FileDiffSection, fullContent: string): st
   return lines.slice(startIdx, endIdx).join('\n');
 }
 
+// ─── CommitDetailHeader ──────────────────────────────────────────────────────
+
+interface CommitDetailHeaderProps {
+  commit: GitCommit;
+  repoSlug: string | null;
+}
+
+const CommitDetailHeader = memo(function CommitDetailHeader({
+  commit,
+  repoSlug,
+}: CommitDetailHeaderProps) {
+  return (
+    <div className="shrink-0 px-4 py-3 border-b border-border bg-muted/20 overflow-y-auto max-h-48">
+      <div className="text-sm font-bold text-foreground mb-1">
+        {linkifyGitHubRefs(commit.message, { repoSlug })}
+      </div>
+      {commit.body ? (
+        <div className="text-xs text-muted-foreground whitespace-pre-wrap mb-2">
+          {linkifyGitHubRefs(commit.body, { repoSlug })}
+        </div>
+      ) : null}
+      <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+        <span className="font-mono">{commit.shortSha}</span>
+        <span>·</span>
+        <span>{commit.author}</span>
+        <span>·</span>
+        <span>{formatRelativeTime(commit.date)}</span>
+      </div>
+    </div>
+  );
+});
+
 // ─── Layout Persistence ─────────────────────────────────────────────────────
 
-const SC_LAYOUT_KEY = 'webapp:sourceControlPanelSizes';
-const SC_DEFAULT_LAYOUT: readonly number[] = [28, 22, 50] as const;
-const isValidLayout = (v: unknown): v is number[] =>
-  Array.isArray(v) && v.length === 3 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+const SC_OUTER_KEY = 'webapp:sourceControlPanelOuterSizes';
+const SC_OUTER_DEFAULT: readonly number[] = [28, 72] as const;
+const SC_INNER_KEY = 'webapp:sourceControlPanelInnerSizes';
+const SC_INNER_DEFAULT: readonly number[] = [31, 69] as const;
+const isValidLayout2 = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -323,17 +360,27 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   workingDir,
   chatroomId: _chatroomId,
 }: SourceControlPanelProps) {
-  // Layout persistence
-  const [sizes, setSizes] = usePersistedState<number[]>(SC_LAYOUT_KEY, [...SC_DEFAULT_LAYOUT], {
-    validate: isValidLayout,
+  // Layout persistence — nested resizable groups
+  const [outerSizes, setOuterSizes] = usePersistedState<number[]>(SC_OUTER_KEY, [...SC_OUTER_DEFAULT], {
+    validate: isValidLayout2,
+  });
+  const [innerSizes, setInnerSizes] = usePersistedState<number[]>(SC_INNER_KEY, [...SC_INNER_DEFAULT], {
+    validate: isValidLayout2,
   });
   // onLayoutChanged fires only after pointer release — no debounce needed
-  const handleLayoutChanged = useCallback(
+  const handleOuterLayout = useCallback(
     (layout: { [id: string]: number }) => {
-      const next = [layout['sc-left'] ?? sizes[0], layout['sc-middle'] ?? sizes[1], layout['sc-right'] ?? sizes[2]];
-      if (isValidLayout(next)) setSizes(next);
+      const next = [layout['sc-left'] ?? outerSizes[0], layout['sc-content'] ?? outerSizes[1]];
+      if (isValidLayout2(next)) setOuterSizes(next);
     },
-    [setSizes, sizes]
+    [setOuterSizes, outerSizes]
+  );
+  const handleInnerLayout = useCallback(
+    (layout: { [id: string]: number }) => {
+      const next = [layout['sc-middle'] ?? innerSizes[0], layout['sc-right'] ?? innerSizes[1]];
+      if (isValidLayout2(next)) setInnerSizes(next);
+    },
+    [setInnerSizes, innerSizes]
   );
 
   // Git state (branch, dirty status, diff stats)
@@ -441,10 +488,25 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   const hasMoreCommits =
     recentCommitsState.status === 'available' ? recentCommitsState.hasMoreCommits : false;
 
+  // Derive repo slug from remotes
+  const repoSlug = useMemo(() => {
+    if (gitState.status !== 'available') return null;
+    const remotes = gitState.remotes;
+    if (!remotes || remotes.length === 0) return null;
+    const origin = remotes.find((r: { name: string }) => r.name === 'origin') ?? remotes[0];
+    return origin ? parseRepoSlug(origin.url) : null;
+  }, [gitState]);
+
+  // Look up the selected commit object (has body)
+  const selectedCommit: GitCommit | null = useMemo(() => {
+    if (activeSource?.type !== 'commit') return null;
+    return commits.find((c) => c.sha === activeSource.sha) ?? null;
+  }, [activeSource, commits]);
+
   return (
-    <ResizablePanelGroup className="h-full" onLayoutChanged={handleLayoutChanged}>
+    <ResizablePanelGroup className="h-full" onLayoutChanged={handleOuterLayout}>
       {/* ── Left Rail ────────────────────────────────────────────── */}
-      <ResizablePanel id="sc-left" defaultSize={sizes[0]} minSize={15}>
+      <ResizablePanel id="sc-left" defaultSize={outerSizes[0]} minSize={15}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Diff summary */}
           <div className="shrink-0 border-b border-border">
@@ -487,44 +549,59 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
       <ResizableHandle withHandle />
 
-      {/* ── Middle: File List ─────────────────────────────────────── */}
-      <ResizablePanel id="sc-middle" defaultSize={sizes[1]} minSize={12}>
+      {/* ── Content: Header + File List + Diff ─────────────────────── */}
+      <ResizablePanel id="sc-content" defaultSize={outerSizes[1]} minSize={40}>
         <div className="flex flex-col h-full overflow-hidden">
-          <SectionHeader label="Files" />
-          {!activeSource ? (
-            <div className="flex-1 flex items-center justify-center px-4 py-3 text-xs text-muted-foreground text-center">
-              Select a change or commit to see files.
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <FileList
-                files={files}
-                selectedFile={selectedFile}
-                isLoading={isMiddleLoading}
-                onSelectFile={setSelectedFile}
-              />
-            </div>
-          )}
-        </div>
-      </ResizablePanel>
+          {/* Commit detail header — visible only for commits, not working tree */}
+          {selectedCommit ? (
+            <CommitDetailHeader commit={selectedCommit} repoSlug={repoSlug} />
+          ) : null}
+          {/* Nested resizable panels: file list + diff viewer */}
+          <ResizablePanelGroup
+            onLayoutChanged={handleInnerLayout}
+            className="flex-1"
+          >
+            {/* ── Middle: File List ─────────────────────────────────────── */}
+            <ResizablePanel id="sc-middle" defaultSize={innerSizes[0]} minSize={20}>
+              <div className="flex flex-col h-full overflow-hidden">
+                <SectionHeader label="Files" />
+                {!activeSource ? (
+                  <div className="flex-1 flex items-center justify-center px-4 py-3 text-xs text-muted-foreground text-center">
+                    Select a change or commit to see files.
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <FileList
+                      files={files}
+                      selectedFile={selectedFile}
+                      isLoading={isMiddleLoading}
+                      onSelectFile={setSelectedFile}
+                    />
+                  </div>
+                )}
+              </div>
+            </ResizablePanel>
 
-      <ResizableHandle withHandle />
+            <ResizableHandle withHandle />
 
-      {/* ── Right: File Diff ──────────────────────────────────────── */}
-      <ResizablePanel id="sc-right" defaultSize={sizes[2]} minSize={20}>
-        <div className="flex flex-col h-full overflow-hidden">
-          {!selectedFile ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-              Select a file to view its diff.
-            </div>
-          ) : (
-            <FileDiff
-              files={files}
-              selectedFile={selectedFile}
-              fullContent={fullDiffContent}
-              isLoading={isRightLoading}
-            />
-          )}
+            {/* ── Right: File Diff ──────────────────────────────────────── */}
+            <ResizablePanel id="sc-right" defaultSize={innerSizes[1]} minSize={30}>
+              <div className="flex flex-col h-full overflow-hidden">
+                {!selectedFile ? (
+                  <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+                    Select a file to view its diff.
+                  </div>
+                ) : (
+                  <FileDiff
+                    files={files}
+                    selectedFile={selectedFile}
+                    fullContent={fullDiffContent}
+                    isLoading={isRightLoading}
+                  />
+                )}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
