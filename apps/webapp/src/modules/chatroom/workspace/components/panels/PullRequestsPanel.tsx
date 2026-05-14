@@ -21,6 +21,12 @@ import { useCurrentBranchPullRequest } from '../../hooks/useCurrentBranchPullReq
 import type { GitPullRequest } from '../../types/git';
 import { prStateBadge, relativeTime } from '../../utils/pr-helpers';
 import { cn } from '@/lib/utils';
+import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,6 +166,13 @@ const PRListColumn = memo(function PRListColumn({
   );
 });
 
+// ─── Layout Persistence ─────────────────────────────────────────────────────
+
+const PR_LAYOUT_KEY = 'webapp:pullRequestsPanelSizes';
+const PR_DEFAULT_LAYOUT: readonly number[] = [30, 70] as const;
+const isValidPRLayout = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const PullRequestsPanel = memo(function PullRequestsPanel({
@@ -169,6 +182,17 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
 }: PullRequestsPanelProps) {
   const [filter, setFilter] = useState<PRFilter>('my-prs');
   const [selectedPR, setSelectedPR] = useState<GitPullRequest | null>(null);
+  // Layout persistence
+  const [sizes, setSizes] = usePersistedState<number[]>(PR_LAYOUT_KEY, [...PR_DEFAULT_LAYOUT], {
+    validate: isValidPRLayout,
+  });
+  const handleLayoutChanged = useCallback(
+    (layout: { [id: string]: number }) => {
+      const next = [layout['pr-list'] ?? sizes[0], layout['pr-detail'] ?? sizes[1]];
+      if (isValidPRLayout(next)) setSizes(next);
+    },
+    [setSizes, sizes]
+  );
   const [prActionLoading, setPrActionLoading] = useState(false);
 
   // Current branch PR + current user login
@@ -259,44 +283,50 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
   const baseBranch = selectedPR?.baseRefName ?? 'main';
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
+    <ResizablePanelGroup className="h-full" onLayoutChanged={handleLayoutChanged}>
       {/* ── Left: PR List ────────────────────────────────────── */}
-      <div className="w-[280px] shrink-0 border-r border-border overflow-hidden flex flex-col">
-        <PRListColumn
-          prs={filteredPRs}
-          filter={filter}
-          selectedPR={selectedPR}
-          currentBranchPR={currentBranchPR}
-          isLoading={isLoading}
-          onSelect={setSelectedPR}
-          onFilterChange={handleFilterChange}
-        />
-      </div>
+      <ResizablePanel id="pr-list" defaultSize={sizes[0]} minSize={18}>
+        <div className="flex flex-col h-full overflow-hidden">
+          <PRListColumn
+            prs={filteredPRs}
+            filter={filter}
+            selectedPR={selectedPR}
+            currentBranchPR={currentBranchPR}
+            isLoading={isLoading}
+            onSelect={setSelectedPR}
+            onFilterChange={handleFilterChange}
+          />
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
 
       {/* ── Right: PR Review ──────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {!selectedPR ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-            {isLoading ? (
-              <span className="flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" />
-                Loading…
-              </span>
-            ) : (
-              'Select a pull request to review.'
-            )}
-          </div>
-        ) : (
-          <WorkspacePRReview
-            activePR={selectedPR}
-            machineId={machineId}
-            workingDir={workingDir}
-            baseBranch={baseBranch}
-            onPRAction={handlePRAction}
-            prActionLoading={prActionLoading}
-          />
-        )}
-      </div>
-    </div>
+      <ResizablePanel id="pr-detail" defaultSize={sizes[1]} minSize={30}>
+        <div className="flex flex-col h-full overflow-hidden">
+          {!selectedPR ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+              {isLoading ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" />
+                  Loading…
+                </span>
+              ) : (
+                'Select a pull request to review.'
+              )}
+            </div>
+          ) : (
+            <WorkspacePRReview
+              activePR={selectedPR}
+              machineId={machineId}
+              workingDir={workingDir}
+              baseBranch={baseBranch}
+              onPRAction={handlePRAction}
+              prActionLoading={prActionLoading}
+            />
+          )}
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 });

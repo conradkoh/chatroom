@@ -7,6 +7,7 @@
 
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,16 @@ vi.mock('../WorkspacePRReview', () => ({
   WorkspacePRReview: ({ activePR }: { activePR: { title: string } }) => (
     <div data-testid="pr-review">{activePR.title}</div>
   ),
+}));
+
+vi.mock('@/components/ui/resizable', () => ({
+  ResizablePanelGroup: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={className} data-testid="resizable-group">{children}</div>
+  ),
+  ResizablePanel: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="resizable-panel">{children}</div>
+  ),
+  ResizableHandle: () => <div data-testid="resizable-handle" />,
 }));
 
 // ─── Test data ────────────────────────────────────────────────────────────────
