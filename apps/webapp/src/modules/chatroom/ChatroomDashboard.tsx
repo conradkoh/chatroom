@@ -47,11 +47,12 @@ import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
+import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
-import { useMultiWorkspaceFiles } from './workspace/files';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
@@ -65,10 +66,11 @@ import {
 } from './workspace/components/FileExplorerPanel';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
+import { PullRequestsPanel } from './workspace/components/panels/PullRequestsPanel';
+import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
-import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
-import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 
@@ -762,15 +764,9 @@ export function ChatroomDashboard({
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
-  const openGitPanelRef = useRef<((tab?: string) => void) | null>(null);
   const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
-
-  // Registration callbacks (stable refs, no re-renders)
-  const handleRegisterOpenGitPanel = useCallback((fn: (tab?: string) => void) => {
-    openGitPanelRef.current = fn;
-  }, []);
 
   const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
     openEventStreamRef.current = fn;
@@ -790,13 +786,15 @@ export function ChatroomDashboard({
     setSettingsModalOpen(true);
   }, []);
 
-  const handleCmdOpenGitPanel = useCallback(() => {
-    openGitPanelRef.current?.();
-  }, []);
+  // Switch to Source Control activity view
+  const handleSwitchToSourceControl = useCallback(() => {
+    setActivityView('source-control');
+  }, [setActivityView]);
 
-  const handleCmdOpenPRReview = useCallback(() => {
-    openGitPanelRef.current?.('prs');
-  }, []);
+  // Switch to Pull Requests activity view
+  const handleSwitchToPullRequests = useCallback(() => {
+    setActivityView('pull-requests');
+  }, [setActivityView]);
 
   const handleCmdOpenEventStream = useCallback(() => {
     openEventStreamRef.current?.();
@@ -864,9 +862,9 @@ export function ChatroomDashboard({
     () => ({
       sendAction,
       openExternalUrl,
-      onOpenGitPanel: () => openGitPanelRef.current?.(),
+      onOpenGitPanel: handleSwitchToSourceControl,
     }),
-    [sendAction]
+    [sendAction, handleSwitchToSourceControl]
   );
 
   // Start all remote agents handler
@@ -1148,7 +1146,6 @@ export function ChatroomDashboard({
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
-    onOpenGitPanel: handleCmdOpenGitPanel,
     onOpenBacklog: handleCmdOpenBacklog,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
@@ -1157,10 +1154,10 @@ export function ChatroomDashboard({
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
-    onOpenPRReview: prUrl ? handleCmdOpenPRReview : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
-    onOpenWorkspaceDetails: activeWorkspace ? handleCmdOpenGitPanel : null,
+    onSwitchToSourceControl: activeWorkspace ? handleSwitchToSourceControl : null,
+    onSwitchToPullRequests: activeWorkspace ? handleSwitchToPullRequests : null,
     runnableCommands: commandRunner.commands,
     onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
     onRunCommand: handleRunCommand,
@@ -1567,6 +1564,20 @@ export function ChatroomDashboard({
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
+                ) : activeView === 'source-control' ? (
+                  /* Source Control — replaces the entire workspace area */
+                  <SourceControlPanel
+                    machineId={activeWorkspace?.machineId ?? ''}
+                    workingDir={activeWorkspace?.workingDir ?? ''}
+                    chatroomId={chatroomId}
+                  />
+                ) : activeView === 'pull-requests' ? (
+                  /* Pull Requests — replaces the entire workspace area */
+                  <PullRequestsPanel
+                    machineId={activeWorkspace?.machineId ?? ''}
+                    workingDir={activeWorkspace?.workingDir ?? ''}
+                    chatroomId={chatroomId}
+                  />
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
                   <ExplorerContent
@@ -1618,7 +1629,7 @@ export function ChatroomDashboard({
               workspaces={chatroomWorkspaces}
               chatroomId={chatroomId}
               refreshObservedChatroom={refreshObservedChatroom}
-              onRegisterOpenGitPanel={handleRegisterOpenGitPanel}
+              onSwitchToSourceControl={handleSwitchToSourceControl}
             />
             {/* Active command runs indicator — shown in bottom-right when runs are detached */}
             {activeWorkspace?.machineId && activeWorkspace?.workingDir && (

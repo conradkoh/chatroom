@@ -367,8 +367,10 @@ export async function getRecentCommits(
   count = 20,
   skip = 0
 ): Promise<GitCommit[]> {
-  // Use a null-byte separator to safely handle multi-line messages
-  const format = '%H%x00%h%x00%s%x00%an%x00%aI';
+  // Use US (\x1f) as field separator and RS (\x1e) as record terminator.
+  // This is safer than \x00 when %b (body) can span multiple lines.
+  // Neither \x1f nor \x1e appears in real-world commit messages.
+  const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%aI%x1e';
   const skipArg = skip > 0 ? ` --skip=${skip}` : '';
   const result = await runGit(`log -${count}${skipArg} --format=${format}`, workingDir);
 
@@ -381,19 +383,21 @@ export async function getRecentCommits(
   if (!output) return [];
 
   const commits: GitCommit[] = [];
-  for (const line of output.split('\n')) {
-    const trimmed = line.trim();
+  for (const record of output.split('\x1e')) {
+    const trimmed = record.trim();
     if (!trimmed) continue;
-    const parts = trimmed.split('\x00');
-    if (parts.length !== 5) continue;
-    const [sha, shortSha, message, author, date] = parts as [
+    const parts = trimmed.split('\x1f');
+    if (parts.length !== 6) continue;
+    const [sha, shortSha, message, rawBody, author, date] = parts as [
+      string,
       string,
       string,
       string,
       string,
       string,
     ];
-    commits.push({ sha, shortSha, message, author, date });
+    const body = rawBody.trim();
+    commits.push({ sha, shortSha, message, ...(body ? { body } : {}), author, date });
   }
 
   return commits;
@@ -454,15 +458,18 @@ export async function getCommitDetail(
 export async function getCommitMetadata(
   workingDir: string,
   sha: string
-): Promise<{ message: string; author: string; date: string } | null> {
-  const format = '%s%x00%an%x00%aI';
+): Promise<{ message: string; body?: string; author: string; date: string } | null> {
+  // Use US (\x1f) as field separator. %b may contain newlines but not \x1f.
+  const format = '%s%x1f%b%x1f%an%x1f%aI';
   const result = await runGit(`log -1 --format=${format} ${sha}`, workingDir);
   if ('error' in result) return null;
   const output = result.stdout.trim();
   if (!output) return null;
-  const parts = output.split('\x00');
-  if (parts.length !== 3) return null;
-  return { message: parts[0]!, author: parts[1]!, date: parts[2]! };
+  const parts = output.split('\x1f');
+  if (parts.length !== 4) return null;
+  const [message, rawBody, author, date] = parts as [string, string, string, string];
+  const body = rawBody.trim();
+  return { message, ...(body ? { body } : {}), author, date };
 }
 
 // ─── GitHub CLI Integration ──────────────────────────────────────────────────

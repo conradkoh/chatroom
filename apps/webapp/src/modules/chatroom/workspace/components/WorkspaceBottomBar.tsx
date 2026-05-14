@@ -27,16 +27,13 @@ import type { ComponentType } from 'react';
 import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
-import { InlineDiffStat } from './shared';
 import { CommitStatusIndicator } from './CommitStatusIndicator';
-import { WorkspaceGitPanel } from './WorkspaceGitPanel';
+import { InlineDiffStat } from './shared';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
-import { useSendLocalAction } from '@/hooks/useSendLocalAction';
-import { toRepoHttpsUrl } from '@/lib/git-url';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +44,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   FixedModal,
   FixedModalContent,
@@ -55,8 +51,12 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
+import { toRepoHttpsUrl } from '@/lib/git-url';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +65,9 @@ interface WorkspaceBottomBarProps {
   chatroomId: string;
   /** From `useObserveChatroom` on the chatroom page; git panel calls this on mount. */
   refreshObservedChatroom: () => void;
-  /** Optional callback to register an imperative open action for the git panel (e.g. command palette) */
+  /** Switches the activity bar to the Source Control view. */
+  onSwitchToSourceControl?: () => void;
+  /** @deprecated No longer used; removal planned. */
   onRegisterOpenGitPanel?: (open: (tab?: string) => void) => void;
 }
 
@@ -900,24 +902,15 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
-  refreshObservedChatroom,
-  onRegisterOpenGitPanel,
+  refreshObservedChatroom: _refreshObservedChatroom,
+  onSwitchToSourceControl,
+  onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
 }: WorkspaceBottomBarProps) {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() =>
     getPersistedActiveWorkspaceId(chatroomId)
   );
-  const [gitModalOpen, setGitModalOpen] = useState(false);
-  const [gitInitialTab, setGitInitialTab] = useState<string | undefined>(undefined);
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
   const isDesktop = useIsDesktop(640);
-
-  // Register git panel open callback for external triggers (e.g. command palette)
-  useEffect(() => {
-    onRegisterOpenGitPanel?.((tab?: string) => {
-      setGitInitialTab(tab);
-      setGitModalOpen(true);
-    });
-  }, [onRegisterOpenGitPanel]);
 
   const validWorkspaces = useMemo(
     () => workspaces.filter((ws): ws is WorkspaceWithMachine => ws.machineId !== null),
@@ -944,14 +937,10 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     [chatroomId]
   );
 
+  // Switch to Source Control activity view (replaces old git modal open)
   const handleOpenGitPanel = useCallback(() => {
-    setGitModalOpen(true);
-  }, []);
-
-  const handleCloseGitPanel = useCallback(() => {
-    setGitModalOpen(false);
-    setGitInitialTab(undefined);
-  }, []);
+    onSwitchToSourceControl?.();
+  }, [onSwitchToSourceControl]);
 
   const handleOpenMobileModal = useCallback(() => {
     setMobileModalOpen(true);
@@ -1105,43 +1094,6 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           sendAction={sendAction}
         />
       )}
-
-      {/* ── Git Modal ── */}
-      <FixedModal
-        isOpen={gitModalOpen}
-        onClose={handleCloseGitPanel}
-        maxWidth="max-w-[96vw]"
-        className="sm:!h-[92vh]"
-      >
-        <FixedModalContent>
-          <FixedModalHeader onClose={handleCloseGitPanel}>
-            <FixedModalTitle>
-              <div className="flex items-center gap-2">
-                <FolderOpen size={16} className="text-chatroom-text-muted" />
-                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
-                  {activeWorkspace ? getWorkspaceName(activeWorkspace.workingDir) : ''}
-                </span>
-                {activeWorkspace && (
-                  <span className="text-[11px] text-chatroom-text-muted">
-                    {getWorkspaceDisplayHostname(activeWorkspace)}
-                  </span>
-                )}
-              </div>
-            </FixedModalTitle>
-          </FixedModalHeader>
-          <FixedModalBody className="p-0 overflow-hidden">
-            {activeWorkspace && (
-              <WorkspaceGitPanel
-                machineId={activeWorkspace.machineId}
-                workingDir={activeWorkspace.workingDir}
-                chatroomId={chatroomId}
-                refreshObservedChatroom={refreshObservedChatroom}
-                initialTab={gitInitialTab as 'prs' | 'diff' | 'log' | 'pr-review' | undefined}
-              />
-            )}
-          </FixedModalBody>
-        </FixedModalContent>
-      </FixedModal>
     </>
   );
 });

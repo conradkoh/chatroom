@@ -5,6 +5,7 @@ import { memo, useState, useEffect, useCallback } from 'react';
 
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
+import { getFileIcon } from '../utils/file-icons';
 
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 
@@ -39,6 +40,13 @@ interface WorkspaceDiffViewerProps {
   workingDir?: string;
   /** Callback when changes are discarded (to refresh diff). */
   onDiscard?: () => void;
+  /**
+   * When false, the embedded file-list sidebar is not rendered. Use this when
+   * the parent already provides a file-picker UI (e.g. SourceControlPanel) and
+   * the viewer should only show the diff content for the selected file.
+   * Defaults to true.
+   */
+  showFileList?: boolean;
 }
 
 // Make git operations available when machineId is provided
@@ -51,7 +59,7 @@ const canDiscard = (machineId?: string, workingDir?: string): boolean => {
 const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
   if (line.type === 'hunk') {
     return (
-      <div className="flex text-chatroom-text-muted font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
+      <div className="flex text-chatroom-text-secondary font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
         {/* Gutter spanning both columns */}
         <div className="w-[70px] shrink-0 px-1 text-right border-r border-chatroom-border" />
         {/* Hunk content */}
@@ -145,8 +153,19 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
   return (
     <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* File header */}
-      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-chatroom-text-secondary border-b border-chatroom-border truncate">
-        {section.filePath || '(unknown file)'}
+      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-foreground font-medium border-b border-chatroom-border flex items-center gap-1.5">
+        {(() => {
+          const { Icon, color } = getFileIcon(section.filePath ?? '');
+          return (
+            <Icon
+              size={12}
+              aria-hidden
+              className={cn('shrink-0', !color && 'text-muted-foreground')}
+              style={color ? { color } : undefined}
+            />
+          );
+        })()}
+        <span className="truncate">{section.filePath || '(unknown file)'}</span>
       </div>
 
       {/* Diff lines */}
@@ -270,6 +289,7 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   machineId,
   workingDir,
   onDiscard,
+  showFileList = true,
 }: WorkspaceDiffViewerProps) {
   const [selectedFileIdx, setSelectedFileIdx] = useState<number>(0);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -346,8 +366,8 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   return (
     <>
       <div className="flex flex-row h-full">
-        {/* File list sidebar with context menu */}
-        {showDiscard ? (
+        {/* File list sidebar with context menu — hidden when the parent supplies its own file picker */}
+        {showFileList && showDiscard ? (
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
@@ -378,13 +398,13 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-        ) : (
+        ) : showFileList ? (
           <FileListSidebar
             sections={sections}
             selectedIdx={selectedFileIdx}
             onSelect={setSelectedFileIdx}
           />
-        )}
+        ) : null}
 
         {/* Diff content area */}
         <div className="flex-1 overflow-y-auto">
