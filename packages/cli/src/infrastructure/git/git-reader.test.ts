@@ -17,6 +17,7 @@ import {
   getFullDiff,
   getRecentCommits,
   getCommitDetail,
+  getCommitMetadata,
   getOpenPRsForBranch,
   getCommitsAhead,
   getCommitStatusChecks,
@@ -272,12 +273,13 @@ describe('getFullDiff', () => {
 // ─── getRecentCommits ────────────────────────────────────────────────────────
 
 describe('getRecentCommits', () => {
-  test('parses commit list correctly', async () => {
-    // Null-byte separated: sha, shortSha, message, author, date
+  test('parses commit list correctly (no body)', async () => {
+    // Record separator: \x1e, field separator: \x1f
+    // Format: sha\x1fshortSha\x1fmessage\x1fbody\x1fauthor\x1fdate\x1e
     const output = [
-      'abc1234567890abcdef1234567890abcdef123456\x00abc1234\x00Fix bug\x00Alice\x002026-01-01T00:00:00Z',
-      'def5678901234567890abcdef5678901234567890\x00def5678\x00Add feature\x00Bob\x002026-01-02T00:00:00Z',
-    ].join('\n');
+      'abc1234567890abcdef1234567890abcdef123456\x1fabc1234\x1fFix bug\x1f\x1fAlice\x1f2026-01-01T00:00:00Z\x1e',
+      'def5678901234567890abcdef5678901234567890\x1fdef5678\x1fAdd feature\x1f\x1fBob\x1f2026-01-02T00:00:00Z\x1e',
+    ].join('');
     mockSuccess(output);
     const result = await getRecentCommits('/repo');
     expect(result).toHaveLength(2);
@@ -295,6 +297,23 @@ describe('getRecentCommits', () => {
       author: 'Bob',
       date: '2026-01-02T00:00:00Z',
     });
+  });
+
+  test('parses commit body when present', async () => {
+    const output =
+      'abc1234567890abcdef1234567890abcdef123456\x1fabc1234\x1fFeat: add body\x1fThis is the body\nwith two lines\x1fAlice\x1f2026-01-01T00:00:00Z\x1e';
+    mockSuccess(output);
+    const result = await getRecentCommits('/repo');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.body).toBe('This is the body\nwith two lines');
+  });
+
+  test('omits body field when body is empty', async () => {
+    const output =
+      'abc1234567890abcdef1234567890abcdef123456\x1fabc1234\x1fNo body\x1f\x1fAlice\x1f2026-01-01T00:00:00Z\x1e';
+    mockSuccess(output);
+    const result = await getRecentCommits('/repo');
+    expect(result[0]).not.toHaveProperty('body');
   });
 
   test('returns empty array for empty repository', async () => {
@@ -768,6 +787,53 @@ describe('getDefaultBranch', () => {
     mockSuccess('\n');
 
     const result = await getDefaultBranch('/repo');
+    expect(result).toBeNull();
+  });
+});
+
+// ─── getCommitMetadata ────────────────────────────────────────────────────────
+
+describe('getCommitMetadata', () => {
+  test('parses commit metadata without body', async () => {
+    // Format: message\x1fbody\x1fauthor\x1fdate
+    mockSuccess('Fix bug\x1f\x1fAlice\x1f2026-01-01T00:00:00Z');
+    const result = await getCommitMetadata('/repo', 'abc1234');
+    expect(result).toEqual({
+      message: 'Fix bug',
+      author: 'Alice',
+      date: '2026-01-01T00:00:00Z',
+    });
+    expect(result).not.toHaveProperty('body');
+  });
+
+  test('parses commit body when present', async () => {
+    mockSuccess('Feat: big change\x1fThis explains things\nover two lines\x1fBob\x1f2026-01-02T00:00:00Z');
+    const result = await getCommitMetadata('/repo', 'def5678');
+    expect(result?.body).toBe('This explains things\nover two lines');
+  });
+
+  test('trims body whitespace', async () => {
+    mockSuccess('Fix\x1f  \n  \x1fAlice\x1f2026-01-01T00:00:00Z');
+    const result = await getCommitMetadata('/repo', 'abc1234');
+    expect(result).not.toHaveProperty('body');
+  });
+
+  test('handles body with special characters (parentheses, quotes, backticks)', async () => {
+    const body = 'See PR (#482) for context.\nAlso: "quoted", `backtick`';
+    mockSuccess(`Subject\x1f${body}\x1fAlice\x1f2026-01-01T00:00:00Z`);
+    const result = await getCommitMetadata('/repo', 'abc1234');
+    expect(result?.body).toBe(body);
+  });
+
+  test('returns null on git error', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getCommitMetadata('/repo', 'abc1234');
+    expect(result).toBeNull();
+  });
+
+  test('returns null on empty output', async () => {
+    mockSuccess('');
+    const result = await getCommitMetadata('/repo', 'abc1234');
     expect(result).toBeNull();
   });
 });

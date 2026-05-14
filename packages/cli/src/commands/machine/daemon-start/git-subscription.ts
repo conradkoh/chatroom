@@ -307,6 +307,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
       sha: req.sha,
       status: 'not_found',
       message: metadata?.message,
+      body: metadata?.body,
       author: metadata?.author,
       date: metadata?.date,
     });
@@ -322,6 +323,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
       status: 'error',
       errorMessage: (result as { status: 'error'; message: string }).message,
       message: metadata?.message,
+      body: metadata?.body,
       author: metadata?.author,
       date: metadata?.date,
     });
@@ -344,6 +346,7 @@ async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Pro
     data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
+    body: metadata?.body,
     author: metadata?.author,
     date: metadata?.date,
     diffStat,
