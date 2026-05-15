@@ -14,6 +14,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 
+import { cn } from '@/lib/utils';
 import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { ProcessList } from './ProcessList';
@@ -203,6 +204,9 @@ export function ProcessManager({
     [commands, onRunCommand]
   );
 
+  // Determine if mobile should switch to detail view
+  const hasRightPanelContent = !!(selectedWorkspace || selectedCommand || activeRunOutput.run);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
@@ -230,7 +234,10 @@ export function ProcessManager({
           <div className="flex flex-1 overflow-hidden">
             {/* Left sidebar */}
             <div
-              className="w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden"
+              className={cn(
+                "w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden",
+                hasRightPanelContent && "hidden md:flex"
+              )}
               onKeyDown={handleKeyDown}
             >
               {/* Search */}
@@ -361,7 +368,10 @@ export function ProcessManager({
             </div>
 
             {/* Right panel — Terminal output, command detail, or workspace detail */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className={cn(
+              "flex-1 flex flex-col overflow-hidden",
+              !hasRightPanelContent && "hidden md:flex"
+            )}>
               {activeRunOutput.run ? (
                 <OutputPanel
                   run={activeRunOutput.run}
