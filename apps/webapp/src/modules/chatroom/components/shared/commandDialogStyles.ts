@@ -26,6 +26,8 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
   'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
   'data-[state=closed]:zoom-out-95',
   'data-[state=open]:duration-0 data-[state=closed]:duration-200',
+  // Overscroll behavior: prevent scroll chaining on mobile
+  'overscroll-contain',
 ] as const;
 
 /**
@@ -47,6 +49,8 @@ export const COMMAND_DIALOG_SPLIT_CONTENT_CLASSES = [
   'data-[state=open]:duration-0 data-[state=closed]:duration-200',
   // Flex layout for stacked view (command list on top, output below)
   'flex flex-col',
+  // Overscroll behavior: prevent scroll chaining on mobile
+  'overscroll-contain',
 ] as const;
 
 /**
