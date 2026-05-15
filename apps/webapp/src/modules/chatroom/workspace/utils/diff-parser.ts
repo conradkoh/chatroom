@@ -39,6 +39,17 @@ export function basename(filePath: string): string {
   return filePath.split('/').pop() ?? filePath;
 }
 
+/**
+ * Returns the directory portion of a file path.
+ * e.g. "src/utils/parser.ts" → "src/utils"
+ * e.g. "parser.ts" → "."
+ */
+export function dirname(filePath: string): string {
+  const parts = filePath.split('/');
+  if (parts.length <= 1) return '.';
+  return parts.slice(0, -1).join('/');
+}
+
 // ─── Intra-line Diff Enrichment ───────────────────────────────────────────────
 
 /**

@@ -2,6 +2,8 @@
 
 import { Files, MessageCircle, MessagesSquare } from 'lucide-react';
 import { memo } from 'react';
+import { SiGithub } from 'react-icons/si';
+import { VscSourceControl } from 'react-icons/vsc';
 
 import { useCommandDialog } from '../context/CommandDialogContext';
 
@@ -9,7 +11,12 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ActivityView = 'explorer' | 'messages' | 'direct-harness';
+export type ActivityView =
+  | 'explorer'
+  | 'messages'
+  | 'direct-harness'
+  | 'source-control'
+  | 'pull-requests';
 
 interface ActivityBarProps {
   /** Currently active view */
@@ -58,11 +65,15 @@ const ActivityBarItem = memo(function ActivityBarItem({
 /**
  * Activity Bar component - VSCode-style icon sidebar.
  *
+ * Views (top to bottom):
+ * 1. Explorer   — file browser
+ * 2. Messages   — chatroom messages
+ * 3. Direct Harness — direct AI harness
+ * 4. Source Control — git diff + history (new)
+ * 5. Pull Requests  — GitHub PR list (new)
+ *
  * On mobile (hidden via CSS):
  * - Shows a chatroom switch trigger at the bottom
- *
- * On desktop:
- * - Shows Explorer and Messages view toggles
  */
 export const ActivityBar = memo(function ActivityBar({
   activeView,
@@ -89,6 +100,18 @@ export const ActivityBar = memo(function ActivityBar({
         label="Direct Harness"
         isActive={activeView === 'direct-harness'}
         onClick={() => onViewChange('direct-harness')}
+      />
+      <ActivityBarItem
+        icon={<VscSourceControl size={20} />}
+        label="Source Control"
+        isActive={activeView === 'source-control'}
+        onClick={() => onViewChange('source-control')}
+      />
+      <ActivityBarItem
+        icon={<SiGithub size={20} />}
+        label="Pull Requests"
+        isActive={activeView === 'pull-requests'}
+        onClick={() => onViewChange('pull-requests')}
       />
 
       {/* Spacer to push chatroom switch to bottom */}

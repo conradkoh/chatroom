@@ -1704,6 +1704,7 @@ export default defineSchema({
         sha: v.string(),
         shortSha: v.string(),
         message: v.string(),
+        body: v.optional(v.string()),
         author: v.string(),
         date: v.string(),
       })
@@ -2093,6 +2094,7 @@ export default defineSchema({
       })
     ),
     message: v.optional(v.string()),
+    body: v.optional(v.string()),
     author: v.optional(v.string()),
     date: v.optional(v.string()),
     /** Present only when status === 'error'. */

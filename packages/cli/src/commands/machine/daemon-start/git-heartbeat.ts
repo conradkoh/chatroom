@@ -364,6 +364,7 @@ async function prefetchSingleCommit(
       sha,
       status: 'not_found',
       message: metadata?.message,
+      body: metadata?.body,
       author: metadata?.author,
       date: metadata?.date,
     });
@@ -379,6 +380,7 @@ async function prefetchSingleCommit(
       status: 'error',
       errorMessage: result.message,
       message: metadata?.message,
+      body: metadata?.body,
       author: metadata?.author,
       date: metadata?.date,
     });
@@ -400,6 +402,7 @@ async function prefetchSingleCommit(
     data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
     message: metadata?.message,
+    body: metadata?.body,
     author: metadata?.author,
     date: metadata?.date,
     diffStat,
