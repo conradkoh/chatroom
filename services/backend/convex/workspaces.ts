@@ -1215,6 +1215,7 @@ export const upsertPRCommits = mutation({
         sha: v.string(),
         shortSha: v.string(),
         message: v.string(),
+        body: v.optional(v.string()),
         author: v.string(),
         date: v.string(),
       })
@@ -1511,6 +1512,7 @@ export const upsertRecentCommits = mutation({
         sha: v.string(),
         shortSha: v.string(),
         message: v.string(),
+        body: v.optional(v.string()),
         author: v.string(),
         date: v.string(),
       })
