@@ -38,8 +38,8 @@ const CommitRow = memo(function CommitRow({ commit, isSelected, onSelect }: Comm
         'w-full text-left px-3 py-2 flex flex-col gap-0.5 transition-colors',
         'hover:bg-chatroom-bg-hover cursor-pointer',
         isSelected
-          ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
-          : 'border-l-2 border-transparent',
+          ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
+          : 'border-l-2 border-l-transparent',
       ].join(' ')}
     >
       {/* First line: SHA + message (allow message to wrap to 2 lines) */}
