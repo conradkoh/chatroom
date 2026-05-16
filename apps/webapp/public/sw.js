@@ -67,19 +67,21 @@ self.addEventListener('notificationclick', (event) => {
 
   // Get chatroomId from notification data if available
   const chatroomId = event.notification.data?.chatroomId;
-  const targetUrl = chatroomId ? `/app/${chatroomId}` : '/app';
+  const targetUrl = chatroomId
+    ? `/app/chatroom?id=${chatroomId}&view=messages`
+    : '/app';
 
   // Try to focus an existing app tab, or open a new one
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Focus the first matching tab with the same chatroom
+      // Navigate + focus the first matching tab with the same chatroom
       for (const client of clientList) {
-        if (chatroomId && client.url.includes(`/app/${chatroomId}`) && 'focus' in client) {
-          return client.focus();
+        if (chatroomId && client.url.includes(`id=${chatroomId}`) && 'focus' in client) {
+          return client.navigate(targetUrl).then((c) => (c ?? client).focus());
         }
         // Fallback: focus any app tab
         if (client.url.includes('/app') && 'focus' in client) {
-          return client.focus();
+          return client.navigate(targetUrl).then((c) => (c ?? client).focus());
         }
       }
       // No existing tab — open the app (with correct chatroom if specified)
