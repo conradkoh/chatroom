@@ -251,7 +251,7 @@ interface TaskHeaderProps {
   isEditing?: boolean;
 }
 
-const TaskHeader = memo(function TaskHeader({
+const TaskHeader = function TaskHeader({
   message,
   onTap,
   onDelete,
@@ -396,7 +396,7 @@ const TaskHeader = memo(function TaskHeader({
       </div>
     </div>
   );
-});
+}
 
 // Task Progress - renders inline progress updates below the task header
 // Shows the latest progress message with expand/collapse for full history
