@@ -103,7 +103,7 @@ export function CommandOutputPanel({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed bg-chatroom-bg-surface"
+        className="flex-1 overflow-auto overscroll-contain p-4 font-mono text-xs leading-relaxed bg-chatroom-bg-surface"
       >
         {output.length === 0 ? (
           <span className="text-chatroom-text-muted italic">Waiting for output...</span>

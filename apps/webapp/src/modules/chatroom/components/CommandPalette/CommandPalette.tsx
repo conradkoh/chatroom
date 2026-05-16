@@ -17,14 +17,13 @@ import { cn } from '@/lib/utils';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
-  COMMAND_DIALOG_SPLIT_CONTENT_CLASSES,
   COMMAND_GROUP_HEADING_CLASSES,
 } from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { InlineCommandState } from '@/modules/chatroom/hooks/useInlineCommandOutput';
 import type { CommandItem } from './types';
-import { CommandOutputPanel } from './CommandOutputPanel';
+import { CommandOutputModal } from './CommandOutputModal';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
@@ -55,28 +54,19 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
 
-  // Whether the output panel is currently visible
-  const outputPanelVisible = inlineCommand.commandName !== null;
-
   // Custom escape handler:
-  //   1st press — close output panel (preserve search query)
-  //   2nd press — clear search
-  //   3rd press — close dialog
+  //   1st press — clear search
+  //   2nd press — close dialog
   const handleEscapeKeyDown = useCallback(
     (event: React.KeyboardEvent | KeyboardEvent) => {
-      if (outputPanelVisible) {
-        event.preventDefault();
-        // Detach UI only — do NOT stop the process. The command keeps running.
-        inlineCommandRef.current.detach();
-        // NOTE: intentionally do NOT clear searchValue here
-      } else if (searchValueRef.current) {
+      if (searchValueRef.current) {
         event.preventDefault();
         setSearchValue('');
       } else {
         closeDialog();
       }
     },
-    [outputPanelVisible, closeDialog]
+    [closeDialog]
   );
 
   // Detach inline command state when dialog closes (don't kill the running process)
@@ -157,24 +147,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     [trackUsage, closeDialog]
   );
 
-  // Stop the currently running command
-  const handleStopCommand = useCallback(() => {
-    inlineCommandRef.current.stop();
-  }, []);
-
-  // Run the current command again
-  const handleRunAgain = useCallback(() => {
-    const { commandName, script } = inlineCommandRef.current;
-    if (commandName && script) {
-      inlineCommandRef.current.run(commandName, script);
-    }
-  }, []);
-
-  // Detach the output panel (don't kill the running command)
-  const handleCloseOutputPanel = useCallback(() => {
-    inlineCommandRef.current.detach();
-  }, []);
-
   const renderCommandItem = (command: CommandItem) => (
     <CommandItemUI
       key={command.id}
@@ -228,18 +200,14 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     </CommandItemUI>
   );
 
-  // Determine which dialog classes to use based on whether output panel is shown
-  const dialogClasses = outputPanelVisible
-    ? COMMAND_DIALOG_SPLIT_CONTENT_CLASSES
-    : COMMAND_DIALOG_CONTENT_CLASSES;
-
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogPortal>
         <DialogPrimitive.Content
           forceMount
           onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(...dialogClasses)}
+          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
         >
           <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -297,21 +265,10 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
             </Command>
           </div>
 
-          {/* Output panel section — shown below command list when a runnable command is active */}
-          {outputPanelVisible && (
-            <div className="border-t-2 border-chatroom-border">
-              <CommandOutputPanel
-                commandName={inlineCommand.commandName!}
-                isRunning={inlineCommand.isRunning}
-                output={inlineCommand.output}
-                onStop={handleStopCommand}
-                onRunAgain={handleRunAgain}
-                onClose={handleCloseOutputPanel}
-              />
-            </div>
-          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
+    <CommandOutputModal inlineCommand={inlineCommand} />
+    </>
   );
 }
