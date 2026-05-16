@@ -217,7 +217,7 @@ export function ProcessManager({
           className="fixed left-[50%] top-[50%] z-50 w-[1000px] max-w-[95vw] h-[600px] max-h-[85vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2 border-b-2 border-chatroom-border">
+          <div className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2 border-b-2 border-chatroom-border">
             <DialogPrimitive.Title className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               Process Manager
             </DialogPrimitive.Title>
@@ -241,7 +241,7 @@ export function ProcessManager({
               onKeyDown={handleKeyDown}
             >
               {/* Search */}
-              <div className="p-2 border-b border-chatroom-border">
+              <div className="p-1.5 sm:p-2 border-b border-chatroom-border">
                 <input
                   type="text"
                   value={searchQuery}
@@ -557,12 +557,12 @@ function CommandDetailPanel({
   return (
     <div className="flex-1 flex flex-col overflow-hidden" onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-chatroom-border">
-        <div className="flex items-start gap-2">
+      <div className="px-3 py-2 sm:px-4 sm:py-3 border-b border-chatroom-border">
+        <div className="flex items-center gap-2">
           {onBack && (
             <button
               onClick={onBack}
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors flex-shrink-0"
             >
               <ChevronLeft size={18} />
             </button>
@@ -576,7 +576,7 @@ function CommandDetailPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
         {/* Script */}
         <div className="bg-black/60 rounded p-3">
           <code className="text-xs font-mono text-green-400 break-all">$ {command.script}</code>
@@ -586,13 +586,13 @@ function CommandDetailPanel({
         <div className="flex items-center gap-3">
           <button
             onClick={onRun}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors"
           >
             ▶ {runningInstances.length > 0 ? 'Start New Instance' : 'Run'}
           </button>
           <button
             onClick={onToggleFavorite}
-            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
               isFavorite
                 ? 'text-yellow-500 hover:bg-yellow-500/10'
                 : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
@@ -614,7 +614,7 @@ function CommandDetailPanel({
               {runningInstances.map((run) => (
                 <div
                   key={run._id}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-chatroom-bg-hover/30 hover:bg-chatroom-bg-hover transition-colors group"
+                  className="flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-chatroom-bg-hover/30 hover:bg-chatroom-bg-hover transition-colors group"
                 >
                   <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
                   <button
@@ -692,11 +692,11 @@ function WorkspaceDetailPanel({
 }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-4 py-2 border-b border-chatroom-border">
-        <div className="flex items-start gap-2">
+      <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-chatroom-border">
+        <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mt-0.5 flex-shrink-0"
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors flex-shrink-0"
           >
             <ChevronLeft size={18} />
           </button>
@@ -735,7 +735,7 @@ function WorkspaceDetailPanel({
             return (
               <div
                 key={cmd.name}
-                className="flex items-center gap-2 px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors group"
+                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 hover:bg-chatroom-bg-hover transition-colors group"
               >
                 <button
                   onClick={() => onToggleFavorite(cmd.name)}
@@ -769,7 +769,7 @@ function WorkspaceDetailPanel({
             <>
               {favourited.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
+                  <div className="px-3 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
                     ★ Favourites
                   </div>
                   {favourited.map(renderCommand)}
@@ -777,7 +777,7 @@ function WorkspaceDetailPanel({
               )}
               {common.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                  <div className="px-3 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
                     Common Commands
                   </div>
                   {common.map(renderCommand)}
@@ -785,7 +785,7 @@ function WorkspaceDetailPanel({
               )}
               {others.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
+                  <div className="px-3 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
                     Commands
                   </div>
                   {others.map(renderCommand)}
