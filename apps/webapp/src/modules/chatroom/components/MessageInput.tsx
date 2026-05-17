@@ -3,16 +3,14 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
-import { AlertTriangle, Code2, Plus, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
-import { ContentEditableInput, type ContentEditableInputRef } from './ContentEditableInput';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   useAttachments,
   useTaskAttachments,
@@ -23,7 +21,9 @@ import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
 
-interface SendFormProps {
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export interface MessageInputProps {
   chatroomId: string;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
@@ -32,36 +32,25 @@ interface SendFormProps {
   files?: FileEntry[];
   /** Refreshes autocomplete files when the @ trigger opens. */
   onAtTriggerActivate?: () => void;
-  /** Callback to open the Create Command modal */
-  onCreateCommand?: () => void;
 }
 
-/**
- * Hook to detect if the user is on a touch device (likely mobile).
- * Uses touch capability detection rather than screen size for better accuracy.
- * Returns undefined during SSR/hydration to prevent layout flickering.
- */
+// ── Touch detection ──────────────────────────────────────────────────────────
+
 function useIsTouchDevice(): boolean | undefined {
   const [mounted, setMounted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
 
   useEffect(() => {
-    // Mark as mounted and check for touch capability.
-    // Use pointer: coarse media query instead of maxTouchPoints.
-    // Chrome on macOS reports maxTouchPoints > 0 for trackpads,
-    // falsely detecting desktop as a touch device.
-    // pointer: coarse matches actual touch screens (finger input),
-    // while trackpads/mice report pointer: fine.
     setMounted(true);
     const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     setIsTouch(isTouchDevice);
   }, []);
 
-  // Return undefined during SSR/hydration - component defaults to non-touch behavior
   return mounted ? isTouch : undefined;
 }
 
-// ── Draft storage helpers ──────────────────────────────────────────────────
+// ── Draft storage helpers ────────────────────────────────────────────────────
+
 const DRAFT_KEY_PREFIX = 'chatroom-draft:';
 const MAX_DRAFTS = 10;
 
@@ -76,7 +65,6 @@ function parseDraft(raw: string | null): string | null {
     const parsed = JSON.parse(raw) as StoredDraft;
     if (parsed && typeof parsed.content === 'string') return parsed.content;
   } catch {
-    // Legacy plain-string format
     return raw;
   }
   return raw;
@@ -111,58 +99,79 @@ function cleanupOldDrafts(currentKey: string) {
   }
 }
 
-export const SendForm = memo(function SendForm({
+// ── Component ────────────────────────────────────────────────────────────────
+
+export function MessageInput({
   chatroomId,
-  onBeforeResize: _onBeforeResize,
-  onAfterResize: _onAfterResize,
   onRegisterFocus,
   files = [],
   onAtTriggerActivate,
-  onCreateCommand,
-}: SendFormProps) {
+}: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  /**
-   * Inline error from the most recent failed send. Cleared on next successful
-   * send, when the user types, or when they explicitly dismiss it.
-   * Rendered inline above the form (toasts were intentionally avoided
-   * because they steal attention away from the input the user is fixing).
-   */
   const [sendError, setSendError] = useState<string | null>(null);
-  const inputRef = useRef<ContentEditableInputRef>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
   const [editorOpen, setEditorOpen] = useState(false);
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 
-  // ── Trigger autocomplete (replaces hardcoded @ detection) ─────────────────
+  // ── Trigger autocomplete (for @ file references) ───────────────────────────
   const fileRefTrigger = useMemo(
     () => createFileReferenceTrigger(files, onAtTriggerActivate),
     [files, onAtTriggerActivate]
   );
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
+  // Get caret pixel position from native textarea
   const getCaretPosition = useCallback(() => {
-    const caretPos = inputRef.current?.getCaretPixelPosition() ?? null;
-    if (!caretPos) return null;
-
-    // The caret position is relative to the contenteditable element, but the
-    // dropdown is absolutely positioned within formContainerRef. Adjust left
-    // by the horizontal offset between the two containers so the dropdown
-    // aligns with the trigger character, not shifted by ~2 chars.
-    const inputEl = inputRef.current?.getElement();
+    const textarea = textareaRef.current;
     const formEl = formContainerRef.current;
-    if (inputEl && formEl) {
-      const inputRect = inputEl.getBoundingClientRect();
-      const formRect = formEl.getBoundingClientRect();
-      return {
-        ...caretPos,
-        left: caretPos.left + (inputRect.left - formRect.left),
-      };
+    if (!textarea || !formEl) return null;
+
+    // Create a mirror element to measure cursor position
+    const mirror = document.createElement('div');
+    const style = window.getComputedStyle(textarea);
+
+    // Copy textarea styling to mirror
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordWrap = 'break-word';
+    mirror.style.overflowWrap = 'break-word';
+    mirror.style.width = style.width;
+    mirror.style.font = style.font;
+    mirror.style.fontSize = style.fontSize;
+    mirror.style.fontFamily = style.fontFamily;
+    mirror.style.lineHeight = style.lineHeight;
+    mirror.style.padding = style.padding;
+    mirror.style.border = style.border;
+    mirror.style.boxSizing = style.boxSizing;
+
+    const textBeforeCursor = textarea.value.substring(0, textarea.selectionStart);
+    // Replace newlines with <br> for mirror measurement
+    mirror.innerHTML =
+      textBeforeCursor.replace(/\n$/, '\n\u00A0').replace(/\n/g, '<br>') + '<span id="caret">|</span>';
+
+    document.body.appendChild(mirror);
+    const caretSpan = mirror.querySelector('#caret');
+    if (!caretSpan) {
+      document.body.removeChild(mirror);
+      return null;
     }
 
-    return caretPos;
+    const textareaRect = textarea.getBoundingClientRect();
+    const formRect = formEl.getBoundingClientRect();
+    const caretRect = caretSpan.getBoundingClientRect();
+    const mirrorRect = mirror.getBoundingClientRect();
+
+    document.body.removeChild(mirror);
+
+    // Calculate position relative to textarea
+    const top = caretRect.top - mirrorRect.top + textareaRect.top - formRect.top;
+    const left = caretRect.left - mirrorRect.left + textareaRect.left - formRect.left;
+
+    return { top, left, height: caretRect.height };
   }, []);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
@@ -170,20 +179,20 @@ export const SendForm = memo(function SendForm({
   // Register focus callback for external callers
   useEffect(() => {
     onRegisterFocus?.(() => {
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     });
   }, [onRegisterFocus]);
 
-  // ── Draft persistence ─────────────────────────────────────────────────────
+  // ── Draft persistence ──────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
-  // Restore draft on mount (once per chatroomId) and auto-focus the input
+  // Restore draft on mount (once per chatroomId) and auto-focus
   useEffect(() => {
     const saved = parseDraft(localStorage.getItem(draftKey));
     if (saved) setMessage(saved);
     // Auto-focus when switching chatrooms (non-touch devices only)
     if (!isTouchDevice) {
-      setTimeout(() => inputRef.current?.focus(), 0);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroomId]);
@@ -200,7 +209,7 @@ export const SendForm = memo(function SendForm({
     return () => clearTimeout(timer);
   }, [message, draftKey]);
 
-  // Attachments context
+  // ── Attachments context ────────────────────────────────────────────────────
   const { remove, clearAll } = useAttachments();
   const attachedTasks = useTaskAttachments();
   const attachedBacklogItems = useBacklogAttachments();
@@ -208,7 +217,15 @@ export const SendForm = memo(function SendForm({
 
   const sendMessage = useSessionMutation(api.messages.send);
 
-  // Shared send logic used by both inline submit and editor modal
+  // ── Auto-resize textarea ───────────────────────────────────────────────────
+  const autoResize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+  }, []);
+
+  // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
     async (text: string) => {
       if (!text.trim() || sending) return;
@@ -239,7 +256,11 @@ export const SendForm = memo(function SendForm({
         ) {
           clearAll();
         }
-        setTimeout(() => inputRef.current?.focus(), 0);
+        // Reset textarea height
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+        setTimeout(() => textareaRef.current?.focus(), 0);
       } catch (error) {
         console.error('Failed to send message:', error);
         setSendError(
@@ -267,11 +288,25 @@ export const SendForm = memo(function SendForm({
     await doSend(message);
   }, [doSend, message]);
 
+  // ── Input handlers ─────────────────────────────────────────────────────────
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      setMessage(newValue);
+      setSendError(null);
+      autoResize();
+
+      // Delegate trigger detection to autocomplete
+      const cursorPos = e.target.selectionStart ?? newValue.length;
+      autocomplete.handleInputChange(newValue, cursorPos);
+    },
+    [autocomplete, autoResize]
+  );
+
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Let the trigger autocomplete hook handle navigation keys first
       if (autocomplete.state.visible) {
-        // Arrow keys, Escape are handled by the hook
         if (autocomplete.handleKeyDown(e.nativeEvent)) return;
 
         // Enter/Tab: select the current result
@@ -284,76 +319,52 @@ export const SendForm = memo(function SendForm({
           const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
           setMessage(newText);
+          autoResize();
           setTimeout(() => {
-            inputRef.current?.focus();
-            inputRef.current?.setCursorOffset(newCursorPos);
+            textareaRef.current?.focus();
+            textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
           }, 0);
           return;
         }
       }
 
-      // On touch devices (mobile), Enter creates a newline
-      // Submission only happens via the Send button
+      // On touch devices (mobile), Enter creates a newline — send via button only
       if (isTouchDevice) {
-        // Allow default behavior (newline) on Enter
+        // Allow default newline behavior
         return;
       }
 
-      // Normal mode: Enter without Shift sends the message
+      // Desktop: Enter without Shift sends, Shift+Enter = newline
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
-      // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit, isTouchDevice, autocomplete, message]
+    [handleSubmit, isTouchDevice, autocomplete, message, autoResize]
   );
 
-  const handleFormSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      handleSubmit();
-    },
-    [handleSubmit]
-  );
-
-  const handleContentChange = useCallback(
-    (newValue: string) => {
-      setMessage(newValue);
-      // Clear any prior send error as soon as the user starts editing again.
-      setSendError(null);
-
-      // Get cursor position from the contenteditable
-      const cursorPos = inputRef.current?.getCursorOffset() ?? newValue.length;
-
-      // Delegate trigger detection to the autocomplete hook
-      autocomplete.handleInputChange(newValue, cursorPos);
-    },
-    [autocomplete]
-  );
-
-  // ── Autocomplete file select callback ───────────────────────────────────────
+  // ── Autocomplete file select ───────────────────────────────────────────────
   const handleFileSelect = useCallback(
     (filePath: string) => {
-      // Find the file entry from results that matches this path
       const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
       if (!fileEntry) return;
 
       const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
       setMessage(newText);
+      autoResize();
       setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.setCursorOffset(newCursorPos);
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
     },
-    [autocomplete, message]
+    [autocomplete, message, autoResize]
   );
 
-  // ── Editor modal callbacks ────────────────────────────────────────────────────
+  // ── Editor modal callbacks ─────────────────────────────────────────────────
   const handleEditorClose = useCallback((editedText: string) => {
     setMessage(editedText);
     setEditorOpen(false);
-    setTimeout(() => inputRef.current?.focus(), 0);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
   const handleEditorSend = useCallback(
@@ -364,6 +375,18 @@ export const SendForm = memo(function SendForm({
     },
     [doSend]
   );
+
+  // ── Send button click ──────────────────────────────────────────────────────
+  const handleSendClick = useCallback(() => {
+    handleSubmit();
+  }, [handleSubmit]);
+
+  const hasAttachments =
+    attachedTasks.length > 0 ||
+    attachedBacklogItems.length > 0 ||
+    attachedMessages.length > 0;
+
+  const canSend = message.trim().length > 0 && !sending;
 
   return (
     <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
@@ -377,11 +400,9 @@ export const SendForm = memo(function SendForm({
         visible={autocomplete.state.visible}
       />
 
-      {/* Attached Tasks Row */}
-      {(attachedTasks.length > 0 ||
-        attachedBacklogItems.length > 0 ||
-        attachedMessages.length > 0) && (
-        <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
+      {/* Attachment chips row */}
+      {hasAttachments && (
+        <div className="flex flex-wrap gap-2 px-3 pt-2 pb-1">
           {attachedTasks.map((task) => (
             <AttachedTaskChip
               key={task.id}
@@ -409,12 +430,12 @@ export const SendForm = memo(function SendForm({
           ))}
         </div>
       )}
-      {/* Inline send-error banner — replaces the previous toast. Sits directly
-          above the form so it's visible without stealing focus from the input. */}
+
+      {/* Inline send-error banner */}
       {sendError && (
         <div
           role="alert"
-          className="mx-4 mt-2 flex items-start gap-2 px-3 py-2 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
+          className="mx-3 mt-2 flex items-start gap-2 px-3 py-2 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
         >
           <AlertTriangle
             size={14}
@@ -432,75 +453,54 @@ export const SendForm = memo(function SendForm({
           </button>
         </div>
       )}
-      {/* Input Form */}
-      <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
-        <ContentEditableInput
-          ref={inputRef}
-          value={message}
-          onChange={handleContentChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
-          disabled={sending}
-        />
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* + button for quick actions (e.g. create saved command) */}
-          {onCreateCommand && (
-            <Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  title="More actions"
-                  className="p-2.5 border-2 transition-all duration-100 bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                >
-                  <Plus size={14} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                side="top"
-                className="p-1 bg-chatroom-bg-tertiary border-chatroom-border w-40"
-              >
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-xs text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
-                  onClick={() => {
-                    setPlusMenuOpen(false);
-                    onCreateCommand();
-                  }}
-                >
-                  Command
-                </button>
-              </PopoverContent>
-            </Popover>
-          )}
+      {/* Input row */}
+      <div className="flex items-end gap-2 px-3 py-2 w-full">
+        {/* Textarea wrapper: border + flex-1 min-w-0 */}
+        <div className="flex-1 min-w-0 rounded-xl border border-chatroom-border bg-chatroom-bg-primary overflow-hidden">
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            disabled={sending}
+            rows={1}
+            className="w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-3 py-2 resize-none max-h-[160px] overflow-y-auto"
+            style={{ height: 'auto' }}
+          />
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Editor modal button (desktop only) */}
           {!isTouchDevice && (
             <button
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className="p-2.5 border-2 transition-all duration-100 bg-chatroom-bg-primary text-chatroom-text-muted border-chatroom-border hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+              className="p-2 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-full transition-colors"
             >
-              <Code2 size={14} />
+              <Code2 size={16} />
             </button>
           )}
+
+          {/* Send button: icon-only, circular */}
           <button
-            type="submit"
-            disabled={!message.trim() || sending}
+            type="button"
+            onClick={handleSendClick}
+            disabled={!canSend}
             onMouseDown={(e) => {
-              // Prevent focus from leaving the text input on click
-              // (standard focus-theft prevention pattern).
-              // NOTE: must use onMouseDown, NOT onPointerDown — preventDefault on
-              // pointerdown suppresses the click event on touch/mobile browsers,
-              // making the button appear completely unresponsive.
+              // Prevent focus from leaving the textarea on click
               e.preventDefault();
             }}
-            className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-full w-9 h-9 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Send message"
           >
-            {sending ? 'Sending...' : 'Send'}
+            <ArrowUp size={18} />
           </button>
         </div>
-      </form>
+      </div>
 
       {/* Editor Modal */}
       <EditorModal
@@ -511,4 +511,4 @@ export const SendForm = memo(function SendForm({
       />
     </div>
   );
-});
+}
