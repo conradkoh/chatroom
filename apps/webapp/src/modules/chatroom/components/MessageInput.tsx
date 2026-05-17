@@ -151,7 +151,8 @@ export function MessageInput({
     const textBeforeCursor = textarea.value.substring(0, textarea.selectionStart);
     // Replace newlines with <br> for mirror measurement
     mirror.innerHTML =
-      textBeforeCursor.replace(/\n$/, '\n\u00A0').replace(/\n/g, '<br>') + '<span id="caret">|</span>';
+      textBeforeCursor.replace(/\n$/, '\n\u00A0').replace(/\n/g, '<br>') +
+      '<span id="caret">|</span>';
 
     document.body.appendChild(mirror);
     const caretSpan = mirror.querySelector('#caret');
@@ -382,9 +383,7 @@ export function MessageInput({
   }, [handleSubmit]);
 
   const hasAttachments =
-    attachedTasks.length > 0 ||
-    attachedBacklogItems.length > 0 ||
-    attachedMessages.length > 0;
+    attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0;
 
   const canSend = message.trim().length > 0 && !sending;
 
@@ -402,7 +401,7 @@ export function MessageInput({
 
       {/* Attachment chips row */}
       {hasAttachments && (
-        <div className="flex flex-wrap gap-2 px-3 pt-2 pb-1">
+        <div className="flex flex-wrap gap-1.5 px-2 pt-1.5 pb-0.5">
           {attachedTasks.map((task) => (
             <AttachedTaskChip
               key={task.id}
@@ -435,7 +434,7 @@ export function MessageInput({
       {sendError && (
         <div
           role="alert"
-          className="mx-3 mt-2 flex items-start gap-2 px-3 py-2 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
+          className="mx-2 mt-1.5 flex items-start gap-1.5 px-2 py-1.5 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
         >
           <AlertTriangle
             size={14}
@@ -455,7 +454,7 @@ export function MessageInput({
       )}
 
       {/* Input row */}
-      <div className="flex items-end gap-2 px-3 py-2 w-full">
+      <div className="flex items-end gap-1.5 px-2 py-1.5 w-full">
         {/* Textarea wrapper: border + flex-1 min-w-0 */}
         <div className="flex-1 min-w-0 rounded-xl border border-chatroom-border bg-chatroom-bg-primary overflow-hidden">
           <textarea
@@ -466,20 +465,20 @@ export function MessageInput({
             placeholder="Type a message..."
             disabled={sending}
             rows={1}
-            className="w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-3 py-2 resize-none max-h-[160px] overflow-y-auto"
+            className="w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none max-h-[160px] overflow-y-auto"
             style={{ height: 'auto' }}
           />
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           {/* Editor modal button (desktop only) */}
           {!isTouchDevice && (
             <button
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className="p-2 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-full transition-colors"
+              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-full transition-colors"
             >
               <Code2 size={16} />
             </button>
@@ -494,10 +493,10 @@ export function MessageInput({
               // Prevent focus from leaving the textarea on click
               e.preventDefault();
             }}
-            className="rounded-full w-9 h-9 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-full w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Send message"
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         </div>
       </div>
