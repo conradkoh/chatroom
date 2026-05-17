@@ -465,7 +465,7 @@ export function MessageInput({
             placeholder="Type a message..."
             disabled={sending}
             rows={1}
-            className="w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none max-h-[160px] overflow-y-auto"
+            className="block w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none max-h-[160px] overflow-y-auto"
             style={{ height: 'auto' }}
           />
         </div>
