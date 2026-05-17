@@ -15,7 +15,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 
 import { MessageFeed } from '../components/MessageFeed';
-import { SendForm } from '../components/SendForm';
+import { MessageInput } from '../components/MessageInput';
 import type { ScrollController } from '../hooks/useScrollController';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ export interface MessagesPanelProps {
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
-  onCreateCommand?: () => void;
+
   workspaceId?: Id<'chatroom_workspaces'> | null;
 }
 
@@ -53,7 +53,6 @@ export function MessagesPanel({
   onRegisterSendFormFocus,
   autocompleteFiles,
   refreshAutocompleteFiles,
-  onCreateCommand,
 }: MessagesPanelProps) {
   return (
     <>
@@ -67,14 +66,13 @@ export function MessagesPanel({
         machines={machines}
       />
       <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-        <SendForm
+        <MessageInput
           chatroomId={chatroomId}
           onBeforeResize={onBeforeResize}
           onAfterResize={onAfterResize}
           onRegisterFocus={onRegisterSendFormFocus}
           files={autocompleteFiles}
           onAtTriggerActivate={refreshAutocompleteFiles}
-          onCreateCommand={onCreateCommand}
         />
       </div>
     </>

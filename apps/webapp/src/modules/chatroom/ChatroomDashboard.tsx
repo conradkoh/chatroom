@@ -40,7 +40,7 @@ import { MessageFeed } from './components/MessageFeed';
 import { ProcessManager } from './components/ProcessManager';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
-import { SendForm } from './components/SendForm';
+import { MessageInput } from './components/MessageInput';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { WorkQueue } from './components/WorkQueue';
@@ -1528,7 +1528,6 @@ export function ChatroomDashboard({
                         onRegisterSendFormFocus: handleRegisterSendFormFocus,
                         autocompleteFiles,
                         refreshAutocompleteFiles,
-                        onCreateCommand: handleOpenSavedCommandModal,
                       }}
                       selectedHarnessSessionId={selectedHarnessSessionId}
                       setSelectedHarnessSessionId={setSelectedHarnessSessionId}
@@ -1549,14 +1548,13 @@ export function ChatroomDashboard({
                       machines={machineNameMap}
                     />
                     <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                      <SendForm
+                      <MessageInput
                         chatroomId={chatroomId}
                         onBeforeResize={beginResize}
                         onAfterResize={endResize}
                         onRegisterFocus={handleRegisterSendFormFocus}
                         files={autocompleteFiles}
                         onAtTriggerActivate={refreshAutocompleteFiles}
-                        onCreateCommand={handleOpenSavedCommandModal}
                       />
                     </div>
                   </div>

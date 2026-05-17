@@ -18,7 +18,7 @@ export { FeatureDetailModal } from './components/FeatureDetailModal';
 export { MessageDetailModal } from './components/MessageDetailModal';
 export { MessageFeed } from './components/MessageFeed';
 export { PromptModal } from './components/PromptModal';
-export { SendForm } from './components/SendForm';
+export { MessageInput } from './components/MessageInput';
 export { SetupChecklist } from './components/SetupChecklist';
 export { WorkingIndicator } from './components/WorkingIndicator';
 
