@@ -478,7 +478,7 @@ export function MessageInput({
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors">
+              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
             >
               <Code2 size={16} />
             </button>
@@ -493,7 +493,7 @@ export function MessageInput({
               // Prevent focus from leaving the textarea on click
               e.preventDefault();
             }}
-            className="rounded-none w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed">
+            className="rounded-none w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Send message"
           >
             <ArrowUp size={16} />
