@@ -42,6 +42,7 @@ import {
 } from './sections/role-identity';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
 import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext';
+import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type { SelectorContext, PromptSection } from './types/sections';
@@ -93,8 +94,9 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 function detectTeamType(
   teamRoles: string[],
   teamName?: string
-): 'pair' | 'squad' | 'duo' | 'unknown' {
+): 'pair' | 'squad' | 'duo' | 'solo' | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
+  if (normalizedName.includes('solo')) return 'solo';
   if (normalizedName.includes('squad')) return 'squad';
   if (normalizedName.includes('duo')) return 'duo';
   if (normalizedName.includes('pair')) return 'pair';
@@ -103,6 +105,10 @@ function detectTeamType(
   const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  const hasSolo = teamRoles.some((r) => r.toLowerCase() === 'solo');
+
+  // Solo: single solo role
+  if (hasSolo && teamRoles.length === 1) return 'solo';
 
   // Duo: planner + builder (exactly 2 roles, no reviewer)
   if (hasPlanner && hasBuilder && !hasReviewer && teamRoles.length === 2) return 'duo';
@@ -177,6 +183,11 @@ export function buildSelectorContext(params: {
  */
 export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
   try {
+    if (ctx.team === 'solo') {
+      const result = getSoloRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
+    }
+
     if (ctx.team === 'squad') {
       const result = getSquadRoleGuidanceFromContext(ctx);
       if (result !== null) return result;
@@ -559,6 +570,65 @@ Task ID: ${taskId}`;
     return `Review the work and approve or request changes.`;
   }
 
+  // Solo agent reminders — plan, implement, and deliver independently
+  if (normalizedRole === 'solo') {
+    const handoffToUserCmd = handoffCommand({
+      chatroomId,
+      role: 'solo',
+      nextRole: 'user',
+      cliEnvPrefix,
+    });
+    const progressCmd = reportProgressCommand({
+      chatroomId,
+      role: 'solo',
+      cliEnvPrefix,
+    });
+
+    switch (classification) {
+      case 'question':
+        return `✅ Task acknowledged as QUESTION.
+
+**Next steps:**
+1. Answer the user's question
+2. When done, hand off directly to user:
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 You're working on:
+Task ID: ${taskId}`;
+      case 'new_feature':
+        return `✅ Task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. **Plan**: Decompose the task into actionable work items
+2. **Report progress**: \`${progressCmd}\` — keep the user informed at milestones
+3. **Implement**: Build the solution yourself using best practices
+4. **Verify**: Run \`pnpm typecheck && pnpm test\` before delivering
+5. **Deliver**: Hand off to user with a clear summary of what was done
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 Use the workflow skill for multi-step tasks. You're working on:
+Task ID: ${taskId}`;
+      case 'follow_up':
+        return `✅ Task acknowledged as FOLLOW UP.
+
+**Next steps:**
+1. Review the follow-up request against previous work
+2. **Report progress**: \`${progressCmd}\` — let the user know you're handling it
+3. Plan and implement the follow-up changes yourself
+4. \`pnpm typecheck && pnpm test\` before delivering
+5. Follow-up inherits workflow rules from the original task
+
+💡 You're working on:
+Task ID: ${taskId}`;
+    }
+  }
+
   // Generic fallback for unknown roles
   return `Proceed with your task and hand off when complete.`;
 }
@@ -625,7 +695,8 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
 
-  // In squad/duo team, only the planner can hand off to the user
+  // In squad/duo team, only the planner can hand off to the user.
+  // Solo team can always hand off to user (only team member).
   const isRestrictedTeam = selectorCtx.team === 'squad' || selectorCtx.team === 'duo';
   const canHandoffToUser = isRestrictedTeam ? role.toLowerCase() === 'planner' : true;
   const handoffTargets = canHandoffToUser

@@ -18,8 +18,8 @@ import type { Team } from '../../src/domain/entities/team';
 export interface SelectorContext {
   /** Agent role (e.g., 'builder', 'reviewer', 'planner') */
   role: string;
-  /** Team type (e.g., 'pair', 'squad', or custom team name) */
-  team: 'pair' | 'squad' | 'duo' | 'unknown';
+  /** Team type (e.g., 'pair', 'squad', 'solo', or custom team name) */
+  team: 'pair' | 'squad' | 'duo' | 'solo' | 'unknown';
   /**
    * Full team configuration entity.
    * Available when the chatroom has a valid team configuration.
