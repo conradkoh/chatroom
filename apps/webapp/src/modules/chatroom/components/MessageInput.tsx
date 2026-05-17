@@ -455,9 +455,9 @@ export function MessageInput({
       )}
 
       {/* Input row */}
-      <div className="flex items-end gap-2 px-3 py-2 w-full">
+      <div className="flex items-center gap-2 px-3 py-2 w-full">
         {/* Textarea wrapper: border + flex-1 min-w-0 */}
-        <div className="flex-1 min-w-0 rounded-xl border border-chatroom-border bg-chatroom-bg-primary overflow-hidden">
+        <div className="flex-1 min-w-0 rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden">
           <textarea
             ref={textareaRef}
             value={message}
@@ -479,7 +479,7 @@ export function MessageInput({
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className="p-2 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-full transition-colors"
+              className="p-2 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
             >
               <Code2 size={16} />
             </button>
@@ -494,7 +494,7 @@ export function MessageInput({
               // Prevent focus from leaving the textarea on click
               e.preventDefault();
             }}
-            className="rounded-full w-9 h-9 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-none w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Send message"
           >
             <ArrowUp size={18} />
