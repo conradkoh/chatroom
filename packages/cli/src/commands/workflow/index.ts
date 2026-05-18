@@ -7,6 +7,7 @@ import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { getTemplate } from './templates/index.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
@@ -61,6 +62,11 @@ export interface ViewStepOptions {
   role: string;
   workflowKey: string;
   stepKey: string;
+}
+
+export interface CreateWorkflowFromTemplateOptions {
+  role: string;
+  template: string;
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -562,7 +568,7 @@ export async function completeStep(
   validateChatroomId(chatroomId);
 
   try {
-    await d.backend.mutation(api.workflows.completeStep, {
+    const result = await d.backend.mutation(api.workflows.completeStep, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       workflowKey: options.workflowKey,
@@ -570,10 +576,29 @@ export async function completeStep(
     });
 
     console.log('');
-    console.log('✅ Step completed');
+    console.log('✅ Step complete!');
     console.log(`   Workflow: ${options.workflowKey}`);
     console.log(`   Step: ${options.stepKey}`);
     console.log('');
+
+    if (result.workflowComplete) {
+      console.log('🎉 All steps complete — the workflow is done.');
+      console.log('');
+    } else if (result.nextStep) {
+      if (result.nextStep.assigneeRole === options.role) {
+        // Same role — show exact step-view command
+        console.log(`⏭️  Next step unlocked: "${result.nextStep.description}"`);
+        console.log('   Run this to view it:');
+        console.log(`   chatroom workflow step-view --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${options.workflowKey} --step-key=${result.nextStep.stepKey}`);
+        console.log('');
+      } else {
+        // Different role — announce next step but no programmatic guidance
+        const assignee = result.nextStep.assigneeRole ?? 'unknown';
+        console.log(`⏭️  Next step unlocked: "${result.nextStep.description}"`);
+        console.log(`   Assigned to: ${assignee}`);
+        console.log('');
+      }
+    }
   } catch (error) {
     console.error(`❌ Failed to complete step: ${getErrorMessage(error)}`);
     process.exit(1);
@@ -725,6 +750,93 @@ export async function viewStep(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to view step: ${getErrorMessage(error)}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * Start a workflow from a built-in template (e.g. code-review).
+ *
+ * Loads the template, creates the workflow with all steps, specifies each step
+ * that has a specification, and activates the workflow.
+ */
+export async function createWorkflowFromTemplate(
+  chatroomId: string,
+  options: CreateWorkflowFromTemplateOptions,
+  deps?: WorkflowDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = await requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  // Load template
+  const template = getTemplate(options.template, options.role);
+  if (!template) {
+    console.error(`❌ Unknown template: "${options.template}"`);
+    console.error('   Available templates: code-review');
+    process.exit(1);
+    return;
+  }
+
+  const workflowKey = `${template.key}-${Date.now()}`;
+
+  try {
+    // 1. Create the workflow
+    const stepsForCreate = template.steps.map((s) => ({
+      stepKey: s.stepKey,
+      description: s.description,
+      dependsOn: s.dependsOn,
+      order: s.order,
+    }));
+
+    const createResult = await d.backend.mutation(api.workflows.createWorkflow, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      workflowKey,
+      steps: stepsForCreate,
+      createdBy: options.role,
+    });
+
+    console.log('');
+    console.log(`✅ Workflow created from template "${options.template}"`);
+    console.log(`   Key: ${workflowKey}`);
+    console.log(`   Steps: ${template.steps.length} (one pillar revealed at a time)`);
+
+    // 2. Specify each step that has a specification
+    for (const step of template.steps) {
+      if (step.specification) {
+        await d.backend.mutation(api.workflows.specifyStep, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowKey,
+          stepKey: step.stepKey,
+          assigneeRole: step.assigneeRole,
+          goal: step.specification.goal,
+          requirements: step.specification.requirements,
+          warnings: step.specification.warnings,
+        });
+      }
+    }
+    console.log(`   Specifications: ${template.steps.length} steps specified`);
+
+    // 3. Execute (activate) the workflow
+    await d.backend.mutation(api.workflows.executeWorkflow, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      workflowKey,
+    });
+
+    console.log(`   Status: active`);
+    console.log('');
+    console.log('Next steps:');
+    const firstStep = template.steps[0]!;
+    console.log(`   1. View first step: chatroom workflow step-view --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${workflowKey} --step-key=${firstStep.stepKey}`);
+    console.log(`   2. When done reviewing: chatroom workflow step-complete --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${workflowKey} --step-key=${firstStep.stepKey}`);
+    console.log('   3. Proceed to next pillar as each step unlocks');
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to start workflow: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }
