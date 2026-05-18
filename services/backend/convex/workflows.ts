@@ -486,14 +486,6 @@ export const completeStep = mutation({
 
     const now = Date.now();
 
-    // Identify candidate next steps before advancing — steps that depend
-    // on the one being completed and are currently pending.
-    const allSteps = await getAllSteps(ctx, workflow._id);
-    const candidateNext = allSteps.filter(
-      (s) => s.dependsOn.includes(args.stepKey) && s.status === 'pending'
-    );
-    const candidateNextKeys = new Set(candidateNext.map((s) => s.stepKey));
-
     await ctx.db.patch('chatroom_workflow_steps', step._id, {
       status: 'completed',
       completedAt: now,
@@ -514,27 +506,7 @@ export const completeStep = mutation({
 
     await advanceWorkflow(ctx, workflow._id, now);
 
-    // Re-fetch to find which candidate step was promoted to in_progress
-    const updatedSteps = await getAllSteps(ctx, workflow._id);
-    const promoted = updatedSteps.find(
-      (s) => candidateNextKeys.has(s.stepKey) && s.status === 'in_progress'
-    );
-
-    // Check if the workflow is now completed
-    const updatedWorkflow = await ctx.db.get('chatroom_workflows', workflow._id);
-    const workflowComplete = updatedWorkflow?.status === 'completed';
-
-    return {
-      success: true,
-      ...(promoted && {
-        nextStep: {
-          stepKey: promoted.stepKey,
-          assigneeRole: promoted.assigneeRole,
-          description: promoted.description,
-        },
-      }),
-      workflowComplete,
-    };
+    return { success: true };
   },
 });
 
