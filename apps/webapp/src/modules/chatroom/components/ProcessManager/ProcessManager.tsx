@@ -13,10 +13,23 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { toast } from 'sonner';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import { cn } from '@/lib/utils';
 import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
@@ -55,6 +68,9 @@ export interface ProcessManagerProps {
   onClearRun: () => void;
   /** Pre-selected command name — opens with this command's details panel */
   initialSelectedCommand?: string | null;
+  /** Machine ID + workingDir for clear-stuck-runs mutation */
+  machineId?: string | null;
+  workingDir?: string | null;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -70,6 +86,8 @@ export function ProcessManager({
   onSelectRun,
   onClearRun,
   initialSelectedCommand,
+  machineId,
+  workingDir,
 }: ProcessManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const searchQueryRef = useRef(searchQuery);
@@ -77,6 +95,28 @@ export function ProcessManager({
   const onEscapeKeyDown = useEscapeToClear(searchQueryRef, () => setSearchQuery(''));
   const [favoritesVersion, setFavoritesVersion] = useState(0);
   const favoritesStore = useMemo(() => getCommandFavoritesStore(), []);
+
+  // Clear stuck runs — confirm dialog + mutation
+  const [clearStuckOpen, setClearStuckOpen] = useState(false);
+  const clearStuckRuns = useSessionMutation(api.commands.clearStuckCommandRuns);
+
+  const pendingOrRunningCount = runs.filter(
+    (r) => r.status === 'pending' || r.status === 'running'
+  ).length;
+
+  const handleClearStuck = useCallback(async () => {
+    if (!machineId || !workingDir) return;
+    try {
+      const result = await clearStuckRuns({ machineId, workingDir });
+      toast.success(`Cleared ${result.clearedCount} stuck command(s)`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to clear stuck commands'
+      );
+    } finally {
+      setClearStuckOpen(false);
+    }
+  }, [machineId, workingDir, clearStuckRuns]);
 
   // Reset search when closing
   useEffect(() => {
@@ -221,9 +261,22 @@ export function ProcessManager({
             <DialogPrimitive.Title className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               Process Manager
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1">
-              <X size={16} />
-            </DialogPrimitive.Close>
+            <div className="flex items-center gap-2">
+              {/* Clear stuck runs button — only when machineId + workingDir available */}
+              {machineId && workingDir && (
+                <button
+                  type="button"
+                  disabled={pendingOrRunningCount === 0}
+                  onClick={() => setClearStuckOpen(true)}
+                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Clear stuck
+                </button>
+              )}
+              <DialogPrimitive.Close className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1">
+                <X size={16} />
+              </DialogPrimitive.Close>
+            </div>
           </div>
 
           <DialogPrimitive.Description className="sr-only">
@@ -433,6 +486,28 @@ export function ProcessManager({
           </div>
         </DialogPrimitive.Content>
       </DialogPortal>
+
+      {/* Clear stuck confirm dialog */}
+      <AlertDialog open={clearStuckOpen} onOpenChange={setClearStuckOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear stuck commands?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This marks all pending and running commands for this workspace as
+              stopped. Use this only when the daemon is unresponsive.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearStuck}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear stuck
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

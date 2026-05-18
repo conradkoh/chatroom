@@ -1750,6 +1750,8 @@ export function ChatroomDashboard({
             onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
             onClearRun={() => commandRunner.setActiveRunId(null)}
             initialSelectedCommand={processManagerInitialCommand}
+            machineId={activeWorkspace?.machineId}
+            workingDir={activeWorkspace?.workingDir}
           />
 
           {/* Stop All Agents Confirmation Dialog */}
