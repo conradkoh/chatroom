@@ -6,7 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { parseSections, completeStep } from './index.js';
+import { parseSections } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -405,112 +405,5 @@ describe('viewStep', () => {
     expect(allOutput).toContain('No specification set');
 
     logSpy.mockRestore();
-  });
-});
-
-// ── completeStep smart output tests ─────────────────────────────────────────
-
-describe('completeStep', () => {
-  let logSpy: any;
-  let exitSpy2: any;
-  let errorSpy2: any;
-
-  function mockDeps(mutationResult: unknown) {
-    return {
-      backend: {
-        mutation: vi.fn().mockResolvedValue(mutationResult),
-        query: vi.fn(),
-      },
-      session: {
-        getSessionId: vi.fn().mockResolvedValue('test-session'),
-        getConvexUrl: vi.fn().mockReturnValue('http://localhost:3210'),
-        getOtherSessionUrls: vi.fn().mockResolvedValue([]),
-      },
-    };
-  }
-
-  beforeEach(() => {
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    exitSpy2 = vi.spyOn(process, 'exit').mockImplementation((() => {
-      throw new Error('process.exit called');
-    }) as never);
-    errorSpy2 = vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('shows step-view command when next step has same role', async () => {
-    const deps = mockDeps({
-      success: true,
-      nextStep: {
-        stepKey: 'pillar-2-type-drift',
-        assigneeRole: 'planner',
-        description: 'Type Drift',
-      },
-      workflowComplete: false,
-    });
-
-    await completeStep(
-      'test-chatroom-id-12345678901234567890',
-      { role: 'planner', workflowKey: 'code-review-123', stepKey: 'pillar-1-simplification' },
-      deps as any
-    );
-
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
-    expect(output).toContain('✅ Step complete!');
-    expect(output).toContain('Next step unlocked');
-    expect(output).toContain('Type Drift');
-    expect(output).toContain('step-view');
-    expect(output).toContain('pillar-2-type-drift');
-    expect(output).not.toContain('🎉 All steps complete');
-    expect(output).not.toContain('Assigned to');
-  });
-
-  it('shows assigned-to notice when next step has different role', async () => {
-    const deps = mockDeps({
-      success: true,
-      nextStep: {
-        stepKey: 'pillar-2-type-drift',
-        assigneeRole: 'planner',
-        description: 'Type Drift',
-      },
-      workflowComplete: false,
-    });
-
-    await completeStep(
-      'test-chatroom-id-12345678901234567890',
-      { role: 'builder', workflowKey: 'code-review-123', stepKey: 'pillar-1-simplification' },
-      deps as any
-    );
-
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
-    expect(output).toContain('✅ Step complete!');
-    expect(output).toContain('Next step unlocked');
-    expect(output).toContain('Type Drift');
-    expect(output).toContain('Assigned to: planner');
-    expect(output).not.toContain('step-view');
-    expect(output).not.toContain('🎉 All steps complete');
-  });
-
-  it('shows workflow complete message when all steps done', async () => {
-    const deps = mockDeps({
-      success: true,
-      nextStep: undefined,
-      workflowComplete: true,
-    });
-
-    await completeStep(
-      'test-chatroom-id-12345678901234567890',
-      { role: 'planner', workflowKey: 'code-review-123', stepKey: 'pillar-8-dead-code' },
-      deps as any
-    );
-
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
-    expect(output).toContain('✅ Step complete!');
-    expect(output).toContain('🎉 All steps complete');
-    expect(output).not.toContain('Next step unlocked');
-    expect(output).not.toContain('step-view');
   });
 });
