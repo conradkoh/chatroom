@@ -568,7 +568,7 @@ export async function completeStep(
   validateChatroomId(chatroomId);
 
   try {
-    await d.backend.mutation(api.workflows.completeStep, {
+    const result = await d.backend.mutation(api.workflows.completeStep, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       workflowKey: options.workflowKey,
@@ -576,10 +576,29 @@ export async function completeStep(
     });
 
     console.log('');
-    console.log('✅ Step completed');
+    console.log('✅ Step complete!');
     console.log(`   Workflow: ${options.workflowKey}`);
     console.log(`   Step: ${options.stepKey}`);
     console.log('');
+
+    if (result.workflowComplete) {
+      console.log('🎉 All steps complete — the workflow is done.');
+      console.log('');
+    } else if (result.nextStep) {
+      if (result.nextStep.assigneeRole === options.role) {
+        // Same role — show exact step-view command
+        console.log(`⏭️  Next step unlocked: "${result.nextStep.description}"`);
+        console.log('   Run this to view it:');
+        console.log(`   chatroom workflow step-view --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${options.workflowKey} --step-key=${result.nextStep.stepKey}`);
+        console.log('');
+      } else {
+        // Different role — announce next step but no programmatic guidance
+        const assignee = result.nextStep.assigneeRole ?? 'unknown';
+        console.log(`⏭️  Next step unlocked: "${result.nextStep.description}"`);
+        console.log(`   Assigned to: ${assignee}`);
+        console.log('');
+      }
+    }
   } catch (error) {
     console.error(`❌ Failed to complete step: ${getErrorMessage(error)}`);
     process.exit(1);
