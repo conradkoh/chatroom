@@ -619,15 +619,15 @@ backlogCommand
 const workflowCommand = program.command('workflow').description('Manage structured workflows');
 
 workflowCommand
-  .command('start')
-  .description('Start a workflow from a built-in template (e.g. code-review)')
+  .command('create-from-template')
+  .description('Create a workflow from a built-in template with all steps pre-filled')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--template <name>', 'Template name (e.g. code-review)')
   .action(async (options: { chatroomId: string; role: string; template: string }) => {
     await maybeRequireAuth();
-    const { startWorkflowFromTemplate } = await import('./commands/workflow/index.js');
-    await startWorkflowFromTemplate(options.chatroomId, {
+    const { createWorkflowFromTemplate } = await import('./commands/workflow/index.js');
+    await createWorkflowFromTemplate(options.chatroomId, {
       role: options.role,
       template: options.template,
     });

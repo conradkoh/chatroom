@@ -14,9 +14,9 @@ Workflows are DAG-based execution plans where each step has dependencies, an ass
 
 ## Command Reference
 
-### Start from Template (recommended for built-in reviews)
+### Create from Template (recommended for built-in reviews)
 \`\`\`
-chatroom workflow start --chatroom-id=<id> --role=<role> --template=<name>
+chatroom workflow create-from-template --chatroom-id=<id> --role=<role> --template=<name>
 \`\`\`
 Bootstraps a complete pre-filled workflow from a built-in template. Creates, specifies all steps, and activates the workflow in one command.
 
@@ -25,9 +25,9 @@ Available templates:
 
 Example:
 \`\`\`bash
-chatroom workflow start --chatroom-id=<id> --role=planner --template=code-review
+chatroom workflow create-from-template --chatroom-id=<id> --role=planner --template=code-review
 \`\`\`
-After starting, use \`workflow step-view\` to read the current step and \`workflow step-complete\` to advance to the next.
+After creating, use \`workflow step-view\` to read the current step and \`workflow step-complete\` to advance to the next.
 
 ---
 

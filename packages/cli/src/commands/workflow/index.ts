@@ -64,7 +64,7 @@ export interface ViewStepOptions {
   stepKey: string;
 }
 
-export interface StartWorkflowFromTemplateOptions {
+export interface CreateWorkflowFromTemplateOptions {
   role: string;
   template: string;
 }
@@ -742,9 +742,9 @@ export async function viewStep(
  * Loads the template, creates the workflow with all steps, specifies each step
  * that has a specification, and activates the workflow.
  */
-export async function startWorkflowFromTemplate(
+export async function createWorkflowFromTemplate(
   chatroomId: string,
-  options: StartWorkflowFromTemplateOptions,
+  options: CreateWorkflowFromTemplateOptions,
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
@@ -782,8 +782,7 @@ export async function startWorkflowFromTemplate(
     console.log('');
     console.log(`✅ Workflow created from template "${options.template}"`);
     console.log(`   Key: ${workflowKey}`);
-    console.log(`   Workflow ID: ${createResult.workflowId}`);
-    console.log(`   Steps: ${template.steps.length}`);
+    console.log(`   Steps: ${template.steps.length} (one pillar revealed at a time)`);
 
     // 2. Specify each step that has a specification
     for (const step of template.steps) {
@@ -811,8 +810,11 @@ export async function startWorkflowFromTemplate(
 
     console.log(`   Status: active`);
     console.log('');
-    console.log('💡 Root steps (no dependencies) are now in_progress.');
-    console.log('   Run `workflow status` to see the full workflow.');
+    console.log('Next steps:');
+    const firstStep = template.steps[0]!;
+    console.log(`   1. View first step: chatroom workflow step-view --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${workflowKey} --step-key=${firstStep.stepKey}`);
+    console.log(`   2. When done reviewing: chatroom workflow step-complete --chatroom-id=${chatroomId} --role=${options.role} --workflow-key=${workflowKey} --step-key=${firstStep.stepKey}`);
+    console.log('   3. Proceed to next pillar as each step unlocks');
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to start workflow: ${getErrorMessage(error)}`);

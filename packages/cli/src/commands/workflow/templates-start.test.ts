@@ -1,13 +1,13 @@
 /**
  * Workflow Template Start Unit Tests
  *
- * Tests for startWorkflowFromTemplate — creating workflows from
+ * Tests for createWorkflowFromTemplate — creating workflows from
  * built-in templates (e.g. code-review).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { startWorkflowFromTemplate } from './index.js';
+import { createWorkflowFromTemplate } from './index.js';
 import type { WorkflowDeps } from './deps.js';
 
 // ---------------------------------------------------------------------------
@@ -47,12 +47,12 @@ function createMockDeps(overrides?: Partial<WorkflowDeps>): WorkflowDeps {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('startWorkflowFromTemplate', () => {
+describe('createWorkflowFromTemplate', () => {
   it('exits with error for unknown template', async () => {
     const deps = createMockDeps();
 
     await expect(
-      startWorkflowFromTemplate(
+      createWorkflowFromTemplate(
         'test-chatroom-id-12345678901234567890',
         { role: 'planner', template: 'nonexistent' },
         deps
@@ -78,7 +78,7 @@ describe('startWorkflowFromTemplate', () => {
       },
     });
 
-    await startWorkflowFromTemplate(
+    await createWorkflowFromTemplate(
       'test-chatroom-id-12345678901234567890',
       { role: 'planner', template: 'code-review' },
       deps
@@ -111,7 +111,7 @@ describe('startWorkflowFromTemplate', () => {
       },
     });
 
-    await startWorkflowFromTemplate(
+    await createWorkflowFromTemplate(
       'test-chatroom-id-12345678901234567890',
       { role: 'reviewer', template: 'code-review' },
       deps
@@ -137,7 +137,7 @@ describe('startWorkflowFromTemplate', () => {
     });
 
     await expect(
-      startWorkflowFromTemplate(
+      createWorkflowFromTemplate(
         'test-chatroom-id-12345678901234567890',
         { role: 'planner', template: 'code-review' },
         deps

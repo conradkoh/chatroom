@@ -13,7 +13,7 @@ export const codeReviewSkill: SkillModule = {
 Run this command to start a sequential code review workflow (one pillar at a time):
 
 \`\`\`bash
-chatroom workflow start --template=code-review --role=<your-role> --chatroom-id=<chatroom-id>
+chatroom workflow create-from-template --template=code-review --role=<your-role> --chatroom-id=<chatroom-id>
 \`\`\`
 
 This creates a workflow with 8 steps (one per pillar). Each step is revealed only after the previous is marked complete. Use:
