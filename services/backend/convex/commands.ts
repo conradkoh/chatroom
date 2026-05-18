@@ -214,6 +214,16 @@ export const runCommand = mutation({
  * Request stopping a running command.
  * Dispatches a command.stop event to the daemon.
  */
+/**
+ * Stop a command run.
+ *
+ * Two paths:
+ * - **Pending** runs: transition directly to 'stopped' inline. No OS process
+ *   exists, so no daemon round-trip is needed. This prevents stuck runs when
+ *   the daemon is unresponsive.
+ * - **Running** runs: mark terminationReason and dispatch a command.stop event
+ *   for the daemon to handle the actual process termination.
+ */
 export const stopCommand = mutation({
   args: {
     ...SessionIdArg,
@@ -241,7 +251,18 @@ export const stopCommand = mutation({
 
     const now = Date.now();
 
-    // Mark terminationReason before the daemon stops the process
+    if (run.status === 'pending') {
+      // Pending run: no OS process exists — transition to stopped immediately.
+      // Bypass the daemon round-trip so stuck runs don't stay pending forever.
+      await ctx.db.patch(args.runId, {
+        status: 'stopped',
+        terminationReason: 'user-stop',
+        completedAt: now,
+      });
+      return;
+    }
+
+    // Running run: mark terminationReason before the daemon stops the process
     await ctx.db.patch(args.runId, { terminationReason: 'user-stop' });
 
     // Dispatch command.stop event to daemon
