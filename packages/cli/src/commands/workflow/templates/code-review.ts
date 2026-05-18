@@ -8,7 +8,7 @@
 
 import type { WorkflowTemplate } from './types';
 
-const REVIEW_REQUIREMENTS =
+export const REVIEW_REQUIREMENTS =
   'Review the code against this pillar. Mark this step complete when you have finished reviewing and noting all findings for this pillar.';
 
 export function getCodeReviewTemplate(role: string): WorkflowTemplate {
