@@ -52,6 +52,13 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
     registeredBy: 'builder',
   });
 
+  // Record a chatroom observation so listWorkspacesForMachine
+  // includes this workspace (7-day recency filter)
+  await t.mutation(api.chatrooms.recordChatroomObservation, {
+    sessionId,
+    chatroomId,
+  });
+
   // Find the workspace ID
   const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
     sessionId,
