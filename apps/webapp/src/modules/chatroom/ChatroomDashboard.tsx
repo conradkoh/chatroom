@@ -24,7 +24,6 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -1648,16 +1647,6 @@ export function ChatroomDashboard({
               refreshObservedChatroom={refreshObservedChatroom}
               onSwitchToSourceControl={handleSwitchToSourceControl}
             />
-            {/* Active command runs indicator — shown in bottom-right when runs are detached */}
-            {activeWorkspace?.machineId && activeWorkspace?.workingDir && (
-              <div className="absolute bottom-9 right-3 z-10 pointer-events-auto">
-                <ActiveCommandRunsIndicator
-                  machineId={activeWorkspace.machineId}
-                  workingDir={activeWorkspace.workingDir}
-                  inlineCommand={inlineCommand}
-                />
-              </div>
-            )}
           </div>
 
           <PromptModal
