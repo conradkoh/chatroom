@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 
 import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
-import { TEAMS_CONFIG } from './config/teams';
+import { useTeamConfigs } from './hooks/use-team-configs';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import {
@@ -379,6 +379,7 @@ export function ChatroomDashboard({
   refreshObservedChatroom,
   initialView,
 }: ChatroomDashboardProps) {
+  const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
   // ─── Scroll controller (shared between MessageFeed and SendForm) ───
@@ -1316,16 +1317,16 @@ export function ChatroomDashboard({
                   align="end"
                   className="min-w-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none p-0"
                 >
-                  {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
-                    const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
+                  {teams.map((teamData) => {
+                    const isActive = teamData.id === (chatroom.teamId || defaultTeamId);
                     return (
                       <DropdownMenuItem
-                        key={teamId}
+                        key={teamData.id}
                         onClick={async () => {
                           if (isActive) return;
                           await updateTeam({
                             chatroomId: chatroomId as Id<'chatroom_rooms'>,
-                            teamId,
+                            teamId: teamData.id,
                             teamName: teamData.name,
                             teamRoles: teamData.roles,
                             teamEntryPoint: teamData.entryPoint || teamData.roles[0],
