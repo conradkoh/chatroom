@@ -1,58 +1,72 @@
 /**
  * Team Kind — canonical definitions for well-known chatroom team types.
  *
- * ## Multi-shape pattern
+ * Uses `z.enum(...)` as the single source of truth. All other shapes
+ * (type, readonly tuple, enum-like object, Convex validator, and runtime
+ * guard) are derived from the zod schema.
  *
- * This module demonstrates the "single source of truth → derived shapes" pattern:
- *
- * 1. **Const list** (`WELL_KNOWN_TEAM_KINDS`) — iterable, used in runtime checks
- * 2. **Type** (`TeamKind`) — compile-time union, used in function signatures and interfaces
- * 3. **Enum-like object** (`TeamKindEnum`) — runtime lookup (e.g. TeamKindEnum.pair → 'pair')
- * 4. **Convex validator** (`teamKindValidator`) — for `v.union(v.literal(...))` in mutation/query args
- * 5. **Zod schema** (`teamKindSchema`) — for runtime validation outside Convex contexts
- *
- * All derived shapes trace back to the single `as const` array at the top.
- * Adding a new team kind requires exactly one edit: append to the array.
+ * To add or remove a team kind, edit ONLY the `z.enum(...)` array.
+ * Every derived shape updates automatically.
  *
  * @see docs/conventions/domain-models.md
  */
 
-import { v } from 'convex/values';
+import { v, type VLiteral } from 'convex/values';
 import { z } from 'zod';
 
 // ─── Source of truth ────────────────────────────────────────────────────────
 
-/** Canonical list of well-known team kinds. Add new kinds here. */
-export const WELL_KNOWN_TEAM_KINDS = ['pair', 'squad', 'duo', 'solo'] as const;
+/**
+ * Canonical zod schema for well-known team kinds — the single source of truth.
+ * All other shapes in this module are derived from it.
+ *
+ * To add or remove a team kind, edit this list only. The type, list, enum-like
+ * object, Convex validator, and runtime guard all update automatically.
+ */
+export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
 
 // ─── Derived shapes ─────────────────────────────────────────────────────────
 
-/** Union type of well-known team kinds. */
-export type TeamKind = (typeof WELL_KNOWN_TEAM_KINDS)[number];
+/** TS type of a well-known team kind. */
+export type TeamKind = z.infer<typeof teamKindSchema>;
 
-/** Enum-like object: TeamKindEnum.pair === 'pair', etc. */
-export const TeamKindEnum: Record<TeamKind, TeamKind> = Object.fromEntries(
-  WELL_KNOWN_TEAM_KINDS.map((k) => [k, k])
-) as Record<TeamKind, TeamKind>;
+/** Readonly tuple of all well-known team kinds — iteration order is canonical. */
+export const WELL_KNOWN_TEAM_KINDS = teamKindSchema.options;
 
-/** Convex validator for well-known team kinds.
- *  Hand-written literals because TS cannot infer the union from a mapped
- *  spread (the Convex v.literal return type is opaque).
- *  When adding a new kind, append a new v.literal(...) here.
- *  The exhaustiveness test in team-kind.spec.ts verifies consistency. */
+/**
+ * Enum-like object: TeamKindEnum.pair === 'pair', etc.
+ * Convenient for callsites that prefer member access over string literals.
+ */
+export const TeamKindEnum = teamKindSchema.enum;
+
+// ─── Convex validator ───────────────────────────────────────────────────────
+
+/**
+ * Mapped tuple type: turns a readonly tuple of literals into the matching
+ * tuple of VLiteral validators. Lets us spread a runtime-built array of
+ * validators into v.union(...) while preserving each element's precise type.
+ *
+ * Required because Convex's v.union is variadic — passing a widened array
+ * (e.g. VLiteral<TeamKind>[]) collapses the result to Validator<string>.
+ */
+type VLiteralsOf<T extends readonly (string | number | bigint | boolean)[]> = {
+  [K in keyof T]: VLiteral<T[K], 'required'>;
+};
+
+/**
+ * Convex validator for a well-known team kind. Derived from the same source
+ * tuple as the type; adding a member to teamKindSchema automatically expands
+ * this validator's static type. The one cast is justified because
+ * .map(v.literal) produces exactly the tuple described by VLiteralsOf at runtime.
+ */
 export const teamKindValidator = v.union(
-  v.literal('pair'),
-  v.literal('squad'),
-  v.literal('duo'),
-  v.literal('solo')
+  ...(WELL_KNOWN_TEAM_KINDS.map((k) => v.literal(k)) as unknown as VLiteralsOf<
+    typeof WELL_KNOWN_TEAM_KINDS
+  >)
 );
 
-/** Zod schema for well-known team kinds. */
-export const teamKindSchema = z.enum(WELL_KNOWN_TEAM_KINDS);
+// ─── Runtime guard ──────────────────────────────────────────────────────────
 
-// ─── Guards ─────────────────────────────────────────────────────────────────
-
-/** Type guard: is the given string a well-known team kind? */
-export function isTeamKind(value: string): value is TeamKind {
-  return (WELL_KNOWN_TEAM_KINDS as readonly string[]).includes(value);
-}
+/** Runtime type guard: is the given value a well-known team kind? */
+export const isTeamKind = (value: unknown): value is TeamKind =>
+  teamKindSchema.safeParse(value).success;

@@ -1,56 +1,71 @@
 # Domain Models — Multi-Shape Pattern
 
-When defining a well-known set of values in the domain layer (e.g. team kinds, agent roles, statuses), use the **single source of truth → derived shapes** pattern to avoid duplication and keep all representations consistent.
+When defining a well-known set of string-literal values in the domain layer (e.g. team kinds, agent roles, statuses), use `z.enum(...)` as the **single source of truth** and derive all other shapes from it.
 
-## Pattern
+## Canonical Pattern (string-literal domains)
 
-1. Define a `const` array with `as const`:
-
-```ts
-export const WELL_KNOWN_TEAM_KINDS = ['pair', 'squad', 'duo', 'solo'] as const;
-```
-
-2. Derive all needed shapes from this single array:
-
-| Shape | Purpose | Example |
-|-------|---------|---------|
-| **Type** | Compile-time union for function signatures | `export type TeamKind = (typeof WELL_KNOWN_TEAM_KINDS)[number];` |
-| **Enum-like object** | Runtime lookup (`TeamKindEnum.pair`) | `Object.fromEntries(kinds.map(k => [k, k]))` |
-| **Iterable list** | The `as const` array itself — already iterable | `WELL_KNOWN_TEAM_KINDS.includes(value)` |
-| **Convex validator** | For `v.union(v.literal(...))` in mutation/query args | `v.union(WELL_KNOWN_TEAM_KINDS.map(k => v.literal(k)))` |
-| **Zod schema** | Runtime validation outside Convex (CLI, tests) | `z.enum(WELL_KNOWN_TEAM_KINDS)` |
-
-3. Optionally add a type guard:
+1. Define a zod enum schema — this is the source of truth:
 
 ```ts
-export function isTeamKind(value: string): value is TeamKind {
-  return (WELL_KNOWN_TEAM_KINDS as readonly string[]).includes(value);
-}
+export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
 ```
+
+2. Derive all needed shapes:
+
+| Shape | Derivation | Purpose |
+|-------|-----------|---------|
+| **Type** | `z.infer<typeof teamKindSchema>` | Compile-time union for function signatures |
+| **Tuple** | `teamKindSchema.options` | Iterable readonly tuple |
+| **Enum object** | `teamKindSchema.enum` | Runtime lookup (`TeamKindEnum.pair`) |
+| **Convex validator** | `v.union(...(options.map(v.literal))` via `VLiteralsOf` helper | Mutation/query arg validation |
+| **Runtime guard** | `teamKindSchema.safeParse(value).success` | Narrowing in conditionals |
+
+3. Convex validator uses a typed-tuple helper to preserve literal types through `v.union(...)`:
+
+```ts
+type VLiteralsOf<T extends readonly (string | number | bigint | boolean)[]> = {
+  [K in keyof T]: VLiteral<T[K], 'required'>;
+};
+
+export const teamKindValidator = v.union(
+  ...(WELL_KNOWN_TEAM_KINDS.map((k) => v.literal(k)) as unknown as VLiteralsOf<
+    typeof WELL_KNOWN_TEAM_KINDS
+  >)
+);
+```
+
+4. Always add a sync test: assert `teamKindValidator.members[i].value` matches the source tuple. This is the teeth against silent drift.
+
+## Trade-off: mixed-literal domains
+
+**String-literal domains** use `z.enum(...)` as the source of truth — it gives the type, the readonly tuple, and the enum-like object for free. **Mixed-literal domains** (numbers, bigints, booleans, or mixed types) can't use `z.enum` and should use an `as const` tuple as the source instead, deriving the zod schema from it. The Convex validator pattern (via `VLiteralsOf`) works in both cases.
 
 ## Rules
 
-- **One edit to add a value**: append to the `as const` array. All derived shapes update automatically.
-- **Keep the source flat**: use a single array, not multiple const declarations.
-- **Place in `src/domain/entities/`**: follow the flat-file convention (one entity per file, no sub-folders).
-- **Zod is optional**: only add if the dependency already exists in `package.json`. If absent, skip the zod shape and note the omission in a comment.
+- **One edit to add a value**: append to the `z.enum(...)` array. All derived shapes update automatically.
+- **Place in `src/domain/entities/`**: follow the flat-file convention (one entity per file).
+- **Zod is the source for string-literal domains**: `as const` tuple is the fallback for mixed-literal domains.
+- **Add a validator-sync test**: prevents the Convex validator from drifting from the source.
 
 ## Example
 
-See `services/backend/src/domain/entities/team-kind.ts` for the canonical implementation of `TeamKind`.
+See `services/backend/src/domain/entities/team-kind.ts` for the canonical implementation.
 
 ## Anti-patterns
 
-❌ Hand-writing the union type separately from the const list:
+❌ Hand-writing the union type separately:
 ```ts
-// BAD — add a new kind here and forget to update the list
+// BAD — add a new kind here and forget to update the validator
 export type TeamKind = 'pair' | 'squad' | 'duo' | 'solo';
-export const TEAM_KINDS = ['pair', 'squad', 'duo']; // stale
+export const teamKindValidator = v.union(v.literal('pair'), v.literal('squad'));
 ```
 
 ✅ Deriving from source:
 ```ts
 // GOOD — single edit updates everything
-export const TEAM_KINDS = ['pair', 'squad', 'duo', 'solo'] as const;
-export type TeamKind = (typeof TEAM_KINDS)[number];
+export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
+export type TeamKind = z.infer<typeof teamKindSchema>;
+export const teamKindValidator = v.union(
+  ...(teamKindSchema.options.map(k => v.literal(k)) as unknown as VLiteralsOf<typeof teamKindSchema.options>)
+);
 ```

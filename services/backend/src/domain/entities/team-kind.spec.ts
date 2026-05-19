@@ -66,4 +66,18 @@ describe('TeamKind', () => {
     const _exhaustive: TeamKind[] = allKnown;
     expect(allKnown.every(isTeamKind)).toBe(true);
   });
+
+  test('teamKindValidator.members stays in sync with WELL_KNOWN_TEAM_KINDS', () => {
+    // Convex VUnion exposes its members at runtime. Each member is a VLiteral
+    // whose `.value` is the literal it accepts. Sorting both sides because the
+    // test asserts set-equality, not order (order is already asserted elsewhere).
+    const validatorMembers = (
+      teamKindValidator.members as readonly { value: TeamKind }[]
+    )
+      .map((m) => m.value)
+      .slice()
+      .sort();
+    const sourceMembers = WELL_KNOWN_TEAM_KINDS.slice().sort();
+    expect(validatorMembers).toEqual(sourceMembers);
+  });
 });
