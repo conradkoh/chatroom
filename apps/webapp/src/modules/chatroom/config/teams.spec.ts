@@ -14,8 +14,18 @@ import { WELL_KNOWN_TEAM_KINDS } from '@workspace/backend/src/domain/entities/te
 import { TEAMS_CONFIG } from './teams';
 
 /**
- * Team kinds that exist in the backend but are intentionally hidden from
- * the UI (e.g. deprecated team types that still have database records).
+ * Team kinds that exist in the backend `WELL_KNOWN_TEAM_KINDS` but are
+ * intentionally hidden from the webapp UI (no entry in `TEAMS_CONFIG`).
+ *
+ * `pair`: Being sunset. Still alive in the wider codebase — `packages/cli`
+ *   defaults to it, `services/backend/prompts/teams/pair/` is live, and many
+ *   integration tests fixture against it. Hidden from the webapp picker so
+ *   new chatrooms don't get created with the soon-to-be-removed team. Full
+ *   sunset (CLI default migration, prompt module removal, test fixture
+ *   migration) is tracked in a separate PR targeting the same release.
+ *
+ * When that PR lands and `pair` is removed from `teamKindSchema`, drop this
+ * entry too.
  */
 const DEPRECATED_TEAM_KINDS: readonly string[] = ['pair'];
 
