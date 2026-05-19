@@ -11,8 +11,10 @@
  * @see docs/conventions/domain-models.md
  */
 
-import { v, type VLiteral } from 'convex/values';
+import { v } from 'convex/values';
 import { z } from 'zod';
+
+import { toLiteralValidators } from './_shared/v-literals-of';
 
 // ─── Source of truth ────────────────────────────────────────────────────────
 
@@ -41,29 +43,7 @@ export const TeamKindEnum = teamKindSchema.enum;
 
 // ─── Convex validator ───────────────────────────────────────────────────────
 
-/**
- * Mapped tuple type: turns a readonly tuple of literals into the matching
- * tuple of VLiteral validators. Lets us spread a runtime-built array of
- * validators into v.union(...) while preserving each element's precise type.
- *
- * Required because Convex's v.union is variadic — passing a widened array
- * (e.g. VLiteral<TeamKind>[]) collapses the result to Validator<string>.
- */
-type VLiteralsOf<T extends readonly (string | number | bigint | boolean)[]> = {
-  [K in keyof T]: VLiteral<T[K], 'required'>;
-};
-
-/**
- * Convex validator for a well-known team kind. Derived from the same source
- * tuple as the type; adding a member to teamKindSchema automatically expands
- * this validator's static type. The one cast is justified because
- * .map(v.literal) produces exactly the tuple described by VLiteralsOf at runtime.
- */
-export const teamKindValidator = v.union(
-  ...(WELL_KNOWN_TEAM_KINDS.map((k) => v.literal(k)) as unknown as VLiteralsOf<
-    typeof WELL_KNOWN_TEAM_KINDS
-  >)
-);
+export const teamKindValidator = v.union(...toLiteralValidators(WELL_KNOWN_TEAM_KINDS));
 
 // ─── Runtime guard ──────────────────────────────────────────────────────────
 
