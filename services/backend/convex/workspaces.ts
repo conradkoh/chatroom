@@ -548,32 +548,6 @@ export const upsertWorkspaceGitState = mutation({
 });
 
 /**
- * Persists the full diff content for a workspace.
- *
- * Called by the daemon after processing a `full_diff` request.
- */
-export const upsertFullDiff = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    workingDir: v.string(),
-    diffContent: v.string(),
-    truncated: v.boolean(),
-    diffStat: v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    }),
-  },
-  handler: async (): Promise<void> => {
-    throw new Error(
-      '[DEPRECATED] upsertFullDiff is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-        'Run: npm install -g chatroom-cli@latest'
-    );
-  },
-});
-
-/**
  * Persists the PR diff content for a machine/workingDir (upsert).
  *
  * Called by the daemon after processing a `pr_diff` request.
