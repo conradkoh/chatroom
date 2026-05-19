@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 
 import { ActiveCommandRunsIndicator } from './components/ActiveCommandRunsIndicator';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { TEAMS_CONFIG } from './config/teams';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import {
@@ -109,31 +110,6 @@ const ALL_MACHINES = '';
 // (fully opaque) — NOT `bg-chatroom-bg-surface` (glassmorphism/semi-transparent).
 // `bg-chatroom-bg-surface` is intended for overlapping panels with solid backgrounds,
 // not for floating popovers that sit over arbitrary page content.
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
-  defaultTeam: 'duo',
-  teams: {
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer as a team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
 
 interface ChatroomDashboardProps {
   chatroomId: string;
