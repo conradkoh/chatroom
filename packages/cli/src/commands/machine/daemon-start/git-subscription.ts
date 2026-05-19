@@ -7,7 +7,7 @@
  *
  * Processes pending requests from the backend:
  *   - `full_diff` → run `getFullDiff()`, push via `upsertFullDiff()`
- *   - `commit_detail` → run `getCommitDetail()` + `getCommitMetadata()`, push via `upsertCommitDetail()`
+ *   - `commit_detail` → run `getCommitDetail()` + `getCommitMetadata()`, push via `upsertCommitDetailV2()`
  *   - `more_commits` → run `getRecentCommits()` with skip offset, push via `appendMoreCommits()`
  *   - `all_pull_requests` → run `getAllPRs()`, push via `upsertAllPullRequests()`
  *   - `recent_commits` → run `getRecentCommits()` with offset 0, push via `upsertRecentCommits()`
@@ -287,7 +287,7 @@ async function processPRCommits(ctx: DaemonContext, req: PendingRequest): Promis
 
 /**
  * Process a `commit_detail` request:
- * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
+ * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetailV2`.
  */
 async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   if (!req.sha) {
