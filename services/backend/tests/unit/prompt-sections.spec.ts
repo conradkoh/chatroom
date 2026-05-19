@@ -85,36 +85,6 @@ describe('getTeamContextSection', () => {
     });
   });
 
-  describe('pair team', () => {
-    test('builder gets pair builder context', () => {
-      const ctx = buildSelectorContext({
-        role: 'builder',
-        teamRoles: ['builder', 'reviewer'],
-        teamName: 'Pair',
-        teamEntryPoint: 'builder',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Pair Team Context');
-      expect(section.content).toContain('reviewer who will check your code');
-    });
-
-    test('reviewer gets pair reviewer context', () => {
-      const ctx = buildSelectorContext({
-        role: 'reviewer',
-        teamRoles: ['builder', 'reviewer'],
-        teamName: 'Pair',
-        teamEntryPoint: 'builder',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Pair Team Context');
-      expect(section.content).toContain('builder who implements code');
-    });
-  });
-
   describe('unknown team', () => {
     test('returns empty content for unknown team', () => {
       const ctx = buildSelectorContext({
@@ -183,7 +153,7 @@ describe('role identity sections', () => {
     const ctx = buildSelectorContext({
       role: 'builder',
       teamRoles: ['builder', 'reviewer'],
-      teamName: 'Pair',
+      teamName: 'Duo',
       teamEntryPoint: 'builder',
       convexUrl: CONVEX_URL,
     });

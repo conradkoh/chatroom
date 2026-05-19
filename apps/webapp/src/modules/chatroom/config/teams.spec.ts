@@ -8,9 +8,9 @@
  * if it should be hidden from the UI intentionally).
  */
 
+import { WELL_KNOWN_TEAM_KINDS } from '@workspace/backend/src/domain/entities/team-kind';
 import { describe, expect, test } from 'vitest';
 
-import { WELL_KNOWN_TEAM_KINDS } from '@workspace/backend/src/domain/entities/team-kind';
 import { TEAMS_CONFIG } from './teams';
 
 /**

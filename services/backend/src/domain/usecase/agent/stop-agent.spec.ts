@@ -24,7 +24,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -76,7 +76,7 @@ describe('stopAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
@@ -124,7 +124,7 @@ describe('stopAgent use case — eager cleanup', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) {
@@ -150,7 +150,7 @@ describe('stopAgent use case — eager cleanup', () => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
@@ -180,7 +180,7 @@ describe('stopAgent use case — eager cleanup', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) {

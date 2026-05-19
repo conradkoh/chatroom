@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,7 +55,7 @@ async function sendMessageOfType(
 describe('listMessages', () => {
   test('empty chatroom → empty page, isDone=true', async () => {
     const { sessionId } = await createTestSession('ml-empty-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     const result = await t.query(api.messageList.listMessages, {
       sessionId: sessionId as any,
@@ -69,7 +69,7 @@ describe('listMessages', () => {
 
   test('returns up to numItems messages, newest-first, isDone=false when more exist', async () => {
     const { sessionId } = await createTestSession('ml-paginated-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 25);
 
@@ -89,7 +89,7 @@ describe('listMessages', () => {
 
   test('second page with continueCursor returns remaining messages, isDone=true', async () => {
     const { sessionId } = await createTestSession('ml-paginated-2');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 25);
 
@@ -116,7 +116,7 @@ describe('listMessages', () => {
 
   test('filters out join and progress message types', async () => {
     const { sessionId } = await createTestSession('ml-filter-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     await sendMessages(sessionId, chatroomId, 3); // 3 normal messages
@@ -138,7 +138,7 @@ describe('listMessages', () => {
 
   test('rejects access from unauthenticated session', async () => {
     const { sessionId } = await createTestSession('ml-auth-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await expect(
       t.query(api.messageList.listMessages, {
@@ -157,7 +157,7 @@ describe('listMessages', () => {
 describe('subscribeNewMessages', () => {
   test('sinceCreationTime=0 returns all filtered messages in ascending order', async () => {
     const { sessionId } = await createTestSession('ml-sub-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 5);
 
@@ -175,7 +175,7 @@ describe('subscribeNewMessages', () => {
 
   test('returns only messages newer than sinceCreationTime', async () => {
     const { sessionId } = await createTestSession('ml-sub-2');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 5);
 
@@ -204,7 +204,7 @@ describe('subscribeNewMessages', () => {
 
   test('filters out join and progress types', async () => {
     const { sessionId } = await createTestSession('ml-sub-filter-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     await sendMessages(sessionId, chatroomId, 3);
@@ -226,7 +226,7 @@ describe('subscribeNewMessages', () => {
 
   test('200-cap respected when chatroom has many messages', async () => {
     const { sessionId } = await createTestSession('ml-sub-cap-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 205);
 
@@ -241,7 +241,7 @@ describe('subscribeNewMessages', () => {
 
   test('rejects access from unauthenticated session', async () => {
     const { sessionId } = await createTestSession('ml-sub-auth-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await expect(
       t.query(api.messageList.subscribeNewMessages, {

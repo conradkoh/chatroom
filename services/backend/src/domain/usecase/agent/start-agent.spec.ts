@@ -23,7 +23,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -81,7 +81,7 @@ describe('startAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
@@ -119,7 +119,7 @@ describe('startAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
@@ -133,7 +133,7 @@ describe('startAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
@@ -150,7 +150,7 @@ describe('startAgent use case — desiredState', () => {
     // Seed a team config with circuit breaker OPEN
     await t.run(async (ctx) => {
       const now = Date.now();
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         teamRoleKey,
         chatroomId,
@@ -176,7 +176,7 @@ describe('startAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });

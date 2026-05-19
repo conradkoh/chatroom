@@ -24,6 +24,14 @@ import { toLiteralValidators } from './_shared/v-literals-of';
  *
  * To add or remove a team kind, edit this list only. The type, list, enum-like
  * object, Convex validator, and runtime guard all update automatically.
+ *
+ * NOTE: 'pair' is DEPRECATED. It is retained in this enum solely for DB
+ * backward compatibility with legacy chatrooms that still reference it. It is
+ * not available in the UI team selector
+ * (see apps/webapp/src/modules/chatroom/config/teams.ts and the
+ * DEPRECATED_TEAM_KINDS allowlist in teams.spec.ts). Do not add new code
+ * paths that handle 'pair' — its prompt files and runtime branches have been
+ * removed.
  */
 export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
 

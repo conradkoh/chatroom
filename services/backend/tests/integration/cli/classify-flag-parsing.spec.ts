@@ -26,10 +26,10 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -58,7 +58,7 @@ describe('classify command flag parsing', () => {
   test('entry point role can classify with --origin-message-classification', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classify-entry');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -100,7 +100,7 @@ describe('classify command flag parsing', () => {
   test('handoff recipient can use skipClassification (simulates --no-classify)', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-no-classify-handoff');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -181,7 +181,7 @@ Use CSS variables`,
   test('error when neither classification nor skipClassification provided', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-missing-both');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -222,7 +222,7 @@ Use CSS variables`,
   test('error when both classification and skipClassification provided', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-both-provided');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message

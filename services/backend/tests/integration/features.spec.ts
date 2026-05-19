@@ -25,10 +25,10 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -58,7 +58,7 @@ describe('Features System', () => {
     test('stores feature metadata when classification is new_feature', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-feature-metadata');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a message
@@ -105,7 +105,7 @@ Use CSS custom properties for theming, store preference in localStorage`,
     test('does not require feature metadata for question classification', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-question-no-metadata');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a question
@@ -149,7 +149,7 @@ Use CSS custom properties for theming, store preference in localStorage`,
     test('returns features with metadata ordered by creation time', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-list-features');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Create first feature
@@ -248,7 +248,7 @@ Tech specs for feature two`,
     test('returns empty array when no features exist', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-no-features');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // List features (none exist)
@@ -266,7 +266,7 @@ Tech specs for feature two`,
     test('returns full feature details with conversation thread', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-inspect-feature');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Create feature
@@ -339,7 +339,7 @@ Use JWT tokens, store in httpOnly cookies`,
     test('throws error for non-feature message', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-inspect-non-feature');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Create a question (not a feature)

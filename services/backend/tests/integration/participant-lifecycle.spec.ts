@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { areAllAgentsWaiting } from '../../convex/auth/cliSessionAuth';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -20,7 +20,7 @@ describe('Participant Lifecycle', () => {
   describe('areAllAgentsWaiting with non-waiting participants', () => {
     test('areAllAgentsWaiting returns false when a participant has no lastSeenAction', async () => {
       const { sessionId } = await createTestSession('test-idle-no-action');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       // Join both participants (does not set lastSeenAction = 'get-next-task:started')
       await joinParticipant(sessionId, chatroomId, 'builder');
@@ -43,7 +43,7 @@ describe('Participant Lifecycle', () => {
 
     test('areAllAgentsWaiting returns true when all participants have lastSeenAction = get-next-task:started', async () => {
       const { sessionId } = await createTestSession('test-idle-all-waiting');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -76,7 +76,7 @@ describe('Participant Lifecycle', () => {
 
     test('entry point join promotes queued task when no active tasks exist (regardless of participant state)', async () => {
       const { sessionId } = await createTestSession('test-non-idle-blocks-promo');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       // Join reviewer first (no lastSeenAction — not waiting)
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -117,7 +117,7 @@ describe('Participant Lifecycle', () => {
   describe('areAllAgentsWaiting with exited participants', () => {
     test('areAllAgentsWaiting returns true when one participant is waiting and one is exited', async () => {
       const { sessionId } = await createTestSession('test-exited-one-waiting');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -148,7 +148,7 @@ describe('Participant Lifecycle', () => {
 
     test('areAllAgentsWaiting returns false when all participants are exited (no active participants)', async () => {
       const { sessionId } = await createTestSession('test-exited-all');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -171,7 +171,7 @@ describe('Participant Lifecycle', () => {
 
     test('areAllAgentsWaiting returns true when all active participants are waiting, ignoring exited', async () => {
       const { sessionId } = await createTestSession('test-exited-ignore');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -204,7 +204,7 @@ describe('Participant Lifecycle', () => {
 
     test('exited participant is excluded from highest priority waiting role', async () => {
       const { sessionId } = await createTestSession('test-exited-priority');
-      const chatroomId = await createPairTeamChatroom(sessionId);
+      const chatroomId = await createDuoTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -247,7 +247,7 @@ describe('Participant Lifecycle', () => {
 describe('queue promotion guard includes acknowledged tasks', () => {
   test('acknowledged task blocks queue promotion when entry point joins with get-next-task:started', async () => {
     const { sessionId } = await createTestSession('test-acknowledged-blocks-promo');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Create an acknowledged task (entry point builder has claimed it but not started yet)
     await t.run(async (ctx) => {
