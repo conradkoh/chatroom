@@ -20,18 +20,14 @@ export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
 | **Convex validator** | `v.union(...(options.map(v.literal))` via `VLiteralsOf` helper | Mutation/query arg validation |
 | **Runtime guard** | `teamKindSchema.safeParse(value).success` | Narrowing in conditionals |
 
-3. Convex validator uses a typed-tuple helper to preserve literal types through `v.union(...)`:
+3. Convex validator uses the shared helper (import from `_shared/v-literals-of`) to preserve literal types through `v.union(...)`:
 
 ```ts
 type VLiteralsOf<T extends readonly (string | number | bigint | boolean)[]> = {
   [K in keyof T]: VLiteral<T[K], 'required'>;
 };
 
-export const teamKindValidator = v.union(
-  ...(WELL_KNOWN_TEAM_KINDS.map((k) => v.literal(k)) as unknown as VLiteralsOf<
-    typeof WELL_KNOWN_TEAM_KINDS
-  >)
-);
+export const teamKindValidator = v.union(...toLiteralValidators(teamKindSchema.options));
 ```
 
 4. Always add a sync test: assert `teamKindValidator.members[i].value` matches the source tuple. This is the teeth against silent drift.
