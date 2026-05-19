@@ -47,6 +47,7 @@ import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromConte
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
+import type { TeamKind } from '../src/domain/entities/team-kind';
 import { getCliEnvPrefix } from './utils/index';
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 
@@ -94,7 +95,7 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 function detectTeamType(
   teamRoles: string[],
   teamName?: string
-): 'pair' | 'squad' | 'duo' | 'solo' | 'unknown' {
+): TeamKind | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
   if (normalizedName.includes('solo')) return 'solo';
   if (normalizedName.includes('squad')) return 'squad';
