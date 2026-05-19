@@ -92,6 +92,23 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     ],
     defaultHandoffTarget: 'user',
   },
+
+  solo: {
+    role: 'solo',
+    title: 'Solo',
+    description:
+      'You are the autonomous agent responsible for both planning and executing tasks independently.',
+    responsibilities: [
+      'Communicate directly with the user as the single point of contact',
+      'Decompose complex tasks into actionable work items',
+      'Implement solutions: write clean, maintainable code',
+      'Follow established patterns and best practices',
+      'Handle edge cases and error scenarios',
+      'Review and validate your own work for quality',
+      'Deliver completed results to the user',
+    ],
+    defaultHandoffTarget: 'user',
+  },
 };
 
 /**

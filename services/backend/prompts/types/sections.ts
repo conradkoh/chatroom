@@ -5,6 +5,7 @@
  * See docs/prompt-engineering/design.md for the full design.
  */
 
+import type { TeamKind } from '../../src/domain/entities/team-kind';
 import type { Team } from '../../src/domain/entities/team';
 
 /**
@@ -18,8 +19,8 @@ import type { Team } from '../../src/domain/entities/team';
 export interface SelectorContext {
   /** Agent role (e.g., 'builder', 'reviewer', 'planner') */
   role: string;
-  /** Team type (e.g., 'pair', 'squad', or custom team name) */
-  team: 'pair' | 'squad' | 'duo' | 'unknown';
+  /** Team type (e.g., 'pair', 'squad', 'solo', or custom team name) */
+  team: TeamKind | 'unknown';
   /**
    * Full team configuration entity.
    * Available when the chatroom has a valid team configuration.

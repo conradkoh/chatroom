@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { TEAMS_CONFIG } from '../config/teams';
+import { useTeamConfigs } from '../hooks/use-team-configs';
 
 interface CreateChatroomFormProps {
   onCreated: (chatroomId: string) => void;
@@ -19,8 +19,8 @@ interface CreateChatroomFormProps {
 }
 
 export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormProps) {
-  const [config] = useState(TEAMS_CONFIG);
-  const [selectedTeam, setSelectedTeam] = useState<string>(TEAMS_CONFIG.defaultTeam);
+  const { teams, defaultTeamId, getById } = useTeamConfigs();
+  const [selectedTeam, setSelectedTeam] = useState<string>(defaultTeamId);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +29,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   const handleCreate = useCallback(async () => {
     if (!selectedTeam) return;
 
-    const team = config.teams[selectedTeam];
+    const team = getById(selectedTeam);
     if (!team) return;
 
     setCreating(true);
@@ -50,9 +50,9 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
     } finally {
       setCreating(false);
     }
-  }, [selectedTeam, config.teams, createChatroom, onCreated]);
+  }, [selectedTeam, getById, createChatroom, onCreated]);
 
-  const selectedTeamData = config.teams[selectedTeam];
+  const selectedTeamData = getById(selectedTeam);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
 
   // Close form on Escape key (Radix Select handles Escape internally when open)
@@ -115,10 +115,10 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none">
-              {Object.entries(config.teams).map(([id, team]) => (
+              {teams.map((team) => (
                 <SelectItem
-                  key={id}
-                  value={id}
+                  key={team.id}
+                  value={team.id}
                   className="text-sm text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none"
                 >
                   {team.name}
