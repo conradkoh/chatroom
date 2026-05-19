@@ -103,7 +103,7 @@ async function syncSingleWorkspaceCommitDetails(
   if (missingShas.length === 0) return;
 
   console.log(
-    `[${formatTimestamp()}] 🔍 Synced ${missingShas.length} commit(s) for ${workingDir}`
+    `[${formatTimestamp()}] 🔍 Pre-fetching ${missingShas.length} commit(s) for ${workingDir}`
   );
 
   for (const sha of missingShas) {
