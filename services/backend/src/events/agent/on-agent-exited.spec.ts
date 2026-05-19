@@ -33,7 +33,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   const { api } = await import('../../../convex/_generated/api');
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -60,7 +60,7 @@ async function registerMachineAndConfig(
   await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
       chatroomId,
       role: 'builder',
       type: 'remote',
@@ -224,7 +224,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .filter((q) => q.eq(q.field('machineId'), 'oae-m6'))
         .first();

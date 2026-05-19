@@ -12,7 +12,7 @@ import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { createBacklogItem } from '../../src/domain/usecase/backlog/create-backlog-item';
 import { updateBacklogItem } from '../../src/domain/usecase/backlog/update-backlog-item';
 import { t } from '../../test.setup';
-import { createPairTeamChatroom, createTestSession } from '../helpers/integration';
+import { createDuoTeamChatroom, createTestSession } from '../helpers/integration';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ async function createAndFetchBacklogItem(
 describe('updateBacklogItem', () => {
   test('updates content on a backlog item', async () => {
     const { sessionId } = await createTestSession('test-update-backlog-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     await t.run(async (ctx) => {
@@ -56,7 +56,7 @@ describe('updateBacklogItem', () => {
 
   test('trims content whitespace', async () => {
     const { sessionId } = await createTestSession('test-update-backlog-trim');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     await t.run(async (ctx) => {
@@ -75,7 +75,7 @@ describe('updateBacklogItem', () => {
 
   test('throws when content is empty', async () => {
     const { sessionId } = await createTestSession('test-update-backlog-empty');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     await expect(
@@ -90,7 +90,7 @@ describe('updateBacklogItem', () => {
 
   test('throws when item not found', async () => {
     const { sessionId } = await createTestSession('test-update-backlog-notfound');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     // Create a real item to get a valid ID format, then delete it so we have
     // a non-existent ID in the correct format (Convex validates ID structure).

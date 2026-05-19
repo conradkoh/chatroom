@@ -16,7 +16,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
 /**
  * Helper: Get task counts for a chatroom.
@@ -57,7 +57,7 @@ async function getMaterializedQueueSize(chatroomId: any) {
 describe('Queue Notice Sync — getTaskCounts accuracy', () => {
   test('queued count is 0 when no messages are queued', async () => {
     const { sessionId } = await createTestSession('qns-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     const counts = await getTaskCounts(sessionId, chatroomId);
     expect(counts.queued).toBe(0);
@@ -65,7 +65,7 @@ describe('Queue Notice Sync — getTaskCounts accuracy', () => {
 
   test('queued count matches actual queue records after sending messages while busy', async () => {
     const { sessionId } = await createTestSession('qns-2');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Join builder (entry point) so promotion can happen
     await joinParticipant(sessionId as any, chatroomId, 'builder');
@@ -105,7 +105,7 @@ describe('Queue Notice Sync — getTaskCounts accuracy', () => {
 
   test('getTaskCounts cross-checks queue: returns 0 if materialized says queued but queue is empty', async () => {
     const { sessionId } = await createTestSession('qns-3');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Manually create a materialized count with stale queueSize > 0
     // (simulates counter drift)
@@ -129,7 +129,7 @@ describe('Queue Notice Sync — getTaskCounts accuracy', () => {
 
   test('getTaskCounts cross-checks queue: returns at least 1 if materialized says 0 but queue has records', async () => {
     const { sessionId } = await createTestSession('qns-4');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Create a materialized count with queueSize = 0
     await t.run(async (ctx) => {
@@ -162,7 +162,7 @@ describe('Queue Notice Sync — getTaskCounts accuracy', () => {
 
   test('queue count stays in sync after promotion cycle', async () => {
     const { sessionId } = await createTestSession('qns-5');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Join builder
     await joinParticipant(sessionId as any, chatroomId, 'builder');

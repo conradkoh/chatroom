@@ -2,13 +2,13 @@
  * Unit tests for listWorkspacesForMachine with recency filtering.
  */
 
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { listWorkspacesForMachine } from './list-workspaces-for-machine';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { listWorkspacesForMachine } from './list-workspaces-for-machine';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const FIXED_NOW = 1_800_000_000_000;
@@ -31,7 +31,7 @@ async function createSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Test Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',

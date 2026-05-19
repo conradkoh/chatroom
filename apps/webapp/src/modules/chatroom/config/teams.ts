@@ -25,5 +25,11 @@ export const TEAMS_CONFIG: TeamsConfig = {
       roles: ['planner', 'builder', 'reviewer'],
       entryPoint: 'planner',
     },
+    solo: {
+      name: 'Solo',
+      description: 'A single agent working independently',
+      roles: ['solo'],
+      entryPoint: 'solo',
+    },
   },
 };

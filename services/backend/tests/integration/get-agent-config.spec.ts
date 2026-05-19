@@ -12,7 +12,7 @@ import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentConfig } from '../../src/domain/usecase/agent/get-agent-config';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -24,7 +24,7 @@ describe('getAgentConfig', () => {
   test('returns found: false when no team config exists', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // No team config created — just a chatroom
 
@@ -41,7 +41,7 @@ describe('getAgentConfig', () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-2');
     // Create a real chatroom just to get a valid ID format, then delete it
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Delete the chatroom so it no longer exists
     await t.run(async (ctx) => {
@@ -60,7 +60,7 @@ describe('getAgentConfig', () => {
   test('resolves model from team config (highest priority)', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-3');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-gac-3';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -98,7 +98,7 @@ describe('getAgentConfig', () => {
   test("returns modelSource 'none' when team config model is cleared", async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-4');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-gac-4';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -118,7 +118,7 @@ describe('getAgentConfig', () => {
 
     // Directly clear the model on the team config
     await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
       const teamConfig = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
@@ -146,7 +146,7 @@ describe('getAgentConfig', () => {
   test('returns modelSource "none" when neither config has a model', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-5');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-gac-5';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -181,7 +181,7 @@ describe('getAgentConfig', () => {
   test('returns custom type for custom agents', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-6');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Save a custom agent config (no machine)
     await t.mutation(api.machines.saveTeamAgentConfig, {
@@ -208,7 +208,7 @@ describe('getAgentConfig', () => {
   test('includes spawnedAgentPid from team config', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-7');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-gac-7';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');

@@ -1,4 +1,3 @@
-import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -8,7 +7,6 @@ import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pip
 import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type {
-  GitCommit,
   GitBranchResult,
   GitDiffStatResult,
  GitPullRequest } from '../../../infrastructure/git/types.js';
@@ -234,12 +232,6 @@ export async function pushSingleWorkspaceGitState(
       );
     }
   }
-
-  prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: unknown) => {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️  Commit pre-fetch failed for ${workingDir}: ${getErrorMessage(err)}`
-    );
-  });
 }
 
 export async function pushSingleWorkspaceGitSummaryForObserved(
@@ -314,99 +306,3 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
   );
 }
 
-async function prefetchMissingCommitDetails(
-  ctx: DaemonContext,
-  workingDir: string,
-  commits: GitCommit[]
-): Promise<void> {
-  if (commits.length === 0) return;
-
-  const shas = commits.map((c) => c.sha);
-
-  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShasV2, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    shas,
-  });
-
-  if (missingShas.length === 0) return;
-
-  console.log(
-    `[${formatTimestamp()}] 🔍 Pre-fetching ${missingShas.length} commit(s) for ${workingDir}`
-  );
-
-  for (const sha of missingShas) {
-    try {
-      await prefetchSingleCommit(ctx, workingDir, sha, commits);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Pre-fetch failed for ${sha.slice(0, 7)}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
-async function prefetchSingleCommit(
-  ctx: DaemonContext,
-  workingDir: string,
-  sha: string,
-  commits: GitCommit[]
-): Promise<void> {
-  const metadata = commits.find((c) => c.sha === sha);
-  const result = await gitReader.getCommitDetail(workingDir, sha);
-
-  if (result.status === 'not_found') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      sha,
-      status: 'not_found',
-      message: metadata?.message,
-      body: metadata?.body,
-      author: metadata?.author,
-      date: metadata?.date,
-    });
-    return;
-  }
-
-  if (result.status === 'error') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      sha,
-      status: 'error',
-      errorMessage: result.message,
-      message: metadata?.message,
-      body: metadata?.body,
-      author: metadata?.author,
-      date: metadata?.date,
-    });
-    return;
-  }
-
-  const diffStat = extractDiffStatFromShowOutput(result.content);
-
-  const { gzipSync } = await import('node:zlib');
-  const compressed = gzipSync(Buffer.from(result.content));
-  const diffContentCompressed = compressed.toString('base64');
-
-  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    sha,
-    status: 'available',
-    data: { compression: 'gzip' as const, content: diffContentCompressed },
-    truncated: result.truncated,
-    message: metadata?.message,
-    body: metadata?.body,
-    author: metadata?.author,
-    date: metadata?.date,
-    diffStat,
-  });
-
-  console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
-}

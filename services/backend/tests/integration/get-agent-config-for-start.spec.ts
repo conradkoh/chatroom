@@ -12,7 +12,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { getAgentConfigForStart } from '../../src/domain/usecase/agent/get-agent-config-for-start';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -32,7 +32,7 @@ describe('getAgentConfigForStart — no defaults', () => {
     const { sessionId } = await createTestSession('test-gacfs-empty-1');
     const machineId = 'machine-gacfs-empty-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     const result = await t.run(async (ctx) => {
@@ -52,7 +52,7 @@ describe('getAgentConfigForStart — no defaults', () => {
 
   test('only shows connected machines', async () => {
     const { sessionId } = await createTestSession('test-gacfs-conn-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     // Register machine but DON'T connect daemon
@@ -84,7 +84,7 @@ describe('getAgentConfigForStart — preference fallback', () => {
     const { sessionId } = await createTestSession('test-gacfs-pref-1');
     const machineId = 'machine-gacfs-pref-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     // Save a preference
@@ -120,7 +120,7 @@ describe('getAgentConfigForStart — team config fallback', () => {
     const { sessionId } = await createTestSession('test-gacfs-team-1');
     const machineId = 'machine-gacfs-team-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     // Start agent to create team config (no preference saved)
@@ -146,7 +146,7 @@ describe('getAgentConfigForStart — team config fallback', () => {
 describe('getAgentConfigForStart — access control', () => {
   test('returns null for non-owner', async () => {
     const { sessionId: ownerSession } = await createTestSession('test-gacfs-access-1');
-    const chatroomId = await createPairTeamChatroom(ownerSession as any);
+    const chatroomId = await createDuoTeamChatroom(ownerSession as any);
 
     await createTestSession('test-gacfs-access-2');
 
