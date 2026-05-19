@@ -4,7 +4,7 @@ export const codeReviewSkill: SkillModule = {
   skillId: 'code-review',
   name: 'Code Review',
   description:
-    'Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.',
+    'Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.',
 
   getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "code-review" skill.
 
@@ -20,7 +20,7 @@ considering existing patterns, refactoring opportunities, or long-term cost. Res
 and 1.57x more security findings than human-written code (CodeRabbit, 2025). 66% of developers
 report spending more time fixing AI output than it saved (Stack Overflow, 2026).
 
-Apply the eight pillars below in priority order.
+Apply the ten pillars below in priority order.
 
 ---
 
@@ -234,6 +234,59 @@ Would removing this code change any observable behaviour?
 Action: Run tree-shaking analysis and dead code detection tools (e.g., \`ts-prune\`,
 \`knip\`, \`depcheck\`, IDE unused-symbol highlighting) as part of CI. Treat dead code
 the same as duplication — it compounds over time and must be actively managed.
+
+---
+
+## Pillar 9 — Incomplete Implementations (Standard Priority)
+
+AI tools often leave TODOs, stubs, "throw new Error('not implemented')", or placeholder
+returns when they hit uncertainty. The default assumption MUST be that these are bugs to fix,
+not features — unless the human explicitly requested a stub (e.g., scaffolding a future module).
+
+Look for:
+- \`TODO\`, \`FIXME\`, \`XXX\`, \`HACK\` comments — especially without an assignee or ticket reference
+- Functions that throw "not implemented" / "unimplemented" errors
+- Empty function bodies or bodies that only return null/undefined/empty object as a placeholder
+- Switch/case branches with \`// handle later\` style comments
+- Conditional branches that silently fall through without handling a real case
+- Type definitions with fields marked \`any\` or \`unknown\` "to be refined later"
+- Tests with \`it.skip\`, \`xit\`, \`it.todo\` left in committed code without justification
+
+Ask: Is every code path fully implemented? If a TODO exists, is there a tracked ticket and
+explicit reason it wasn't done now?
+
+Action: Treat any TODO or stub as BLOCK unless the PR description or commit message explicitly
+justifies it (e.g., "scaffolding for follow-up PR #N"). Generated code with unprompted TODOs
+should be completed before merge, not after.
+
+---
+
+## Pillar 10 — Hallucinated Content & Magic Strings (Standard Priority)
+
+AI generation frequently invents plausible-looking but incorrect values — API endpoints,
+env var names, library functions, config keys — and scatters magic strings/numbers across
+the codebase instead of consolidating them as named constants. Both fail at runtime or rot
+the codebase over time.
+
+Look for:
+- Fabricated API endpoints, library functions, or package names that don't exist (verify against
+  actual SDK docs / \`package.json\`)
+- Magic strings: status codes, role names, event types, feature flag keys appearing as inline
+  literals across multiple files
+- Magic numbers: timeouts, limits, retry counts, port numbers without named constants
+- Placeholder content left in production paths: "lorem ipsum", "foo/bar", "example.com",
+  "test@test.com"
+- Hardcoded URLs, file paths, or table/collection names that should come from config
+- Duplicated string literals that should be a single enum / const object
+- Configuration keys invented by the AI that don't match the project's actual config schema
+
+Ask: Does every literal that carries domain meaning have a named home? Is every external
+reference (API, package, env var) verified to exist? Where SHOULD this constant live (entity
+enum, config module, shared constants file)?
+
+Action: Consolidate magic literals into the canonical location for the codebase (typically
+enums alongside the relevant entity, or a dedicated constants module). For hallucinated
+references, treat as BLOCK — code that compiles against fictional APIs will fail in production.
 
 ---
 
