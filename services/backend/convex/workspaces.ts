@@ -92,7 +92,7 @@ export const removeWorkspace = mutation({
     if (!session.ok) throw new Error('Authentication required');
 
     // Look up the workspace to verify access
-    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
+    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) throw new Error('Workspace not found');
 
     // Verify the user has write-access to the machine this workspace belongs to
@@ -175,7 +175,7 @@ export const getWorkspaceById = query({
     const session = await validateSession(ctx, args.sessionId);
     if (!session.ok) return null;
 
-    const workspace = await ctx.db.get("chatroom_workspaces", args.workspaceId);
+    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) return null;
 
     const hasAccess = await checkAccess(ctx, {
@@ -336,86 +336,6 @@ export const getPRDiff = query({
       .first();
 
     return row ?? null;
-  },
-});
-
-/**
- * Returns the commit detail (diff + metadata) for a specific commit SHA, or null if not available.
- *
- * Called by the frontend after `requestCommitDetail` to retrieve the result.
- */
-export const getCommitDetail = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    workingDir: v.string(),
-    sha: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) {
-      return null;
-    }
-    const accessResult = await checkAccess(ctx, {
-      accessor: { type: 'user', id: session.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'write-access',
-    });
-    if (!accessResult.ok) return null;
-
-    const row = await ctx.db
-      .query('chatroom_workspaceCommitDetail')
-      .withIndex('by_machine_workingDir_sha', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
-      )
-      .first();
-
-    if (!row) return null;
-
-    // Return all fields — compressed data alongside regular fields for backward compat
-    return row;
-  },
-});
-
-/**
- * Returns the subset of provided SHAs that are NOT yet in chatroom_workspaceCommitDetail.
- * Used by the daemon to skip pre-fetching commits already stored.
- */
-export const getMissingCommitShas = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    workingDir: v.string(),
-    shas: v.array(v.string()),
-  },
-  handler: async (ctx, args): Promise<string[]> => {
-    const session = await validateSession(ctx, args.sessionId);
-    if (!session.ok) return [];
-    const accessResult = await checkAccess(ctx, {
-      accessor: { type: 'user', id: session.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'write-access',
-    });
-    if (!accessResult.ok) return [];
-
-    if (args.shas.length === 0) return [];
-
-    // Individual lookups using the full 3-field index (machineId, workingDir, sha).
-    // This avoids reading all commit documents (which include large diffContent)
-    // and only reads the specific documents that match each requested SHA.
-    const missingShas: string[] = [];
-    for (const sha of args.shas) {
-      const existing = await ctx.db
-        .query('chatroom_workspaceCommitDetail')
-        .withIndex('by_machine_workingDir_sha', (q) =>
-          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', sha)
-        )
-        .first();
-      if (!existing) {
-        missingShas.push(sha);
-      }
-    }
-    return missingShas;
   },
 });
 
@@ -624,7 +544,6 @@ export const upsertWorkspaceGitState = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
-
   },
 });
 
@@ -713,48 +632,6 @@ export const upsertPRDiff = mutation({
     } else {
       await ctx.db.insert('chatroom_workspacePRDiffs', data);
     }
-  },
-});
-
-/**
- * Persists the diff content and metadata for a specific commit.
- *
- * Called by the daemon after processing a `commit_detail` request.
- */
-export const upsertCommitDetail = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    workingDir: v.string(),
-    sha: v.string(),
-    status: v.union(
-      v.literal('available'),
-      v.literal('too_large'),
-      v.literal('error'),
-      v.literal('not_found')
-    ),
-    // Available when status === 'available'
-    diffContent: v.optional(v.string()),
-    truncated: v.optional(v.boolean()),
-    diffStat: v.optional(
-      v.object({
-        filesChanged: v.number(),
-        insertions: v.number(),
-        deletions: v.number(),
-      })
-    ),
-    // Available when status === 'available' or 'too_large'
-    message: v.optional(v.string()),
-    author: v.optional(v.string()),
-    date: v.optional(v.string()),
-    // Available when status === 'error'
-    errorMessage: v.optional(v.string()),
-  },
-  handler: async (): Promise<void> => {
-    throw new Error(
-      '[DEPRECATED] upsertCommitDetail is no longer supported. Please upgrade your CLI to v1.27.0 or later. ' +
-        'Run: npm install -g chatroom-cli@latest'
-    );
   },
 });
 
@@ -1244,7 +1121,7 @@ export const upsertPRCommits = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch("chatroom_workspacePRCommits", existing._id, {
+      await ctx.db.patch('chatroom_workspacePRCommits', existing._id, {
         commits: args.commits,
         updatedAt: now,
       });
@@ -1395,7 +1272,7 @@ export const upsertAllPullRequests = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceAllPullRequests", existing._id, {
+      await ctx.db.patch('chatroom_workspaceAllPullRequests', existing._id, {
         pullRequests: args.pullRequests,
         updatedAt: now,
       });
@@ -1539,7 +1416,7 @@ export const upsertRecentCommits = mutation({
 
     const now = Date.now();
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceRecentCommits", existing._id, {
+      await ctx.db.patch('chatroom_workspaceRecentCommits', existing._id, {
         commits: args.commits,
         hasMoreCommits: args.hasMoreCommits,
         updatedAt: now,
@@ -1616,7 +1493,7 @@ export const upsertFullDiffV2 = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceFullDiffV2", existing._id, row);
+      await ctx.db.patch('chatroom_workspaceFullDiffV2', existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFullDiffV2', row);
     }
@@ -1745,7 +1622,7 @@ export const upsertCommitDetailV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceCommitDetailV2", existing._id, row);
+      await ctx.db.patch('chatroom_workspaceCommitDetailV2', existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceCommitDetailV2', row);
     }
@@ -1858,7 +1735,7 @@ export const purgeFullDiffV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (diffV2) await ctx.db.delete("chatroom_workspaceFullDiffV2", diffV2._id);
+    if (diffV2) await ctx.db.delete('chatroom_workspaceFullDiffV2', diffV2._id);
 
     // Delete v1 full diff
     const diffV1 = await ctx.db
@@ -1867,7 +1744,7 @@ export const purgeFullDiffV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (diffV1) await ctx.db.delete("chatroom_workspaceFullDiff", diffV1._id);
+    if (diffV1) await ctx.db.delete('chatroom_workspaceFullDiff', diffV1._id);
   },
 });
 
@@ -1901,7 +1778,7 @@ export const purgeCommitDetailV2 = mutation({
         )
       )
       .collect();
-    for (const d of detailsV2) await ctx.db.delete("chatroom_workspaceCommitDetailV2", d._id);
+    for (const d of detailsV2) await ctx.db.delete('chatroom_workspaceCommitDetailV2', d._id);
 
     // Delete v1 commit details
     const detailsV1 = await ctx.db
@@ -1913,6 +1790,6 @@ export const purgeCommitDetailV2 = mutation({
         )
       )
       .collect();
-    for (const d of detailsV1) await ctx.db.delete("chatroom_workspaceCommitDetail", d._id);
+    for (const d of detailsV1) await ctx.db.delete('chatroom_workspaceCommitDetail', d._id);
   },
 });
