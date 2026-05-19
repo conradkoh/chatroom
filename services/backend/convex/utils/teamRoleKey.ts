@@ -11,7 +11,7 @@ import type { MutationCtx } from '../_generated/server';
  * structure (e.g., from 'duo' to 'squad'), since the role semantics differ between teams.
  *
  * @param chatroomId - The chatroom ID
- * @param teamId - The team type (e.g., 'duo', 'squad', 'pair'). Must not be empty — callers
+ * @param teamId - The team type (e.g., 'duo', 'squad', 'solo'). Must not be empty — callers
  *   should throw if chatroom.teamId is undefined rather than passing a fallback value.
  * @param role - The agent role (e.g., 'planner', 'builder')
  */

@@ -14,7 +14,7 @@ import { createSection } from '../types/sections';
 /**
  * Generate the team context knowledge section.
  *
- * This is the "Squad Team Context" or "Pair Team Context" block that
+ * This is the "Squad Team Context" or "Duo Team Context" block that
  * sits before the base role guidance. It provides team-specific rules
  * (e.g., "NEVER hand off directly to user" for squad).
  */
@@ -25,10 +25,6 @@ export function getTeamContextSection(ctx: SelectorContext): PromptSection {
 
   if (ctx.team === 'duo') {
     return createSection('team-context', 'knowledge', getDuoContext(ctx));
-  }
-
-  if (ctx.team === 'pair') {
-    return createSection('team-context', 'knowledge', getPairContext(ctx));
   }
 
   // Unknown team — no team context
@@ -112,24 +108,3 @@ function getDuoBuilderContext(): string {
  - **NEVER hand off directly to \`user\`** — always go through the planner`;
 }
 
-function getPairContext(ctx: SelectorContext): string {
-  const normalizedRole = ctx.role.toLowerCase();
-
-  if (normalizedRole === 'builder') {
-    return `**Pair Team Context:**
- - You work with a reviewer who will check your code
- - Focus on implementation, let reviewer handle quality checks
- - Hand off to reviewer for all code changes`;
-  }
-
-  if (normalizedRole === 'reviewer') {
-    return `**Pair Team Context:**
- - You work with a builder who implements code
- - Focus on code quality and requirements
- - Provide constructive feedback to builder
- - If the user's goal is met → hand off to user
- - If changes are needed → hand off to builder with specific feedback`;
-  }
-
-  return '';
-}

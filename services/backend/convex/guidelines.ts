@@ -8,7 +8,7 @@ import { query } from './_generated/server';
 import { getDesignPolicy } from '../prompts/policies/design';
 import { getPerformancePolicy } from '../prompts/policies/performance';
 import { getSecurityPolicy } from '../prompts/policies/security';
-import { getReviewGuidelines } from '../prompts/teams/pair/roles';
+import { getReviewGuidelines } from '../prompts/review-guidelines';
 
 /**
  * Available guideline types

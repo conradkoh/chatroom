@@ -18,7 +18,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -60,7 +60,7 @@ async function findExitedEvent(chatroomId: Id<'chatroom_rooms'>) {
 
 test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (crashed)', async () => {
   const { sessionId } = await createTestSession('test-ar-a');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-ar-a';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -69,7 +69,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
@@ -96,7 +96,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
 
 test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (exited_clean)', async () => {
   const { sessionId } = await createTestSession('test-ar-b');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-ar-b';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -105,7 +105,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
@@ -132,7 +132,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
 
 test('recordAgentExited clears spawnedAgentPid after exit', async () => {
   const { sessionId } = await createTestSession('test-ar-c');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-ar-c';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -150,7 +150,7 @@ test('recordAgentExited clears spawnedAgentPid after exit', async () => {
     return ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
   });

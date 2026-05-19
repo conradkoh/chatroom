@@ -26,11 +26,11 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
+    teamId: 'duo',
+    teamName: 'Duo Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
   });
@@ -58,7 +58,7 @@ describe('Classify Reminders', () => {
   test('materializes complete classify reminder for new_feature classification', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-new-feature');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -118,17 +118,18 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as NEW FEATURE.
 
       **Next steps:**
-      1. Implement the feature
-      2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
-      3. Commit your changes
-      4. MUST hand off to reviewer for approval:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="reviewer" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: 10006;chatroom_tasks"
@@ -139,13 +140,13 @@ Use React Context + CSS variables`,
     expect(result.classification).toBe('new_feature');
     expect(result.reminder).toBeDefined();
     expect(result.reminder).toContain('NEW FEATURE');
-    expect(result.reminder).toContain('hand off to reviewer');
+    expect(result.reminder).toContain('Hand off to planner');
   });
 
   test('materializes complete classify reminder for question classification', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-question');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -198,19 +199,18 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10014;chatroom_rooms" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      2. Answer the user's question
-      3. When done, hand off directly to user:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10014;chatroom_rooms" --role="builder" --next-role="user" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10014;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: 10018;chatroom_tasks"
@@ -221,13 +221,13 @@ Use React Context + CSS variables`,
     expect(result.classification).toBe('question');
     expect(result.reminder).toBeDefined();
     expect(result.reminder).toContain('QUESTION');
-    expect(result.reminder).toContain('hand off directly to user');
+    expect(result.reminder).toContain('Hand off to planner');
   });
 
   test('materializes complete classify reminder for follow_up classification', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-follow-up');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends follow-up message
@@ -280,11 +280,18 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as FOLLOW UP.
 
       **Next steps:**
-      1. Complete the follow-up work
-      2. Send \`report-progress\` at milestones for visibility
-      3. Follow-up inherits the workflow rules from the original task:
-         - If original was a QUESTION → hand off to user when done
-         - If original was a NEW FEATURE → hand off to reviewer when done
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10026;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: 10030;chatroom_tasks"
@@ -295,6 +302,6 @@ Use React Context + CSS variables`,
     expect(result.classification).toBe('follow_up');
     expect(result.reminder).toBeDefined();
     expect(result.reminder).toContain('FOLLOW UP');
-    expect(result.reminder).toContain('inherits the workflow rules');
+    expect(result.reminder).toContain('In duo team');
   });
 });

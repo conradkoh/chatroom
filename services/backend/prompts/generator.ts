@@ -41,7 +41,6 @@ import {
   getRoleDescriptionSection,
 } from './sections/role-identity';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
-import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext';
 import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
@@ -53,7 +52,7 @@ import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
-export { getReviewGuidelines } from './teams/pair/roles';
+export { getReviewGuidelines } from './review-guidelines';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';
@@ -100,8 +99,6 @@ function detectTeamType(
   if (normalizedName.includes('solo')) return 'solo';
   if (normalizedName.includes('squad')) return 'squad';
   if (normalizedName.includes('duo')) return 'duo';
-  if (normalizedName.includes('pair')) return 'pair';
-
   // Detect by role composition
   const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
@@ -117,10 +114,7 @@ function detectTeamType(
   // Squad: has planner (with more than 2 roles or with reviewer)
   if (hasPlanner) return 'squad';
 
-  if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
-
-  // 'unknown' is intentional: custom teams get generic base guidance rather than
-  // pair-specific rules which could impose incorrect handoff constraints.
+  // 'unknown' is intentional: custom teams get generic base guidance.
   // Base guidance provides safe defaults for any team structure.
   return 'unknown';
 }
@@ -199,10 +193,6 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
       if (result !== null) return result;
     }
 
-    if (ctx.team === 'pair') {
-      const result = getPairRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
   } catch {
     // Fall back to base guidance
   }
@@ -324,7 +314,6 @@ export function generateTaskStartedReminder(
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const isPairTeam = ctx.team === 'pair';
   const isSquadTeam = ctx.team === 'squad';
   const isDuoTeam = ctx.team === 'duo';
 
@@ -417,72 +406,7 @@ Task ID: ${taskId}`;
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
-    if (isPairTeam) {
-      // Pair team: explicit handoff instructions based on classification
-      switch (classification) {
-        case 'question': {
-          const handoffToUserCmd = handoffCommand({
-            chatroomId,
-            role: 'builder',
-            nextRole: 'user',
-            cliEnvPrefix,
-          });
-          const progressCmd = reportProgressCommand({
-            chatroomId,
-            role: 'builder',
-            cliEnvPrefix,
-          });
-          return `✅ Task acknowledged as QUESTION.
-
-**Next steps:**
-1. Send a progress update: \`${progressCmd}\`
-2. Answer the user's question
-3. When done, hand off directly to user:
-
-\`\`\`bash
-${handoffToUserCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-        case 'new_feature': {
-          const handoffToReviewerCmd = handoffCommand({
-            chatroomId,
-            role: 'builder',
-            nextRole: 'reviewer',
-            cliEnvPrefix,
-          });
-          return `✅ Task acknowledged as NEW FEATURE.
-
-**Next steps:**
-1. Implement the feature
-2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
-3. Commit your changes
-4. MUST hand off to reviewer for approval:
-
-\`\`\`bash
-${handoffToReviewerCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-        case 'follow_up': {
-          return `✅ Task acknowledged as FOLLOW UP.
-
-**Next steps:**
-1. Complete the follow-up work
-2. Send \`report-progress\` at milestones for visibility
-3. Follow-up inherits the workflow rules from the original task:
-   - If original was a QUESTION → hand off to user when done
-   - If original was a NEW FEATURE → hand off to reviewer when done
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-      }
-    } else if (isSquadTeam) {
+    if (isSquadTeam) {
       // Squad team: builder hands off to reviewer or planner, never to user
       const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
       const handoffTarget = hasReviewer ? 'reviewer' : 'planner';
@@ -561,7 +485,7 @@ Task ID: ${taskId}`;
       }
       return `Review the work. Hand off to planner when approved, or to builder for rework.`;
     }
-    // Pair team or generic: hand off to user when approved
+    // Generic: hand off to user when approved
     if (taskId) {
       return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 

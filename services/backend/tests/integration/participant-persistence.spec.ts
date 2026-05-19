@@ -10,12 +10,12 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { areAllAgentsWaiting } from '../../convex/auth/cliSessionAuth';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
 describe('Participant Persistence', () => {
   test('agent rejoins after exit — participant record is reactivated', async () => {
     const { sessionId } = await createTestSession('test-pp-rejoin');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -52,7 +52,7 @@ describe('Participant Persistence', () => {
 
   test('multiple agents exit independently — all records persist', async () => {
     const { sessionId } = await createTestSession('test-pp-multi-exit');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
     await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -80,7 +80,7 @@ describe('Participant Persistence', () => {
 
   test('exited participant does not block queue promotion when entry point joins', async () => {
     const { sessionId } = await createTestSession('test-pp-queue-promo');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'reviewer');
 
@@ -114,7 +114,7 @@ describe('Participant Persistence', () => {
 
   test('exited agent lastSeenAt is preserved across multiple exit-rejoin cycles', async () => {
     const { sessionId } = await createTestSession('test-pp-lsa-cycles');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 

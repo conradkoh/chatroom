@@ -2,13 +2,6 @@
  * Team configurations exports
  */
 
-// Pair team
-export { pairTeamConfig, getPairWorkflow } from './pair/index';
-export {
-  getBuilderGuidance as getPairBuilderGuidance,
-  getReviewerGuidance as getPairReviewerGuidance,
-} from './pair/index';
-
 // Squad team
 export { squadTeamConfig } from './squad/index';
 export {

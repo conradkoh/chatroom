@@ -43,16 +43,6 @@ async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom
   return chatroomId;
 }
 
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
-    sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
-  });
-}
-
 // ─── Fix A: Pre-assignment at task creation ──────────────────────────────────
 
 describe('Fix A: User message tasks pre-assigned to entry point', () => {
