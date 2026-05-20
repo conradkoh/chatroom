@@ -52,6 +52,12 @@ export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
  *  Set to 60s. */
 export const OBSERVATION_TTL_MS = 60_000;
 
+/** How often the daemon performs a full (non-slim) git state push per workspace
+ *  when observedSyncEnabled is on. Slim pushes run every safety poll; this
+ *  ensures non-slim fields (diffStat, commitsAhead, remotes, allPullRequests,
+ *  recentCommits) refresh at least this often. Set to 5 minutes. */
+export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
+
 /** Safety poll interval for observed chatrooms (ms).
  *  Daemon additionally polls observed chatrooms periodically as a safety net
  *  in case frontend heartbeat stops unexpectedly. Set to 30s. */

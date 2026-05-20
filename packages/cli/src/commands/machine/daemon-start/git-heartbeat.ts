@@ -1,3 +1,4 @@
+import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -6,6 +7,11 @@ import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
 import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
+
+/** Tracks the last time a full (non-slim) git state push was performed per workspace.
+ *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */
+const lastFullPushMs = new Map<string, number>();
+
 import type {
   GitBranchResult,
   GitDiffStatResult,
@@ -278,6 +284,24 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
   }
 
   const branch = branchResult.branch;
+
+  // Periodic full push: when enough time has elapsed since the last full push
+  // for this workspace, route through the full pipeline to refresh non-slim
+  // fields (diffStat, commitsAhead, remotes, allPullRequests, recent commits).
+  // On daemon restart the map is empty, so the first observation triggers a
+  // full push — that's intentional.
+  const now = Date.now();
+  const lastFull = lastFullPushMs.get(stateKey) ?? 0;
+  if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
+    lastFullPushMs.set(stateKey, now);
+    await pushSingleWorkspaceGitState(ctx, workingDir);
+    console.log(
+      `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
+    );
+    return;
+  }
+
+  // Slim push: only branch, isDirty, and branch-dependent fields
   const slimFields = [
     branchField,
     ...GIT_STATE_FIELDS.filter((f) => f.includeInSlim),
