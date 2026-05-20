@@ -113,7 +113,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
