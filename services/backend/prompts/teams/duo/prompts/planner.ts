@@ -14,6 +14,7 @@
 import { classifyCommand } from '../../../cli/classify/command';
 import {
   getCoreResponsibilitiesSection,
+  getDelegationAndDecompositionSection,
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
@@ -61,7 +62,6 @@ ${classificationNote}
 - You are the entry point — you communicate directly with the user
 - You coordinate with the builder for implementation tasks
 - You are ultimately accountable for all work quality
-- For any multi-step task (2+ steps), use the workflow skill to plan and track execution
 - Builder may go offline at any time — if unavailable, implement changes yourself
 - After reviewing builder output, deliver results to the user
 - **Only you can hand off to \`user\`**
@@ -71,6 +71,8 @@ ${getTeamAvailabilitySection(members)}
 ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
+
+${getDelegationAndDecompositionSection(DUO_TEAM_CONFIG)}
 
 ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 

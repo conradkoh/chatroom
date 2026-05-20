@@ -13,6 +13,7 @@
 import { classifyCommand } from '../../../cli/classify/command';
 import {
   getCoreResponsibilitiesSection,
+  getDelegationAndDecompositionSection,
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
@@ -70,7 +71,6 @@ ${classificationNote}
 - You coordinate a team of builder and reviewer
 - You are the ONLY role that communicates directly with the user
 - You are ultimately accountable for all work quality
-- For any multi-step task (2+ steps), use the workflow skill to plan and track execution
 - Team members may go offline at any time — adapt by handling their responsibilities yourself if needed
 
 ${getTeamAvailabilitySection(members)}
@@ -78,6 +78,8 @@ ${getTeamAvailabilitySection(members)}
 ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
+
+${getDelegationAndDecompositionSection(SQUAD_TEAM_CONFIG)}
 
 ${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 

@@ -16,6 +16,7 @@ import { getCliEnvPrefix } from '../../utils/env';
 import { classifyCommand } from '../classify/command';
 import {
   getCoreResponsibilitiesSection,
+  getDelegationAndDecompositionSection,
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
@@ -63,6 +64,8 @@ ${getTeamAvailabilitySection(members)}
 ${getWorkflowSection(teamConfig)}
 
 ${getCoreResponsibilitiesSection(teamConfig)}
+
+${getDelegationAndDecompositionSection(teamConfig)}
 
 ${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role })}
 

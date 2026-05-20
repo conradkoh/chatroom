@@ -285,6 +285,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
       **When working on a workflow step:**
@@ -556,6 +557,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Replace \`[Your message here]\` with:
       - **APPROVED ✅**: Clear approval statement
       - **Summary**: What was reviewed and verified
+      ⚠️ If handing off to \`user\`: the user can ONLY see this message. Write it as a complete, standalone document — include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **Review Checklist:**
       - [ ] Code correctness and functionality
