@@ -157,6 +157,7 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       **Handoff Rules:**
       - **After code changes** → Hand off to \`reviewer\`
       - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
 
       **When you receive handoffs from the reviewer:**
