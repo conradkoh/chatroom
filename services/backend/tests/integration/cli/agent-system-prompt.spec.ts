@@ -151,7 +151,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
@@ -285,6 +285,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
       **When working on a workflow step:**
@@ -453,7 +454,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
@@ -556,6 +557,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Replace \`[Your message here]\` with:
       - **APPROVED ✅**: Clear approval statement
       - **Summary**: What was reviewed and verified
+      ⚠️ If handing off to \`user\`: the user can ONLY see this message. Write it as a complete, standalone document — include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **Review Checklist:**
       - [ ] Code correctness and functionality

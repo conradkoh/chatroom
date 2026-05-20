@@ -54,6 +54,16 @@ function useIsTouchDevice(): boolean | undefined {
 const DRAFT_KEY_PREFIX = 'chatroom-draft:';
 const MAX_DRAFTS = 10;
 
+// ── Autosize constants ───────────────────────────────────────────────────────
+/** Maximum visible lines before scrollbar appears (text-sm = 14px, line-height 1.5 ≈ 21px/line) */
+const MAX_TEXTAREA_LINES = 3;
+/** Padding: py-1.5 = 12px total (6px top + 6px bottom) */
+const TEXTAREA_PADDING_PX = 12;
+/** Line height in px: 14px * 1.5 = 21px */
+const LINE_HEIGHT_PX = 21;
+/** Max height = 3 lines * 21px + 12px padding = 75px */
+const MAX_TEXTAREA_HEIGHT_PX = MAX_TEXTAREA_LINES * LINE_HEIGHT_PX + TEXTAREA_PADDING_PX;
+
 interface StoredDraft {
   content: string;
   updatedAt: number;
@@ -223,8 +233,14 @@ export function MessageInput({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
   }, []);
+
+  // Re-measure textarea height whenever message changes (covers draft restore,
+  // editor modal close, and autocomplete file select uniformly)
+  useEffect(() => {
+    autoResize();
+  }, [message, autoResize]);
 
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
@@ -465,8 +481,8 @@ export function MessageInput({
             placeholder="Type a message..."
             disabled={sending}
             rows={1}
-            className="block w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none max-h-[160px] overflow-y-auto"
-            style={{ height: 'auto' }}
+            className="block w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none overflow-y-auto"
+            style={{ height: 'auto', maxHeight: `${MAX_TEXTAREA_HEIGHT_PX}px` }}
           />
         </div>
 
@@ -478,7 +494,8 @@ export function MessageInput({
               type="button"
               onClick={() => setEditorOpen(true)}
               title="Open editor"
-              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors">
+              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
+            >
               <Code2 size={16} />
             </button>
           )}

@@ -55,6 +55,7 @@ flowchart TD
 **Handoff Rules:**
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
+  ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 - **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip ${hasReviewer ? 'review' : 'planner'})
 ${
   hasReviewer

@@ -53,7 +53,7 @@ describe('pushSingleWorkspaceGitSummaryForObserved', () => {
     vi.clearAllMocks();
   });
 
-  test('pushes slim summary and skips heavy metadata calls', async () => {
+  test('first observed push triggers full push (empty timer map), second does slim', async () => {
     const gitReader = await import('../../../infrastructure/git/git-reader.js');
 
     vi.mocked(gitReader.isGitRepo).mockResolvedValue(true);
@@ -74,15 +74,41 @@ describe('pushSingleWorkspaceGitSummaryForObserved', () => {
       totalCount: 0,
     });
 
+    // First call: map is empty → triggers full push
+    // Need to mock getRecentCommits for the full-push path
+    vi.mocked(gitReader.getRecentCommits).mockResolvedValue([]);
+    await pushSingleWorkspaceGitSummaryForObserved(ctx, WORKING_DIR);
+    expect(gitReader.getDiffStat).toHaveBeenCalled();
+
+    // Second call: within 5-min threshold → slim push only
+    vi.clearAllMocks();
+    vi.mocked(gitReader.isGitRepo).mockResolvedValue(true);
+    vi.mocked(gitReader.getBranch).mockResolvedValue({ status: 'available', branch: 'main' });
+    vi.mocked(gitReader.isDirty).mockResolvedValue(false);
+    vi.mocked(gitReader.getOpenPRsForBranch).mockResolvedValue([
+      {
+        prNumber: 42,
+        title: 'feat: auth',
+        url: 'https://github.com/test/repo/pull/42',
+        headRefName: 'feat/auth',
+        state: 'OPEN',
+      },
+    ]);
+    vi.mocked(gitReader.getCommitStatusChecks).mockResolvedValue({
+      state: 'success',
+      checkRuns: [],
+      totalCount: 0,
+    });
+
     await pushSingleWorkspaceGitSummaryForObserved(ctx, WORKING_DIR);
 
-    // Cheap eager fields MUST be fetched
+    // Cheap eager fields MUST be fetched on slim push
     expect(gitReader.getBranch).toHaveBeenCalledWith(WORKING_DIR);
     expect(gitReader.isDirty).toHaveBeenCalledWith(WORKING_DIR);
     expect(gitReader.getOpenPRsForBranch).toHaveBeenCalledWith(WORKING_DIR, 'main');
     expect(gitReader.getCommitStatusChecks).toHaveBeenCalledWith(WORKING_DIR, 'main');
 
-    // Heavy metadata MUST NOT be fetched
+    // Heavy metadata MUST NOT be fetched on slim push
     expect(gitReader.getDiffStat).not.toHaveBeenCalled();
     expect(gitReader.getRecentCommits).not.toHaveBeenCalled();
     expect(gitReader.getCommitsAhead).not.toHaveBeenCalled();

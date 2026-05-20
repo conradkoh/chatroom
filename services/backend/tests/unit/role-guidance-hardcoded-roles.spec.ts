@@ -56,7 +56,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change"
     `);
   });
@@ -93,7 +94,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
       - **To implement** → Work on the task directly (you are acting as implementer)
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Revise your implementation directly and re-validate"
     `);
   });
@@ -118,7 +120,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       "**Handoff Rules:**
       - **To implement** → Work on the task directly (you are acting as implementer)
       - **To request review** → Hand off to \`reviewer\` with context about what to check
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Revise your implementation directly and re-validate"
     `);
   });
@@ -248,6 +251,7 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
       **When working on a workflow step:**
