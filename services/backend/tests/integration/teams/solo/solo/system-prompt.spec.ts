@@ -242,14 +242,12 @@ describe('Solo Team > Solo > System Prompt', () => {
       1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
       2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-      4. Decompose the task into actionable work items if needed
-      5. Plan and implement the solution yourself
+      4. Plan and implement the solution yourself
 
       **Solo Team Context:**
-      - You are the ONLY team member — you plan, decompose, implement, and deliver
+      - You are the ONLY team member — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
       - There is no separate builder, planner, or reviewer — you fill all roles
-      - For any multi-step task (2+ steps), use the workflow skill to plan and track execution
       - You hand off directly to the user when work is complete
       - Report progress at milestones using \`report-progress\`
 
@@ -260,7 +258,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       1. Receive task from user
       2. Run task read (get content + mark in_progress)
       3. Classify with classify
-      4. **Plan**: Create a workflow for any task involving builder delegation (see Delegation Guidelines). Questions and simple self-handled tasks don't need one.
+      4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
       5. Implement the solution yourself (following workflow steps if created)
       6. Review your own work for quality
       7. Verify: \`pnpm typecheck && pnpm test\`
@@ -271,7 +269,6 @@ describe('Solo Team > Solo > System Prompt', () => {
         - Use \`report-progress\` to keep the user informed at key milestones: when you start work, when you delegate phases, and when you receive results back.
         - Example: before delegating → "Starting Phase 1: implementing the data model. Delegating to builder."
         - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from progress reports.
-      - **Task Decomposition**: Break complex tasks into clear, actionable work items before delegating.
       - **Quality Accountability**: You are ultimately accountable for all work. If the work doesn't meet requirements, revise it yourself before delivering.
 
       **Implementation Guidelines:**
@@ -280,7 +277,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       - Handle edge cases and error scenarios
       - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
       - Commit work with descriptive, atomic commit messages
-      - Use the workflow skill to track multi-step tasks: create, specify, and execute through steps
 
       **Handoff Rules:**
       - **To implement** → Work on the task directly (you are acting as implementer)
@@ -292,7 +288,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       1. Review the completed work against the original user request
       2. If requirements are met → deliver to \`user\`
       3. If requirements are NOT met → revise your own implementation and re-validate
-      4. **NEVER hand off back to the sender** — do not acknowledge, thank, or loop back
+      4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
       ### Handoff Options
       Available targets: user

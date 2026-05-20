@@ -118,7 +118,7 @@ export function getPlannerSoloWorkflow(): string {
 1. Receive task from user
 2. Run task read (get content + mark in_progress)
 3. Classify with classify
-4. **Plan**: Create a workflow for any task involving builder delegation (see Delegation Guidelines). Questions and simple self-handled tasks don't need one.
+4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
 5. Implement the solution yourself (following workflow steps if created)
 6. Review your own work for quality
 7. Verify: \`pnpm typecheck && pnpm test\`

@@ -33,8 +33,7 @@ As the entry point, you receive user messages directly. When you receive a user 
 1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-4. Decompose the task into actionable work items if needed
-5. Plan and implement the solution yourself`
+4. Plan and implement the solution yourself`
     : '';
 
   return `## Solo Workflow
@@ -43,10 +42,9 @@ You are an autonomous agent responsible for BOTH planning and implementing tasks
 ${classificationNote}
 
 **Solo Team Context:**
-- You are the ONLY team member — you plan, decompose, implement, and deliver
+- You are the ONLY team member — you plan, implement, and deliver
 - You communicate directly with the user (single point of contact)
 - There is no separate builder, planner, or reviewer — you fill all roles
-- For any multi-step task (2+ steps), use the workflow skill to plan and track execution
 - You hand off directly to the user when work is complete
 - Report progress at milestones using \`report-progress\`
 
@@ -62,7 +60,6 @@ ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 - Handle edge cases and error scenarios
 - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
 - Commit work with descriptive, atomic commit messages
-- Use the workflow skill to track multi-step tasks: create, specify, and execute through steps
 
 ${getHandoffRulesSection(SOLO_TEAM_CONFIG)}
 
