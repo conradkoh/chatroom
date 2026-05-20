@@ -27,11 +27,11 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
+    teamId: 'duo',
+    teamName: 'Duo Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
   });
@@ -59,7 +59,7 @@ describe('Get-Next-Task Full Prompt', () => {
   test('materializes complete get-next-task message with backlog attachment', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-get-next-task-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a backlog item using the new chatroom_backlog API
@@ -166,7 +166,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ══════════════════════════════════════════════════
 
-      # Pair Team
+      # Duo Team
 
       ## Your Role: BUILDER
 
@@ -201,7 +201,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
@@ -298,10 +298,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
 
-       **Pair Team Context:**
-       - You work with a reviewer who will check your code
-       - Focus on implementation, let reviewer handle quality checks
-       - Hand off to reviewer for all code changes
+       **Duo Team Context:**
+       - You work with a planner who coordinates work and communicates with the user
+       - You do NOT communicate directly with the user — hand off to the planner instead
+       - Focus on implementation; the planner handles user communication and delivery
+       - After completing work, hand off back to planner
+       - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
       ## Builder Workflow
@@ -313,7 +315,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
       2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       3. Then do your work
-      4. Hand off to reviewer for code changes, or directly to user for questions
+      4. Hand off to planner for code changes, or directly to planner for questions
 
       **Typical Flow:**
 
@@ -321,22 +323,19 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart TD
           A([Start]) --> B[Receive task
       notification]
-          B -->|from user or reviewer| C[Read task with
+          B -->|from planner| C[Read task with
       task read]
           C --> D[Implement changes]
           D --> E[Commit work]
           E --> F{Classification?}
-          F -->|new_feature or code changes| G[Hand off to **reviewer**]
-          F -->|question| H[Hand off to **user**]
+          F -->|new_feature or code changes| G[Hand off to **planner**]
+          F -->|question| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
-      - **After code changes** → Hand off to \`reviewer\`
-      - **For simple questions** → Can hand off directly to \`user\`
-      - **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
-
-      **When you receive handoffs from the reviewer:**
-      You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
+      - **After code changes** → Hand off to \`planner\`
+      - **For simple questions** → Can hand off directly to \`planner\`
+      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
       **When working on a workflow step:**
       If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
@@ -358,7 +357,9 @@ ${taskDeliveryPrompt.fullCliOutput}
        
 
       ### Handoff Options
-      Available targets: reviewer, user
+      Available targets: reviewer
+
+      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
 
       ### Commands
 
@@ -479,7 +480,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toBeDefined();
 
     // Should have role header
-    expect(initPrompt?.prompt).toContain('# Pair Team');
+    expect(initPrompt?.prompt).toContain('# Duo Team');
     expect(initPrompt?.prompt).toContain('## Your Role: BUILDER');
 
     // Should have Getting Started section (not Available Actions)
@@ -558,7 +559,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Should have chatroom metadata
     expect(jsonContext.chatroomId).toBe(chatroomId);
     expect(jsonContext.role).toBe('builder');
-    expect(jsonContext.teamName).toBe('Pair Team');
+    expect(jsonContext.teamName).toBe('Duo Team');
     expect(jsonContext.teamRoles).toContain('builder');
     expect(jsonContext.teamRoles).toContain('reviewer');
   });
@@ -566,7 +567,7 @@ ${taskDeliveryPrompt.fullCliOutput}
   test('formats task info section correctly for CLI display', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-task-info-format');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends simple message
@@ -623,7 +624,7 @@ ${taskDeliveryPrompt.fullCliOutput}
   test('includes classification info for classify command', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classification-info');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -781,7 +782,7 @@ describe('Reviewer Get-Next-Task Prompt After Handoff', () => {
   test('materializes complete get-next-task message for reviewer receiving handoff from builder', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-reviewer-handoff-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message to builder
@@ -921,7 +922,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ══════════════════════════════════════════════════
 
-      # Pair Team
+      # Duo Team
 
       ## Your Role: REVIEWER
 
@@ -956,7 +957,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eight pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
@@ -1016,14 +1017,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
 
-       **Pair Team Context:**
-       - You work with a builder who implements code
-       - Focus on code quality and requirements
-       - Provide constructive feedback to builder
-       - If the user's goal is met → hand off to user
-       - If changes are needed → hand off to builder with specific feedback
-       
-       
       ## Reviewer Workflow
 
       You receive handoffs from other agents containing work to review or validate.
@@ -1092,47 +1085,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Suggest solutions when possible
       - Maintain a collaborative and constructive tone
 
-       
-       
-      ## Available Review Policies
-
-      These policies should be applied when reviewing code to ensure high quality:
-
-      ### 1. Security Policy
-      **Focus:** Authentication, authorization, input validation, data handling, and API security.
-
-      **Key Areas:**
-      - Authentication & authorization checks
-      - Input validation and sanitization (SQL injection, XSS, path traversal)
-      - Secrets management and PII handling
-      - API security (rate limiting, CORS, error messages)
-      - Common vulnerabilities (injection attacks, broken access control, cryptographic issues)
-
-      ### 2. Design Policy
-      **Focus:** Design system compliance, UI/UX patterns, accessibility, and consistency.
-
-      **Key Areas:**
-      - Design system compliance (tokens, component patterns, reusability)
-      - Color usage (semantic colors, dark mode support)
-      - Component patterns (structure, TypeScript props, accessibility, responsive design)
-      - Typography and spacing following design system
-      - UX considerations (loading states, error states, interactive feedback)
-
-      ### 3. Performance Policy
-      **Focus:** Frontend and backend optimization, efficient resource usage.
-
-      **Key Areas:**
-      - Frontend: React optimization (useMemo, useCallback, React.memo), bundle size, rendering
-      - Backend: Database queries (indexes, N+1 patterns), API design, memory management
-      - Platform-specific: Next.js (Server/Client Components), Convex (query indexing), Core Web Vitals
-      - Scalability considerations
-
-      **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
-
-       
 
       ### Handoff Options
-      Available targets: builder, user
+      Available targets: builder
+
+      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
 
       ### Commands
 
@@ -1330,7 +1287,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('attached backlog tasks appear in task delivery prompt JSON', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-attached-backlog-in-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a backlog item using the new chatroom_backlog API
@@ -1394,7 +1351,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('getPendingTasksForRole returns acknowledged tasks for recovery', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-acknowledged-task-recovery');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends a message (creates a pending task for builder)
@@ -1440,7 +1397,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('init prompt contains backlog and guidance sections', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-sections');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Get the init prompt
@@ -1467,7 +1424,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns no_tasks when no tasks exist', async () => {
     const { sessionId } = await createTestSession('test-no-tasks-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     const result = await t.query(api.tasks.getPendingTasksForRole, {
@@ -1480,7 +1437,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns superseded when connectionId does not match', async () => {
     const { sessionId } = await createTestSession('test-superseded-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Join with a specific connectionId
     await t.mutation(api.participants.join, {
@@ -1507,7 +1464,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('getPendingTasksForRole returns error for invalid session', async () => {
     // Create a valid session to create the chatroom
     const { sessionId } = await createTestSession('test-error-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Query with an invalid session
     const result = await t.query(api.tasks.getPendingTasksForRole, {
@@ -1524,7 +1481,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns grace_period for recently acknowledged task', async () => {
     const { sessionId } = await createTestSession('test-grace-period-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Send a message to create a task
@@ -1567,7 +1524,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     // generateFullCliOutput — so agents never saw them in the task delivery output.
 
     const { sessionId } = await createTestSession('test-backlog-item-attach-to-context');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a chatroom_backlog item (created via the backlog tab, not via createTask)
@@ -1635,7 +1592,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     // Verifies that the readTask mutation (used by CLI `task read` command)
     // correctly returns attachedBacklogItems when the source message has them.
     const { sessionId } = await createTestSession('test-readtask-backlog-items');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a chatroom_backlog item
@@ -1688,7 +1645,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {
     const { sessionId } = await createTestSession('test-readtask-no-backlog-items');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message WITHOUT backlog items

@@ -26,10 +26,10 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -58,7 +58,7 @@ describe('Context Read Command Output', () => {
   test('materializes complete context with task content and attached tasks', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-with-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a backlog item using the new chatroom_backlog API
@@ -156,7 +156,7 @@ describe('Context Read Command Output', () => {
   test('shows proper formatting when task has no attachments', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-no-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends simple message without attachments
@@ -198,7 +198,7 @@ describe('Context Read Command Output', () => {
   test('handles multiple attached tasks correctly', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-multiple-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create multiple backlog items using the new chatroom_backlog API
@@ -263,7 +263,7 @@ describe('Context Read Command Output', () => {
   test('snapshot baseline: full getContextForRole return value', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-snapshot-baseline');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -368,7 +368,7 @@ describe('Context Read Command Output', () => {
   test('includes targetRole on messages showing which role the message is assigned to', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-targetrole');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message (will be assigned to builder = targetRole 'builder')
@@ -453,7 +453,7 @@ describe('Context Read Command Output', () => {
   test('excludes messages with pending or acknowledged tasks from context', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-excludes-pending');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message — creates a pending task for builder

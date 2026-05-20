@@ -8,12 +8,12 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
 
 describe('Materialized Task Counts', () => {
   test('creating a task increments pending count', async () => {
     const { sessionId } = await createTestSession('test-tc-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Send a user message which creates a pending task
     await t.mutation(api.messages.sendMessage, {
@@ -38,7 +38,7 @@ describe('Materialized Task Counts', () => {
 
   test('getTaskCounts reads from materialized counts', async () => {
     const { sessionId } = await createTestSession('test-tc-2');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Send a message to create a task
     await t.mutation(api.messages.sendMessage, {

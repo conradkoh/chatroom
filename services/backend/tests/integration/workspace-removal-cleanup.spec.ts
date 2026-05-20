@@ -17,7 +17,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   createTestSession,
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
@@ -62,7 +62,7 @@ describe('workspace removal cleanup', () => {
   test('removing the only workspace purges teamAgentConfigs for that machine+chatroom', async () => {
     const sessionId = 'test-wrc-1';
     const { sessionId: sid } = await createTestSession(sessionId);
-    const chatroomId = await createPairTeamChatroom(sid);
+    const chatroomId = await createDuoTeamChatroom(sid);
     const machineId = 'machine-wrc-1';
     await registerMachineWithDaemon(sid, machineId);
 
@@ -92,7 +92,7 @@ describe('workspace removal cleanup', () => {
   test('removing one workspace does NOT purge configs when the machine has another active workspace', async () => {
     const sessionId = 'test-wrc-2';
     const { sessionId: sid } = await createTestSession(sessionId);
-    const chatroomId = await createPairTeamChatroom(sid);
+    const chatroomId = await createDuoTeamChatroom(sid);
     const machineId = 'machine-wrc-2';
     await registerMachineWithDaemon(sid, machineId);
 
@@ -123,7 +123,7 @@ describe('workspace removal cleanup', () => {
   test('removing a workspace does NOT affect configs for other machines in the same chatroom', async () => {
     const sessionId = 'test-wrc-3';
     const { sessionId: sid } = await createTestSession(sessionId);
-    const chatroomId = await createPairTeamChatroom(sid);
+    const chatroomId = await createDuoTeamChatroom(sid);
 
     const machineIdA = 'machine-wrc-3a';
     const machineIdB = 'machine-wrc-3b';

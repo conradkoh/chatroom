@@ -211,8 +211,14 @@ export const runCommand = mutation({
 });
 
 /**
- * Request stopping a running command.
- * Dispatches a command.stop event to the daemon.
+ * Stop a command run.
+ *
+ * Two paths:
+ * - **Pending** runs: transition directly to 'stopped' inline. No OS process
+ *   exists, so no daemon round-trip is needed. This prevents stuck runs when
+ *   the daemon is unresponsive.
+ * - **Running** runs: mark terminationReason and dispatch a command.stop event
+ *   for the daemon to handle the actual process termination.
  */
 export const stopCommand = mutation({
   args: {
@@ -241,7 +247,18 @@ export const stopCommand = mutation({
 
     const now = Date.now();
 
-    // Mark terminationReason before the daemon stops the process
+    if (run.status === 'pending') {
+      // Pending run: no OS process exists — transition to stopped immediately.
+      // Bypass the daemon round-trip so stuck runs don't stay pending forever.
+      await ctx.db.patch(args.runId, {
+        status: 'stopped',
+        terminationReason: 'user-stop',
+        completedAt: now,
+      });
+      return;
+    }
+
+    // Running run: mark terminationReason before the daemon stops the process
     await ctx.db.patch(args.runId, { terminationReason: 'user-stop' });
 
     // Dispatch command.stop event to daemon
@@ -560,6 +577,67 @@ export const clearStaleCommandRuns = mutation({
     for (const run of allRuns) {
       if (run.status === 'pending' || run.status === 'running') {
         await ctx.db.patch("chatroom_commandRuns", run._id, { status: 'stopped', completedAt: now });
+        clearedCount++;
+      }
+    }
+
+    return { clearedCount };
+  },
+});
+
+/**
+ * User-callable escape hatch when the daemon is unreachable.
+ * Clears stuck runs for a single (machineId, workingDir).
+ * Differs from \`clearStaleCommandRuns\` which is daemon-startup-only
+ * and machine-wide.
+ */
+export const clearStuckCommandRuns = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    const allRuns = await ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+
+    const now = Date.now();
+    let clearedCount = 0;
+
+    for (const run of allRuns) {
+      if (run.status === 'pending') {
+        // Pending run: no OS process — just mark stopped.
+        await ctx.db.patch('chatroom_commandRuns', run._id, {
+          status: 'stopped',
+          terminationReason: 'user-clear-stuck',
+          completedAt: now,
+        });
+        clearedCount++;
+      } else if (run.status === 'running') {
+        // Running run: mark stopped AND dispatch stop event so daemon
+        // (if alive) can terminate the OS process.
+        await ctx.db.patch('chatroom_commandRuns', run._id, {
+          status: 'stopped',
+          terminationReason: 'user-clear-stuck',
+          completedAt: now,
+        });
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'command.stop' as const,
+          machineId: args.machineId,
+          runId: run._id,
+          timestamp: now,
+        });
         clearedCount++;
       }
     }

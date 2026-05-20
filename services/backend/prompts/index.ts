@@ -33,10 +33,6 @@ export {
 
 // Team configurations
 export {
-  pairTeamConfig,
-  getPairWorkflow,
-  getPairBuilderGuidance as getTeamBuilderGuidance,
-  getPairReviewerGuidance as getTeamReviewerGuidance,
   squadTeamConfig,
   getSquadPlannerGuidance,
   getSquadBuilderGuidance,
@@ -61,7 +57,7 @@ export { getContextGainingGuidance } from './base/shared/getting-started-content
 export { HANDOFF_DIR, getHandoffFileSnippet } from './utils/index';
 
 // Guidelines and policies
-export { getReviewGuidelines } from './teams/pair/roles';
+export { getReviewGuidelines } from './review-guidelines';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';

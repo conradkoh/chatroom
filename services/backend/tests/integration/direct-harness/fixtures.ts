@@ -9,7 +9,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import { t } from '../../../test.setup';
 import {
   createTestSession,
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   registerMachineWithDaemon,
 } from '../../helpers/integration';
 
@@ -37,7 +37,7 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
 }> {
   const p = prefix ?? uniquePrefix();
   const { sessionId } = await createTestSession(`${p}-session`);
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = `${p}-machine`;
 
   await registerMachineWithDaemon(sessionId, machineId);
@@ -50,6 +50,13 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
     workingDir: TEST_CWD,
     hostname: 'test-host',
     registeredBy: 'builder',
+  });
+
+  // Record a chatroom observation so listWorkspacesForMachine
+  // includes this workspace (7-day recency filter)
+  await t.mutation(api.chatrooms.recordChatroomObservation, {
+    sessionId,
+    chatroomId,
   });
 
   // Find the workspace ID

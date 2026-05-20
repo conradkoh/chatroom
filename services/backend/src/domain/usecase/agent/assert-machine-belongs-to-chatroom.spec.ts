@@ -20,7 +20,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -36,7 +36,7 @@ describe('assertMachineBelongsToChatroom', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -69,7 +69,7 @@ describe('assertMachineBelongsToChatroom', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -102,7 +102,7 @@ describe('assertMachineBelongsToChatroom', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',

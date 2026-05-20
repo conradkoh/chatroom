@@ -31,11 +31,11 @@ export async function createTestSession(sessionId: string): Promise<{ sessionId:
 /**
  * Create a pair-team chatroom (builder + reviewer, entry point = builder).
  */
-export async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
+    teamId: 'duo',
+    teamName: 'Duo Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
   });

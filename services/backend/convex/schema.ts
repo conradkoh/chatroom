@@ -1,15 +1,14 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-/** Canonical harness validator - add new harnesses here. */
-export const agentHarnessValidator = v.union(
-  v.literal('opencode'),
-  v.literal('opencode-sdk'),
-  v.literal('pi'),
-  v.literal('cursor'),
-  v.literal('claude'),
-  v.literal('copilot')
-);
+import {
+  agentHarnessValidator,
+  agentTypeValidator,
+} from '../src/domain/entities/agent';
+
+// agentHarnessValidator re-exported for backward compatibility
+// Canonical source is entities/agent.ts.
+export { agentHarnessValidator };
 
 /**
  * Database schema definition for the application.
@@ -335,7 +334,7 @@ export default defineSchema({
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
     // Agent type - 'custom' or 'remote'
-    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    agentType: v.optional(agentTypeValidator),
     // Timestamp of the last check-in received from this participant.
     // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
@@ -941,7 +940,7 @@ export default defineSchema({
     role: v.string(),
 
     // Config type discriminator
-    type: v.union(v.literal('remote'), v.literal('custom')),
+    type: agentTypeValidator,
 
     // Remote agent config (only present when type === 'remote')
     machineId: v.optional(v.string()),
@@ -1110,7 +1109,7 @@ export default defineSchema({
         type: v.literal('agent.registered'),
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
-        agentType: v.union(v.literal('custom'), v.literal('remote')),
+        agentType: agentTypeValidator,
         machineId: v.optional(v.string()),
         timestamp: v.number(),
       }),

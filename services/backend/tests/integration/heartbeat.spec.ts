@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -18,7 +18,7 @@ import { createTestSession, createPairTeamChatroom } from '../helpers/integratio
 describe('Participant Join', () => {
   test('join writes lastSeenAction when provided', async () => {
     const { sessionId } = await createTestSession('test-join-action');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -40,7 +40,7 @@ describe('Participant Join', () => {
 
   test('join without action does not set lastSeenAction', async () => {
     const { sessionId } = await createTestSession('test-join-no-action');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,

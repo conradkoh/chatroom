@@ -28,7 +28,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -67,7 +67,7 @@ async function setupAgentConfig(
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', role))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', role))
       )
       .first();
     if (config) {
@@ -98,7 +98,7 @@ async function getConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
     return ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', role))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', role))
       )
       .first();
   });

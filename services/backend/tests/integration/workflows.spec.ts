@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
 
 // ============================================================================
 // Helper: shorthand for a simple 3-step linear DAG (A → B → C)
@@ -52,7 +52,7 @@ async function specifyStepHelper(
 describe('workflows.createWorkflow', () => {
   test('creates a draft workflow with steps', async () => {
     const { sessionId } = await createTestSession('test-wf-create-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const result = await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -79,7 +79,7 @@ describe('workflows.createWorkflow', () => {
 
   test('rejects duplicate workflowKey', async () => {
     const { sessionId } = await createTestSession('test-wf-dup-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -102,7 +102,7 @@ describe('workflows.createWorkflow', () => {
 
   test('rejects empty steps array', async () => {
     const { sessionId } = await createTestSession('test-wf-empty-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.mutation(api.workflows.createWorkflow, {
@@ -117,7 +117,7 @@ describe('workflows.createWorkflow', () => {
 
   test('rejects DAG with cycle', async () => {
     const { sessionId } = await createTestSession('test-wf-cycle-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.mutation(api.workflows.createWorkflow, {
@@ -135,7 +135,7 @@ describe('workflows.createWorkflow', () => {
 
   test('rejects dangling dependency reference', async () => {
     const { sessionId } = await createTestSession('test-wf-dangle-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.mutation(api.workflows.createWorkflow, {
@@ -150,7 +150,7 @@ describe('workflows.createWorkflow', () => {
 
   test('rejects duplicate stepKeys', async () => {
     const { sessionId } = await createTestSession('test-wf-dupkeys-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.mutation(api.workflows.createWorkflow, {
@@ -174,7 +174,7 @@ describe('workflows.createWorkflow', () => {
 describe('workflows.specifyStep', () => {
   test('adds specification to a step', async () => {
     const { sessionId } = await createTestSession('test-wf-spec-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -210,7 +210,7 @@ describe('workflows.specifyStep', () => {
 
   test('stores skills field in specification', async () => {
     const { sessionId } = await createTestSession('test-wf-spec-skills-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -252,7 +252,7 @@ describe('workflows.specifyStep', () => {
 describe('workflows.executeWorkflow', () => {
   test('activates workflow and starts root steps', async () => {
     const { sessionId } = await createTestSession('test-wf-exec-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -282,7 +282,7 @@ describe('workflows.executeWorkflow', () => {
 
   test('rejects executing non-draft workflow', async () => {
     const { sessionId } = await createTestSession('test-wf-exec-err-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -316,7 +316,7 @@ describe('workflows.executeWorkflow', () => {
 describe('workflows.completeStep', () => {
   test('completes a step and promotes dependent steps', async () => {
     const { sessionId } = await createTestSession('test-wf-complete-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -357,7 +357,7 @@ describe('workflows.completeStep', () => {
 
   test('auto-completes workflow when all steps are done', async () => {
     const { sessionId } = await createTestSession('test-wf-autocomp-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -400,7 +400,7 @@ describe('workflows.completeStep', () => {
 
   test('rejects completing non-in_progress step', async () => {
     const { sessionId } = await createTestSession('test-wf-comp-err-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -429,7 +429,7 @@ describe('workflows.completeStep', () => {
 
   test('rejects completing step without specification', async () => {
     const { sessionId } = await createTestSession('test-wf-comp-nospec-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -464,7 +464,7 @@ describe('workflows.completeStep', () => {
 describe('workflows.cancelStep', () => {
   test('cancels an in_progress step with reason', async () => {
     const { sessionId } = await createTestSession('test-wf-cancel-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -502,7 +502,7 @@ describe('workflows.cancelStep', () => {
 
   test('rejects cancelling a completed step', async () => {
     const { sessionId } = await createTestSession('test-wf-cancel-err-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -546,7 +546,7 @@ describe('workflows.cancelStep', () => {
 describe('workflows.exitWorkflow', () => {
   test('cancels workflow and all non-completed steps', async () => {
     const { sessionId } = await createTestSession('test-wf-exit-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -596,7 +596,7 @@ describe('workflows.exitWorkflow', () => {
 
   test('rejects exiting already completed workflow', async () => {
     const { sessionId } = await createTestSession('test-wf-exit-err-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -639,7 +639,7 @@ describe('workflows.exitWorkflow', () => {
 describe('workflows — event stream emissions', () => {
   test('executeWorkflow emits workflow.started event', async () => {
     const { sessionId } = await createTestSession('test-wf-es-start-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -685,7 +685,7 @@ describe('workflows — event stream emissions', () => {
 
   test('completeStep emits workflow.stepCompleted event', async () => {
     const { sessionId } = await createTestSession('test-wf-es-stepcomplete-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -730,7 +730,7 @@ describe('workflows — event stream emissions', () => {
 
   test('cancelStep emits workflow.stepCancelled event', async () => {
     const { sessionId } = await createTestSession('test-wf-es-stepcancel-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -778,7 +778,7 @@ describe('workflows — event stream emissions', () => {
 
   test('completing all steps emits workflow.completed event with finalStatus=completed', async () => {
     const { sessionId } = await createTestSession('test-wf-es-wfcomplete-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -823,7 +823,7 @@ describe('workflows — event stream emissions', () => {
 
   test('exitWorkflow emits workflow.completed event with finalStatus=cancelled', async () => {
     const { sessionId } = await createTestSession('test-wf-es-exit-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -864,7 +864,7 @@ describe('workflows — event stream emissions', () => {
 
   test('cancelling a step also emits workflow.completed when it is the only step', async () => {
     const { sessionId } = await createTestSession('test-wf-es-cancel-complete-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -910,7 +910,7 @@ describe('workflows — event stream emissions', () => {
 describe('workflows.getWorkflowStatus', () => {
   test('computes available next steps correctly', async () => {
     const { sessionId } = await createTestSession('test-wf-status-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     // Diamond DAG: A → B, A → C, B+C → D
     await t.mutation(api.workflows.createWorkflow, {
@@ -995,7 +995,7 @@ describe('workflows.getWorkflowStatus', () => {
 
   test('returns error for non-existent workflow', async () => {
     const { sessionId } = await createTestSession('test-wf-status-err-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.query(api.workflows.getWorkflowStatus, {
@@ -1014,7 +1014,7 @@ describe('workflows.getWorkflowStatus', () => {
 describe('workflows.getStepView', () => {
   test('returns step details including specification', async () => {
     const { sessionId } = await createTestSession('test-step-view-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1060,7 +1060,7 @@ describe('workflows.getStepView', () => {
 
   test('returns step without specification when not yet specified', async () => {
     const { sessionId } = await createTestSession('test-step-view-2');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1086,7 +1086,7 @@ describe('workflows.getStepView', () => {
 
   test('throws for non-existent step', async () => {
     const { sessionId } = await createTestSession('test-step-view-3');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1114,7 +1114,7 @@ describe('workflows.getStepView', () => {
 describe('workflows — new event stream emissions', () => {
   test('createWorkflow emits workflow.created event', async () => {
     const { sessionId } = await createTestSession('test-wf-es-created-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1154,7 +1154,7 @@ describe('workflows — new event stream emissions', () => {
 
   test('specifyStep emits workflow.specified event', async () => {
     const { sessionId } = await createTestSession('test-wf-es-specified-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1194,7 +1194,7 @@ describe('workflows — new event stream emissions', () => {
 
   test('executeWorkflow emits workflow.stepStarted events for root steps', async () => {
     const { sessionId } = await createTestSession('test-wf-es-stepstarted-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     // Two-root DAG: a and b are roots, c depends on both
     await t.mutation(api.workflows.createWorkflow, {
@@ -1239,7 +1239,7 @@ describe('workflows — new event stream emissions', () => {
 
   test('completeStep emits workflow.stepStarted for promoted dependent steps', async () => {
     const { sessionId } = await createTestSession('test-wf-es-promote-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1291,7 +1291,7 @@ describe('workflows — new event stream emissions', () => {
 describe('workflows.resolveWorkflowId', () => {
   test('resolves workflow key to ID', async () => {
     const { sessionId } = await createTestSession('test-resolve-wf-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const { workflowId } = await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,
@@ -1312,7 +1312,7 @@ describe('workflows.resolveWorkflowId', () => {
 
   test('throws for non-existent workflow key', async () => {
     const { sessionId } = await createTestSession('test-resolve-wf-2');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await expect(
       t.query(api.workflows.resolveWorkflowId, {
@@ -1331,7 +1331,7 @@ describe('workflows.resolveWorkflowId', () => {
 describe('workflows.getWorkflowDetail', () => {
   test('returns workflow details by ID', async () => {
     const { sessionId } = await createTestSession('test-detail-wf-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const { workflowId } = await t.mutation(api.workflows.createWorkflow, {
       sessionId: sessionId as any,

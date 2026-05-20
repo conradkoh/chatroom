@@ -11,20 +11,17 @@ import type { FunctionReturnType } from 'convex/server';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommands } from './command-sync-heartbeat.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
-import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
-import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
-import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
-import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
-import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
-import { api } from '../../../api.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
+import { syncCommitDetails } from './commit-detail-sync.js';
+import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
+import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
+import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
+import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
+import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
 import { handlePing } from './handlers/ping.js';
@@ -32,15 +29,19 @@ import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { api } from '../../../api.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
-import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
-import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
+import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
+import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -399,6 +400,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
           pushCommands(ctx).catch((err: unknown) => {
             console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
           });
+          syncCommitDetails(ctx).catch((err: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
+            );
+          });
         }
         // File content requests are now handled by the reactive subscription
         // (file-content-subscription.ts) for near-instant response times.
@@ -452,6 +458,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   } else {
     pushGitState(ctx).catch(() => {});
     pushCommands(ctx).catch(() => {});
+    syncCommitDetails(ctx).catch(() => {});
   }
 
   const shutdown = async () => {

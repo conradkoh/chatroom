@@ -25,6 +25,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
+import { useTeamConfigs } from './hooks/use-team-configs';
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import {
@@ -108,31 +109,6 @@ const ALL_MACHINES = '';
 // (fully opaque) — NOT `bg-chatroom-bg-surface` (glassmorphism/semi-transparent).
 // `bg-chatroom-bg-surface` is intended for overlapping panels with solid backgrounds,
 // not for floating popovers that sit over arbitrary page content.
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
-  defaultTeam: 'duo',
-  teams: {
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer as a team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
 
 interface ChatroomDashboardProps {
   chatroomId: string;
@@ -402,6 +378,7 @@ export function ChatroomDashboard({
   refreshObservedChatroom,
   initialView,
 }: ChatroomDashboardProps) {
+  const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
   // ─── Scroll controller (shared between MessageFeed and SendForm) ───
@@ -1339,16 +1316,16 @@ export function ChatroomDashboard({
                   align="end"
                   className="min-w-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none p-0"
                 >
-                  {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
-                    const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
+                  {teams.map((teamData) => {
+                    const isActive = teamData.id === (chatroom.teamId || defaultTeamId);
                     return (
                       <DropdownMenuItem
-                        key={teamId}
+                        key={teamData.id}
                         onClick={async () => {
                           if (isActive) return;
                           await updateTeam({
                             chatroomId: chatroomId as Id<'chatroom_rooms'>,
-                            teamId,
+                            teamId: teamData.id,
                             teamName: teamData.name,
                             teamRoles: teamData.roles,
                             teamEntryPoint: teamData.entryPoint || teamData.roles[0],
@@ -1750,6 +1727,8 @@ export function ChatroomDashboard({
             onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
             onClearRun={() => commandRunner.setActiveRunId(null)}
             initialSelectedCommand={processManagerInitialCommand}
+            machineId={activeWorkspace?.machineId}
+            workingDir={activeWorkspace?.workingDir}
           />
 
           {/* Stop All Agents Confirmation Dialog */}

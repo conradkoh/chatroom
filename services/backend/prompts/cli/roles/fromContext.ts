@@ -11,6 +11,7 @@
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
 import { getReviewerGuidance } from './reviewer';
+import { getSoloGuidance } from '../../teams/solo/prompts/solo';
 import type {
   BuilderGuidanceParams,
   PlannerGuidanceParams,
@@ -84,6 +85,29 @@ export function getBaseReviewerGuidanceFromContext(ctx: SelectorContext): string
 }
 
 /**
+ * Convert SelectorContext to PlannerGuidanceParams for solo agent.
+ *
+ * Solo agent uses PlannerGuidanceParams since it fills the planner
+ * metarole (planning, decomposition, entry point responsibilities).
+ */
+export function toSoloParams(ctx: SelectorContext): PlannerGuidanceParams {
+  return {
+    role: ctx.role,
+    teamRoles: ctx.teamRoles,
+    isEntryPoint: ctx.isEntryPoint,
+    convexUrl: ctx.convexUrl,
+    chatroomId: ctx.chatroomId,
+  };
+}
+
+/**
+ * Get solo agent guidance from a SelectorContext.
+ */
+export function getSoloGuidanceFromContext(ctx: SelectorContext): string {
+  return getSoloGuidance(toSoloParams(ctx));
+}
+
+/**
  * Get base planner guidance from a SelectorContext.
  */
 export function getBasePlannerGuidanceFromContext(ctx: SelectorContext): string {
@@ -107,6 +131,9 @@ export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {
   }
   if (normalizedRole === 'reviewer') {
     return getBaseReviewerGuidanceFromContext(ctx);
+  }
+  if (normalizedRole === 'solo') {
+    return getSoloGuidanceFromContext(ctx);
   }
 
   return '';

@@ -69,12 +69,12 @@ describe('toTeam', () => {
 
   test('falls back to first role when no teamEntryPoint', () => {
     const team = toTeam({
-      teamId: 'pair',
+      teamId: 'duo',
       teamRoles: ['builder', 'reviewer'],
     });
     expect(team).toEqual({
-      id: 'pair',
-      name: 'pair', // falls back to id when no name
+      id: 'duo',
+      name: 'duo', // falls back to id when no name
       roles: ['builder', 'reviewer'],
       entryPoint: 'builder',
     });

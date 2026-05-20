@@ -28,7 +28,7 @@ import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
 import { IntegrationsTab } from './IntegrationsTab';
 import { SkillsTab } from './SkillsTab';
-import { TEAMS_CONFIG } from '../config/teams';
+import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
@@ -184,14 +184,15 @@ const TeamConfigContent = memo(function TeamConfigContent({
   currentTeamId?: string;
   currentTeamRoles?: string[];
 }) {
-  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || 'duo');
+  const { teams, defaultTeamId, getById } = useTeamConfigs();
+  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || defaultTeamId);
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
 
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
-  const hasChanges = selectedTeam !== (currentTeamId || 'duo');
-  const selectedTeamData = TEAMS_CONFIG.teams[selectedTeam];
+  const hasChanges = selectedTeam !== (currentTeamId || defaultTeamId);
+  const selectedTeamData = getById(selectedTeam);
 
   const handleSave = useCallback(async () => {
     if (!hasChanges || !selectedTeamData) return;
@@ -254,13 +255,13 @@ const TeamConfigContent = memo(function TeamConfigContent({
           Select Team
         </label>
         <div className="space-y-2">
-          {Object.entries(TEAMS_CONFIG.teams).map(([teamId, team]) => (
+          {teams.map((team) => (
             <button
-              key={teamId}
+              key={team.id}
               type="button"
-              onClick={() => setSelectedTeam(teamId)}
+              onClick={() => setSelectedTeam(team.id)}
               className={`w-full text-left p-3 border transition-colors ${
-                selectedTeam === teamId
+                selectedTeam === team.id
                   ? 'border-chatroom-accent bg-chatroom-accent/5'
                   : 'border-chatroom-border hover:border-chatroom-border-strong hover:bg-chatroom-bg-hover'
               }`}
@@ -274,7 +275,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
                     {team.description}
                   </div>
                 </div>
-                {selectedTeam === teamId && (
+                {selectedTeam === team.id && (
                   <Check size={12} className="text-chatroom-accent flex-shrink-0" />
                 )}
               </div>

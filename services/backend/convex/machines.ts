@@ -12,7 +12,11 @@ import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
 import { OBSERVATION_TTL_MS } from '../config/reliability';
-import { agentStopReasonValidator } from '../src/domain/entities/agent';
+import {
+  agentStopReasonValidator,
+  agentTypeValidator,
+  machineCommandTypeValidator,
+} from '../src/domain/entities/agent';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -1181,12 +1185,7 @@ export const sendCommand = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    type: v.union(
-      v.literal('start-agent'),
-      v.literal('stop-agent'),
-      v.literal('ping'),
-      v.literal('status')
-    ),
+    type: machineCommandTypeValidator,
     payload: v.optional(
       v.object({
         chatroomId: v.optional(v.id('chatroom_rooms')),
@@ -1644,7 +1643,7 @@ export const recordAgentRegistered = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    agentType: v.union(v.literal('remote'), v.literal('custom')),
+    agentType: agentTypeValidator,
     machineId: v.optional(v.string()),
     /** Forwards to recordCustomAgentRegistered when agentType === 'custom'. */
     allowTypeChange: v.optional(v.boolean()),
@@ -1745,7 +1744,7 @@ export const saveTeamAgentConfig = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    type: v.union(v.literal('remote'), v.literal('custom')),
+    type: agentTypeValidator,
     // Remote-specific fields (expected when type === 'remote')
     machineId: v.optional(v.string()),
     agentHarness: v.optional(agentHarnessValidator),

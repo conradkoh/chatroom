@@ -9,12 +9,12 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
 describe('Participant Routing with Exited Participants', () => {
   test('getAllowedHandoffRoles excludes exited participants', async () => {
     const { sessionId } = await createTestSession('test-route-exited-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
     await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -40,7 +40,7 @@ describe('Participant Routing with Exited Participants', () => {
 
   test('getAllowedHandoffRoles includes active participants', async () => {
     const { sessionId } = await createTestSession('test-route-active-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
     await joinParticipant(sessionId, chatroomId, 'reviewer');
@@ -56,7 +56,7 @@ describe('Participant Routing with Exited Participants', () => {
 
   test('listByUserWithStatus excludes exited participants from agents array', async () => {
     const { sessionId } = await createTestSession('test-list-exited-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -79,7 +79,7 @@ describe('Participant Routing with Exited Participants', () => {
 
   test('listByUserWithStatus includes active participants in agents array', async () => {
     const { sessionId } = await createTestSession('test-list-active-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 
