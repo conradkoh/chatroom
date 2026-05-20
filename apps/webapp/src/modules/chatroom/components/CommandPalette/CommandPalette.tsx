@@ -140,9 +140,12 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
         return;
       }
 
-      // Normal command: close dialog and execute
+      // Normal command: close dialog and execute action synchronously so it runs
+      // within the iOS user-gesture context. Deferring via setTimeout breaks iOS's
+      // gesture chain and causes external URLs to open in an in-app WKWebView
+      // instead of the system browser.
       closeDialog();
-      setTimeout(() => command.action(), 0);
+      command.action();
     },
     [trackUsage, closeDialog]
   );
@@ -202,73 +205,72 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   return (
     <>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogPortal>
-        <DialogPrimitive.Content
-          forceMount
-          onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
-        >
-          <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">
-            Search and execute a command
-          </DialogPrimitive.Description>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogPortal>
+          <DialogPrimitive.Content
+            forceMount
+            onEscapeKeyDown={handleEscapeKeyDown}
+            className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
+          >
+            <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              Search and execute a command
+            </DialogPrimitive.Description>
 
-          {/* Command list section */}
-          <div className="flex flex-col w-full">
-            <Command
-              filter={rankedFilter}
-              className="bg-chatroom-bg-primary text-chatroom-text-primary"
-            >
-              <CommandInput
-                placeholder="Type a command..."
-                className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
-                value={searchValue}
-                onValueChange={setSearchValue}
-              />
-              <CommandList className="min-h-[244px] h-[244px]">
-                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                  No commands found.
-                </CommandEmpty>
+            {/* Command list section */}
+            <div className="flex flex-col w-full">
+              <Command
+                filter={rankedFilter}
+                className="bg-chatroom-bg-primary text-chatroom-text-primary"
+              >
+                <CommandInput
+                  placeholder="Type a command..."
+                  className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+                  value={searchValue}
+                  onValueChange={setSearchValue}
+                />
+                <CommandList className="min-h-[244px] h-[244px]">
+                  <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                    No commands found.
+                  </CommandEmpty>
 
-                {isSearching ? (
-                  /* Search mode: flat list, ranked by frécency */
-                  <CommandGroup>{commands.map(renderCommandItem)}</CommandGroup>
-                ) : (
-                  /* Browse mode: Recent section at top, then grouped by category */
-                  <>
-                    {recentCommands.length > 0 && (
-                      <CommandGroup heading="Recent" className={COMMAND_GROUP_HEADING_CLASSES}>
-                        {recentCommands.map(renderCommandItem)}
-                      </CommandGroup>
-                    )}
-                    {Array.from(groupedCommands.entries()).map(([category, items]) => {
-                      // In browse mode, skip items already shown in Recent
-                      const itemsToShow =
-                        recentCommands.length > 0
-                          ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
-                          : items;
-                      if (itemsToShow.length === 0) return null;
-                      return (
-                        <CommandGroup
-                          key={category}
-                          heading={category}
-                          className={COMMAND_GROUP_HEADING_CLASSES}
-                        >
-                          {itemsToShow.map(renderCommandItem)}
+                  {isSearching ? (
+                    /* Search mode: flat list, ranked by frécency */
+                    <CommandGroup>{commands.map(renderCommandItem)}</CommandGroup>
+                  ) : (
+                    /* Browse mode: Recent section at top, then grouped by category */
+                    <>
+                      {recentCommands.length > 0 && (
+                        <CommandGroup heading="Recent" className={COMMAND_GROUP_HEADING_CLASSES}>
+                          {recentCommands.map(renderCommandItem)}
                         </CommandGroup>
-                      );
-                    })}
-                  </>
-                )}
-              </CommandList>
-            </Command>
-          </div>
-
-        </DialogPrimitive.Content>
-      </DialogPortal>
-    </Dialog>
-    <CommandOutputModal inlineCommand={inlineCommand} />
+                      )}
+                      {Array.from(groupedCommands.entries()).map(([category, items]) => {
+                        // In browse mode, skip items already shown in Recent
+                        const itemsToShow =
+                          recentCommands.length > 0
+                            ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
+                            : items;
+                        if (itemsToShow.length === 0) return null;
+                        return (
+                          <CommandGroup
+                            key={category}
+                            heading={category}
+                            className={COMMAND_GROUP_HEADING_CLASSES}
+                          >
+                            {itemsToShow.map(renderCommandItem)}
+                          </CommandGroup>
+                        );
+                      })}
+                    </>
+                  )}
+                </CommandList>
+              </Command>
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPortal>
+      </Dialog>
+      <CommandOutputModal inlineCommand={inlineCommand} />
     </>
   );
 }
