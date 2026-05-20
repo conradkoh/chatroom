@@ -1060,6 +1060,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Replace \`[Your message here]\` with:
       - **APPROVED ✅**: Clear approval statement
       - **Summary**: What was reviewed and verified
+      ⚠️ If handing off to \`user\`: the user can ONLY see this message. Write it as a complete, standalone document — include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **Review Checklist:**
       - [ ] Code correctness and functionality
