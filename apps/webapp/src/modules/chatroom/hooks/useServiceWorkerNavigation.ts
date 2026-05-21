@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import { useRouter } from 'next/navigation';
 
@@ -23,7 +23,6 @@ type SwMessage = NavigateToChatroomMessage;
  */
 export function useServiceWorkerNavigation() {
   const router = useRouter();
-  const handlerRef = useRef<((event: MessageEvent) => void) | null>(null);
 
   const handleMessage = useCallback(
     (event: MessageEvent) => {
@@ -35,10 +34,6 @@ export function useServiceWorkerNavigation() {
     },
     [router]
   );
-
-  useEffect(() => {
-    handlerRef.current = handleMessage;
-  }, [handleMessage]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
