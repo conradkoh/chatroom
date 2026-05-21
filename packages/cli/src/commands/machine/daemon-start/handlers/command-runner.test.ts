@@ -28,6 +28,7 @@ import {
   onCommandStop,
   shutdownAllCommands,
   evictStalePendingStops,
+  deriveTerminalStatus, // @internal
   runningProcesses, // @internal
   runningProcessesByCommand, // @internal
   pendingStops,     // @internal
@@ -600,4 +601,51 @@ describe('process-group kill (real process tree)', () => {
       expect(() => process.kill(childPid, 0)).toThrow();
     }
   }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// G. deriveTerminalStatus — pure function
+// ---------------------------------------------------------------------------
+
+describe('deriveTerminalStatus', () => {
+  // No intent — infer from exit code/signal
+
+  it('no intent + code=0 → completed', () => {
+    expect(deriveTerminalStatus(0, null, null)).toBe('completed');
+  });
+
+  it('no intent + code=1 (non-zero) + no signal → failed', () => {
+    expect(deriveTerminalStatus(1, null, null)).toBe('failed');
+  });
+
+  it('no intent + SIGTERM signal → stopped (external termination)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', null)).toBe('stopped');
+  });
+
+  it('no intent + SIGKILL signal → stopped', () => {
+    expect(deriveTerminalStatus(null, 'SIGKILL', null)).toBe('stopped');
+  });
+
+  // Intent overrides signal
+
+  it('intent=killed + SIGTERM → killed (replace/timeout overrides signal)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', 'killed')).toBe('killed');
+  });
+
+  it('intent=killed + SIGKILL → killed (intent overrides SIGKILL)', () => {
+    expect(deriveTerminalStatus(null, 'SIGKILL', 'killed')).toBe('killed');
+  });
+
+  it('intent=stopped + SIGTERM → stopped (user-stop intent matches, no ambiguity)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', 'stopped')).toBe('stopped');
+  });
+
+  it('intent=stopped + non-zero exit code → stopped (intent overrides exit code)', () => {
+    expect(deriveTerminalStatus(1, null, 'stopped')).toBe('stopped');
+  });
+
+  // Edge case: intent overrides even a clean exit (daemon killed process just as it exited 0)
+  it('intent=killed + code=0 → killed (intent takes priority over clean exit)', () => {
+    expect(deriveTerminalStatus(0, null, 'killed')).toBe('killed');
+  });
 });
