@@ -13,6 +13,7 @@ import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../../infrastructure/convex/client.js';
+import { renderTaskPrompt } from './render.js';
 
 // ─── Re-exports for testing ───────────────────────── ──────────────────────
 
@@ -107,69 +108,17 @@ export async function taskRead(
     });
 
     // Success - display the task content
-    console.log(`✅ Task content:`);
-    console.log(`   Task ID: ${result.taskId}`);
-    console.log(`   Status: ${result.status}`);
-
-    // Display pinned context if available
-    if (result.context) {
-      console.log('');
-      console.log('PINNED CONTEXT');
-      console.log('---');
-      console.log('<context>');
-      console.log(result.context.content);
-      console.log('</context>');
-
-      if (result.context.triggerMessageContent) {
-        console.log('in response to');
-        const senderTag = result.context.triggerMessageSenderRole ?? 'unknown';
-        console.log(`<${senderTag}-message>`);
-        console.log(result.context.triggerMessageContent);
-        console.log(`</${senderTag}-message>`);
-      }
-
-      // Staleness notice
-      const hoursAgo = Math.round(result.context.elapsedHours);
-      const msgsSince = result.context.messagesSinceContext;
-      const isStale = hoursAgo >= 24 || msgsSince >= 50;
-      if (isStale) {
-        const ageLabel =
-          hoursAgo >= 48
-            ? `${Math.round(hoursAgo / 24)}d old`
-            : hoursAgo >= 24
-              ? `${hoursAgo}h old`
-              : `${msgsSince} messages old`;
-        console.log(`<system-notice>`);
-        console.log(`⚠️ Context is ${ageLabel}.`);
-        console.log(`   Entry point role will update when needed.`);
-        console.log(`</system-notice>`);
-      }
-
-      console.log('---');
-    }
-
-    console.log(`\n${result.content}`);
-
-    // Display attached backlog items as XML attachments
-    if (result.attachedBacklogItems && result.attachedBacklogItems.length > 0) {
-      console.log('');
-      console.log('<attachments>');
-      for (const item of result.attachedBacklogItems) {
-        console.log(`  <attachment type="backlog-item">`);
-        console.log(`    - [${item.status.toUpperCase()}] ${item.content}`);
-        console.log(`      ID: ${item._id}`);
-        console.log(`    <hint>`);
-        console.log(
-          `      If you have completed work on a backlog item and it is ready for review, run:`
-        );
-        console.log(
-          `        chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}`
-        );
-        console.log(`    </hint>`);
-        console.log(`  </attachment>`);
-      }
-      console.log('</attachments>');
-    }
+    console.log(
+      renderTaskPrompt({
+        taskId: result.taskId,
+        status: result.status,
+        content: result.content,
+        chatroomId,
+        role,
+        context: result.context ?? undefined,
+        attachedBacklogItems: result.attachedBacklogItems ?? undefined,
+      })
+    );
   } catch (error) {
     const err = error as Error;
     console.error(`❌ Failed to read task`);
