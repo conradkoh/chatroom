@@ -26,7 +26,7 @@ import {
   updateRunStatus as handleUpdateRunStatus,
   clearStaleRuns as handleClearStaleCommandRuns,
   clearStuckRuns as handleClearStuckCommandRuns,
-} from './commands/process/run-status';
+} from './commands/process/run_status';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
