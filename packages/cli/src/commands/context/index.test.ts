@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContextDeps } from './deps.js';
-import { readContext, listContexts, newContext } from './index.js';
+import { readContext, listContexts, newContext, viewTemplate } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -285,6 +285,45 @@ describe('listContexts', () => {
       expect(getAllErrorOutput()).toContain('Failed to list contexts');
       expect(getAllErrorOutput()).toContain('Permission denied');
     });
+  });
+});
+
+describe('viewTemplate', () => {
+  it('returns a string with Goal, Requirements, and Avoid headings in order', () => {
+    const template = viewTemplate();
+
+    expect(typeof template).toBe('string');
+
+    // Assert headings in order
+    const goalIndex = template.indexOf('## Goal');
+    const requirementsIndex = template.indexOf('## Requirements');
+    const avoidIndex = template.indexOf('## Avoid');
+
+    expect(goalIndex).toBeGreaterThanOrEqual(0);
+    expect(requirementsIndex).toBeGreaterThan(goalIndex);
+    expect(avoidIndex).toBeGreaterThan(requirementsIndex);
+  });
+
+  it('includes placeholder content for each section', () => {
+    const template = viewTemplate();
+
+    // Goal section should have at least one angle-bracketed placeholder
+    const goalSection = template.slice(
+      template.indexOf('## Goal'),
+      template.indexOf('## Requirements')
+    );
+    expect(goalSection).toMatch(/<[^>]+>/);
+
+    // Requirements section should have at least one bullet placeholder
+    const requirementsSection = template.slice(
+      template.indexOf('## Requirements'),
+      template.indexOf('## Avoid')
+    );
+    expect(requirementsSection).toMatch(/- <[^>]+>/);
+
+    // Avoid section should have at least one bullet placeholder
+    const avoidSection = template.slice(template.indexOf('## Avoid'));
+    expect(avoidSection).toMatch(/- <[^>]+>/);
   });
 });
 

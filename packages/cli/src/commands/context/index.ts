@@ -370,6 +370,21 @@ export async function listContexts(
 }
 
 /**
+ * Print the context template to stdout.
+ */
+export function viewTemplate(): string {
+  return `## Goal
+<user-centric goal: what the user wants>
+<development-centric goal: what we are building/changing>
+
+## Requirements
+- <outcome or requirement>
+
+## Avoid
+- <thing to not do / out of scope>`;
+}
+
+/**
  * Inspect a specific context with staleness information.
  */
 export async function inspectContext(

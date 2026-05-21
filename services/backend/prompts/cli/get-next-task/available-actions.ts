@@ -6,7 +6,7 @@
  */
 
 import { getCliEnvPrefix } from '../../utils/index';
-import { contextNewCommand } from '../context/new';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 export interface AvailableActionsParams {
   chatroomId: string;
@@ -66,6 +66,7 @@ Only the entry point role can create new contexts. Set a new context when a new 
 \`\`\`bash
 ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\`
+${contextNewHint()}
 
 **List previous contexts:**
 \`\`\`bash

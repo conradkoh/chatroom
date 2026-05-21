@@ -101,6 +101,9 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toContain('plan');
     expect(prompt).toContain('workflow');
 
+    // Should contain context view-template hint near context new commands
+    expect(prompt).toContain('chatroom context view-template');
+
     expect(prompt).toMatchInlineSnapshot(`
       "# Solo Team
 
@@ -232,6 +235,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       <summary of current focus>
       EOF
       \`\`\`
+      Tip -> chatroom context view-template
 
       ## Solo Workflow
 

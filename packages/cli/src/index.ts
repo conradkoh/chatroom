@@ -985,6 +985,14 @@ contextCommand
     await inspectContext(options.chatroomId, options);
   });
 
+contextCommand
+  .command('view-template')
+  .description('Print a template for `chatroom context new` content.')
+  .action(async () => {
+    const { viewTemplate } = await import('./commands/context/index.js');
+    console.log(viewTemplate());
+  });
+
 // ============================================================================
 // GUIDELINES COMMANDS (auth required)
 // ============================================================================
