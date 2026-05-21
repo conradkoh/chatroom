@@ -133,6 +133,9 @@ function createFakeChild(pid = 9999) {
 // ---------------------------------------------------------------------------
 
 let ctx: DaemonContext;
+// Captured in beforeEach so integration tests can selectively restore just this spy
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let processKillSpy: { mockRestore: () => void };
 
 beforeEach(() => {
   ctx = createCtx();
@@ -147,7 +150,7 @@ beforeEach(() => {
     createFakeChild(Math.floor(Math.random() * 90000) + 10000)
   );
   // Mock process.kill so negative-PID group kills don't target real processes
-  vi.spyOn(process, 'kill').mockImplementation(() => true);
+  processKillSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -531,45 +534,70 @@ describe('24-hour soft timeout', () => {
 
 // ---------------------------------------------------------------------------
 // F. Real-process-tree regression test (integration)
+//
+// Routes through onCommandRun → onCommandStop with a real spawned process tree.
+// Verifies that the process-group kill (detached:true + negative PID) terminates
+// not just the sh leader but ALL grandchildren (the bug this fix addresses).
 // ---------------------------------------------------------------------------
 
 describe('process-group kill (real process tree)', () => {
-  it('kills all members of the process group when onCommandStop is called', async () => {
+  it('kills all grandchildren when onCommandStop is called — not just the sh leader', async () => {
     if (process.platform === 'win32') {
       // process groups behave differently on Windows — skip
       return;
     }
 
-    // Restore real process.kill for this test (it was mocked in beforeEach)
-    vi.restoreAllMocks();
+    // Restore only the process.kill spy (not all mocks) so group kills hit the real OS.
+    // Scoped restore avoids clobbering console spies or the spawn module mock.
+    processKillSpy.mockRestore();
 
-    // Use vi.importActual to bypass the vi.mock('node:child_process') module mock
-    const { spawn: realSpawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
-    const child = realSpawn('sh', ['-c', 'sleep 30 & sleep 30 & sleep 30 & wait'], {
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // Wire the module-level spawn mock to delegate to the real child_process.spawn.
+    // This means onCommandRun's internal spawn() call uses a real process.
+    const { spawn: realSpawn, execSync } =
+      await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    vi.mocked(spawn).mockImplementation(realSpawn as any);
+
+    // Run the command through the real handler (exercises the detached:true spawn path)
+    const runId = 'run-real-tree' as any;
+    await onCommandRun(ctx, {
+      runId,
+      commandName: 'test',
+      script: 'sleep 30 & sleep 30 & sleep 30 & wait',
+      workingDir: '/tmp',
     });
 
-    // Wait for the sh process and its children to be running
-    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+    // Wait for sh + its three sleep children to start
+    await new Promise<void>((r) => setTimeout(r, 400));
 
-    const pid = child.pid!;
+    // Get the tracked process PID
+    const tracked = runningProcesses.get(String(runId));
+    expect(tracked).toBeDefined();
+    const pid = tracked!.process.pid!;
 
-    // Collect child PIDs by listing /proc/<pid>/task (Linux) or via pgrep (macOS)
-    // We only need to verify the group is dead after kill — check the leader pid
-    expect(() => process.kill(pid, 0)).not.toThrow(); // leader is alive
+    // Verify sh leader is alive
+    expect(() => process.kill(pid, 0)).not.toThrow();
 
-    // Kill the entire process group
-    try {
-      process.kill(-pid, 'SIGTERM');
-    } catch {
-      // May already be dead — that's fine
+    // Capture grandchild PIDs (the sleep processes) before we kill
+    const childrenOutput = execSync(`pgrep -P ${pid}`).toString().trim();
+    const children = childrenOutput.split('\n').map(Number).filter(Boolean);
+    // There should be at least the three sleep 30 processes
+    expect(children.length).toBeGreaterThanOrEqual(3);
+
+    // Verify each grandchild is alive before stop
+    for (const childPid of children) {
+      expect(() => process.kill(childPid, 0)).not.toThrow();
     }
 
-    // Wait for processes to terminate
-    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    // Stop via the actual handler — exercises killProcess() → process.kill(-pid, signal)
+    await onCommandStop(ctx, { runId });
 
-    // The leader process should now be gone
-    expect(() => process.kill(pid, 0)).toThrow();
-  }, 10_000);
+    // Brief additional wait for all OS-level cleanup
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // All grandchildren must be gone — this is exactly the bug the fix prevents:
+    // without process-group kill, these sleep processes would survive as orphans.
+    for (const childPid of children) {
+      expect(() => process.kill(childPid, 0)).toThrow();
+    }
+  }, 15_000);
 });
