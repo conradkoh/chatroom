@@ -26,6 +26,16 @@ interface RunningProcess {
   chunkIndex: number;
   flushTimer: ReturnType<typeof setInterval>;
   softTimeoutTimer: ReturnType<typeof setTimeout> | null;
+  /**
+   * Records why the daemon is intentionally terminating this process.
+   * - `'killed'`: replaced by a newer run, or hit the 24-hour soft timeout.
+   * - `'stopped'`: explicit user-stop via command.stop event.
+   * - `null`: no daemon-initiated intent; exit status derives purely from exit code/signal.
+   *
+   * Set BEFORE sending the kill signal so the `exit` handler can read it and
+   * report the correct terminal status instead of inferring it from the OS signal.
+   */
+  terminationIntent: 'killed' | 'stopped' | null;
 }
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -82,6 +92,30 @@ const SIGTERM_GRACE_PERIOD_MS = 5_000;
  */
 function buildCommandKey(machineId: string, workingDir: string, commandName: string): string {
   return `${machineId}|${workingDir}|${commandName}`;
+}
+
+/**
+ * Derive the terminal status to report for a command run when its process exits.
+ *
+ * Priority rules:
+ * 1. If `terminationIntent` is set, the daemon initiated the termination — use it.
+ *    This ensures replace-semantics (`killed`) and user-stops (`stopped`) are reported
+ *    correctly even when the OS delivers a signal at the same time.
+ * 2. Exit code 0 → `completed` (clean natural exit).
+ * 3. Non-null signal with no intent → `stopped` (externally terminated, not by daemon).
+ * 4. Non-zero exit code, no signal → `failed` (process crashed / reported error).
+ *
+ * @internal — exported for unit tests only
+ */
+export function deriveTerminalStatus(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  terminationIntent: 'killed' | 'stopped' | null
+): 'completed' | 'failed' | 'stopped' | 'killed' {
+  if (terminationIntent !== null) return terminationIntent;
+  if (code === 0) return 'completed';
+  if (signal !== null) return 'stopped';
+  return 'failed';
 }
 
 /**
@@ -292,6 +326,7 @@ export async function onCommandRun(
       flushOutput(ctx, tracked).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
+    terminationIntent: null,
   };
   tracked.flushTimer.unref?.();
 
