@@ -210,7 +210,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       <summary of current focus>
       EOF
       \`\`\`
-      Tip -> chatroom context view-template
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
       ## Planner Workflow
 
