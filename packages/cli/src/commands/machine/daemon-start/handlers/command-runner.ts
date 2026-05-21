@@ -496,8 +496,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     tracked.softTimeoutTimer = null;
   }
 
-  // Set intent BEFORE killing so exit handler reports 'stopped', not 'stopped' (via signal),
-  // and so it's not ambiguous if the process ignores SIGTERM and we escalate to SIGKILL.
+  // Set intent BEFORE killing so the exit handler always reports 'stopped', even
+  // when SIGTERM is ignored and we escalate to SIGKILL (whose raw signal would
+  // still derive to 'stopped', but intent makes it explicit and consistent).
   tracked.terminationIntent = 'stopped';
 
   // Send SIGTERM and wait for graceful exit
