@@ -115,8 +115,6 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
-  /** Deep-link view override (e.g. `?view=messages` from a push notification click). Applied once on mount. */
-  initialView?: string;
 }
 
 /** Edit target for the saved command modal */
@@ -376,7 +374,6 @@ export function ChatroomDashboard({
   chatroomId,
   onBack,
   refreshObservedChatroom,
-  initialView,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
@@ -405,22 +402,6 @@ export function ChatroomDashboard({
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
   } = chatroomLifecycle;
-
-  // ─── Deep-link view override (e.g. from a push notification click) ───────
-  useEffect(() => {
-    const validViews: ActivityView[] = [
-      'messages',
-      'explorer',
-      'direct-harness',
-      'source-control',
-      'pull-requests',
-    ];
-    if (initialView && (validViews as string[]).includes(initialView)) {
-      setActivityView(initialView as ActivityView);
-    }
-    // Intentionally run only on mount — initialView is a one-shot deep-link override
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,

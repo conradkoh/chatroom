@@ -10,7 +10,6 @@ export default function ChatroomPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const chatroomId = searchParams.get('id');
-  const viewParam = searchParams.get('view') ?? undefined;
 
   const handleBack = () => {
     router.push('/app');
@@ -83,7 +82,6 @@ export default function ChatroomPage() {
           chatroomId={chatroomId}
           onBack={handleBack}
           refreshObservedChatroom={refreshObservedChatroom}
-          initialView={viewParam}
         />
       </div>
     </div>
