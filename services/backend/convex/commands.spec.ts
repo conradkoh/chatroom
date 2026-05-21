@@ -216,3 +216,59 @@ describe('clearStuckCommandRuns', () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── updateRunStatus idempotency & structured error tests ───────────────────
+
+describe('updateRunStatus', () => {
+  test('killed → stopped is a no-op (race condition idempotency)', async () => {
+    const { sessionId, machineId } = await setupMachine('urs-killed-stopped');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    // Simulate runCommand marking it killed (replace semantics)
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'killed', completedAt: FIXED_NOW });
+    });
+
+    // Daemon exit handler reports stopped — should be silently ignored, not throw
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'stopped' });
+
+    const run = await getRun(runId);
+    expect(run!.status).toBe('killed'); // unchanged — first terminal write wins
+  });
+
+  test('stopped → killed is a no-op (terminal → terminal idempotency)', async () => {
+    const { sessionId, machineId } = await setupMachine('urs-stopped-killed');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'stopped' });
+
+    // Second terminal transition should be silently ignored, not throw
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'killed' });
+
+    const run = await getRun(runId);
+    expect(run!.status).toBe('stopped'); // first terminal state wins
+  });
+
+  test('completed → failed is a no-op (any terminal → terminal is idempotent)', async () => {
+    const { sessionId, machineId } = await setupMachine('urs-completed-failed');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'completed' });
+
+    // Any subsequent terminal report is a no-op
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'failed' });
+
+    const run = await getRun(runId);
+    expect(run!.status).toBe('completed'); // first terminal state wins
+  });
+
+  test('invalid transition throws structured INVALID_RUN_STATE_TRANSITION error', async () => {
+    const { sessionId, machineId } = await setupMachine('urs-invalid-transition');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    // running → running is not a valid transition
+    await expect(
+      t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'running' })
+    ).rejects.toThrow(/INVALID_RUN_STATE_TRANSITION/);
+  });
+});
