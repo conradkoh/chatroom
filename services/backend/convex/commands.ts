@@ -17,6 +17,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -311,6 +312,16 @@ export const updateRunStatus = mutation({
         message: 'Run does not belong to this machine',
       });
 
+    // ── Terminal-state idempotency ────────────────────────────────────────────
+    // If the run is already in a terminal state and the caller reports another
+    // terminal state (e.g. killed → stopped race between runCommand and the
+    // daemon exit handler), treat it as a no-op. This prevents false-positive
+    // error noise without masking genuinely invalid transitions.
+    const TERMINAL_STATES = new Set(['completed', 'failed', 'stopped', 'killed']);
+    if (TERMINAL_STATES.has(run.status) && TERMINAL_STATES.has(args.status)) {
+      return; // already settled — nothing to do
+    }
+
     // State transition validation: only allow valid forward transitions
     // Note: 'killed' is set directly by runCommand (replace semantics) and by
     // clearStaleCommandRuns — not via this mutation.
@@ -320,7 +331,10 @@ export const updateRunStatus = mutation({
     };
     const allowed = validTransitions[run.status];
     if (!allowed || !allowed.includes(args.status)) {
-      throw new ConvexError(`Invalid state transition: ${run.status} → ${args.status}`);
+      throw new ConvexError({
+        code: BACKEND_ERROR_CODES.INVALID_RUN_STATE_TRANSITION,
+        message: `Invalid run status transition: ${run.status} → ${args.status}`,
+      });
     }
 
     const update: {
