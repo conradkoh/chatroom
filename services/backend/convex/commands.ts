@@ -18,17 +18,11 @@ import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { isTerminal, assertValidTransition } from './commands/fsm';
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-/** Max commands per workspace sync to prevent abuse. */
-const MAX_COMMANDS_PER_SYNC = 500;
-
-/** Max output chunk size (100KB). */
-const MAX_OUTPUT_CHUNK_BYTES = 100 * 1024;
-
-/** Max output chunks per run (to bound storage). */
-const MAX_OUTPUT_CHUNKS_PER_RUN = 1000;
+import {
+  MAX_COMMANDS_PER_SYNC,
+  MAX_OUTPUT_CHUNK_BYTES,
+  MAX_OUTPUT_CHUNKS_PER_RUN,
+} from './commands/types';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 

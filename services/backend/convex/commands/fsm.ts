@@ -1,13 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
-
-export type CommandRunStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'stopped'
-  | 'killed';
+import type { CommandRunStatus } from './types';
 
 export const TERMINAL_STATES: ReadonlySet<CommandRunStatus> = new Set<CommandRunStatus>([
   'completed',
