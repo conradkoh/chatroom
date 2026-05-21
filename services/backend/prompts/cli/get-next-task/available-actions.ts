@@ -60,7 +60,7 @@ ${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --r
   if (isEntryPoint) {
     sections.push(`
 ### Context Management
-Only the entry point role can create new contexts. Set a new context when a new commit is expected, to keep agents focused on the current goal.
+Only the entry point role can create new contexts. By default, set a new context for every user message — skip ONLY when the message is clearly a follow-up of the current task.
 
 **Create new context:**
 \`\`\`bash
@@ -74,7 +74,7 @@ ${cliEnvPrefix}chatroom context list --chatroom-id="${chatroomId}" --role="${rol
 \`\`\`
 
 When to create a new context:
-- When a new commit is expected — summarize the planned changes in the new context
+- For every new user message (default) — summarize the planned focus in the new context; skip only when the message is clearly a follow-up of the current task
 - When the pinned context shows staleness warnings — summarize recent progress in the new context`);
   }
 

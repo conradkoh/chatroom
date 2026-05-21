@@ -47,7 +47,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
     expect(output).toContain('📋 TASK');
     expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
-    expect(output).toContain('Code changes expected?');
+    expect(output).toContain('Set a new context per user message');
     // User message should trigger classification flow
     expect(output).toContain('Classify');
     expect(output).toContain('targets: builder, reviewer, user');
@@ -87,9 +87,9 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <tech-specs>
       EOF
 
-      3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
+      3. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\`
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       4. Delegate phase 1 to builder:
 
@@ -159,9 +159,9 @@ describe('Squad Team > Planner > Get Next Task', () => {
          handed off from builder — start work immediately.
 
       1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"\`
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
+      2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\`
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       3. Hand off when complete:
 

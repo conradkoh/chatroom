@@ -74,7 +74,7 @@ User wants new functionality. Requires title, description, and tech specs.
 ${newFeatureCmd}
 \`\`\`
 
-**Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
+**Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current task. Only the entry point role can set contexts:
 \`\`\`bash
 ${contextNewCmd}
 \`\`\`

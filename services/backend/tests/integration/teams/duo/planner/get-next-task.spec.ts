@@ -47,7 +47,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('📋 TASK');
     expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
-    expect(output).toContain('Code changes expected?');
+    expect(output).toContain('Set a new context per user message');
     // User message should trigger classification flow
     expect(output).toContain('Classify');
     expect(output).toContain('targets: builder, user');
