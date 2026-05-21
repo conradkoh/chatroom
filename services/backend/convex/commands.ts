@@ -21,12 +21,12 @@ import {
   handleGetRunOutput,
   handleGetRunStatus,
 } from './commands/queries';
+import { syncCommands as handleSyncCommands } from './commands/process/sync';
 import {
-  handleSyncCommands,
-  handleUpdateRunStatus,
-  handleClearStaleCommandRuns,
-  handleClearStuckCommandRuns,
-} from './commands/daemon';
+  updateRunStatus as handleUpdateRunStatus,
+  clearStaleRuns as handleClearStaleCommandRuns,
+  clearStuckRuns as handleClearStuckCommandRuns,
+} from './commands/process/run-status';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
