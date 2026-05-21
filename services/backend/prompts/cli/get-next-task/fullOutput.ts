@@ -14,7 +14,7 @@
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { classifyCommand } from '../classify/command';
-import { contextNewCommand } from '../context/new';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -274,6 +274,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(
         `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
+      lines.push(contextNewHint());
       lines.push('4. Delegate phase 1 to builder:');
       maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
@@ -295,6 +296,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
         );
+        lines.push(contextNewHint());
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
@@ -327,6 +329,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(
         `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
+      lines.push(contextNewHint());
       nextStepNum++;
     }
 

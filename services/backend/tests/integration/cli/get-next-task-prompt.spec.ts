@@ -296,6 +296,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <summary of current focus>
       EOF
       \`\`\`
+      Tip -> chatroom context view-template
 
 
        **Duo Team Context:**
@@ -456,6 +457,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
+      Tip -> chatroom context view-template
       4. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
@@ -507,8 +509,13 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
     expect(taskDeliveryPrompt.json).toBeDefined();
 
+    // ===== VERIFY context view-template hint presence =====
+    expect(fullCliMessage).toContain('chatroom context view-template');
+
     // ===== VERIFY FULL CLI OUTPUT FORMAT =====
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
+
+    expect(fullOutput).toContain('chatroom context view-template');
 
     // Should have consolidated NEXT STEPS section with inline guidance
     expect(fullOutput).toContain('Hand off');

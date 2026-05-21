@@ -190,4 +190,49 @@ describe('pushSingleWorkspaceGitSummaryForObserved', () => {
     expect(upsertCall).toBeDefined();
     expect((upsertCall![1] as Record<string, unknown>).errorMessage).toBe('git not available');
   });
+
+  test('failed full push does NOT bump timer — next observation retries full push', async () => {
+    const gitReader = await import('../../../infrastructure/git/git-reader.js');
+
+    // Use a unique workingDir so the module-level lastFullPushMs map is empty
+    // for this key (other tests in this file may have populated '/test/repo').
+    const RETRY_DIR = '/test/repo-retry';
+
+    vi.mocked(gitReader.isGitRepo).mockResolvedValue(true);
+    vi.mocked(gitReader.getBranch).mockResolvedValue({ status: 'available', branch: 'main' });
+    vi.mocked(gitReader.isDirty).mockResolvedValue(false);
+    vi.mocked(gitReader.getOpenPRsForBranch).mockResolvedValue([]);
+    vi.mocked(gitReader.getCommitStatusChecks).mockResolvedValue(null);
+    vi.mocked(gitReader.getDiffStat).mockResolvedValue({ status: 'not_found' });
+    vi.mocked(gitReader.getCommitsAhead).mockResolvedValue(0);
+    vi.mocked(gitReader.getRemotes).mockResolvedValue([]);
+    vi.mocked(gitReader.getAllPRs).mockResolvedValue([]);
+
+    // First call: full-push path is taken (map empty), but getRecentCommits
+    // throws → pushSingleWorkspaceGitState rejects → timer must NOT be set.
+    vi.mocked(gitReader.getRecentCommits).mockRejectedValueOnce(new Error('boom'));
+
+    await expect(pushSingleWorkspaceGitSummaryForObserved(ctx, RETRY_DIR)).rejects.toThrow('boom');
+
+    // Second call: timer was not bumped, so we attempt the full push again.
+    // This time getRecentCommits succeeds and getDiffStat is invoked as part
+    // of the full pipeline — proving we took the full-push branch, not slim.
+    vi.clearAllMocks();
+    vi.mocked(gitReader.isGitRepo).mockResolvedValue(true);
+    vi.mocked(gitReader.getBranch).mockResolvedValue({ status: 'available', branch: 'main' });
+    vi.mocked(gitReader.isDirty).mockResolvedValue(false);
+    vi.mocked(gitReader.getOpenPRsForBranch).mockResolvedValue([]);
+    vi.mocked(gitReader.getCommitStatusChecks).mockResolvedValue(null);
+    vi.mocked(gitReader.getDiffStat).mockResolvedValue({ status: 'not_found' });
+    vi.mocked(gitReader.getCommitsAhead).mockResolvedValue(0);
+    vi.mocked(gitReader.getRemotes).mockResolvedValue([]);
+    vi.mocked(gitReader.getAllPRs).mockResolvedValue([]);
+    vi.mocked(gitReader.getRecentCommits).mockResolvedValue([]);
+
+    await pushSingleWorkspaceGitSummaryForObserved(ctx, RETRY_DIR);
+
+    // Heavy fields fetched → confirms full-push branch was retried
+    expect(gitReader.getDiffStat).toHaveBeenCalled();
+    expect(gitReader.getRecentCommits).toHaveBeenCalled();
+  });
 });

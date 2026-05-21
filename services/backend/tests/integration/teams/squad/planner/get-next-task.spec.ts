@@ -90,6 +90,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
+      Tip -> chatroom context view-template
       4. Delegate phase 1 to builder:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
@@ -161,6 +162,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
+      Tip -> chatroom context view-template
       3. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.

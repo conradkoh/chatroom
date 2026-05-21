@@ -114,6 +114,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt).toContain('### Next');
     expect(rolePrompt).toContain('chatroom get-next-task');
 
+    // Should contain context view-template hint near context new commands
+    expect(rolePrompt).toContain('chatroom context view-template');
+
     // Snapshot the full rolePrompt for regression detection
     expect(rolePrompt).toMatchInlineSnapshot(`
       "# Duo Team
@@ -246,6 +249,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       <summary of current focus>
       EOF
       \`\`\`
+      Tip -> chatroom context view-template
 
 
        **Duo Team Context:**

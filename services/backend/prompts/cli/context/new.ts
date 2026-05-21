@@ -10,6 +10,14 @@ export interface ContextNewParams {
 }
 
 /**
+ * Generate a single-line hint pointing to the context view-template command.
+ * Intended to appear immediately after a contextNewCommand snippet.
+ */
+export function contextNewHint(): string {
+  return 'Tip -> chatroom context view-template';
+}
+
+/**
  * Generate a context new command string using heredoc format for multi-line content.
  * Includes --trigger-message-id placeholder so agents know to pass the origin message ID,
  * which anchors the context window to the correct starting message.

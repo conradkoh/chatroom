@@ -76,6 +76,9 @@ describe('Squad Team > Planner > System Prompt', () => {
     expect(prompt).toContain('Available targets: builder, reviewer, user');
     expect(prompt).toContain('### Commands');
 
+    // Should contain context view-template hint near context new commands
+    expect(prompt).toContain('chatroom context view-template');
+
     expect(prompt).toMatchInlineSnapshot(`
       "# Squad Team
 
@@ -207,6 +210,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       <summary of current focus>
       EOF
       \`\`\`
+      Tip -> chatroom context view-template
 
       ## Planner Workflow
 

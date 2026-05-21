@@ -38,7 +38,7 @@ export function showNotification(
     notification.onclick = () => {
       window.focus();
       if (chatroomId) {
-        window.location.href = `/app/${chatroomId}`;
+        window.location.href = `/app/chatroom?id=${chatroomId}`;
       }
       notification.close();
     };

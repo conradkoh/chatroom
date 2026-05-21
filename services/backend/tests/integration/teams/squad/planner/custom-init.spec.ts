@@ -162,6 +162,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       <summary of current focus>
       EOF
       \`\`\`
+      Tip -> chatroom context view-template
 
       ## Planner Workflow
 

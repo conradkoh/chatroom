@@ -2,6 +2,7 @@
 
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useGlobalHandoffNotification } from '@/modules/chatroom/hooks/useGlobalHandoffNotification';
+import { useServiceWorkerNavigation } from '@/modules/chatroom/hooks/useServiceWorkerNavigation';
 
 /**
  * Invisible component that mounts the global notification hook.
@@ -15,5 +16,6 @@ import { useGlobalHandoffNotification } from '@/modules/chatroom/hooks/useGlobal
 export function GlobalNotificationListener() {
   const { chatrooms } = useChatroomListing();
   useGlobalHandoffNotification(chatrooms);
+  useServiceWorkerNavigation();
   return null;
 }
