@@ -72,6 +72,10 @@ export function evictStalePendingStops(): void {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
+/** Terminal run statuses — once in these states a run cannot transition further.
+ *  Mirrors the set in services/backend/convex/commands.ts. */
+const TERMINAL_STATES = new Set<string>(['completed', 'failed', 'stopped', 'killed']);
+
 /** How often to flush buffered output to backend (ms). */
 const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
 
@@ -277,6 +281,32 @@ export async function onCommandRun(
     return;
   }
 
+  // ── Pre-spawn DB status check ──────────────────────────────────────────────
+  // If the run was already moved to a terminal state (e.g. user stopped a
+  // 'pending' run inline before the daemon picked up the event), skip the
+  // spawn entirely. Mirrors the pendingStops handling above for the
+  // stop-via-event path.
+  try {
+    const currentRun = (await ctx.deps.backend.query(api.commands.getRunStatus, {
+      sessionId: ctx.sessionId as SessionId,
+      machineId: ctx.machineId,
+      runId,
+    })) as { status: string } | null;
+    if (currentRun && TERMINAL_STATES.has(currentRun.status)) {
+      console.log(
+        `[${formatTimestamp()}] ⏭️ Skipping command run — row already ${currentRun.status}: ${commandName} (${runIdStr})`
+      );
+      return;
+    }
+  } catch (err) {
+    // Backend unreachable — log and proceed. If the row was terminal, the
+    // subsequent updateRunStatus('running') call will fail with a clear
+    // warning, and the process will be cleaned up on the next re-run.
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to check run status before spawn: ${getErrorMessage(err)}`
+    );
+  }
+
   // ── Replace semantics: kill any prior process for this (machineId, workingDir, commandName) ──
   const priorRunId = runningProcessesByCommand.get(commandKey);
   if (priorRunId) {
@@ -434,7 +464,11 @@ export async function onCommandRun(
     }
 
     // Determine final status using daemon intent (if set) or exit code/signal
-    const status = deriveTerminalStatus(code, signal as NodeJS.Signals | null, tracked.terminationIntent);
+    const status = deriveTerminalStatus(
+      code,
+      signal as NodeJS.Signals | null,
+      tracked.terminationIntent
+    );
 
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {

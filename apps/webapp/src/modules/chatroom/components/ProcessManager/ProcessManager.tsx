@@ -110,9 +110,7 @@ export function ProcessManager({
       const result = await clearStuckRuns({ machineId, workingDir });
       toast.success(`Cleared ${result.clearedCount} stuck command(s)`);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to clear stuck commands'
-      );
+      toast.error(error instanceof Error ? error.message : 'Failed to clear stuck commands');
     } finally {
       setClearStuckOpen(false);
     }
@@ -288,8 +286,8 @@ export function ProcessManager({
             {/* Left sidebar */}
             <div
               className={cn(
-                "w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden",
-                hasRightPanelContent && "hidden md:flex"
+                'w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden',
+                hasRightPanelContent && 'hidden md:flex'
               )}
               onKeyDown={handleKeyDown}
             >
@@ -421,12 +419,15 @@ export function ProcessManager({
             </div>
 
             {/* Right panel — Terminal output, command detail, or workspace detail */}
-            <div className={cn(
-              "flex-1 flex flex-col overflow-hidden",
-              !hasRightPanelContent && "hidden md:flex"
-            )}>
+            <div
+              className={cn(
+                'flex-1 flex flex-col overflow-hidden',
+                !hasRightPanelContent && 'hidden md:flex'
+              )}
+            >
               {activeRunOutput.run ? (
                 <OutputPanel
+                  key={activeRunOutput.run._id}
                   run={activeRunOutput.run}
                   chunks={activeRunOutput.chunks}
                   onStop={() => {
@@ -493,8 +494,8 @@ export function ProcessManager({
           <AlertDialogHeader>
             <AlertDialogTitle>Clear stuck commands?</AlertDialogTitle>
             <AlertDialogDescription>
-              This marks all pending and running commands for this workspace as
-              stopped. Use this only when the daemon is unresponsive.
+              This marks all pending and running commands for this workspace as stopped. Use this
+              only when the daemon is unresponsive.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

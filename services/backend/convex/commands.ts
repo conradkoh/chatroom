@@ -85,7 +85,7 @@ export const syncCommands = mutation({
       .collect();
 
     for (const cmd of existing) {
-      await ctx.db.delete("chatroom_runnableCommands", cmd._id);
+      await ctx.db.delete('chatroom_runnableCommands', cmd._id);
     }
 
     // Insert new commands
@@ -238,7 +238,7 @@ export const stopCommand = mutation({
       permission: 'write-access',
     });
 
-    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
     if (run.machineId !== args.machineId)
       throw new ConvexError({
@@ -307,7 +307,7 @@ export const updateRunStatus = mutation({
         message: 'Not authorized for this machine',
       });
 
-    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
     if (run.machineId !== args.machineId)
       throw new ConvexError({
@@ -316,11 +316,16 @@ export const updateRunStatus = mutation({
       });
 
     // ── Terminal-state idempotency ────────────────────────────────────────────
-    // If the run is already in a terminal state and the caller reports another
-    // terminal state (e.g. killed → stopped race between runCommand and the
-    // daemon exit handler), treat it as a no-op. This prevents false-positive
-    // error noise without masking genuinely invalid transitions.
-    if (TERMINAL_STATES.has(run.status) && TERMINAL_STATES.has(args.status)) {
+    // If the run is already in a terminal state, treat any further status
+    // update as a silent no-op. This covers two races:
+    //   1. terminal → terminal (e.g. killed → stopped): exit handler races
+    //      with runCommand's inline kill. Both are 'truth' — the settled
+    //      state is authoritative.
+    //   2. terminal → running (e.g. stopped → running): user stopped a
+    //      'pending' run inline (stopCommand), then the daemon processed the
+    //      command.run event and tried to mark it running. The row is settled;
+    //      the daemon's late write is a lie — suppress it.
+    if (TERMINAL_STATES.has(run.status)) {
       return; // already settled — nothing to do
     }
 
@@ -361,7 +366,7 @@ export const updateRunStatus = mutation({
       update.completedAt = Date.now();
     }
 
-    await ctx.db.patch("chatroom_commandRuns", args.runId, update);
+    await ctx.db.patch('chatroom_commandRuns', args.runId, update);
   },
 });
 
@@ -534,7 +539,7 @@ export const getRunOutput = query({
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.ok) return { chunks: [], run: null };
 
-    const run = await ctx.db.get("chatroom_commandRuns", args.runId);
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) return { chunks: [], run: null };
 
     // Verify the caller has access to this machine through chatroom membership
@@ -553,6 +558,34 @@ export const getRunOutput = query({
     chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
     return { chunks, run };
+  },
+});
+
+/**
+ * Get the current status of a single command run.
+ * Lightweight query used by the daemon to check run status before spawning.
+ */
+export const getRunStatus = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    runId: v.id('chatroom_commandRuns'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) return null;
+
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    if (!run) return null;
+    if (run.machineId !== args.machineId) return null;
+
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    return { status: run.status };
   },
 });
 
@@ -592,7 +625,10 @@ export const clearStaleCommandRuns = mutation({
 
     for (const run of allRuns) {
       if (run.status === 'pending' || run.status === 'running') {
-        await ctx.db.patch("chatroom_commandRuns", run._id, { status: 'stopped', completedAt: now });
+        await ctx.db.patch('chatroom_commandRuns', run._id, {
+          status: 'stopped',
+          completedAt: now,
+        });
         clearedCount++;
       }
     }
