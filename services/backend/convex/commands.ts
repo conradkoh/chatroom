@@ -30,6 +30,9 @@ const MAX_OUTPUT_CHUNK_BYTES = 100 * 1024;
 /** Max output chunks per run (to bound storage). */
 const MAX_OUTPUT_CHUNKS_PER_RUN = 1000;
 
+/** Terminal run statuses — once in these states a run cannot transition further. */
+const TERMINAL_STATES = new Set<string>(['completed', 'failed', 'stopped', 'killed']);
+
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
 /**
@@ -317,7 +320,6 @@ export const updateRunStatus = mutation({
     // terminal state (e.g. killed → stopped race between runCommand and the
     // daemon exit handler), treat it as a no-op. This prevents false-positive
     // error noise without masking genuinely invalid transitions.
-    const TERMINAL_STATES = new Set(['completed', 'failed', 'stopped', 'killed']);
     if (TERMINAL_STATES.has(run.status) && TERMINAL_STATES.has(args.status)) {
       return; // already settled — nothing to do
     }
