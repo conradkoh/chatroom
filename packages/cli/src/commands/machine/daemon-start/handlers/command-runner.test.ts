@@ -22,15 +22,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import {
-  onCommandRun,
-  onCommandStop,
-  shutdownAllCommands,
-  evictStalePendingStops,
-  runningProcesses, // @internal
-  runningProcessesByCommand, // @internal
-  pendingStops, // @internal
-} from './command-runner.js';
+import { onCommandRun, onCommandStop, shutdownAllCommands } from './command-runner.js';
+import { processManager } from './process/manager.js';
 import { deriveTerminalStatus } from './process/state.js';
 import type { DaemonContext } from '../types.js';
 
@@ -141,9 +134,7 @@ let processKillSpy: { mockRestore: () => void };
 beforeEach(() => {
   ctx = createCtx();
   // Clear module-level state between tests
-  runningProcesses.clear();
-  runningProcessesByCommand.clear();
-  pendingStops.clear();
+  processManager.clear();
   // Reset all mock call counts and implementations
   vi.clearAllMocks();
   // Default spawn implementation — returns a new fake child per call
@@ -164,9 +155,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   // Ensure no leftover state leaks between tests
-  runningProcesses.clear();
-  runningProcessesByCommand.clear();
-  pendingStops.clear();
+  processManager.clear();
 });
 
 // ---------------------------------------------------------------------------
@@ -191,7 +180,7 @@ describe('shutdownAllCommands', () => {
       workingDir: '/tmp',
     });
 
-    expect(runningProcesses.size).toBe(1);
+    expect(processManager.size).toBe(1);
 
     const shutdownPromise = shutdownAllCommands(ctx);
     // Advance past the 3-second grace period so the promise resolves
@@ -199,7 +188,7 @@ describe('shutdownAllCommands', () => {
     await shutdownPromise;
 
     expect(process.kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
-    expect(runningProcesses.size).toBe(0);
+    expect(processManager.size).toBe(0);
   });
 
   it("marks each run as status='killed' with terminationReason='daemon-shutdown'", async () => {
@@ -244,7 +233,7 @@ describe('shutdownAllCommands', () => {
     // SIGTERM was sent first to the process group, SIGKILL after grace period
     expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGTERM');
     expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGKILL');
-    expect(runningProcesses.size).toBe(0);
+    expect(processManager.size).toBe(0);
   });
 
   it('uses detached:true and kills via negative PID to deliver signal to entire process group', async () => {
@@ -290,8 +279,8 @@ describe('replace-on-rerun', () => {
       script: 'pnpm dev',
       workingDir: '/tmp/project',
     });
-    expect(runningProcesses.has('run-first')).toBe(true);
-    expect(runningProcessesByCommand.get('test-machine|/tmp/project|dev')).toBe('run-first');
+    expect(processManager.has('run-first')).toBe(true);
+    expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-first');
 
     // Second run — should kill first
     const secondRunPromise = onCommandRun(ctx, {
@@ -309,8 +298,8 @@ describe('replace-on-rerun', () => {
     await secondRunPromise;
 
     expect(process.kill).toHaveBeenCalledWith(-1111, 'SIGTERM');
-    expect(runningProcesses.has('run-second')).toBe(true);
-    expect(runningProcessesByCommand.get('test-machine|/tmp/project|dev')).toBe('run-second');
+    expect(processManager.has('run-second')).toBe(true);
+    expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-second');
   });
 
   it('does NOT kill prior run if commandName differs', async () => {
@@ -337,8 +326,8 @@ describe('replace-on-rerun', () => {
 
     // 'dev' process should NOT have been killed
     expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
-    expect(runningProcesses.has('run-dev')).toBe(true);
-    expect(runningProcesses.has('run-build')).toBe(true);
+    expect(processManager.has('run-dev')).toBe(true);
+    expect(processManager.has('run-build')).toBe(true);
   });
 
   it('spawn args include detached:true so the child leads its own process group', async () => {
@@ -365,13 +354,13 @@ describe('replace-on-rerun', () => {
 describe('pending-stop race (stop-before-run)', () => {
   it('registers a pending stop when no process is found for the runId', async () => {
     await onCommandStop(ctx, { runId: 'run-orphan' as any });
-    expect(pendingStops.has('run-orphan')).toBe(true);
+    expect(processManager.hasPendingStop('run-orphan')).toBe(true);
   });
 
   it('skips spawning when a pending stop exists for the runId', async () => {
     // Simulate stop arriving before run
     await onCommandStop(ctx, { runId: 'run-race' as any });
-    expect(pendingStops.has('run-race')).toBe(true);
+    expect(processManager.hasPendingStop('run-race')).toBe(true);
 
     // Now the run event arrives — should be skipped
     await onCommandRun(ctx, {
@@ -384,7 +373,7 @@ describe('pending-stop race (stop-before-run)', () => {
     // spawn must NOT have been called
     expect(spawn).not.toHaveBeenCalled();
     // Pending stop entry consumed
-    expect(pendingStops.has('run-race')).toBe(false);
+    expect(processManager.hasPendingStop('run-race')).toBe(false);
     // Backend should have been called with 'stopped' (both from onCommandStop AND onCommandRun skip)
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const statusArgs = mutationCalls.map((c) => (c[1] as any)?.status);
@@ -403,7 +392,7 @@ describe('pending-stop race (stop-before-run)', () => {
     });
 
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(runningProcesses.has('run-normal')).toBe(true);
+    expect(processManager.has('run-normal')).toBe(true);
   });
 
   it('throws when backend mutation fails so dispatchCommandEvent can retry', async () => {
@@ -413,7 +402,7 @@ describe('pending-stop race (stop-before-run)', () => {
       'Convex disconnect'
     );
 
-    expect(pendingStops.has('run-orphan-fail')).toBe(true);
+    expect(processManager.hasPendingStop('run-orphan-fail')).toBe(true);
   });
 });
 
@@ -437,8 +426,8 @@ describe('pre-spawn DB status check', () => {
     expect(spawn).not.toHaveBeenCalled();
     // No updateRunStatus write should occur
     expect(vi.mocked(ctx.deps.backend.mutation)).not.toHaveBeenCalled();
-    // Not registered in runningProcesses
-    expect(runningProcesses.has('run-already-stopped')).toBe(false);
+    // Not registered in process manager
+    expect(processManager.has('run-already-stopped')).toBe(false);
   });
 
   it('skips spawn when run is killed, completed, or failed', async () => {
@@ -471,7 +460,7 @@ describe('pre-spawn DB status check', () => {
     });
 
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(runningProcesses.has('run-pending-ok')).toBe(true);
+    expect(processManager.has('run-pending-ok')).toBe(true);
   });
 
   it('proceeds with spawn when run is running (replace case)', async () => {
@@ -487,7 +476,7 @@ describe('pre-spawn DB status check', () => {
     });
 
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(runningProcesses.has('run-running-replace')).toBe(true);
+    expect(processManager.has('run-running-replace')).toBe(true);
   });
 
   it('proceeds with spawn when backend query fails (recoverable error)', async () => {
@@ -505,7 +494,7 @@ describe('pre-spawn DB status check', () => {
 
     // Should still spawn (error is non-fatal)
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(runningProcesses.has('run-query-fail')).toBe(true);
+    expect(processManager.has('run-query-fail')).toBe(true);
   });
 });
 
@@ -516,28 +505,27 @@ describe('pre-spawn DB status check', () => {
 describe('evictStalePendingStops', () => {
   it('evicts entries older than 60 seconds', () => {
     vi.useFakeTimers();
-    const now = Date.now();
-    pendingStops.set('old-run', now - 61_000); // 61 seconds old
-    pendingStops.set('fresh-run', now - 5_000); // 5 seconds old — keep
+    processManager.markPendingStop('old-run');
+    vi.advanceTimersByTime(61_000);
+    processManager.markPendingStop('fresh-run');
 
-    evictStalePendingStops();
+    processManager.evictStalePendingStops();
 
-    expect(pendingStops.has('old-run')).toBe(false);
-    expect(pendingStops.has('fresh-run')).toBe(true);
+    expect(processManager.hasPendingStop('old-run')).toBe(false);
+    expect(processManager.hasPendingStop('fresh-run')).toBe(true);
   });
 
   it('keeps entries younger than 60 seconds', () => {
     vi.useFakeTimers();
-    const now = Date.now();
-    pendingStops.set('young-run', now); // just added
+    processManager.markPendingStop('young-run');
 
-    evictStalePendingStops();
+    processManager.evictStalePendingStops();
 
-    expect(pendingStops.has('young-run')).toBe(true);
+    expect(processManager.hasPendingStop('young-run')).toBe(true);
   });
 
   it('is a no-op when pendingStops is empty', () => {
-    expect(() => evictStalePendingStops()).not.toThrow();
+    expect(() => processManager.evictStalePendingStops()).not.toThrow();
   });
 });
 
@@ -586,7 +574,7 @@ describe('24-hour soft timeout', () => {
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
     expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGTERM');
 
-    // Advance past the 5-second SIGTERM grace period (process still in runningProcesses
+    // Advance past the 5-second SIGTERM grace period (process still in processManager
     // because no 'exit' event was emitted by the fake child)
     await vi.advanceTimersByTimeAsync(6_000);
 
@@ -663,7 +651,7 @@ describe('process-group kill (real process tree)', () => {
     await new Promise<void>((r) => setTimeout(r, 400));
 
     // Get the tracked process PID
-    const tracked = runningProcesses.get(String(runId));
+    const tracked = processManager.get(String(runId));
     expect(tracked).toBeDefined();
     const pid = tracked!.process.pid!;
 

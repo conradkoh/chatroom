@@ -13,40 +13,8 @@ import { getErrorMessage } from '../../../../utils/convex-error.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids, trackChildPid, untrackChildPid } from './orphan-tracker.js';
-import {
-  deriveTerminalStatus,
-  PENDING_STOP_TTL_MS,
-  TERMINAL_STATES,
-  type RunningProcess,
-} from './process/state.js';
-
-// ─── State ──────────────────────────────────────────────────────────────────
-
-/**
- * Primary index: runId → tracked process.
- * @internal — exported for tests only
- */
-export const runningProcesses = new Map<string, RunningProcess>();
-
-/**
- * Secondary index: commandKey → runId.
- * Allows O(1) lookup of the current process for a (machineId, workingDir, commandName) tuple.
- * @internal — exported for tests only
- */
-export const runningProcessesByCommand = new Map<string, string>();
-
-/** Map of runId → timestamp for stops that arrived before the process was spawned.
- *  Used to prevent zombie processes when command.stop arrives before command.run. */
-// @internal — exported for tests only
-export const pendingStops = new Map<string, number>();
-
-/** Evict pending stop entries older than PENDING_STOP_TTL_MS. Called periodically from the command loop. */
-export function evictStalePendingStops(): void {
-  const evictBefore = Date.now() - PENDING_STOP_TTL_MS;
-  for (const [runId, ts] of pendingStops) {
-    if (ts < evictBefore) pendingStops.delete(runId);
-  }
-}
+import { deriveTerminalStatus, TERMINAL_STATES, type RunningProcess } from './process/state.js';
+import { processManager } from './process/manager.js';
 
 /** How often to flush buffered output to backend (ms). */
 const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
@@ -146,26 +114,11 @@ function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
 }
 
 /**
- * Wait up to `ms` milliseconds for the process to exit (i.e. be removed from runningProcesses).
+ * Wait up to `ms` milliseconds for the process to exit (i.e. be removed from the process manager).
  * Resolves true if the process exited within the timeout, false otherwise.
  */
 function waitForExit(runIdStr: string, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const interval = 100;
-    let elapsed = 0;
-    const timer = setInterval(() => {
-      if (!runningProcesses.has(runIdStr)) {
-        clearInterval(timer);
-        resolve(true);
-        return;
-      }
-      elapsed += interval;
-      if (elapsed >= ms) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, interval);
-  });
+  return processManager.waitForExit(runIdStr, ms);
 }
 
 /**
@@ -203,14 +156,13 @@ export async function onCommandRun(
   const commandKey = buildCommandKey(ctx.machineId, workingDir, commandName);
 
   // Prevent double-spawning
-  if (runningProcesses.has(runIdStr)) {
+  if (processManager.has(runIdStr)) {
     console.log(`[${formatTimestamp()}] ⚠️ Command already running: ${runIdStr}`);
     return;
   }
 
   // Check for a pending stop that arrived before this run event.
-  if (pendingStops.has(runIdStr)) {
-    pendingStops.delete(runIdStr);
+  if (processManager.consumePendingStop(runIdStr)) {
     console.log(
       `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
     );
@@ -256,22 +208,18 @@ export async function onCommandRun(
   }
 
   // ── Replace semantics: kill any prior process for this (machineId, workingDir, commandName) ──
-  const priorRunId = runningProcessesByCommand.get(commandKey);
-  if (priorRunId) {
-    const priorTracked = runningProcesses.get(priorRunId);
-    if (priorTracked) {
-      console.log(
-        `[${formatTimestamp()}] 🔄 Replacing prior run ${priorRunId} with ${runIdStr} for ${commandName}`
-      );
-      // Set intent BEFORE killing so exit handler reports 'killed', not 'stopped'
-      priorTracked.terminationIntent = 'killed';
-      clearInterval(priorTracked.flushTimer);
-      if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
-      await killTrackedProcess(priorTracked);
-      // Maps cleaned up by the 'exit' handler — but if not (SIGKILL silent), clean manually
-      runningProcesses.delete(priorRunId);
-      runningProcessesByCommand.delete(commandKey);
-    }
+  const priorTracked = processManager.getByCommand(commandKey);
+  if (priorTracked) {
+    console.log(
+      `[${formatTimestamp()}] 🔄 Replacing prior run ${priorTracked.runId} with ${runIdStr} for ${commandName}`
+    );
+    // Set intent BEFORE killing so exit handler reports 'killed', not 'stopped'
+    priorTracked.terminationIntent = 'killed';
+    clearInterval(priorTracked.flushTimer);
+    if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
+    await killTrackedProcess(priorTracked);
+    // Maps cleaned up by the 'exit' handler — but if not (SIGKILL silent), clean manually
+    processManager.unregister(priorTracked.runId, commandKey);
   }
 
   console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
@@ -319,8 +267,7 @@ export async function onCommandRun(
   tracked.flushTimer.unref?.();
 
   // Register in both indexes before async work so replace/stop lookups work immediately
-  runningProcesses.set(runIdStr, tracked);
-  runningProcessesByCommand.set(commandKey, runIdStr);
+  processManager.register(runIdStr, commandKey, tracked);
 
   // Persist PGID so it can be reaped if the daemon exits ungracefully (SIGKILL/crash)
   if (child.pid != null) {
@@ -332,7 +279,7 @@ export async function onCommandRun(
     console.log(
       `[${formatTimestamp()}] ⏰ Command soft timeout (24h): ${commandName} (runId: ${runIdStr})`
     );
-    const currentTracked = runningProcesses.get(runIdStr);
+    const currentTracked = processManager.get(runIdStr);
     if (!currentTracked) return;
 
     // Set intent BEFORE killing so exit handler reports 'killed', not 'stopped'
@@ -355,7 +302,7 @@ export async function onCommandRun(
 
     killProcess(child, 'SIGTERM');
     setTimeout(() => {
-      if (!runningProcesses.has(runIdStr)) return;
+      if (!processManager.has(runIdStr)) return;
       console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
       killProcess(child, 'SIGKILL');
     }, SIGTERM_GRACE_PERIOD_MS);
@@ -405,11 +352,7 @@ export async function onCommandRun(
     // Clean up timers and state
     clearInterval(tracked.flushTimer);
     if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-    runningProcesses.delete(runIdStr);
-    // Only delete the command key if it still points to this run (a replace may have already updated it)
-    if (runningProcessesByCommand.get(commandKey) === runIdStr) {
-      runningProcessesByCommand.delete(commandKey);
-    }
+    processManager.unregister(runIdStr, commandKey);
 
     // Determine final status using daemon intent (if set) or exit code/signal
     const status = deriveTerminalStatus(
@@ -444,10 +387,7 @@ export async function onCommandRun(
 
     clearInterval(tracked.flushTimer);
     if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-    runningProcesses.delete(runIdStr);
-    if (runningProcessesByCommand.get(commandKey) === runIdStr) {
-      runningProcessesByCommand.delete(commandKey);
-    }
+    processManager.unregister(runIdStr, commandKey);
 
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
@@ -469,14 +409,14 @@ export async function onCommandRun(
  */
 export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
   const runIdStr = event.runId.toString();
-  const tracked = runningProcesses.get(runIdStr);
+  const tracked = processManager.get(runIdStr);
 
   // No tracked process — register pending stop and mark backend stopped.
   if (!tracked) {
     console.log(
       `[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr} — marking as stopped`
     );
-    pendingStops.set(runIdStr, Date.now());
+    processManager.markPendingStop(runIdStr);
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -540,14 +480,12 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
  * No-op if no commands are running.
  */
 export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
-  if (runningProcesses.size === 0) return;
+  if (processManager.size === 0) return;
 
-  console.log(
-    `[${formatTimestamp()}] Shutting down ${runningProcesses.size} running command(s)...`
-  );
+  console.log(`[${formatTimestamp()}] Shutting down ${processManager.size} running command(s)...`);
 
   // Snapshot the current runs before async work
-  const trackedEntries = [...runningProcesses.entries()];
+  const trackedEntries = processManager.getAll();
 
   for (const [, tracked] of trackedEntries) {
     clearInterval(tracked.flushTimer);
@@ -583,13 +521,12 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
 
   // Force-kill any survivors
   for (const [, tracked] of trackedEntries) {
-    if (runningProcesses.has(tracked.runId)) {
+    if (processManager.has(tracked.runId)) {
       killProcess(tracked.process, 'SIGKILL');
     }
   }
 
-  runningProcesses.clear();
-  runningProcessesByCommand.clear();
+  processManager.clear();
   // All processes have been killed — clear the orphan pids file so the next
   // daemon start doesn't try to reap processes that were already cleaned up.
   clearTrackedPids();
