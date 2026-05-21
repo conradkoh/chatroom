@@ -2,8 +2,7 @@ import { ConvexError } from 'convex/values';
 import type { MutationCtx } from '../_generated/server';
 import { isTerminal, assertValidTransition } from './fsm';
 import { MAX_COMMANDS_PER_SYNC } from './types';
-
-type RunId = any;
+import { buildStatusUpdate, type RunId } from './process/state';
 
 export async function handleSyncCommands(
   ctx: MutationCtx,
@@ -72,19 +71,11 @@ export async function handleUpdateRunStatus(
 
   assertValidTransition(run.status, args.status);
 
-  const update: Record<string, unknown> = { status: args.status };
-  if (args.pid !== undefined) update.pid = args.pid;
-  if (args.exitCode !== undefined) update.exitCode = args.exitCode;
-  if (args.terminationReason !== undefined) update.terminationReason = args.terminationReason;
-
-  if (
-    args.status === 'completed' ||
-    args.status === 'failed' ||
-    args.status === 'stopped' ||
-    args.status === 'killed'
-  ) {
-    update.completedAt = Date.now();
-  }
+  const update = buildStatusUpdate(args.status, {
+    pid: args.pid,
+    exitCode: args.exitCode,
+    terminationReason: args.terminationReason,
+  });
 
   await ctx.db.patch('chatroom_commandRuns', args.runId, update);
 }
