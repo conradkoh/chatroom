@@ -272,7 +272,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
-        `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
       );
       lines.push(contextNewHint());
       lines.push('4. Delegate phase 1 to builder:');
@@ -294,7 +294,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       if (isEntryPoint) {
         lines.push('');
         lines.push(
-          `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+          `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
         );
         lines.push(contextNewHint());
         nextStepNum++;
@@ -327,7 +327,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     let nextStepNum = 2;
     if (isEntryPoint) {
       lines.push(
-        `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
       );
       lines.push(contextNewHint());
       nextStepNum++;
