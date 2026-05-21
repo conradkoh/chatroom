@@ -5,8 +5,7 @@
  * to the backend every few seconds to minimize DB writes.
  */
 
-import { spawn } from 'node:child_process';
-import type { ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { access } from 'node:fs/promises';
 
 import { api } from '../../../../api.js';
@@ -14,30 +13,12 @@ import { getErrorMessage } from '../../../../utils/convex-error.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids, trackChildPid, untrackChildPid } from './orphan-tracker.js';
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-/** Tracked running process. */
-interface RunningProcess {
-  process: ChildProcess;
-  runId: string;
-  /** Composite key: `${machineId}|${workingDir}|${commandName}` */
-  commandKey: string;
-  outputBuffer: string;
-  chunkIndex: number;
-  flushTimer: ReturnType<typeof setInterval>;
-  softTimeoutTimer: ReturnType<typeof setTimeout> | null;
-  /**
-   * Records why the daemon is intentionally terminating this process.
-   * - `'killed'`: replaced by a newer run, or hit the 24-hour soft timeout.
-   * - `'stopped'`: explicit user-stop via command.stop event.
-   * - `null`: no daemon-initiated intent; exit status derives purely from exit code/signal.
-   *
-   * Set BEFORE sending the kill signal so the `exit` handler can read it and
-   * report the correct terminal status instead of inferring it from the OS signal.
-   */
-  terminationIntent: 'killed' | 'stopped' | null;
-}
+import {
+  deriveTerminalStatus,
+  PENDING_STOP_TTL_MS,
+  TERMINAL_STATES,
+  type RunningProcess,
+} from './process/state.js';
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -59,9 +40,6 @@ export const runningProcessesByCommand = new Map<string, string>();
 // @internal — exported for tests only
 export const pendingStops = new Map<string, number>();
 
-/** How long to keep pending stop entries before eviction (ms). */
-const PENDING_STOP_TTL_MS = 60_000;
-
 /** Evict pending stop entries older than PENDING_STOP_TTL_MS. Called periodically from the command loop. */
 export function evictStalePendingStops(): void {
   const evictBefore = Date.now() - PENDING_STOP_TTL_MS;
@@ -69,12 +47,6 @@ export function evictStalePendingStops(): void {
     if (ts < evictBefore) pendingStops.delete(runId);
   }
 }
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-/** Terminal run statuses — once in these states a run cannot transition further.
- *  Mirrors the set in services/backend/convex/commands.ts. */
-const TERMINAL_STATES = new Set<string>(['completed', 'failed', 'stopped', 'killed']);
 
 /** How often to flush buffered output to backend (ms). */
 const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
@@ -97,30 +69,6 @@ const SIGTERM_GRACE_PERIOD_MS = 5_000;
  */
 function buildCommandKey(machineId: string, workingDir: string, commandName: string): string {
   return `${machineId}|${workingDir}|${commandName}`;
-}
-
-/**
- * Derive the terminal status to report for a command run when its process exits.
- *
- * Priority rules:
- * 1. If `terminationIntent` is set, the daemon initiated the termination — use it.
- *    This ensures replace-semantics (`killed`) and user-stops (`stopped`) are reported
- *    correctly even when the OS delivers a signal at the same time.
- * 2. Exit code 0 → `completed` (clean natural exit).
- * 3. Non-null signal with no intent → `stopped` (externally terminated, not by daemon).
- * 4. Non-zero exit code, no signal → `failed` (process crashed / reported error).
- *
- * @internal — exported for unit tests only
- */
-export function deriveTerminalStatus(
-  code: number | null,
-  signal: NodeJS.Signals | null,
-  terminationIntent: 'killed' | 'stopped' | null
-): 'completed' | 'failed' | 'stopped' | 'killed' {
-  if (terminationIntent !== null) return terminationIntent;
-  if (code === 0) return 'completed';
-  if (signal !== null) return 'stopped';
-  return 'failed';
 }
 
 /**

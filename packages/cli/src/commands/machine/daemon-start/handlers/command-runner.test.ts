@@ -27,11 +27,11 @@ import {
   onCommandStop,
   shutdownAllCommands,
   evictStalePendingStops,
-  deriveTerminalStatus, // @internal
   runningProcesses, // @internal
   runningProcessesByCommand, // @internal
   pendingStops, // @internal
 } from './command-runner.js';
+import { deriveTerminalStatus } from './process/state.js';
 import type { DaemonContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
