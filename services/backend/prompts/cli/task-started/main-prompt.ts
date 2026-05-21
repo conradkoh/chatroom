@@ -3,7 +3,7 @@
  */
 
 import { classifyCommand } from '../classify/command';
-import { contextNewCommand } from '../context/new';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
@@ -77,7 +77,8 @@ ${newFeatureCmd}
 **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
 \`\`\`bash
 ${contextNewCmd}
-\`\`\``;
+\`\`\`
+${contextNewHint()}`;
 }
 
 /**
