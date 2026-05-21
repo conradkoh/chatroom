@@ -7,16 +7,16 @@ import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
 import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
+import type {
+  GitBranchResult,
+  GitDiffStatResult,
+  GitPullRequest,
+} from '../../../infrastructure/git/types.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Tracks the last time a full (non-slim) git state push was performed per workspace.
  *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */
 const lastFullPushMs = new Map<string, number>();
-
-import type {
-  GitBranchResult,
-  GitDiffStatResult,
- GitPullRequest } from '../../../infrastructure/git/types.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /**
  * Branch field descriptor — pre-collected before the pipeline runs.
@@ -290,11 +290,16 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
   // fields (diffStat, commitsAhead, remotes, allPullRequests, recent commits).
   // On daemon restart the map is empty, so the first observation triggers a
   // full push — that's intentional.
+  //
+  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitState
+  // throws, the next observation will re-attempt the full push instead of
+  // waiting another OBSERVED_FULL_PUSH_INTERVAL_MS. This keeps non-slim fields
+  // self-healing during transient failures.
   const now = Date.now();
   const lastFull = lastFullPushMs.get(stateKey) ?? 0;
   if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-    lastFullPushMs.set(stateKey, now);
     await pushSingleWorkspaceGitState(ctx, workingDir);
+    lastFullPushMs.set(stateKey, now);
     console.log(
       `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
     );
@@ -329,4 +334,3 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
     `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
   );
 }
-
