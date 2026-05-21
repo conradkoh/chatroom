@@ -17,7 +17,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
-import { BACKEND_ERROR_CODES } from '../config/errorCodes';
+import { isTerminal, assertValidTransition } from './commands/fsm';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -29,9 +29,6 @@ const MAX_OUTPUT_CHUNK_BYTES = 100 * 1024;
 
 /** Max output chunks per run (to bound storage). */
 const MAX_OUTPUT_CHUNKS_PER_RUN = 1000;
-
-/** Terminal run statuses — once in these states a run cannot transition further. */
-const TERMINAL_STATES = new Set<string>(['completed', 'failed', 'stopped', 'killed']);
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -325,24 +322,14 @@ export const updateRunStatus = mutation({
     //      'pending' run inline (stopCommand), then the daemon processed the
     //      command.run event and tried to mark it running. The row is settled;
     //      the daemon's late write is a lie — suppress it.
-    if (TERMINAL_STATES.has(run.status)) {
+    if (isTerminal(run.status)) {
       return; // already settled — nothing to do
     }
 
     // State transition validation: only allow valid forward transitions
     // Note: 'killed' is set directly by runCommand (replace semantics) and by
     // clearStaleCommandRuns — not via this mutation.
-    const validTransitions: Record<string, string[]> = {
-      pending: ['running', 'failed', 'stopped', 'killed'],
-      running: ['completed', 'failed', 'stopped', 'killed'],
-    };
-    const allowed = validTransitions[run.status];
-    if (!allowed || !allowed.includes(args.status)) {
-      throw new ConvexError({
-        code: BACKEND_ERROR_CODES.INVALID_RUN_STATE_TRANSITION,
-        message: `Invalid run status transition: ${run.status} → ${args.status}`,
-      });
-    }
+    assertValidTransition(run.status, args.status);
 
     const update: {
       status: typeof args.status;
