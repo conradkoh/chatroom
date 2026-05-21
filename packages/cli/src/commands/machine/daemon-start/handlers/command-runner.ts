@@ -29,7 +29,7 @@ async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): 
       sessionId: ctx.sessionId as SessionId,
       machineId: ctx.machineId,
       runId,
-      status: 'failed' as any,
+      status: 'failed',
     });
   } catch (err) {
     console.warn(
@@ -69,7 +69,7 @@ export async function onCommandRun(
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId,
-        status: 'stopped' as any,
+        status: 'stopped',
       });
     } catch (err) {
       console.warn(
@@ -165,7 +165,7 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId: event.runId,
-        status: 'stopped' as any,
+        status: 'stopped',
       });
     } catch (err) {
       console.warn(
@@ -191,7 +191,7 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
       sessionId: ctx.sessionId as SessionId,
       machineId: ctx.machineId,
       runId: event.runId,
-      status: 'stopped' as any,
+      status: 'stopped',
     });
   } catch (err) {
     console.warn(
@@ -216,7 +216,7 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId: tracked.runId as any,
-        status: 'killed' as any,
+        status: 'killed',
         terminationReason: 'daemon-shutdown',
       });
     } catch (err) {

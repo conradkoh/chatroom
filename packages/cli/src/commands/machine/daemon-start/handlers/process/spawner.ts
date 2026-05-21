@@ -101,7 +101,7 @@ export function spawnCommandProcess(
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId,
-        status: 'killed' as any,
+        status: 'killed',
         terminationReason: 'timeout-24h',
       });
     } catch (err) {
@@ -154,7 +154,7 @@ export function spawnCommandProcess(
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId,
-        status: status as any,
+        status: status,
         exitCode: code ?? undefined,
       });
     } catch (err) {
@@ -180,7 +180,7 @@ export function spawnCommandProcess(
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId,
-        status: 'failed' as any,
+        status: 'failed',
       });
     } catch (updateErr) {
       console.warn(
