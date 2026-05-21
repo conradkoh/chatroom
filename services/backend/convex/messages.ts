@@ -55,7 +55,9 @@ async function enrichMessageAttachments(
   // Resolve attached tasks
   let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
   if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-    const tasks = await Promise.all(msg.attachedTaskIds.map((taskId) => ctx.db.get("chatroom_tasks", taskId)));
+    const tasks = await Promise.all(
+      msg.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
+    );
     attachedTasks = tasks
       .filter((t): t is NonNullable<typeof t> => t !== null)
       .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
@@ -64,7 +66,9 @@ async function enrichMessageAttachments(
   // Resolve attached backlog items
   let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
   if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
-    const items = await Promise.all(msg.attachedBacklogItemIds.map((itemId) => ctx.db.get("chatroom_backlog", itemId)));
+    const items = await Promise.all(
+      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
+    );
     attachedBacklogItems = items
       .filter((i): i is NonNullable<typeof i> => i !== null)
       .map((i) => ({ id: i._id, content: i.content, status: i.status }));
@@ -75,7 +79,9 @@ async function enrichMessageAttachments(
     | { _id: string; content: string; senderRole: string; _creationTime: number }[]
     | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
-    const msgs = await Promise.all(msg.attachedMessageIds.map((msgId) => ctx.db.get("chatroom_messages", msgId)));
+    const msgs = await Promise.all(
+      msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
+    );
     attachedMessages = msgs
       .filter((m): m is NonNullable<typeof m> => m !== null)
       .map((m) => ({
@@ -92,7 +98,7 @@ async function enrichMessageAttachments(
     | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
-      msg.attachedArtifactIds.map((artifactId) => ctx.db.get("chatroom_artifacts", artifactId))
+      msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
     );
     attachedArtifacts = artifacts
       .filter((a): a is NonNullable<typeof a> => a !== null)
@@ -107,7 +113,9 @@ async function enrichMessageAttachments(
   // Resolve attached workflows
   let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
   if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
-    const workflows = await Promise.all(msg.attachedWorkflowIds.map((wfId) => ctx.db.get("chatroom_workflows", wfId)));
+    const workflows = await Promise.all(
+      msg.attachedWorkflowIds.map((wfId) => ctx.db.get('chatroom_workflows', wfId))
+    );
     attachedWorkflows = workflows
       .filter((w): w is NonNullable<typeof w> => w !== null)
       .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
@@ -134,7 +142,7 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
   const taskMap = new Map<string, { status: string } | null>();
   const taskResults = await Promise.all(
     uniqueTaskIds.map(async (id) => {
-      const task = await ctx.db.get("chatroom_tasks", id);
+      const task = await ctx.db.get('chatroom_tasks', id);
       return [id.toString(), task ? { status: task.status } : null] as const;
     })
   );
@@ -1435,7 +1443,6 @@ export const listQueued = query({
   },
 });
 
-
 /**
  * Returns all progress messages for a given task, ordered chronologically.
  * Used by TaskProgressHistory in MessageFeed to display progress updates
@@ -1471,70 +1478,6 @@ export const getProgressForTask = query({
       senderRole: msg.senderRole,
       _creationTime: msg._creationTime,
     }));
-  },
-});
-
-/**
- * Returns messages for active tasks in the chatroom.
- * Used by the frontend to subscribe to classification/metadata updates for
- * messages that are still being processed. When a task's source message gets
- * classified, this query's reactive update will include the new classification data.
- */
-export const getActiveTaskMessages = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get all active tasks using 3 separate indexed queries to fully leverage
-    // the composite (chatroomId, status) index instead of filtering in memory.
-    const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-        )
-        .collect(),
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-        )
-        .collect(),
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-        )
-        .collect(),
-    ]);
-    const activeTasks = [...pendingTasks, ...acknowledgedTasks, ...inProgressTasks];
-
-    // Get source message IDs from active tasks
-    const sourceMessageIds = activeTasks
-      .filter((t) => t.sourceMessageId != null)
-      .map((t) => t.sourceMessageId!);
-
-    if (sourceMessageIds.length === 0) {
-      return { messages: [] };
-    }
-
-    // Fetch all source messages in parallel
-    const messages = await Promise.all(
-      sourceMessageIds.map(async (id) => {
-        const msg = await ctx.db.get("chatroom_messages", id);
-        return msg;
-      })
-    );
-
-    // Filter out nulls (deleted messages) and enrich with task status
-    const validMessages = messages.filter((m): m is NonNullable<typeof m> => m != null);
-    const enrichedMessages = await enrichMessages(ctx, validMessages);
-
-    return { messages: enrichedMessages };
   },
 });
 

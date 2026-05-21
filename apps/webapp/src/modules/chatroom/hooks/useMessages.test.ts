@@ -15,12 +15,9 @@ let mockPaginatedStatus: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'E
 let mockPaginatedResults: Array<Record<string, unknown>> = [];
 const mockLoadMore = vi.fn();
 
-// Configurable state for the tail / activeTasks / activeTaskMessages subscriptions
+// Configurable state for the tail / activeTasks subscriptions
 let mockTailData: Array<Record<string, unknown>> | undefined = [];
 let mockActiveTasks: Array<{ _id: string; status: string }> | undefined = [];
-let mockActiveTaskMessages: { messages: Array<Record<string, unknown>> } | undefined = {
-  messages: [],
-};
 
 vi.mock('../../../lib/useSessionPaginatedQuery', () => ({
   useSessionPaginatedQuery: (_query: unknown, _args: unknown, _options: unknown) => ({
@@ -36,8 +33,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
     const a = args as Record<string, unknown>;
     if ('sinceCreationTime' in a) return mockTailData;
     if ('statusFilter' in a) return mockActiveTasks;
-    // getActiveTaskMessages
-    return mockActiveTaskMessages;
+    return undefined;
   },
 }));
 
@@ -46,9 +42,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     messageList: {
       listMessages: 'listMessages',
       subscribeNewMessages: 'subscribeNewMessages',
-    },
-    messages: {
-      getActiveTaskMessages: 'getActiveTaskMessages',
     },
     tasks: {
       listTasks: 'listTasks',
@@ -84,7 +77,6 @@ describe('useMessages', () => {
     mockPaginatedResults = [];
     mockTailData = [];
     mockActiveTasks = [];
-    mockActiveTaskMessages = { messages: [] };
     mockLoadMore.mockClear();
   });
 
@@ -132,11 +124,7 @@ describe('useMessages', () => {
 
   it('merges historical (reversed to ASC) + tail in chronological order', () => {
     // Paginated returns DESC (newest first per page)
-    mockPaginatedResults = [
-      makeMsg('msg-3', 3000),
-      makeMsg('msg-2', 2000),
-      makeMsg('msg-1', 1000),
-    ];
+    mockPaginatedResults = [makeMsg('msg-3', 3000), makeMsg('msg-2', 2000), makeMsg('msg-1', 1000)];
     mockPaginatedStatus = 'Exhausted';
     // Tail has a newer message
     mockTailData = [makeMsg('msg-4', 4000)];
@@ -144,12 +132,7 @@ describe('useMessages', () => {
     const { result } = renderHook(() => useMessages('room-1'));
 
     expect(result.current.messages).toHaveLength(4);
-    expect(result.current.messages.map((m) => m._id)).toEqual([
-      'msg-1',
-      'msg-2',
-      'msg-3',
-      'msg-4',
-    ]);
+    expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-3', 'msg-4']);
   });
 
   // ── Deduplication ─────────────────────────────────────────────────────
@@ -174,29 +157,63 @@ describe('useMessages', () => {
     expect(mockLoadMore).toHaveBeenCalledWith(20);
   });
 
-  // ── purgeOldMessages and updateTaskStatus are no-ops ─────────────────
+  // ── purgeOldMessages is a no-op ──────────────────────────────────────
 
   it('purgeOldMessages is a no-op (does not throw)', () => {
     const { result } = renderHook(() => useMessages('room-1'));
     expect(() => result.current.purgeOldMessages(50)).not.toThrow();
   });
 
-  it('updateTaskStatus is a no-op (does not throw)', () => {
+  // ── Task-status via paginated source (no overlay) ─────────────────────
+
+  it('reflects paginated taskStatus over overlay when values diverge', () => {
+    mockPaginatedStatus = 'Exhausted';
+    // Overlay has stale 'in_progress' but paginated says 'completed'
+    mockActiveTasks = [{ _id: 'task-1', status: 'in_progress' }];
+    mockPaginatedResults = [makeMsg('msg-1', 1000, { taskId: 'task-1', taskStatus: 'completed' })];
+
     const { result } = renderHook(() => useMessages('room-1'));
-    expect(() => result.current.updateTaskStatus('task-1', 'completed')).not.toThrow();
+
+    expect(result.current.messages[0]!.taskStatus).toBe('completed');
   });
 
-  // ── Task-status subscription ──────────────────────────────────────────
+  // ── Task-status via tail source (no overlay) ──────────────────────────
 
-  it('applies task status from active-tasks subscription to messages', () => {
-    mockPaginatedResults = [makeMsg('msg-1', 1000, { taskId: 'task-1', taskStatus: 'pending' })];
+  it('reflects tail taskStatus over overlay when values diverge', () => {
     mockPaginatedStatus = 'Exhausted';
+    mockPaginatedResults = [];
+    // Overlay has stale 'in_progress' but tail says 'completed'
     mockActiveTasks = [{ _id: 'task-1', status: 'in_progress' }];
+    mockTailData = [makeMsg('msg-tail', 2000, { taskId: 'task-1', taskStatus: 'completed' })];
 
     const { result } = renderHook(() => useMessages('room-1'));
 
-    // The task-status map should override the stale 'pending' status
-    expect(result.current.messages[0]!.taskStatus).toBe('in_progress');
+    expect(result.current.messages[0]!.taskStatus).toBe('completed');
+  });
+
+  // ── Task deletion — no completed stamp ────────────────────────────────
+
+  it('does not stamp completed when task is deleted (paginated re-emits without taskStatus)', () => {
+    mockPaginatedStatus = 'Exhausted';
+    mockPaginatedResults = [makeMsg('msg-1', 1000, { taskId: 'task-1', taskStatus: 'pending' })];
+    // Task is active — overlay tracks it
+    mockActiveTasks = [{ _id: 'task-1', status: 'in_progress' }];
+
+    const { result, rerender } = renderHook(() => useMessages('room-1'));
+
+    // Initial state: paginated data has pending status (no overlay)
+    expect(result.current.messages[0]!.taskStatus).toBe('pending');
+
+    // Task deleted: leaves active set AND paginated data drops taskStatus
+    mockActiveTasks = [];
+    mockPaginatedResults = [
+      makeMsg('msg-1', 1000, { taskId: 'task-1' }), // no taskStatus
+    ];
+    rerender();
+
+    // Post-simplification: paginated taskStatus is undefined (task deleted)
+    // Currently fails: overlay stamps 'completed' because task left active set
+    expect(result.current.messages[0]!.taskStatus).toBeUndefined();
   });
 
   // ── Tail is skipped while LoadingFirstPage ────────────────────────────
@@ -222,7 +239,7 @@ describe('useMessages — empty-chatroom first-message regression', () => {
     mockPaginatedResults = [];
     mockTailData = [];
     mockActiveTasks = [];
-    mockActiveTaskMessages = { messages: [] };
+
     mockLoadMore.mockClear();
   });
 
