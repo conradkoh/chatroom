@@ -7,17 +7,16 @@ import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
 import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
-
-/** Tracks the last time a full (non-slim) git state push was performed per workspace.
- *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */
-const lastFullPushMs = new Map<string, number>();
-
 import type {
   GitBranchResult,
   GitDiffStatResult,
   GitPullRequest,
 } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+
+/** Tracks the last time a full (non-slim) git state push was performed per workspace.
+ *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */
+const lastFullPushMs = new Map<string, number>();
 
 /**
  * Branch field descriptor — pre-collected before the pipeline runs.
