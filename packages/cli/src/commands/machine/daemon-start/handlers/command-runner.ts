@@ -280,6 +280,8 @@ export async function onCommandRun(
       console.log(
         `[${formatTimestamp()}] 🔄 Replacing prior run ${priorRunId} with ${runIdStr} for ${commandName}`
       );
+      // Set intent BEFORE killing so exit handler reports 'killed', not 'stopped'
+      priorTracked.terminationIntent = 'killed';
       clearInterval(priorTracked.flushTimer);
       if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
       await killTrackedProcess(priorTracked);
@@ -342,7 +344,10 @@ export async function onCommandRun(
     const currentTracked = runningProcesses.get(runIdStr);
     if (!currentTracked) return;
 
-    // Set terminationReason before killing
+    // Set intent BEFORE killing so exit handler reports 'killed', not 'stopped'
+    currentTracked.terminationIntent = 'killed';
+
+    // Mark run as killed in backend before delivering the signal
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
         sessionId: ctx.sessionId as SessionId,
@@ -410,8 +415,8 @@ export async function onCommandRun(
       runningProcessesByCommand.delete(commandKey);
     }
 
-    // Determine final status
-    const status = code === 0 ? 'completed' : signal ? 'stopped' : 'failed';
+    // Determine final status using daemon intent (if set) or exit code/signal
+    const status = deriveTerminalStatus(code, signal as NodeJS.Signals | null, tracked.terminationIntent);
 
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
@@ -490,6 +495,10 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     clearTimeout(tracked.softTimeoutTimer);
     tracked.softTimeoutTimer = null;
   }
+
+  // Set intent BEFORE killing so exit handler reports 'stopped', not 'stopped' (via signal),
+  // and so it's not ambiguous if the process ignores SIGTERM and we escalate to SIGKILL.
+  tracked.terminationIntent = 'stopped';
 
   // Send SIGTERM and wait for graceful exit
   killProcess(tracked.process, 'SIGTERM');
