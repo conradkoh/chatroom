@@ -14,6 +14,10 @@ export interface RunningProcess {
 export const TERMINAL_STATES = new Set<string>(['completed', 'failed', 'stopped', 'killed']);
 
 export const PENDING_STOP_TTL_MS = 60_000;
+export const SIGTERM_GRACE_PERIOD_MS = 5_000;
+export const SOFT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+export const OUTPUT_FLUSH_INTERVAL_MS = 3_000;
+export const MAX_BUFFER_SIZE = 100 * 1024;
 
 export function deriveTerminalStatus(
   code: number | null,
