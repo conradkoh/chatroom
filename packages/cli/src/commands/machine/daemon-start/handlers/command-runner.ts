@@ -143,12 +143,16 @@ function appendToBuffer(ctx: DaemonContext, tracked: RunningProcess, data: strin
 }
 
 /**
- * Send SIGTERM to the child process.
- * Without `detached: true`, a plain `child.kill('SIGTERM')` is sufficient.
+ * Send a signal to the entire process group of the child process.
+ * Because commands are spawned with `detached: true`, the child becomes the
+ * leader of a new process group. Killing via negative PID delivers the signal
+ * to every member of that group (e.g. turbo task children like next dev,
+ * convex dev, expo start) so none are orphaned.
  */
 function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid == null) return;
   try {
-    child.kill(signal);
+    process.kill(-child.pid, signal);
   } catch {
     // Already dead
   }
@@ -275,11 +279,14 @@ export async function onCommandRun(
     return;
   }
 
-  // Spawn the process. No `detached: true` — children die with the daemon.
+  // Spawn the process with `detached: true` so the child becomes the leader of
+  // a new process group. This allows killProcess() to deliver signals to the
+  // entire group (including turbo-spawned grandchildren) via negative PID.
   const child = spawn('sh', ['-c', script], {
     cwd: workingDir,
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
 
   const tracked: RunningProcess = {

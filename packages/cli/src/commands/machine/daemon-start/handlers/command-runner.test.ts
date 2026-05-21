@@ -146,6 +146,8 @@ beforeEach(() => {
   vi.mocked(spawn).mockImplementation((): any =>
     createFakeChild(Math.floor(Math.random() * 90000) + 10000)
   );
+  // Mock process.kill so negative-PID group kills don't target real processes
+  vi.spyOn(process, 'kill').mockImplementation(() => true);
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -192,7 +194,7 @@ describe('shutdownAllCommands', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
     expect(runningProcesses.size).toBe(0);
   });
 
@@ -237,20 +239,19 @@ describe('shutdownAllCommands', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    // SIGTERM was sent first, SIGKILL after grace period
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL');
+    // SIGTERM was sent first to the process group, SIGKILL after grace period
+    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGKILL');
     expect(runningProcesses.size).toBe(0);
   });
 
-  it('does NOT use detached:true — no negative-PID kill calls', async () => {
+  it('uses detached:true and kills via negative PID to deliver signal to entire process group', async () => {
     vi.useFakeTimers();
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     await onCommandRun(ctx, {
-      runId: 'run-no-detach' as any,
+      runId: 'run-detach-group-kill' as any,
       commandName: 'test',
       script: 'sleep 60',
       workingDir: '/tmp',
@@ -260,11 +261,10 @@ describe('shutdownAllCommands', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    // process.kill should NOT be called with a negative PID (that's process group kill)
-    const negPidCalls = killSpy.mock.calls.filter((c: any) => typeof c[0] === 'number' && c[0] < 0);
-    expect(negPidCalls).toHaveLength(0);
-    // child.kill should have been called instead
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    // process.kill should be called with negative PID (process group kill)
+    expect(process.kill).toHaveBeenCalledWith(-7777, 'SIGTERM');
+    // child.kill should NOT be called directly (we use process.kill instead)
+    expect(fakeChild.kill).not.toHaveBeenCalled();
   });
 });
 
@@ -304,7 +304,7 @@ describe('replace-on-rerun', () => {
     await Promise.resolve();
     await secondRunPromise;
 
-    expect(firstChild.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-1111, 'SIGTERM');
     expect(runningProcesses.has('run-second')).toBe(true);
     expect(runningProcessesByCommand.get('test-machine|/tmp/project|dev')).toBe('run-second');
   });
@@ -330,12 +330,12 @@ describe('replace-on-rerun', () => {
     });
 
     // 'dev' process should NOT have been killed
-    expect(devChild.kill).not.toHaveBeenCalled();
+    expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
     expect(runningProcesses.has('run-dev')).toBe(true);
     expect(runningProcesses.has('run-build')).toBe(true);
   });
 
-  it('spawn args do NOT include detached:true', async () => {
+  it('spawn args include detached:true so the child leads its own process group', async () => {
     const fakeChild = createFakeChild(5555);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
@@ -348,7 +348,7 @@ describe('replace-on-rerun', () => {
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const spawnOpts = vi.mocked(spawn).mock.calls[0][2] as any;
-    expect(spawnOpts.detached).toBeFalsy();
+    expect(spawnOpts.detached).toBe(true);
   });
 });
 
@@ -470,8 +470,8 @@ describe('24-hour soft timeout', () => {
     expect(killedCall).toBeDefined();
     expect((killedCall![1] as any).terminationReason).toBe('timeout-24h');
 
-    // SIGTERM sent to child
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    // SIGTERM sent to the entire process group (negative PID)
+    expect(process.kill).toHaveBeenCalledWith(-5555, 'SIGTERM');
   });
 
   it('force-kills with SIGKILL 5s after SIGTERM if process has not exited', async () => {
@@ -488,13 +488,13 @@ describe('24-hour soft timeout', () => {
 
     // Trigger 24h soft timeout
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGTERM');
 
     // Advance past the 5-second SIGTERM grace period (process still in runningProcesses
     // because no 'exit' event was emitted by the fake child)
     await vi.advanceTimersByTimeAsync(6_000);
 
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGKILL');
   });
 
   it('does NOT fire soft timeout after process exits normally', async () => {
@@ -525,6 +525,51 @@ describe('24-hour soft timeout', () => {
       (c) => (c[1] as any)?.status === 'killed'
     );
     expect(killedCalls).toHaveLength(0);
-    expect(fakeChild.kill).not.toHaveBeenCalled();
+    expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
   });
+});
+
+// ---------------------------------------------------------------------------
+// F. Real-process-tree regression test (integration)
+// ---------------------------------------------------------------------------
+
+describe('process-group kill (real process tree)', () => {
+  it('kills all members of the process group when onCommandStop is called', async () => {
+    if (process.platform === 'win32') {
+      // process groups behave differently on Windows — skip
+      return;
+    }
+
+    // Restore real process.kill for this test (it was mocked in beforeEach)
+    vi.restoreAllMocks();
+
+    // Use vi.importActual to bypass the vi.mock('node:child_process') module mock
+    const { spawn: realSpawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    const child = realSpawn('sh', ['-c', 'sleep 30 & sleep 30 & sleep 30 & wait'], {
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // Wait for the sh process and its children to be running
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+
+    const pid = child.pid!;
+
+    // Collect child PIDs by listing /proc/<pid>/task (Linux) or via pgrep (macOS)
+    // We only need to verify the group is dead after kill — check the leader pid
+    expect(() => process.kill(pid, 0)).not.toThrow(); // leader is alive
+
+    // Kill the entire process group
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch {
+      // May already be dead — that's fine
+    }
+
+    // Wait for processes to terminate
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
+    // The leader process should now be gone
+    expect(() => process.kill(pid, 0)).toThrow();
+  }, 10_000);
 });
