@@ -13,6 +13,7 @@ import { api } from '../../../../api.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
+import { clearTrackedPids, trackChildPid, untrackChildPid } from './orphan-tracker.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,11 @@ export async function onCommandRun(
   runningProcesses.set(runIdStr, tracked);
   runningProcessesByCommand.set(commandKey, runIdStr);
 
+  // Persist PGID so it can be reaped if the daemon exits ungracefully (SIGKILL/crash)
+  if (child.pid != null) {
+    trackChildPid(child.pid);
+  }
+
   // Start 24-hour soft timeout
   const softTimeoutTimer = setTimeout(async () => {
     console.log(
@@ -373,6 +379,11 @@ export async function onCommandRun(
     // Flush remaining output
     await flushOutput(ctx, tracked).catch(() => {});
 
+    // Remove from orphan tracker before cleaning up state
+    if (tracked.process.pid != null) {
+      untrackChildPid(tracked.process.pid);
+    }
+
     // Clean up timers and state
     clearInterval(tracked.flushTimer);
     if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
@@ -403,6 +414,11 @@ export async function onCommandRun(
   // Handle spawn error
   child.on('error', async (err) => {
     console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
+
+    // Remove from orphan tracker before cleaning up state
+    if (tracked.process.pid != null) {
+      untrackChildPid(tracked.process.pid);
+    }
 
     clearInterval(tracked.flushTimer);
     if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
@@ -547,5 +563,8 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
 
   runningProcesses.clear();
   runningProcessesByCommand.clear();
+  // All processes have been killed — clear the orphan pids file so the next
+  // daemon start doesn't try to reap processes that were already cleaned up.
+  clearTrackedPids();
   console.log(`[${formatTimestamp()}] All commands stopped`);
 }

@@ -44,6 +44,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
+import { reapOrphanedProcessGroups } from './handlers/orphan-tracker.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -380,6 +381,13 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Acquire lock (prevents multiple daemons)
   if (!acquireLock()) {
     process.exit(1);
+  }
+
+  // Reap any process groups left over from a previous ungraceful exit (SIGKILL/crash).
+  // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
+  const { reaped } = await reapOrphanedProcessGroups();
+  if (reaped > 0) {
+    console.log(`[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`);
   }
 
   // Single source of truth for backend URL at daemon boot — same value is passed to
