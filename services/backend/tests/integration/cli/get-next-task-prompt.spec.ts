@@ -296,7 +296,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <summary of current focus>
       EOF
       \`\`\`
-      Tip -> chatroom context view-template
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
 
        **Duo Team Context:**
@@ -457,7 +457,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      Tip -> chatroom context view-template
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       4. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.

@@ -249,7 +249,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       <summary of current focus>
       EOF
       \`\`\`
-      Tip -> chatroom context view-template
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
 
        **Duo Team Context:**

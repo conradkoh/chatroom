@@ -10,11 +10,12 @@ export interface ContextNewParams {
 }
 
 /**
- * Generate a single-line hint pointing to the context view-template command.
- * Intended to appear immediately after a contextNewCommand snippet.
+ * Generate a strict requirement line that all context content must conform
+ * to the template returned by the context view-template command.
+ * Emitted immediately after a contextNewCommand snippet.
  */
 export function contextNewHint(): string {
-  return 'Tip -> chatroom context view-template';
+  return 'REQUIRED: All context content MUST conform to the template. Run `chatroom context view-template` and follow it exactly.';
 }
 
 /**
