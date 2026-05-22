@@ -4,8 +4,9 @@
 
 'use client';
 
-import { Square, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Square, RefreshCw } from 'lucide-react';
 import type { CommandRun } from './ProcessManager';
+import { StatusIcon } from './shared/StatusIcon';
 
 interface ProcessListProps {
   title: string;
@@ -14,21 +15,6 @@ interface ProcessListProps {
   onSelect: (runId: string) => void;
   onRestart: (run: CommandRun) => void;
   selectedRunId: string | null;
-}
-
-function StatusIcon({ status }: { status: CommandRun['status'] }) {
-  switch (status) {
-    case 'pending':
-      return <Loader2 size={12} className="animate-spin text-yellow-500" />;
-    case 'running':
-      return <Loader2 size={12} className="animate-spin text-blue-500" />;
-    case 'completed':
-      return <CheckCircle2 size={12} className="text-green-500" />;
-    case 'failed':
-      return <XCircle size={12} className="text-red-500" />;
-    case 'stopped':
-      return <AlertTriangle size={12} className="text-orange-500" />;
-  }
 }
 
 export function ProcessList({

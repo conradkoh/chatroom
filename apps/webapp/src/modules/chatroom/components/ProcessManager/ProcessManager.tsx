@@ -11,7 +11,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { X, ChevronLeft } from 'lucide-react';
+import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { toast } from 'sonner';
@@ -32,8 +32,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ProcessList } from './ProcessList';
 import { OutputPanel } from './OutputPanel';
+import { CommandDetailPanel } from './panels/CommandDetailPanel';
+import { WorkspaceDetailPanel } from './panels/WorkspaceDetailPanel';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { useEscapeToClear } from '../../hooks/useEscapeToClear';
+import {
+  groupCommandsByWorkspace,
+  getCompactDisplayName,
+  type WorkspaceGroup,
+} from './helpers';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +56,7 @@ export interface CommandRun {
   startedAt: number;
   completedAt?: number;
   exitCode?: number;
+  terminationReason?: string;
 }
 
 export interface OutputChunk {
@@ -110,9 +118,7 @@ export function ProcessManager({
       const result = await clearStuckRuns({ machineId, workingDir });
       toast.success(`Cleared ${result.clearedCount} stuck command(s)`);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to clear stuck commands'
-      );
+      toast.error(error instanceof Error ? error.message : 'Failed to clear stuck commands');
     } finally {
       setClearStuckOpen(false);
     }
@@ -288,8 +294,8 @@ export function ProcessManager({
             {/* Left sidebar */}
             <div
               className={cn(
-                "w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden",
-                hasRightPanelContent && "hidden md:flex"
+                'w-[320px] min-w-[280px] border-r-2 border-chatroom-border flex flex-col overflow-hidden',
+                hasRightPanelContent && 'hidden md:flex'
               )}
               onKeyDown={handleKeyDown}
             >
@@ -421,12 +427,15 @@ export function ProcessManager({
             </div>
 
             {/* Right panel — Terminal output, command detail, or workspace detail */}
-            <div className={cn(
-              "flex-1 flex flex-col overflow-hidden",
-              !hasRightPanelContent && "hidden md:flex"
-            )}>
+            <div
+              className={cn(
+                'flex-1 flex flex-col overflow-hidden',
+                !hasRightPanelContent && 'hidden md:flex'
+              )}
+            >
               {activeRunOutput.run ? (
                 <OutputPanel
+                  key={activeRunOutput.run._id}
                   run={activeRunOutput.run}
                   chunks={activeRunOutput.chunks}
                   onStop={() => {
@@ -493,8 +502,8 @@ export function ProcessManager({
           <AlertDialogHeader>
             <AlertDialogTitle>Clear stuck commands?</AlertDialogTitle>
             <AlertDialogDescription>
-              This marks all pending and running commands for this workspace as
-              stopped. Use this only when the daemon is unresponsive.
+              This marks all pending and running commands for this workspace as stopped. Use this
+              only when the daemon is unresponsive.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -512,364 +521,6 @@ export function ProcessManager({
   );
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers re-exported for consumers ──────────────────────────────────────
 
-/** Check if a command name contains a quick command (e.g., 'pnpm: dev' → 'dev'). */
-function extractScriptName(commandName: string): string {
-  // Handle patterns like "pnpm: dev", "turbo: build", "@workspace/webapp: dev"
-  const colonIdx = commandName.indexOf(':');
-  let scriptPart = colonIdx > 0 ? commandName.slice(colonIdx + 1).trim() : commandName;
-  // Handle "turbo: build (chatroom-cli)" → "build"
-  const parenIdx = scriptPart.indexOf('(');
-  if (parenIdx > 0) scriptPart = scriptPart.slice(0, parenIdx).trim();
-  return scriptPart;
-}
-
-/** Get a compact display name including the tool prefix (e.g., 'pnpm:dev', 'turbo:build'). */
-function getCompactDisplayName(commandName: string, script: string): string {
-  const scriptName = extractScriptName(commandName);
-  const colonIdx = commandName.indexOf(':');
-  if (colonIdx <= 0) return commandName;
-  const tool = commandName.slice(0, colonIdx).trim();
-
-  // If the tool is a known PM or 'turbo', use it directly
-  const knownTools = ['pnpm', 'npm', 'yarn', 'bun', 'turbo'];
-  if (knownTools.includes(tool)) {
-    return `${tool}:${scriptName}`;
-  }
-
-  // For package-scoped commands (e.g., '@workspace/webapp: build'),
-  // infer the PM from the script prefix
-  const pmMatch = script.match(/^(pnpm|npm|npx|yarn|bun)\b/);
-  const pm = pmMatch ? (pmMatch[1] === 'npx' ? 'turbo' : pmMatch[1]) : 'run';
-  return `${pm}:${scriptName}`;
-}
-
-interface WorkspaceGroup {
-  /** Relative path (e.g., '.', 'apps/webapp') */
-  path: string;
-  /** All commands for this workspace */
-  allCommands: RunnableCommand[];
-}
-
-function groupCommandsByWorkspace(
-  commands: RunnableCommand[],
-  searchQuery: string
-): WorkspaceGroup[] {
-  // Filter by search query
-  const filtered = searchQuery
-    ? commands.filter(
-        (c) =>
-          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.script.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : commands;
-
-  // Group by workspace path
-  const groups = new Map<string, RunnableCommand[]>();
-
-  for (const cmd of filtered) {
-    const ws = cmd.subWorkspace?.path ?? '.';
-    const existing = groups.get(ws) ?? [];
-    existing.push(cmd);
-    groups.set(ws, existing);
-  }
-
-  // Build workspace groups
-  const result: WorkspaceGroup[] = [];
-  for (const [path, cmds] of groups) {
-    result.push({ path, allCommands: cmds });
-  }
-
-  // Sort: '.' (root) first, then alphabetical
-  result.sort((a, b) => {
-    if (a.path === '.') return -1;
-    if (b.path === '.') return 1;
-    return a.path.localeCompare(b.path);
-  });
-
-  return result;
-}
-
-// ─── Command Detail Panel ───────────────────────────────────────────────────
-
-function CommandDetailPanel({
-  command,
-  isFavorite,
-  runs,
-  onRun,
-  onStop,
-  onSelectRun,
-  onToggleFavorite,
-  onBack,
-}: {
-  command: RunnableCommand;
-  isFavorite: boolean;
-  runs: CommandRun[];
-  onRun: () => void;
-  onStop: (runId: string) => void;
-  onSelectRun: (runId: string) => void;
-  onToggleFavorite: () => void;
-  onBack?: () => void;
-}) {
-  const runningInstances = runs.filter(
-    (r) => r.commandName === command.name && (r.status === 'running' || r.status === 'pending')
-  );
-  const recentInstances = runs
-    .filter(
-      (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
-    )
-    .slice(0, 5);
-
-  // Handle Enter key to run command
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onRun();
-    }
-  };
-
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden" onKeyDown={handleKeyDown} tabIndex={0}>
-      {/* Header */}
-      <div className="px-1.5 py-2 sm:px-4 sm:py-3 border-b border-chatroom-border">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors flex-shrink-0"
-            >
-              <ChevronLeft size={18} />
-            </button>
-          )}
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-              {command.name}
-            </h3>
-            <p className="text-xs text-chatroom-text-muted mt-0.5">Source: {command.source}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
-        {/* Script */}
-        <div className="bg-black/60 rounded p-3">
-          <code className="text-xs font-mono text-green-400 break-all">$ {command.script}</code>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onRun}
-            className="flex items-center gap-2 px-1.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-          >
-            ▶ {runningInstances.length > 0 ? 'Start New Instance' : 'Run'}
-          </button>
-          <button
-            onClick={onToggleFavorite}
-            className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
-              isFavorite
-                ? 'text-yellow-500 hover:bg-yellow-500/10'
-                : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
-            }`}
-          >
-            {isFavorite ? '★ Favorited' : '☆ Favorite'}
-          </button>
-        </div>
-
-        {/* Running Instances */}
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted mb-2">
-            Running Instances ({runningInstances.length})
-          </h4>
-          {runningInstances.length === 0 ? (
-            <p className="text-xs text-chatroom-text-muted/50 italic">No running instances</p>
-          ) : (
-            <div className="space-y-1">
-              {runningInstances.map((run) => (
-                <div
-                  key={run._id}
-                  className="flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-chatroom-bg-hover/30 hover:bg-chatroom-bg-hover transition-colors group"
-                >
-                  <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
-                  <button
-                    onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-primary truncate"
-                  >
-                    PID {run.pid ?? '...'} — {run.status}
-                  </button>
-                  <button
-                    onClick={() => onStop(run._id)}
-                    className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 hover:bg-red-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                  >
-                    Stop
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Runs */}
-        {recentInstances.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted mb-2">
-              Recent Runs
-            </h4>
-            <div className="space-y-1">
-              {recentInstances.map((run) => (
-                <div
-                  key={run._id}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-chatroom-bg-hover/30 transition-colors"
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      run.status === 'completed'
-                        ? 'bg-chatroom-text-muted/50'
-                        : run.status === 'failed'
-                          ? 'bg-red-500'
-                          : 'bg-yellow-500'
-                    }`}
-                  />
-                  <button
-                    onClick={() => onSelectRun(run._id)}
-                    className="flex-1 text-left text-xs text-chatroom-text-muted truncate"
-                  >
-                    {run.status}
-                    {run.exitCode !== undefined ? ` (exit ${run.exitCode})` : ''}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Workspace Detail Panel ─────────────────────────────────────────────────
-
-function WorkspaceDetailPanel({
-  workspace,
-  favorites,
-  onRun,
-  onToggleFavorite,
-  onSelectCommand,
-  onClose,
-}: {
-  workspace: WorkspaceGroup;
-  favorites: Set<string>;
-  onRun: (cmd: RunnableCommand) => void;
-  onToggleFavorite: (name: string) => void;
-  onSelectCommand: (cmd: RunnableCommand) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-1.5 py-1.5 sm:px-4 sm:py-2 border-b border-chatroom-border">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onClose}
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors flex-shrink-0"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-              {workspace.path === '.' ? 'Root' : workspace.path}
-            </h3>
-            <p className="text-[10px] text-chatroom-text-muted mt-0.5">
-              {workspace.allCommands.length} commands available
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {(() => {
-          const favSet = new Set(favorites);
-          const favourited: RunnableCommand[] = [];
-          const common: RunnableCommand[] = [];
-          const others: RunnableCommand[] = [];
-
-          for (const cmd of workspace.allCommands) {
-            const isCommon =
-              cmd.source === 'package.json' && (cmd.subWorkspace?.path ?? '.') === '.';
-            if (favSet.has(cmd.name)) {
-              favourited.push(cmd);
-            } else if (isCommon) {
-              common.push(cmd);
-            } else {
-              others.push(cmd);
-            }
-          }
-
-          const renderCommand = (cmd: RunnableCommand) => {
-            const scriptName = extractScriptName(cmd.name);
-            const isFav = favSet.has(cmd.name);
-            return (
-              <div
-                key={cmd.name}
-                className="flex items-center gap-2 px-1.5 py-1.5 sm:px-4 hover:bg-chatroom-bg-hover transition-colors group"
-              >
-                <button
-                  onClick={() => onToggleFavorite(cmd.name)}
-                  className={`flex-shrink-0 transition-colors ${
-                    isFav
-                      ? 'text-yellow-500'
-                      : 'text-chatroom-text-muted/30 hover:text-yellow-500/50'
-                  }`}
-                >
-                  ★
-                </button>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectCommand(cmd)}>
-                  <div className="text-xs text-chatroom-text-primary font-bold uppercase tracking-wider">
-                    {scriptName}
-                  </div>
-                  <div className="text-[10px] text-chatroom-text-muted truncate font-mono">
-                    {cmd.script}
-                  </div>
-                </div>
-                <button
-                  onClick={() => onRun(cmd)}
-                  className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                >
-                  Run
-                </button>
-              </div>
-            );
-          };
-
-          return (
-            <>
-              {favourited.length > 0 && (
-                <>
-                  <div className="px-1.5 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-yellow-500/70 border-b border-chatroom-border/30">
-                    ★ Favourites
-                  </div>
-                  {favourited.map(renderCommand)}
-                </>
-              )}
-              {common.length > 0 && (
-                <>
-                  <div className="px-1.5 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
-                    Common Commands
-                  </div>
-                  {common.map(renderCommand)}
-                </>
-              )}
-              {others.length > 0 && (
-                <>
-                  <div className="px-1.5 py-1.5 sm:px-4 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/50 border-b border-chatroom-border/30 mt-1">
-                    Commands
-                  </div>
-                  {others.map(renderCommand)}
-                </>
-              )}
-            </>
-          );
-        })()}
-      </div>
-    </div>
-  );
-}
+export type { WorkspaceGroup } from './helpers';
