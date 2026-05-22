@@ -8,9 +8,9 @@
  *   - evictStalePendingStops: TTL-based eviction of stale pending-stop entries
  *   - 24h soft timeout: process killed after 24-hour soft timeout
  *
- * Note: clearStaleCommandRuns is a Convex mutation and is OUT OF SCOPE for unit
+ * Note: reapOrphansForDaemonRestart is a Convex mutation and is OUT OF SCOPE for unit
  * tests here — there is no convex-test infrastructure for backend mutations in
- * this repo. It is tested manually / via integration tests against a real deployment.
+ * this CLI package. It is tested via convex-test integration tests in the backend package.
  */
 
 import { spawn } from 'node:child_process';

@@ -65,33 +65,6 @@ export async function reapOrphansForMachine(
   return { reapedCount };
 }
 
-export async function clearStaleRuns(
-  ctx: MutationCtx,
-  args: {
-    machineId: string;
-  }
-) {
-  const allRuns = await ctx.db
-    .query('chatroom_commandRuns')
-    .withIndex('by_machine_workingDir', (q) => q.eq('machineId', args.machineId))
-    .collect();
-
-  const now = Date.now();
-  let clearedCount = 0;
-
-  for (const run of allRuns) {
-    if (run.status === 'pending' || run.status === 'running') {
-      await ctx.db.patch('chatroom_commandRuns', run._id, {
-        status: 'stopped',
-        completedAt: now,
-      });
-      clearedCount++;
-    }
-  }
-
-  return { clearedCount };
-}
-
 export async function clearStuckRuns(
   ctx: MutationCtx,
   args: {

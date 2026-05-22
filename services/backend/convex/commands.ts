@@ -24,7 +24,6 @@ import {
 import { syncCommands as handleSyncCommands } from './commands/process/sync';
 import {
   updateRunStatus as handleUpdateRunStatus,
-  clearStaleRuns as handleClearStaleCommandRuns,
   clearStuckRuns as handleClearStuckCommandRuns,
   reapOrphansForMachine as handleReapOrphansForDaemonRestart,
 } from './commands/process/run_status';
@@ -291,23 +290,6 @@ export const getRunStatus = query({
 });
 
 // ─── Daemon Mutations ───────────────────────────────────────────────────────
-
-export const clearStaleCommandRuns = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    await requireAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'write-access',
-    });
-
-    return await handleClearStaleCommandRuns(ctx, args);
-  },
-});
 
 export const clearStuckCommandRuns = mutation({
   args: {
