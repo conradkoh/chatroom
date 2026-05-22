@@ -7,9 +7,9 @@
 import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Terminal } from 'lucide-react';
 import type { CommandRun, OutputChunk } from '../../features/run-command/types/run';
-import { StatusBadge } from './shared/StatusBadge';
-import { isActiveRun } from './shared/run-status';
-import { TerminalView } from './shared/TerminalView';
+import { StatusBadge } from '../../features/run-command/components/StatusBadge';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
+import { TerminalView } from '../../features/run-command/components/TerminalView';
 
 interface OutputPanelProps {
   run: CommandRun | null;

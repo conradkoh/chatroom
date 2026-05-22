@@ -6,7 +6,7 @@
 'use client';
 
 import { Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import type { CommandRun } from '../../../features/run-command/types/run';
+import type { CommandRun } from '../types/run';
 
 interface StatusIconProps {
   status: CommandRun['status'];

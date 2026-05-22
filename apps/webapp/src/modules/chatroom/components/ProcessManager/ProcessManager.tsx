@@ -40,7 +40,7 @@ import {
   getCompactDisplayName,
   type WorkspaceGroup,
 } from './helpers';
-import { isActiveRun } from './shared/run-status';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
 
 // ─── Types (re-exported from feature slice for back-compat) ─────────────────
 

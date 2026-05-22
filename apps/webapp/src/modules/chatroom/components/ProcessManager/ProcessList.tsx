@@ -6,8 +6,8 @@
 
 import { Square, RefreshCw } from 'lucide-react';
 import type { CommandRun } from '../../features/run-command/types/run';
-import { StatusIcon } from './shared/StatusIcon';
-import { isActiveRun } from './shared/run-status';
+import { StatusIcon } from '../../features/run-command/components/StatusIcon';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
 
 interface ProcessListProps {
   title: string;

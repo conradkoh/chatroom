@@ -14,9 +14,9 @@ import { useEffect, useRef } from 'react';
 import { Square, X, RefreshCw } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { StatusBadge } from './ProcessManager/shared/StatusBadge';
-import { isActiveRun } from './ProcessManager/shared/run-status';
-import { TerminalView } from './ProcessManager/shared/TerminalView';
+import { StatusBadge } from '../features/run-command/components/StatusBadge';
+import { isActiveRun } from '../features/run-command/utils/run-status';
+import { TerminalView } from '../features/run-command/components/TerminalView';
 import type { CommandRun } from '../features/run-command/types/run';
 
 interface TerminalOutputPanelProps {

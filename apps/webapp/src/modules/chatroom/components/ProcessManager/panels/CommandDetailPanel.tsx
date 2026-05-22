@@ -6,7 +6,7 @@
 
 import { ChevronLeft } from 'lucide-react';
 import type { RunnableCommand, CommandRun } from '../../../features/run-command/types/run';
-import { isActiveRun } from '../shared/run-status';
+import { isActiveRun } from '../../../features/run-command/utils/run-status';
 
 interface CommandDetailPanelProps {
   command: RunnableCommand;

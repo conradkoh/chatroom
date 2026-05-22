@@ -1,4 +1,4 @@
-import type { CommandRun } from '../../../features/run-command/types/run';
+import type { CommandRun } from '../types/run';
 
 /**
  * isActiveRun — returns true when a run is currently executing or about to execute.
