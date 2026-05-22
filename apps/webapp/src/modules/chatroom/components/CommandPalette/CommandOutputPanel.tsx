@@ -53,39 +53,42 @@ export function CommandOutputPanel({
   return (
     <div className="flex flex-col h-full bg-chatroom-bg-surface border-l border-chatroom-border-strong">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
-        <div className="flex items-center min-w-0">
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-              {commandName}
-            </span>
-            {status && (
+      <div className="flex items-center justify-between px-3 py-2 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-chatroom-text-primary truncate">
+            {commandName}
+          </span>
+          {status && (
+            <>
+              <span className="text-chatroom-text-muted" aria-hidden="true">·</span>
               <StatusBadge
                 status={status}
                 terminationReason={terminationReason ?? undefined}
+                variant="inline"
               />
-            )}
-          </div>
+            </>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {isActive ? (
             <button
               type="button"
               onClick={onStop}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-500 hover:bg-red-950/20 rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-500 hover:bg-red-950/20 rounded-none transition-colors"
             >
-              <Square size={12} className="fill-current" />
+              <Square size={14} className="fill-current" />
               Stop
             </button>
           ) : (
             <button
               type="button"
               onClick={onRunAgain}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
+              aria-label="Run again"
+              title="Run again"
+              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary rounded-none transition-colors"
             >
-              <RotateCcw size={12} />
-              Run Again
+              <RotateCcw size={16} />
             </button>
           )}
           <button
