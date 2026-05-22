@@ -349,19 +349,24 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
     console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
   }
 
-  // Clear any pending/running command runs left from before the restart.
+  // Reap any pending/running command runs left from before the restart.
   // Since the daemon just started, no command processes are running — any run
-  // in 'pending' or 'running' state is stale and must be marked as 'stopped'.
+  // in 'pending' or 'running' state is an orphan from the previous daemon process
+  // and must be marked as 'killed' with terminationReason='daemon-restart' so the
+  // UI correctly labels them rather than showing them as 'replaced' when the user
+  // next triggers a run for the same command.
   try {
-    const runResult = await ctx.deps.backend.mutation(api.commands.clearStaleCommandRuns, {
+    const runResult = await ctx.deps.backend.mutation(api.commands.reapOrphansForDaemonRestart, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
     });
-    if (runResult.clearedCount > 0) {
-      console.log(`   🧹 Cleared ${runResult.clearedCount} stale command run(s) from backend`);
+    if (runResult.reapedCount > 0) {
+      console.log(
+        `   🧹 Reaped ${runResult.reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
+      );
     }
   } catch (e) {
-    console.log(`   ⚠️  Failed to clear stale command runs: ${getErrorMessage(e)}`);
+    console.warn(`   ⚠️  Failed to reap orphan command runs: ${getErrorMessage(e)}`);
   }
 }
 
