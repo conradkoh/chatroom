@@ -11,67 +11,22 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Square, X, Loader2, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Square, X, RefreshCw } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { StatusBadge } from './ProcessManager/shared/StatusBadge';
+import { isActiveRun } from './ProcessManager/shared/run-status';
+import type { CommandRun } from './ProcessManager/ProcessManager';
 
 interface TerminalOutputPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   commandName: string | null;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed' | null;
+  status: CommandRun['status'] | null;
   output: string;
   onStop: () => void;
   onRestart?: () => void;
-}
-
-function StatusBadge({ status }: { status: TerminalOutputPanelProps['status'] }) {
-  switch (status) {
-    case 'pending':
-      return (
-        <span className="flex items-center gap-1 text-yellow-500 dark:text-yellow-400 text-xs font-bold uppercase tracking-wider">
-          <Loader2 size={12} className="animate-spin" />
-          Pending
-        </span>
-      );
-    case 'running':
-      return (
-        <span className="flex items-center gap-1 text-blue-500 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
-          <Loader2 size={12} className="animate-spin" />
-          Running
-        </span>
-      );
-    case 'completed':
-      return (
-        <span className="flex items-center gap-1 text-green-500 dark:text-green-400 text-xs font-bold uppercase tracking-wider">
-          <CheckCircle2 size={12} />
-          Completed
-        </span>
-      );
-    case 'failed':
-      return (
-        <span className="flex items-center gap-1 text-red-500 dark:text-red-400 text-xs font-bold uppercase tracking-wider">
-          <XCircle size={12} />
-          Failed
-        </span>
-      );
-    case 'stopped':
-      return (
-        <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400 text-xs font-bold uppercase tracking-wider">
-          <AlertTriangle size={12} />
-          Stopped
-        </span>
-      );
-    case 'killed':
-      return (
-        <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400 text-xs font-bold uppercase tracking-wider">
-          <AlertTriangle size={12} />
-          Replaced
-        </span>
-      );
-    default:
-      return null;
-  }
+  terminationReason?: string;
 }
 
 export function TerminalOutputPanel({
@@ -82,6 +37,7 @@ export function TerminalOutputPanel({
   output,
   onStop,
   onRestart,
+  terminationReason,
 }: TerminalOutputPanelProps) {
   const scrollRef = useRef<HTMLPreElement>(null);
 
@@ -92,7 +48,7 @@ export function TerminalOutputPanel({
     }
   }, [output]);
 
-  const isRunning = status === 'running' || status === 'pending';
+  const active = isActiveRun(status);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -107,10 +63,10 @@ export function TerminalOutputPanel({
               <DialogPrimitive.Title className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary truncate">
                 {commandName ?? 'Terminal'}
               </DialogPrimitive.Title>
-              <StatusBadge status={status} />
+              {status && <StatusBadge status={status} terminationReason={terminationReason} />}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {isRunning && (
+              {active && (
                 <button
                   onClick={onStop}
                   className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -120,7 +76,7 @@ export function TerminalOutputPanel({
                   Stop
                 </button>
               )}
-              {!isRunning && onRestart && (
+              {!active && onRestart && (
                 <button
                   onClick={onRestart}
                   className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
@@ -147,7 +103,7 @@ export function TerminalOutputPanel({
             className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
           >
             {output || (status === 'pending' ? 'Waiting for process to start...\n' : '')}
-            {isRunning && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
+            {active && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
           </pre>
         </DialogPrimitive.Content>
       </DialogPortal>

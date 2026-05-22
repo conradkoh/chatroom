@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Terminal } from 'lucide-react';
 import type { CommandRun, OutputChunk } from './ProcessManager';
 import { StatusBadge } from './shared/StatusBadge';
+import { isActiveRun } from './shared/run-status';
 
 interface OutputPanelProps {
   run: CommandRun | null;
@@ -40,7 +41,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
     );
   }
 
-  const isRunning = run.status === 'running' || run.status === 'pending';
+  const active = isActiveRun(run.status);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -53,7 +54,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
           <StatusBadge status={run.status} terminationReason={run.terminationReason} />
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {isRunning ? (
+          {active ? (
             <button
               onClick={onStop}
               className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -90,7 +91,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
         <span className="text-chatroom-text-muted">$ {run.script}</span>
         {'\n'}
         {output || (run.status === 'pending' ? 'Waiting for process to start...\n' : '')}
-        {isRunning && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
+        {active && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
       </pre>
     </div>
   );

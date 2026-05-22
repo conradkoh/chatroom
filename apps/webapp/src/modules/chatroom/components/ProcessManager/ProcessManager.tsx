@@ -41,6 +41,7 @@ import {
   getCompactDisplayName,
   type WorkspaceGroup,
 } from './helpers';
+import { isActiveRun } from './shared/run-status';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -108,9 +109,7 @@ export function ProcessManager({
   const [clearStuckOpen, setClearStuckOpen] = useState(false);
   const clearStuckRuns = useSessionMutation(api.commands.clearStuckCommandRuns);
 
-  const pendingOrRunningCount = runs.filter(
-    (r) => r.status === 'pending' || r.status === 'running'
-  ).length;
+  const pendingOrRunningCount = runs.filter((r) => isActiveRun(r.status)).length;
 
   const handleClearStuck = useCallback(async () => {
     if (!machineId || !workingDir) return;
@@ -228,9 +227,9 @@ export function ProcessManager({
   );
 
   // Separate running and recent runs
-  const runningProcesses = runs.filter((r) => r.status === 'running' || r.status === 'pending');
+  const runningProcesses = runs.filter((r) => isActiveRun(r.status));
   const recentRuns = runs
-    .filter((r) => r.status !== 'running' && r.status !== 'pending')
+    .filter((r) => !isActiveRun(r.status))
     .slice(0, 10);
 
   const handleRunCommand = useCallback(

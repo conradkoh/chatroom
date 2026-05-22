@@ -6,6 +6,7 @@
 
 import { ChevronLeft } from 'lucide-react';
 import type { RunnableCommand, CommandRun } from '../ProcessManager';
+import { isActiveRun } from '../shared/run-status';
 
 interface CommandDetailPanelProps {
   command: RunnableCommand;
@@ -29,11 +30,11 @@ export function CommandDetailPanel({
   onBack,
 }: CommandDetailPanelProps) {
   const runningInstances = runs.filter(
-    (r) => r.commandName === command.name && (r.status === 'running' || r.status === 'pending')
+    (r) => r.commandName === command.name && isActiveRun(r.status)
   );
   const recentInstances = runs
     .filter(
-      (r) => r.commandName === command.name && r.status !== 'running' && r.status !== 'pending'
+      (r) => r.commandName === command.name && !isActiveRun(r.status)
     )
     .slice(0, 5);
 
