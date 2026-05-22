@@ -53,14 +53,14 @@ export function CommandOutputPanel({
   return (
     <div className="flex flex-col h-full bg-chatroom-bg-surface border-l border-chatroom-border-strong">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
+      <div className="flex items-center justify-between px-3 py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-primary">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-chatroom-text-primary truncate">
             {commandName}
           </span>
           {status && (
             <>
-              <span className="text-chatroom-text-muted" aria-hidden="true">·</span>
+              <span className="w-1 h-1 bg-chatroom-text-muted flex-shrink-0" aria-hidden="true" />
               <StatusBadge
                 status={status}
                 terminationReason={terminationReason ?? undefined}
@@ -88,7 +88,7 @@ export function CommandOutputPanel({
               title="Run again"
               className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary rounded-none transition-colors"
             >
-              <RotateCcw size={16} />
+              <RotateCcw size={14} />
             </button>
           )}
           <button
@@ -97,7 +97,7 @@ export function CommandOutputPanel({
             className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
             aria-label="Close output panel"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
       </div>
@@ -130,8 +130,8 @@ export function CommandOutputPanel({
       </div>
 
       {/* Footer with scroll indicator */}
-      <div className="px-4 py-2 border-t border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center">
-        <span>{output.length} lines</span>
+      <div className="px-4 py-2 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center">
+        <span className="tabular-nums">{output.length} lines</span>
         {!isAtBottom && output.length > 0 && (
           <span className="text-chatroom-text-muted italic">Scroll to follow</span>
         )}
