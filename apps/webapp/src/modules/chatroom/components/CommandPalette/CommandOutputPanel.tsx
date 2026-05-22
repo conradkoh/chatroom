@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
-import { StatusIcon } from '@/modules/chatroom/components/ProcessManager/shared/StatusIcon';
 import { StatusBadge } from '@/modules/chatroom/components/ProcessManager/shared/StatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,8 +54,7 @@ export function CommandOutputPanel({
     <div className="flex flex-col h-full bg-chatroom-bg-surface border-l border-chatroom-border-strong">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
-        <div className="flex items-center gap-3 min-w-0">
-          {status && <StatusIcon status={status} />}
+        <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
               {commandName}
