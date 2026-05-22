@@ -83,7 +83,8 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
           {inlineCommand.commandName && (
             <CommandOutputPanel
               commandName={inlineCommand.commandName}
-              isRunning={inlineCommand.isRunning}
+              status={inlineCommand.status}
+              terminationReason={inlineCommand.terminationReason}
               output={inlineCommand.output}
               onStop={handleStop}
               onRunAgain={handleRunAgain}

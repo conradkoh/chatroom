@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
+import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CommandOutputPanelProps {
   commandName: string;
-  isRunning: boolean;
+  status: CommandRun['status'] | null;
+  terminationReason?: string | null;
   output: string[];
   onStop: () => void;
   onRunAgain: () => void;
@@ -19,7 +22,8 @@ export interface CommandOutputPanelProps {
 
 export function CommandOutputPanel({
   commandName,
-  isRunning,
+  status,
+  terminationReason,
   output,
   onStop,
   onRunAgain,
@@ -27,6 +31,9 @@ export function CommandOutputPanel({
 }: CommandOutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // A run is "active" (can be stopped) when pending or running
+  const isActive = status === 'running' || status === 'pending';
 
   // Auto-scroll to bottom when new output arrives (if user is at bottom)
   useEffect(() => {
@@ -46,46 +53,42 @@ export function CommandOutputPanel({
   return (
     <div className="flex flex-col h-full bg-chatroom-bg-surface border-l border-chatroom-border-strong">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
-        <div className="flex items-center gap-3 min-w-0">
-          <div
-            className={cn(
-              'w-2 h-2 rounded-full flex-shrink-0',
-              isRunning
-                ? 'bg-yellow-500 animate-pulse'
-                : output.some((line) => line.toLowerCase().includes('error'))
-                  ? 'bg-red-500'
-                  : 'bg-green-500'
-            )}
-          />
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-              {commandName}
-            </span>
-            <span className="text-[10px] text-chatroom-text-muted">
-              {isRunning ? 'Running...' : 'Completed'}
-            </span>
-          </div>
+      <div className="flex items-center justify-between px-3 py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-primary">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-chatroom-text-primary truncate">
+            {commandName}
+          </span>
+          {status && (
+            <>
+              <span className="w-1 h-1 bg-chatroom-text-muted flex-shrink-0" aria-hidden="true" />
+              <StatusBadge
+                status={status}
+                terminationReason={terminationReason ?? undefined}
+                variant="inline"
+              />
+            </>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {isRunning ? (
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {isActive ? (
             <button
               type="button"
               onClick={onStop}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-500 hover:bg-red-950/20 rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-500 hover:bg-red-950/20 rounded-none transition-colors"
             >
-              <Square size={12} className="fill-current" />
+              <Square size={14} className="fill-current" />
               Stop
             </button>
           ) : (
             <button
               type="button"
               onClick={onRunAgain}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
+              aria-label="Run again"
+              title="Run again"
+              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary rounded-none transition-colors"
             >
-              <RotateCcw size={12} />
-              Run Again
+              <RotateCcw size={14} />
             </button>
           )}
           <button
@@ -94,7 +97,7 @@ export function CommandOutputPanel({
             className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
             aria-label="Close output panel"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
       </div>
@@ -127,8 +130,8 @@ export function CommandOutputPanel({
       </div>
 
       {/* Footer with scroll indicator */}
-      <div className="px-4 py-2 border-t border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center">
-        <span>{output.length} lines</span>
+      <div className="px-4 py-2 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center">
+        <span className="tabular-nums">{output.length} lines</span>
         {!isAtBottom && output.length > 0 && (
           <span className="text-chatroom-text-muted italic">Scroll to follow</span>
         )}

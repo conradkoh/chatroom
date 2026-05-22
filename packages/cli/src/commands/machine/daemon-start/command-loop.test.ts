@@ -44,7 +44,6 @@ vi.mock('./handlers/ping.js', () => ({
 vi.mock('./handlers/command-runner.js', () => ({
   onCommandRun: vi.fn(),
   onCommandStop: vi.fn(),
-  evictStalePendingStops: vi.fn(),
 }));
 
 vi.mock('./git-heartbeat.js', () => ({
