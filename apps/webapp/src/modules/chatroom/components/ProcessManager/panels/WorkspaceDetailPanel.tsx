@@ -5,7 +5,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import type { RunnableCommand } from '../ProcessManager';
+import type { RunnableCommand } from '../../../features/run-command/types/run';
 import { extractScriptName, type WorkspaceGroup } from '../helpers';
 
 interface WorkspaceDetailPanelProps {

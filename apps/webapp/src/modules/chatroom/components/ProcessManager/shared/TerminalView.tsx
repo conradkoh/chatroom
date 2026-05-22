@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import type { CommandRun } from '../ProcessManager';
+import type { CommandRun } from '../../../features/run-command/types/run';
 import { isActiveRun } from './run-status';
 
 interface TerminalViewProps {

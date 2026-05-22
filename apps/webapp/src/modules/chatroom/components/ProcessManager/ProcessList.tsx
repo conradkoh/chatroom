@@ -5,7 +5,7 @@
 'use client';
 
 import { Square, RefreshCw } from 'lucide-react';
-import type { CommandRun } from './ProcessManager';
+import type { CommandRun } from '../../features/run-command/types/run';
 import { StatusIcon } from './shared/StatusIcon';
 import { isActiveRun } from './shared/run-status';
 

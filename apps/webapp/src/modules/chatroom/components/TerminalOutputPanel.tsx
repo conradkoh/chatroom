@@ -17,7 +17,7 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { StatusBadge } from './ProcessManager/shared/StatusBadge';
 import { isActiveRun } from './ProcessManager/shared/run-status';
 import { TerminalView } from './ProcessManager/shared/TerminalView';
-import type { CommandRun } from './ProcessManager/ProcessManager';
+import type { CommandRun } from '../features/run-command/types/run';
 
 interface TerminalOutputPanelProps {
   open: boolean;

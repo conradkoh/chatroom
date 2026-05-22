@@ -5,7 +5,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import type { RunnableCommand, CommandRun } from '../ProcessManager';
+import type { RunnableCommand, CommandRun } from '../../../features/run-command/types/run';
 import { isActiveRun } from '../shared/run-status';
 
 interface CommandDetailPanelProps {

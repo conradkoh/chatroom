@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Terminal } from 'lucide-react';
-import type { CommandRun, OutputChunk } from './ProcessManager';
+import type { CommandRun, OutputChunk } from '../../features/run-command/types/run';
 import { StatusBadge } from './shared/StatusBadge';
 import { isActiveRun } from './shared/run-status';
 import { TerminalView } from './shared/TerminalView';

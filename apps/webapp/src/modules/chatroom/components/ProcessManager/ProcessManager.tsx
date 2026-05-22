@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { cn } from '@/lib/utils';
-import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -43,27 +42,10 @@ import {
 } from './helpers';
 import { isActiveRun } from './shared/run-status';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types (re-exported from feature slice for back-compat) ─────────────────
 
-/** A runnable command from the backend. */
-export type RunnableCommand = Doc<'chatroom_runnableCommands'>;
-
-export interface CommandRun {
-  _id: string;
-  commandName: string;
-  script: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
-  pid?: number;
-  startedAt: number;
-  completedAt?: number;
-  exitCode?: number;
-  terminationReason?: string;
-}
-
-export interface OutputChunk {
-  content: string;
-  chunkIndex: number;
-}
+export type { CommandRun, RunnableCommand, OutputChunk } from '../../features/run-command/types/run';
+import type { CommandRun, RunnableCommand, OutputChunk } from '../../features/run-command/types/run';
 
 export interface ProcessManagerProps {
   open: boolean;
