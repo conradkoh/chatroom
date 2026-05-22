@@ -56,6 +56,7 @@ export interface CommandRun {
   startedAt: number;
   completedAt?: number;
   exitCode?: number;
+  terminationReason?: string;
 }
 
 export interface OutputChunk {

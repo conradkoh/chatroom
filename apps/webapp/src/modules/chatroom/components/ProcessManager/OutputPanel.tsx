@@ -50,7 +50,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
           <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary truncate">
             {run.commandName}
           </span>
-          <StatusBadge status={run.status} />
+          <StatusBadge status={run.status} terminationReason={run.terminationReason} />
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {isRunning ? (

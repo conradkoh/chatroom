@@ -10,9 +10,28 @@ import type { CommandRun } from '../ProcessManager';
 
 interface StatusBadgeProps {
   status: CommandRun['status'];
+  terminationReason?: string;
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+function getKilledConfig(terminationReason?: string) {
+  switch (terminationReason) {
+    case 'replaced':
+      return { text: 'Replaced', color: 'text-orange-500 dark:text-orange-400' };
+    case 'daemon-restart':
+      return { text: 'Daemon Restart', color: 'text-amber-500 dark:text-amber-400' };
+    case 'daemon-shutdown':
+      return { text: 'Daemon Stopped', color: 'text-amber-500 dark:text-amber-400' };
+    case 'timeout-24h':
+      return { text: 'Timed Out', color: 'text-orange-500 dark:text-orange-400' };
+    case 'user-clear-stuck':
+      return { text: 'Cleared', color: 'text-orange-500 dark:text-orange-400' };
+    default:
+      return { text: 'Killed', color: 'text-orange-500 dark:text-orange-400' };
+  }
+}
+
+export function StatusBadge({ status, terminationReason }: StatusBadgeProps) {
+  const killedConfig = getKilledConfig(terminationReason);
   const configs = {
     pending: {
       icon: Loader2,
@@ -46,8 +65,8 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     },
     killed: {
       icon: AlertTriangle,
-      text: 'Replaced',
-      color: 'text-orange-500 dark:text-orange-400',
+      text: killedConfig.text,
+      color: killedConfig.color,
       spin: false,
     },
   };
