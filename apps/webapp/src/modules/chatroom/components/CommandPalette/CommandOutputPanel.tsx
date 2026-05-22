@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
+import { StatusIcon } from '@/modules/chatroom/components/ProcessManager/shared/StatusIcon';
+import { StatusBadge } from '@/modules/chatroom/components/ProcessManager/shared/StatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CommandOutputPanelProps {
   commandName: string;
-  isRunning: boolean;
+  status: CommandRun['status'] | null;
+  terminationReason?: string | null;
   output: string[];
   onStop: () => void;
   onRunAgain: () => void;
@@ -19,7 +23,8 @@ export interface CommandOutputPanelProps {
 
 export function CommandOutputPanel({
   commandName,
-  isRunning,
+  status,
+  terminationReason,
   output,
   onStop,
   onRunAgain,
@@ -27,6 +32,9 @@ export function CommandOutputPanel({
 }: CommandOutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // A run is "active" (can be stopped) when pending or running
+  const isActive = status === 'running' || status === 'pending';
 
   // Auto-scroll to bottom when new output arrives (if user is at bottom)
   useEffect(() => {
@@ -48,28 +56,22 @@ export function CommandOutputPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border-strong bg-chatroom-bg-primary">
         <div className="flex items-center gap-3 min-w-0">
-          <div
-            className={cn(
-              'w-2 h-2 rounded-full flex-shrink-0',
-              isRunning
-                ? 'bg-yellow-500 animate-pulse'
-                : output.some((line) => line.toLowerCase().includes('error'))
-                  ? 'bg-red-500'
-                  : 'bg-green-500'
-            )}
-          />
+          {status && <StatusIcon status={status} />}
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
               {commandName}
             </span>
-            <span className="text-[10px] text-chatroom-text-muted">
-              {isRunning ? 'Running...' : 'Completed'}
-            </span>
+            {status && (
+              <StatusBadge
+                status={status}
+                terminationReason={terminationReason ?? undefined}
+              />
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {isRunning ? (
+          {isActive ? (
             <button
               type="button"
               onClick={onStop}
