@@ -8,9 +8,9 @@
  *   - evictStalePendingStops: TTL-based eviction of stale pending-stop entries
  *   - 24h soft timeout: process killed after 24-hour soft timeout
  *
- * Note: clearStaleCommandRuns is a Convex mutation and is OUT OF SCOPE for unit
+ * Note: reapOrphansForDaemonRestart is a Convex mutation and is OUT OF SCOPE for unit
  * tests here — there is no convex-test infrastructure for backend mutations in
- * this repo. It is tested manually / via integration tests against a real deployment.
+ * this CLI package. It is tested via convex-test integration tests in the backend package.
  */
 
 import { spawn } from 'node:child_process';
@@ -22,16 +22,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-
-import {
-  onCommandRun,
-  onCommandStop,
-  shutdownAllCommands,
-  evictStalePendingStops,
-  runningProcesses, // @internal
-  runningProcessesByCommand, // @internal
-  pendingStops,     // @internal
-} from './command-runner.js';
+import { onCommandRun, onCommandStop, shutdownAllCommands } from './command-runner.js';
+import { processManager } from './process/manager.js';
+import { deriveTerminalStatus } from './process/state.js';
 import type { DaemonContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -52,6 +45,7 @@ vi.mock('../../../../api.js', () => ({
     commands: {
       updateRunStatus: 'mock-updateRunStatus',
       appendOutput: 'mock-appendOutput',
+      getRunStatus: 'mock-getRunStatus',
     },
   },
 }));
@@ -133,19 +127,22 @@ function createFakeChild(pid = 9999) {
 // ---------------------------------------------------------------------------
 
 let ctx: DaemonContext;
+// Captured in beforeEach so integration tests can selectively restore just this spy
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let processKillSpy: { mockRestore: () => void };
 
 beforeEach(() => {
   ctx = createCtx();
   // Clear module-level state between tests
-  runningProcesses.clear();
-  runningProcessesByCommand.clear();
-  pendingStops.clear();
+  processManager.clear();
   // Reset all mock call counts and implementations
   vi.clearAllMocks();
   // Default spawn implementation — returns a new fake child per call
   vi.mocked(spawn).mockImplementation((): any =>
     createFakeChild(Math.floor(Math.random() * 90000) + 10000)
   );
+  // Mock process.kill so negative-PID group kills don't target real processes
+  processKillSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -158,9 +155,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   // Ensure no leftover state leaks between tests
-  runningProcesses.clear();
-  runningProcessesByCommand.clear();
-  pendingStops.clear();
+  processManager.clear();
 });
 
 // ---------------------------------------------------------------------------
@@ -185,15 +180,15 @@ describe('shutdownAllCommands', () => {
       workingDir: '/tmp',
     });
 
-    expect(runningProcesses.size).toBe(1);
+    expect(processManager.size).toBe(1);
 
     const shutdownPromise = shutdownAllCommands(ctx);
     // Advance past the 3-second grace period so the promise resolves
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(runningProcesses.size).toBe(0);
+    expect(process.kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
+    expect(processManager.size).toBe(0);
   });
 
   it("marks each run as status='killed' with terminationReason='daemon-shutdown'", async () => {
@@ -213,9 +208,7 @@ describe('shutdownAllCommands', () => {
     await shutdownPromise;
 
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
-    const killedCall = mutationCalls.find(
-      (c) => (c[1] as any)?.status === 'killed'
-    );
+    const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
     expect(killedCall).toBeDefined();
     expect((killedCall![1] as any).terminationReason).toBe('daemon-shutdown');
   });
@@ -237,20 +230,19 @@ describe('shutdownAllCommands', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    // SIGTERM was sent first, SIGKILL after grace period
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL');
-    expect(runningProcesses.size).toBe(0);
+    // SIGTERM was sent first to the process group, SIGKILL after grace period
+    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGKILL');
+    expect(processManager.size).toBe(0);
   });
 
-  it('does NOT use detached:true — no negative-PID kill calls', async () => {
+  it('uses detached:true and kills via negative PID to deliver signal to entire process group', async () => {
     vi.useFakeTimers();
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     await onCommandRun(ctx, {
-      runId: 'run-no-detach' as any,
+      runId: 'run-detach-group-kill' as any,
       commandName: 'test',
       script: 'sleep 60',
       workingDir: '/tmp',
@@ -260,11 +252,10 @@ describe('shutdownAllCommands', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await shutdownPromise;
 
-    // process.kill should NOT be called with a negative PID (that's process group kill)
-    const negPidCalls = killSpy.mock.calls.filter((c: any) => typeof c[0] === 'number' && c[0] < 0);
-    expect(negPidCalls).toHaveLength(0);
-    // child.kill should have been called instead
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    // process.kill should be called with negative PID (process group kill)
+    expect(process.kill).toHaveBeenCalledWith(-7777, 'SIGTERM');
+    // child.kill should NOT be called directly (we use process.kill instead)
+    expect(fakeChild.kill).not.toHaveBeenCalled();
   });
 });
 
@@ -277,7 +268,9 @@ describe('replace-on-rerun', () => {
     vi.useFakeTimers();
     const firstChild = createFakeChild(1111);
     const secondChild = createFakeChild(2222);
-    vi.mocked(spawn).mockReturnValueOnce(firstChild as any).mockReturnValueOnce(secondChild as any);
+    vi.mocked(spawn)
+      .mockReturnValueOnce(firstChild as any)
+      .mockReturnValueOnce(secondChild as any);
 
     // First run
     await onCommandRun(ctx, {
@@ -286,8 +279,8 @@ describe('replace-on-rerun', () => {
       script: 'pnpm dev',
       workingDir: '/tmp/project',
     });
-    expect(runningProcesses.has('run-first')).toBe(true);
-    expect(runningProcessesByCommand.get('test-machine|/tmp/project|dev')).toBe('run-first');
+    expect(processManager.has('run-first')).toBe(true);
+    expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-first');
 
     // Second run — should kill first
     const secondRunPromise = onCommandRun(ctx, {
@@ -304,16 +297,18 @@ describe('replace-on-rerun', () => {
     await Promise.resolve();
     await secondRunPromise;
 
-    expect(firstChild.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(runningProcesses.has('run-second')).toBe(true);
-    expect(runningProcessesByCommand.get('test-machine|/tmp/project|dev')).toBe('run-second');
+    expect(process.kill).toHaveBeenCalledWith(-1111, 'SIGTERM');
+    expect(processManager.has('run-second')).toBe(true);
+    expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-second');
   });
 
   it('does NOT kill prior run if commandName differs', async () => {
     vi.useFakeTimers();
     const devChild = createFakeChild(3333);
     const buildChild = createFakeChild(4444);
-    vi.mocked(spawn).mockReturnValueOnce(devChild as any).mockReturnValueOnce(buildChild as any);
+    vi.mocked(spawn)
+      .mockReturnValueOnce(devChild as any)
+      .mockReturnValueOnce(buildChild as any);
 
     await onCommandRun(ctx, {
       runId: 'run-dev' as any,
@@ -330,12 +325,12 @@ describe('replace-on-rerun', () => {
     });
 
     // 'dev' process should NOT have been killed
-    expect(devChild.kill).not.toHaveBeenCalled();
-    expect(runningProcesses.has('run-dev')).toBe(true);
-    expect(runningProcesses.has('run-build')).toBe(true);
+    expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
+    expect(processManager.has('run-dev')).toBe(true);
+    expect(processManager.has('run-build')).toBe(true);
   });
 
-  it('spawn args do NOT include detached:true', async () => {
+  it('spawn args include detached:true so the child leads its own process group', async () => {
     const fakeChild = createFakeChild(5555);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
@@ -348,7 +343,7 @@ describe('replace-on-rerun', () => {
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const spawnOpts = vi.mocked(spawn).mock.calls[0][2] as any;
-    expect(spawnOpts.detached).toBeFalsy();
+    expect(spawnOpts.detached).toBe(true);
   });
 });
 
@@ -359,13 +354,13 @@ describe('replace-on-rerun', () => {
 describe('pending-stop race (stop-before-run)', () => {
   it('registers a pending stop when no process is found for the runId', async () => {
     await onCommandStop(ctx, { runId: 'run-orphan' as any });
-    expect(pendingStops.has('run-orphan')).toBe(true);
+    expect(processManager.hasPendingStop('run-orphan')).toBe(true);
   });
 
   it('skips spawning when a pending stop exists for the runId', async () => {
     // Simulate stop arriving before run
     await onCommandStop(ctx, { runId: 'run-race' as any });
-    expect(pendingStops.has('run-race')).toBe(true);
+    expect(processManager.hasPendingStop('run-race')).toBe(true);
 
     // Now the run event arrives — should be skipped
     await onCommandRun(ctx, {
@@ -378,7 +373,7 @@ describe('pending-stop race (stop-before-run)', () => {
     // spawn must NOT have been called
     expect(spawn).not.toHaveBeenCalled();
     // Pending stop entry consumed
-    expect(pendingStops.has('run-race')).toBe(false);
+    expect(processManager.hasPendingStop('run-race')).toBe(false);
     // Backend should have been called with 'stopped' (both from onCommandStop AND onCommandRun skip)
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const statusArgs = mutationCalls.map((c) => (c[1] as any)?.status);
@@ -397,7 +392,7 @@ describe('pending-stop race (stop-before-run)', () => {
     });
 
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(runningProcesses.has('run-normal')).toBe(true);
+    expect(processManager.has('run-normal')).toBe(true);
   });
 
   it('throws when backend mutation fails so dispatchCommandEvent can retry', async () => {
@@ -407,44 +402,135 @@ describe('pending-stop race (stop-before-run)', () => {
       'Convex disconnect'
     );
 
-    expect(pendingStops.has('run-orphan-fail')).toBe(true);
+    expect(processManager.hasPendingStop('run-orphan-fail')).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// D. evictStalePendingStops
+// D. Pre-spawn DB status check (skip spawn when row already terminal)
+// ---------------------------------------------------------------------------
+
+describe('pre-spawn DB status check', () => {
+  it('skips spawn when backend reports run is already stopped', async () => {
+    // Mock getRunStatus to return 'stopped'
+    vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status: 'stopped' });
+
+    await onCommandRun(ctx, {
+      runId: 'run-already-stopped' as any,
+      commandName: 'dev',
+      script: 'pnpm dev',
+      workingDir: '/tmp',
+    });
+
+    // spawn must NOT have been called
+    expect(spawn).not.toHaveBeenCalled();
+    // No updateRunStatus write should occur
+    expect(vi.mocked(ctx.deps.backend.mutation)).not.toHaveBeenCalled();
+    // Not registered in process manager
+    expect(processManager.has('run-already-stopped')).toBe(false);
+  });
+
+  it('skips spawn when run is killed, completed, or failed', async () => {
+    for (const status of ['killed', 'completed', 'failed']) {
+      vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status });
+
+      await onCommandRun(ctx, {
+        runId: `run-${status}` as any,
+        commandName: 'test',
+        script: 'echo hi',
+        workingDir: '/tmp',
+      });
+
+      expect(spawn).not.toHaveBeenCalled();
+      // Reset for next iteration
+      vi.mocked(spawn).mockClear();
+    }
+  });
+
+  it('proceeds with spawn when backend reports pending', async () => {
+    vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status: 'pending' });
+    const fakeChild = createFakeChild(6666);
+    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
+
+    await onCommandRun(ctx, {
+      runId: 'run-pending-ok' as any,
+      commandName: 'dev',
+      script: 'pnpm dev',
+      workingDir: '/tmp',
+    });
+
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(processManager.has('run-pending-ok')).toBe(true);
+  });
+
+  it('proceeds with spawn when run is running (replace case)', async () => {
+    vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status: 'running' });
+    const fakeChild = createFakeChild(7777);
+    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
+
+    await onCommandRun(ctx, {
+      runId: 'run-running-replace' as any,
+      commandName: 'dev',
+      script: 'pnpm dev',
+      workingDir: '/tmp',
+    });
+
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(processManager.has('run-running-replace')).toBe(true);
+  });
+
+  it('proceeds with spawn when backend query fails (recoverable error)', async () => {
+    const fakeChild = createFakeChild(8888);
+    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
+    // Backend query throws
+    vi.mocked(ctx.deps.backend.query).mockRejectedValueOnce(new Error('Convex disconnect'));
+
+    await onCommandRun(ctx, {
+      runId: 'run-query-fail' as any,
+      commandName: 'dev',
+      script: 'pnpm dev',
+      workingDir: '/tmp',
+    });
+
+    // Should still spawn (error is non-fatal)
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(processManager.has('run-query-fail')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E. evictStalePendingStops
 // ---------------------------------------------------------------------------
 
 describe('evictStalePendingStops', () => {
   it('evicts entries older than 60 seconds', () => {
     vi.useFakeTimers();
-    const now = Date.now();
-    pendingStops.set('old-run', now - 61_000); // 61 seconds old
-    pendingStops.set('fresh-run', now - 5_000); // 5 seconds old — keep
+    processManager.markPendingStop('old-run');
+    vi.advanceTimersByTime(61_000);
+    processManager.markPendingStop('fresh-run');
 
-    evictStalePendingStops();
+    processManager.evictStalePendingStops();
 
-    expect(pendingStops.has('old-run')).toBe(false);
-    expect(pendingStops.has('fresh-run')).toBe(true);
+    expect(processManager.hasPendingStop('old-run')).toBe(false);
+    expect(processManager.hasPendingStop('fresh-run')).toBe(true);
   });
 
   it('keeps entries younger than 60 seconds', () => {
     vi.useFakeTimers();
-    const now = Date.now();
-    pendingStops.set('young-run', now); // just added
+    processManager.markPendingStop('young-run');
 
-    evictStalePendingStops();
+    processManager.evictStalePendingStops();
 
-    expect(pendingStops.has('young-run')).toBe(true);
+    expect(processManager.hasPendingStop('young-run')).toBe(true);
   });
 
   it('is a no-op when pendingStops is empty', () => {
-    expect(() => evictStalePendingStops()).not.toThrow();
+    expect(() => processManager.evictStalePendingStops()).not.toThrow();
   });
 });
 
 // ---------------------------------------------------------------------------
-// E. 24-hour soft timeout
+// F. 24-hour soft timeout
 // ---------------------------------------------------------------------------
 
 describe('24-hour soft timeout', () => {
@@ -464,14 +550,12 @@ describe('24-hour soft timeout', () => {
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
 
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
-    const killedCall = mutationCalls.find(
-      (c) => (c[1] as any)?.status === 'killed'
-    );
+    const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
     expect(killedCall).toBeDefined();
     expect((killedCall![1] as any).terminationReason).toBe('timeout-24h');
 
-    // SIGTERM sent to child
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    // SIGTERM sent to the entire process group (negative PID)
+    expect(process.kill).toHaveBeenCalledWith(-5555, 'SIGTERM');
   });
 
   it('force-kills with SIGKILL 5s after SIGTERM if process has not exited', async () => {
@@ -488,13 +572,13 @@ describe('24-hour soft timeout', () => {
 
     // Trigger 24h soft timeout
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGTERM');
 
-    // Advance past the 5-second SIGTERM grace period (process still in runningProcesses
+    // Advance past the 5-second SIGTERM grace period (process still in processManager
     // because no 'exit' event was emitted by the fake child)
     await vi.advanceTimersByTimeAsync(6_000);
 
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGKILL');
   });
 
   it('does NOT fire soft timeout after process exits normally', async () => {
@@ -521,10 +605,127 @@ describe('24-hour soft timeout', () => {
     await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000);
 
     // No 'killed' call should have happened
-    const killedCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls.filter(
-      (c) => (c[1] as any)?.status === 'killed'
-    );
+    const killedCalls = vi
+      .mocked(ctx.deps.backend.mutation)
+      .mock.calls.filter((c) => (c[1] as any)?.status === 'killed');
     expect(killedCalls).toHaveLength(0);
-    expect(fakeChild.kill).not.toHaveBeenCalled();
+    expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G. Real-process-tree regression test (integration)
+//
+// Routes through onCommandRun → onCommandStop with a real spawned process tree.
+// Verifies that the process-group kill (detached:true + negative PID) terminates
+// not just the sh leader but ALL grandchildren (the bug this fix addresses).
+// ---------------------------------------------------------------------------
+
+describe('process-group kill (real process tree)', () => {
+  it('kills all grandchildren when onCommandStop is called — not just the sh leader', async () => {
+    if (process.platform === 'win32') {
+      // process groups behave differently on Windows — skip
+      return;
+    }
+
+    // Restore only the process.kill spy (not all mocks) so group kills hit the real OS.
+    // Scoped restore avoids clobbering console spies or the spawn module mock.
+    processKillSpy.mockRestore();
+
+    // Wire the module-level spawn mock to delegate to the real child_process.spawn.
+    // This means onCommandRun's internal spawn() call uses a real process.
+    const { spawn: realSpawn, execSync } =
+      await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    vi.mocked(spawn).mockImplementation(realSpawn as any);
+
+    // Run the command through the real handler (exercises the detached:true spawn path)
+    const runId = 'run-real-tree' as any;
+    await onCommandRun(ctx, {
+      runId,
+      commandName: 'test',
+      script: 'sleep 30 & sleep 30 & sleep 30 & wait',
+      workingDir: '/tmp',
+    });
+
+    // Wait for sh + its three sleep children to start
+    await new Promise<void>((r) => setTimeout(r, 400));
+
+    // Get the tracked process PID
+    const tracked = processManager.get(String(runId));
+    expect(tracked).toBeDefined();
+    const pid = tracked!.process.pid!;
+
+    // Verify sh leader is alive
+    expect(() => process.kill(pid, 0)).not.toThrow();
+
+    // Capture grandchild PIDs (the sleep processes) before we kill
+    const childrenOutput = execSync(`pgrep -P ${pid}`).toString().trim();
+    const children = childrenOutput.split('\n').map(Number).filter(Boolean);
+    // There should be at least the three sleep 30 processes
+    expect(children.length).toBeGreaterThanOrEqual(3);
+
+    // Verify each grandchild is alive before stop
+    for (const childPid of children) {
+      expect(() => process.kill(childPid, 0)).not.toThrow();
+    }
+
+    // Stop via the actual handler — exercises killProcess() → process.kill(-pid, signal)
+    await onCommandStop(ctx, { runId });
+
+    // Brief additional wait for all OS-level cleanup
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // All grandchildren must be gone — this is exactly the bug the fix prevents:
+    // without process-group kill, these sleep processes would survive as orphans.
+    for (const childPid of children) {
+      expect(() => process.kill(childPid, 0)).toThrow();
+    }
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// H. deriveTerminalStatus — pure function
+// ---------------------------------------------------------------------------
+
+describe('deriveTerminalStatus', () => {
+  // No intent — infer from exit code/signal
+
+  it('no intent + code=0 → completed', () => {
+    expect(deriveTerminalStatus(0, null, null)).toBe('completed');
+  });
+
+  it('no intent + code=1 (non-zero) + no signal → failed', () => {
+    expect(deriveTerminalStatus(1, null, null)).toBe('failed');
+  });
+
+  it('no intent + SIGTERM signal → stopped (external termination)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', null)).toBe('stopped');
+  });
+
+  it('no intent + SIGKILL signal → stopped', () => {
+    expect(deriveTerminalStatus(null, 'SIGKILL', null)).toBe('stopped');
+  });
+
+  // Intent overrides signal
+
+  it('intent=killed + SIGTERM → killed (replace/timeout overrides signal)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', 'killed')).toBe('killed');
+  });
+
+  it('intent=killed + SIGKILL → killed (intent overrides SIGKILL)', () => {
+    expect(deriveTerminalStatus(null, 'SIGKILL', 'killed')).toBe('killed');
+  });
+
+  it('intent=stopped + SIGTERM → stopped (user-stop intent matches, no ambiguity)', () => {
+    expect(deriveTerminalStatus(null, 'SIGTERM', 'stopped')).toBe('stopped');
+  });
+
+  it('intent=stopped + non-zero exit code → stopped (intent overrides exit code)', () => {
+    expect(deriveTerminalStatus(1, null, 'stopped')).toBe('stopped');
+  });
+
+  // Edge case: intent overrides even a clean exit (daemon killed process just as it exited 0)
+  it('intent=killed + code=0 → killed (intent takes priority over clean exit)', () => {
+    expect(deriveTerminalStatus(0, null, 'killed')).toBe('killed');
   });
 });

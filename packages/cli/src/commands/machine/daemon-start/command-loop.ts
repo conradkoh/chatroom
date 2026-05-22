@@ -23,7 +23,8 @@ import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { startGitRequestSubscription } from './git-subscription.js';
-import { onCommandRun, onCommandStop, evictStalePendingStops } from './handlers/command-runner.js';
+import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import { processManager } from './handlers/process/manager.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
@@ -230,7 +231,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   }
 
   // Evict stale pending stops from command-runner (stop-before-run race handling)
-  evictStalePendingStops();
+  processManager.evictStalePendingStops();
 }
 
 /**

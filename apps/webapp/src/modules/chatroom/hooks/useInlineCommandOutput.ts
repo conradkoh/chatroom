@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 
+import type { CommandRun } from '../components/ProcessManager/ProcessManager';
 import type { useCommandRunner } from './useCommandRunner';
 
 /** Maximum number of output lines to keep in buffer to prevent memory issues */
@@ -15,6 +16,10 @@ export interface InlineCommandState {
   script: string | null;
   /** Whether the command is currently running */
   isRunning: boolean;
+  /** The status of the active run (null if no active run) */
+  status: CommandRun['status'] | null;
+  /** The termination reason if the run was killed (null if not applicable) */
+  terminationReason: string | null;
   /** Output lines from the active run */
   output: string[];
   /** Start or restart a command by name and script */
@@ -50,8 +55,10 @@ export function useInlineCommandOutput(
   const [commandName, setCommandName] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
 
-  // Derive isRunning and output directly from reactive Convex state (no closures)
+  // Derive isRunning, status, terminationReason, and output directly from reactive Convex state (no closures)
   const isRunning = commandRunner.activeRunOutput.run?.status === 'running';
+  const status = commandRunner.activeRunOutput.run?.status ?? null;
+  const terminationReason = commandRunner.activeRunOutput.run?.terminationReason ?? null;
   const output = commandRunner.activeRunOutput.chunks
     .map((c: { content: string }) => c.content)
     .slice(-MAX_OUTPUT_LINES);
@@ -102,6 +109,8 @@ export function useInlineCommandOutput(
     commandName,
     script,
     isRunning,
+    status,
+    terminationReason,
     output,
     run,
     stop,

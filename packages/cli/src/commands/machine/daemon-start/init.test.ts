@@ -595,8 +595,72 @@ describe('initDaemon', () => {
 
     expect(ensureMachineRegistered).toHaveBeenCalledWith({ allowCreate: true });
     // In the new flow, machines.register is always called (no null-config guard)
-    // First mutation = machines.register, second = updateDaemonStatus, third = clearAllSpawnedPids, fourth = clearStaleCommandRuns
+    // First mutation = machines.register, second = updateDaemonStatus, third = clearAllSpawnedPids, fourth = reapOrphansForDaemonRestart
     expect(mockClient.mutation).toHaveBeenCalledTimes(4);
+  });
+
+  it('calls reapOrphansForDaemonRestart on startup with the correct machineId', async () => {
+    // The 4th mutation call is reapOrphansForDaemonRestart (register, updateDaemonStatus,
+    // clearAllSpawnedPids, reapOrphansForDaemonRestart). It takes { sessionId, machineId } only.
+    const mockClient = await getMockClient();
+
+    await initDaemon();
+
+    // All 4 mutation calls must have been made
+    expect(mockClient.mutation).toHaveBeenCalledTimes(4);
+    // The 4th call is reapOrphansForDaemonRestart — verify it passes the correct machineId
+    const fourthCallArgs = mockClient.mutation.mock.calls[3][1] as any;
+    expect(fourthCallArgs).toMatchObject({ machineId: 'machine-abc' });
+  });
+
+  it('logs the reaped count when > 0', async () => {
+    const mockClient = await getMockClient();
+
+    // The 4th mutation call is reapOrphansForDaemonRestart — return { reapedCount: 3 }
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: machines.register / registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 3 }); // 4th: reapOrphansForDaemonRestart
+
+    await initDaemon();
+
+    const allLogs = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allLogs).toContain(
+      'Reaped 3 command run(s) from previous daemon run (marked as daemon-restart)'
+    );
+  });
+
+  it('does not log when reapedCount is 0', async () => {
+    const mockClient = await getMockClient();
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 0 }); // 4th: reapOrphansForDaemonRestart
+
+    await initDaemon();
+
+    const allLogs = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allLogs).not.toContain('daemon-restart');
+  });
+
+  it('does not block startup when reapOrphansForDaemonRestart fails', async () => {
+    const mockClient = await getMockClient();
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockRejectedValueOnce(new Error('network error during reap')); // 4th: reapOrphansForDaemonRestart
+
+    // Should not throw — daemon startup continues despite reap failure
+    const ctx = await initDaemon();
+    expect(ctx).toBeDefined();
+
+    const allWarns = warnSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allWarns).toContain('Failed to reap orphan command runs');
   });
 });
 
