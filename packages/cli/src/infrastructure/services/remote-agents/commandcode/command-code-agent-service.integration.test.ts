@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
-import { execSync } from 'node:child_process';
+import { execSync, spawn as nodeSpawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -113,3 +113,193 @@ describe.skipIf(SKIP)('CommandCodeAgentService integration', { timeout: TEST_TIM
     spawnedPid = null;
   });
 });
+
+// ─── Diagnostic suite ─────────────────────────────────────────────────────────
+
+const DIAG_PROMPT = 'Reply with the single word OK and nothing else.';
+const DIAG_TIMEOUT_MS = 90_000;
+
+interface DiagResult {
+  stdoutBytes: number;
+  stdoutChunks: number;
+  stdoutText: string;
+  stderrBytes: number;
+  stderrText: string;
+  exitCode: number | null;
+  signal: string | null;
+  timeToFirstStdoutByteMs: number | null;
+  totalDurationMs: number;
+  error?: string;
+}
+
+function runVariant(
+  label: string,
+  command: string,
+  args: string[],
+  options: {
+    stdio: ('pipe' | 'ignore')[];
+    stdinPayload?: string;
+  },
+  timeoutMs: number
+): Promise<DiagResult> {
+  return new Promise((resolve) => {
+    const startMs = Date.now();
+    let timeToFirstStdoutByteMs: number | null = null;
+    let stdoutBytes = 0;
+    let stdoutChunks = 0;
+    let stdoutText = '';
+    let stderrBytes = 0;
+    let stderrText = '';
+
+    let child: ReturnType<typeof nodeSpawn>;
+    try {
+      child = nodeSpawn(command, args, {
+        stdio: options.stdio as any,
+        shell: false,
+      });
+    } catch (err) {
+      resolve({
+        stdoutBytes: 0,
+        stdoutChunks: 0,
+        stdoutText: '',
+        stderrBytes: 0,
+        stderrText: '',
+        exitCode: null,
+        signal: null,
+        timeToFirstStdoutByteMs: null,
+        totalDurationMs: Date.now() - startMs,
+        error: String(err),
+      });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try { child.kill('SIGTERM'); } catch { /* ignore */ }
+      resolve({
+        stdoutBytes,
+        stdoutChunks,
+        stdoutText,
+        stderrBytes,
+        stderrText,
+        exitCode: null,
+        signal: 'TIMEOUT',
+        timeToFirstStdoutByteMs,
+        totalDurationMs: Date.now() - startMs,
+        error: `timed out after ${timeoutMs}ms`,
+      });
+    }, timeoutMs);
+
+    if (child.stdout) {
+      child.stdout.on('data', (chunk: Buffer) => {
+        if (timeToFirstStdoutByteMs === null) {
+          timeToFirstStdoutByteMs = Date.now() - startMs;
+        }
+        stdoutBytes += chunk.length;
+        stdoutChunks++;
+        stdoutText += chunk.toString();
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderrBytes += chunk.length;
+        stderrText += chunk.toString();
+      });
+    }
+
+    if (options.stdinPayload !== undefined && child.stdin) {
+      child.stdin.write(options.stdinPayload);
+      child.stdin.end();
+    }
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      resolve({
+        stdoutBytes,
+        stdoutChunks,
+        stdoutText,
+        stderrBytes,
+        stderrText,
+        exitCode: null,
+        signal: null,
+        timeToFirstStdoutByteMs,
+        totalDurationMs: Date.now() - startMs,
+        error: String(err),
+      });
+    });
+
+    child.on('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({
+        stdoutBytes,
+        stdoutChunks,
+        stdoutText,
+        stderrBytes,
+        stderrText,
+        exitCode: code,
+        signal: signal ?? null,
+        timeToFirstStdoutByteMs,
+        totalDurationMs: Date.now() - startMs,
+      });
+    });
+  });
+}
+
+describe.skipIf(SKIP)(
+  'cmd invocation diagnostics',
+  { timeout: DIAG_TIMEOUT_MS * 3 + 30_000 },
+  () => {
+    it('collects stdout/stderr data for three invocation variants', async () => {
+      const results: Record<string, DiagResult> = {};
+
+      // ── Variant 1: stdin-piped (current harness form) ──────────────────────
+      results['stdin-piped'] = await runVariant(
+        'stdin-piped',
+        'cmd',
+        ['-p', '--skip-onboarding', '--yolo', '--model', MODEL],
+        { stdio: ['pipe', 'pipe', 'pipe'], stdinPayload: DIAG_PROMPT },
+        DIAG_TIMEOUT_MS
+      );
+
+      // ── Variant 2: positional prompt ───────────────────────────────────────
+      results['positional'] = await runVariant(
+        'positional',
+        'cmd',
+        ['-p', DIAG_PROMPT, '--skip-onboarding', '--yolo', '--model', MODEL],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+        DIAG_TIMEOUT_MS
+      );
+
+      // ── Variant 3: echo-piped via shell ────────────────────────────────────
+      // Matches https://commandcode.ai/docs/core-concepts/headless "Piped Stdin"
+      const safePrompt = DIAG_PROMPT.replace(/'/g, "'\\''");
+      results['echo-piped'] = await runVariant(
+        'echo-piped',
+        'sh',
+        ['-c', `echo '${safePrompt}' | cmd -p --skip-onboarding --yolo --model ${MODEL}`],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+        DIAG_TIMEOUT_MS
+      );
+
+      // ── Log structured summary ─────────────────────────────────────────────
+      for (const [label, r] of Object.entries(results)) {
+        const ttfb = r.timeToFirstStdoutByteMs !== null ? `${r.timeToFirstStdoutByteMs}ms` : 'none';
+        const exitStr = r.signal === 'TIMEOUT' ? 'TIMEOUT' : `${r.exitCode}`;
+        const errStr = r.error ? ` err=${r.error.slice(0, 80)}` : '';
+        console.info(
+          `[diagnostic] ${label.padEnd(14)}: stdout=${r.stdoutBytes}B in ${r.stdoutChunks} chunks, ttfb=${ttfb}, exit=${exitStr}, stderr=${r.stderrBytes}B${errStr}`
+        );
+        if (r.stdoutText) {
+          console.info(`[diagnostic] ${label.padEnd(14)}: stdout_preview=${r.stdoutText.slice(0, 200).replace(/\n/g, '\\n')}`);
+        }
+        if (r.stderrText) {
+          console.info(`[diagnostic] ${label.padEnd(14)}: stderr_preview=${r.stderrText.slice(0, 200).replace(/\n/g, '\\n')}`);
+        }
+      }
+
+      // No strict assertions — this test is data-gathering only.
+      // The test always "passes" so we see the diagnostic output.
+      expect(Object.keys(results)).toHaveLength(3);
+    });
+  }
+);
