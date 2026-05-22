@@ -86,6 +86,7 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
   cursor: 'Cursor',
+  commandcode: 'CommandCode',
 };
 
 /** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
