@@ -37,6 +37,34 @@ export async function updateRunStatus(
   await ctx.db.patch('chatroom_commandRuns', args.runId, update);
 }
 
+export async function reapOrphansForMachine(
+  ctx: MutationCtx,
+  args: {
+    machineId: string;
+  }
+) {
+  const allRuns = await ctx.db
+    .query('chatroom_commandRuns')
+    .withIndex('by_machine_workingDir', (q) => q.eq('machineId', args.machineId))
+    .collect();
+
+  const now = Date.now();
+  let reapedCount = 0;
+
+  for (const run of allRuns) {
+    if (run.status === 'pending' || run.status === 'running') {
+      await ctx.db.patch('chatroom_commandRuns', run._id, {
+        status: 'killed',
+        terminationReason: 'daemon-restart',
+        completedAt: now,
+      });
+      reapedCount++;
+    }
+  }
+
+  return { reapedCount };
+}
+
 export async function clearStaleRuns(
   ctx: MutationCtx,
   args: {

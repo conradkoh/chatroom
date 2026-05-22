@@ -26,6 +26,7 @@ import {
   updateRunStatus as handleUpdateRunStatus,
   clearStaleRuns as handleClearStaleCommandRuns,
   clearStuckRuns as handleClearStuckCommandRuns,
+  reapOrphansForMachine as handleReapOrphansForDaemonRestart,
 } from './commands/process/run_status';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
@@ -323,5 +324,22 @@ export const clearStuckCommandRuns = mutation({
     });
 
     return await handleClearStuckCommandRuns(ctx, args);
+  },
+});
+
+export const reapOrphansForDaemonRestart = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    return await handleReapOrphansForDaemonRestart(ctx, args);
   },
 });

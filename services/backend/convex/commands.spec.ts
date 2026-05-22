@@ -272,3 +272,119 @@ describe('updateRunStatus', () => {
     ).rejects.toThrow(/INVALID_RUN_STATE_TRANSITION/);
   });
 });
+
+// ─── reapOrphansForDaemonRestart tests ─────────────────────────────────────
+
+describe('reapOrphansForDaemonRestart', () => {
+  test('reaps a running row — marks it killed with terminationReason=daemon-restart', async () => {
+    const { sessionId, machineId } = await setupMachine('reap-running');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.reapedCount).toBe(1);
+    const run = await getRun(runId);
+    expect(run!.status).toBe('killed');
+    expect(run!.terminationReason).toBe('daemon-restart');
+    expect(run!.completedAt).toBe(FIXED_NOW);
+  });
+
+  test('reaps a pending row — marks it killed with terminationReason=daemon-restart', async () => {
+    const { sessionId, machineId } = await setupMachine('reap-pending');
+    const runId = await createPendingRun(sessionId, machineId, '/tmp/ws', 'build');
+
+    const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.reapedCount).toBe(1);
+    const run = await getRun(runId);
+    expect(run!.status).toBe('killed');
+    expect(run!.terminationReason).toBe('daemon-restart');
+    expect(run!.completedAt).toBe(FIXED_NOW);
+  });
+
+  test('leaves terminal rows (completed/failed/stopped/killed) untouched', async () => {
+    const { sessionId, machineId } = await setupMachine('reap-terminal');
+    const wd = '/tmp/ws';
+
+    // completed
+    const completedId = await createRunningRun(sessionId, machineId, wd, 'dev');
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: completedId, status: 'completed' });
+
+    // failed
+    const failedId = await createRunningRun(sessionId, machineId, wd, 'build');
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: failedId, status: 'failed' });
+
+    // stopped
+    const stoppedId = await createPendingRun(sessionId, machineId, wd, 'test');
+    await t.mutation(api.commands.stopCommand, { sessionId, machineId, runId: stoppedId });
+
+    // killed
+    const killedId = await createRunningRun(sessionId, machineId, wd, 'lint');
+    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: killedId, status: 'killed' });
+
+    const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.reapedCount).toBe(0);
+    // All statuses unchanged
+    expect((await getRun(completedId))!.status).toBe('completed');
+    expect((await getRun(failedId))!.status).toBe('failed');
+    expect((await getRun(stoppedId))!.status).toBe('stopped');
+    expect((await getRun(killedId))!.status).toBe('killed');
+  });
+
+  test('only affects the given machineId', async () => {
+    const { sessionId, machineId: machineA } = await setupMachine('reap-scope-a');
+    const { sessionId: sessionB, machineId: machineB } = await setupMachine('reap-scope-b');
+
+    const runA = await createRunningRun(sessionId, machineA, '/tmp/ws', 'dev');
+    const runB = await createPendingRun(sessionB, machineB, '/tmp/ws', 'dev');
+
+    const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId,
+      machineId: machineA,
+    });
+
+    expect(result.reapedCount).toBe(1);
+    expect((await getRun(runA))!.status).toBe('killed');   // reaped
+    expect((await getRun(runB))!.status).toBe('pending'); // untouched
+  });
+
+  test('returns {reapedCount: N} for multiple orphans', async () => {
+    const { sessionId, machineId } = await setupMachine('reap-count');
+    const wd = '/tmp/ws';
+
+    await createPendingRun(sessionId, machineId, wd, 'dev');
+    await createRunningRun(sessionId, machineId, wd, 'build');
+    await createPendingRun(sessionId, machineId, wd, 'test');
+
+    const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.reapedCount).toBe(3);
+  });
+
+  test('auth — no machine access throws', async () => {
+    const { sessionId, machineId } = await setupMachine('reap-auth');
+    await createPendingRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    const { sessionId: otherSession } = await createTestSession('cmds-spec-reap-auth-other');
+
+    await expect(
+      t.mutation(api.commands.reapOrphansForDaemonRestart, {
+        sessionId: otherSession,
+        machineId,
+      })
+    ).rejects.toThrow();
+  });
+});
