@@ -9,6 +9,7 @@ import { Square, RefreshCw, Terminal } from 'lucide-react';
 import type { CommandRun, OutputChunk } from './ProcessManager';
 import { StatusBadge } from './shared/StatusBadge';
 import { isActiveRun } from './shared/run-status';
+import { TerminalView } from './shared/TerminalView';
 
 interface OutputPanelProps {
   run: CommandRun | null;
@@ -84,15 +85,12 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
       </div>
 
       {/* Terminal output */}
-      <pre
+      <TerminalView
         ref={scrollRef}
-        className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
-      >
-        <span className="text-chatroom-text-muted">$ {run.script}</span>
-        {'\n'}
-        {output || (run.status === 'pending' ? 'Waiting for process to start...\n' : '')}
-        {active && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
-      </pre>
+        output={output}
+        status={run.status}
+        scriptHint={run.script}
+      />
     </div>
   );
 }

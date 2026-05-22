@@ -16,6 +16,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { StatusBadge } from './ProcessManager/shared/StatusBadge';
 import { isActiveRun } from './ProcessManager/shared/run-status';
+import { TerminalView } from './ProcessManager/shared/TerminalView';
 import type { CommandRun } from './ProcessManager/ProcessManager';
 
 interface TerminalOutputPanelProps {
@@ -98,13 +99,7 @@ export function TerminalOutputPanel({
           </DialogPrimitive.Description>
 
           {/* Terminal output area */}
-          <pre
-            ref={scrollRef}
-            className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
-          >
-            {output || (status === 'pending' ? 'Waiting for process to start...\n' : '')}
-            {active && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
-          </pre>
+          <TerminalView ref={scrollRef} output={output} status={status} />
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
