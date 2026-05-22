@@ -6,8 +6,10 @@
 
 import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Terminal } from 'lucide-react';
-import type { CommandRun, OutputChunk } from './ProcessManager';
-import { StatusBadge } from './shared/StatusBadge';
+import type { CommandRun, OutputChunk } from '../../features/run-command/types/run';
+import { StatusBadge } from '../../features/run-command/components/StatusBadge';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
+import { TerminalView } from '../../features/run-command/components/TerminalView';
 
 interface OutputPanelProps {
   run: CommandRun | null;
@@ -40,7 +42,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
     );
   }
 
-  const isRunning = run.status === 'running' || run.status === 'pending';
+  const active = isActiveRun(run.status);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -53,7 +55,7 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
           <StatusBadge status={run.status} terminationReason={run.terminationReason} />
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {isRunning ? (
+          {active ? (
             <button
               onClick={onStop}
               className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -83,15 +85,12 @@ export function OutputPanel({ run, chunks, onStop, onRestart, onClose }: OutputP
       </div>
 
       {/* Terminal output */}
-      <pre
+      <TerminalView
         ref={scrollRef}
-        className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed text-green-400 dark:text-green-300 bg-black/90 whitespace-pre-wrap break-words"
-      >
-        <span className="text-chatroom-text-muted">$ {run.script}</span>
-        {'\n'}
-        {output || (run.status === 'pending' ? 'Waiting for process to start...\n' : '')}
-        {isRunning && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
-      </pre>
+        output={output}
+        status={run.status}
+        scriptHint={run.script}
+      />
     </div>
   );
 }

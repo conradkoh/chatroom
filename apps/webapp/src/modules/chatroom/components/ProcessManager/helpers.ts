@@ -2,7 +2,7 @@
  * Shared helpers for ProcessManager and its panels.
  */
 
-import type { RunnableCommand } from './ProcessManager';
+import type { RunnableCommand } from '../../features/run-command/types/run';
 
 export interface WorkspaceGroup {
   /** Relative path (e.g., '.', 'apps/webapp') */

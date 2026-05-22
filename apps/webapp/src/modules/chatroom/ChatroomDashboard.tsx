@@ -1679,6 +1679,7 @@ export function ChatroomDashboard({
             onOpenChange={setTerminalOpen}
             commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
             status={commandRunner.activeRunOutput.run?.status ?? null}
+            terminationReason={commandRunner.activeRunOutput.run?.terminationReason}
             output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
             onStop={() => {
               if (commandRunner.activeRunId) {

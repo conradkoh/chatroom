@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { cn } from '@/lib/utils';
-import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -41,28 +40,12 @@ import {
   getCompactDisplayName,
   type WorkspaceGroup,
 } from './helpers';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types (re-exported from feature slice for back-compat) ─────────────────
 
-/** A runnable command from the backend. */
-export type RunnableCommand = Doc<'chatroom_runnableCommands'>;
-
-export interface CommandRun {
-  _id: string;
-  commandName: string;
-  script: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
-  pid?: number;
-  startedAt: number;
-  completedAt?: number;
-  exitCode?: number;
-  terminationReason?: string;
-}
-
-export interface OutputChunk {
-  content: string;
-  chunkIndex: number;
-}
+export type { CommandRun, RunnableCommand, OutputChunk } from '../../features/run-command/types/run';
+import type { CommandRun, RunnableCommand, OutputChunk } from '../../features/run-command/types/run';
 
 export interface ProcessManagerProps {
   open: boolean;
@@ -108,9 +91,7 @@ export function ProcessManager({
   const [clearStuckOpen, setClearStuckOpen] = useState(false);
   const clearStuckRuns = useSessionMutation(api.commands.clearStuckCommandRuns);
 
-  const pendingOrRunningCount = runs.filter(
-    (r) => r.status === 'pending' || r.status === 'running'
-  ).length;
+  const pendingOrRunningCount = runs.filter((r) => isActiveRun(r.status)).length;
 
   const handleClearStuck = useCallback(async () => {
     if (!machineId || !workingDir) return;
@@ -228,9 +209,9 @@ export function ProcessManager({
   );
 
   // Separate running and recent runs
-  const runningProcesses = runs.filter((r) => r.status === 'running' || r.status === 'pending');
+  const runningProcesses = runs.filter((r) => isActiveRun(r.status));
   const recentRuns = runs
-    .filter((r) => r.status !== 'running' && r.status !== 'pending')
+    .filter((r) => !isActiveRun(r.status))
     .slice(0, 10);
 
   const handleRunCommand = useCallback(

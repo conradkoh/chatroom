@@ -5,8 +5,9 @@
 'use client';
 
 import { Square, RefreshCw } from 'lucide-react';
-import type { CommandRun } from './ProcessManager';
-import { StatusIcon } from './shared/StatusIcon';
+import type { CommandRun } from '../../features/run-command/types/run';
+import { StatusIcon } from '../../features/run-command/components/StatusIcon';
+import { isActiveRun } from '../../features/run-command/utils/run-status';
 
 interface ProcessListProps {
   title: string;
@@ -34,7 +35,7 @@ export function ProcessList({
 
       {runs.map((run) => {
         const isSelected = run._id === selectedRunId;
-        const isRunning = run.status === 'running' || run.status === 'pending';
+        const active = isActiveRun(run.status);
 
         return (
           <div
@@ -53,7 +54,7 @@ export function ProcessList({
 
             {/* Action buttons */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              {isRunning ? (
+              {active ? (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
