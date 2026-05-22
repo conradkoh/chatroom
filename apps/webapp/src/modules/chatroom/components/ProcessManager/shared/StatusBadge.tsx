@@ -11,6 +11,7 @@ import type { CommandRun } from '../ProcessManager';
 interface StatusBadgeProps {
   status: CommandRun['status'];
   terminationReason?: string;
+  variant?: 'badge' | 'inline'; // default 'badge'
 }
 
 function getKilledConfig(terminationReason?: string) {
@@ -30,7 +31,7 @@ function getKilledConfig(terminationReason?: string) {
   }
 }
 
-export function StatusBadge({ status, terminationReason }: StatusBadgeProps) {
+export function StatusBadge({ status, terminationReason, variant = 'badge' }: StatusBadgeProps) {
   const killedConfig = getKilledConfig(terminationReason);
   const configs = {
     pending: {
@@ -75,7 +76,7 @@ export function StatusBadge({ status, terminationReason }: StatusBadgeProps) {
 
   return (
     <span
-      className={`flex items-center gap-1 ${config.color} text-xs font-bold uppercase tracking-wider`}
+      className={`flex items-center gap-1 ${config.color} text-xs font-bold ${variant === 'inline' ? '' : 'uppercase tracking-wider'}`}
     >
       <Icon size={12} className={config.spin ? 'animate-spin' : ''} />
       {config.text}
