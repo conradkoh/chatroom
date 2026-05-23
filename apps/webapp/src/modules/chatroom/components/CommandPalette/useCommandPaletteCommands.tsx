@@ -13,7 +13,6 @@ import {
   ListTodo,
   MessagesSquare,
   MessageSquare,
-  PanelBottomOpen,
   Pencil,
   Play,
   Plus,
@@ -329,28 +328,6 @@ export function useCommandPaletteCommands({
         });
       }
 
-      if (onSwitchToPullRequests || onOpenPRReview) {
-        commands.push({
-          id: 'action-pr-review-diff',
-          label: 'View: Pull Requests',
-          icon: <GitPullRequest size={14} />,
-          category: 'Actions',
-          keywords: ['PR', 'PRs', 'Review', 'pull requests panel'],
-          action: onSwitchToPullRequests ?? onOpenPRReview!,
-        });
-      }
-
-      if (onSwitchToSourceControl || onOpenWorkspaceDetails) {
-        commands.push({
-          id: 'action-open-workspace-details',
-          label: 'View: Source Control',
-          icon: <PanelBottomOpen size={14} />,
-          category: 'Actions',
-          keywords: ['git', 'source control', 'diff', 'history', 'workspace details'],
-          action: onSwitchToSourceControl ?? onOpenWorkspaceDetails!,
-        });
-      }
-
       // Git Diff has no global registration here.
       //
       // Per-workspace 'Git: Show Current Changes' commands are contributed by
@@ -416,6 +393,17 @@ export function useCommandPaletteCommands({
         action: onOpenBacklog,
       }
     );
+
+    if (onSwitchToPullRequests || onOpenPRReview) {
+      commands.push({
+        id: 'panel-pull-requests',
+        label: 'View: Show Pull Requests',
+        icon: <GitPullRequest size={14} />,
+        category: 'Panels',
+        keywords: ['PR', 'PRs', 'Review', 'pull requests panel', 'pulls', 'github'],
+        action: onSwitchToPullRequests ?? onOpenPRReview!,
+      });
+    }
 
     if (onShowExplorer) {
       commands.push({
