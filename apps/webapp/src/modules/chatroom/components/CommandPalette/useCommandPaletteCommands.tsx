@@ -376,14 +376,15 @@ export function useCommandPaletteCommands({
     commands.push(
       {
         id: 'panel-git',
-        label: 'View: Source Control',
+        label: 'View: Show Source Control',
         icon: <GitBranch size={14} />,
         category: 'Panels',
-        keywords: ['git', 'git panel', 'source control', 'diff', 'history'],
+        keywords: ['git', 'git panel', 'source control', 'diff', 'history', 'workspace details'],
         action: onSwitchToSourceControl ?? onOpenGitPanel ?? (() => {}),
       },
       {
         id: 'panel-configuration',
+        // Settings is a modal; intentionally not renamed to "View: Show ..." pattern.
         label: 'Chatroom: Settings',
         icon: <Settings size={14} />,
         category: 'Panels',
@@ -392,34 +393,36 @@ export function useCommandPaletteCommands({
       },
       {
         id: 'panel-event-stream',
-        label: 'Chatroom: Event Stream',
+        label: 'View: Show Event Stream',
         icon: <Activity size={14} />,
         category: 'Panels',
+        keywords: ['event', 'events', 'stream', 'activity'],
         action: onOpenEventStream,
       },
       {
         id: 'panel-pending-review',
-        label: 'Chatroom: Pending Review',
+        label: 'View: Show Pending Review',
         icon: <ClipboardCheck size={14} />,
         category: 'Panels',
+        keywords: ['pending', 'review', 'pr review'],
         action: onOpenPendingReview,
       },
       {
         id: 'panel-backlog',
-        label: 'Chatroom: Backlog',
+        label: 'View: Show Backlog',
         icon: <ListTodo size={14} />,
         category: 'Panels',
+        keywords: ['backlog', 'tasks', 'todo'],
         action: onOpenBacklog,
       }
     );
 
-    // ─── View ──────────────────────────────────────────────
     if (onShowExplorer) {
       commands.push({
         id: 'view-explorer',
         label: 'View: Show Explorer',
         icon: <Files size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['files', 'tree', 'explorer', 'workspace'],
         action: onShowExplorer,
       });
@@ -430,7 +433,7 @@ export function useCommandPaletteCommands({
         id: 'view-messages',
         label: 'View: Show Messages',
         icon: <MessagesSquare size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['chat', 'messages', 'feed', 'history'],
         action: onShowMessages,
       });
@@ -441,7 +444,7 @@ export function useCommandPaletteCommands({
         id: 'view-toggle-chat-split-panel',
         label: 'View: Toggle Split Chat',
         icon: <MessageSquare size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['chat', 'split', 'panel', 'messages', 'side', 'toggle'],
         action: onToggleChatSplitPanel,
       });
@@ -508,9 +511,10 @@ export function useCommandPaletteCommands({
     if (onOpenProcessesPanel) {
       commands.push({
         id: 'panel-processes',
-        label: 'Chatroom: Processes',
+        label: 'View: Show Processes',
         icon: <Terminal size={14} />,
         category: 'Panels',
+        keywords: ['processes', 'process manager', 'commands', 'terminal', 'run'],
         action: onOpenProcessesPanel,
       });
     }
