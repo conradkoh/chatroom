@@ -421,6 +421,7 @@ export function MessageInput({
           {attachedTasks.map((task) => (
             <AttachedTaskChip
               key={task.id}
+              mode="editable"
               taskId={task.id}
               content={task.content}
               onRemove={() => remove('task', task.id)}
@@ -429,6 +430,7 @@ export function MessageInput({
           {attachedBacklogItems.map((item) => (
             <AttachedBacklogItemChip
               key={item.id}
+              mode="editable"
               itemId={item.id}
               content={item.content}
               onRemove={() => remove('backlog', item.id)}
@@ -437,6 +439,7 @@ export function MessageInput({
           {attachedMessages.map((msg) => (
             <AttachedMessageChip
               key={msg.id}
+              mode="editable"
               messageId={msg.id}
               content={msg.content}
               senderRole={msg.senderRole}

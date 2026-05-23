@@ -64,7 +64,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Query tasks
   const tasks = useSessionQuery(api.tasks.listTasks, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
     statusFilter: 'active',
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
@@ -72,7 +72,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   // Query backlog items from the dedicated chatroom_backlog table
   // Only fetch items with status 'backlog' (excludes 'pending_user_review' items shown in the Pending Review section)
   const backlogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
     statusFilter: 'backlog',
     limit: 100,
   });
@@ -80,7 +80,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Query task counts
   const counts = useSessionQuery(api.tasks.getTaskCounts, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
   }) as TaskCounts | undefined;
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
@@ -120,7 +120,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
     statusFilter: 'pending_user_review',
     limit: 100,
   });
@@ -153,7 +153,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Fetch queued messages
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
@@ -200,7 +200,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleAddTask = useCallback(
     async (content: string) => {
       await createBacklogItem({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        chatroomId,
         content,
         createdBy: 'user',
       });
@@ -211,7 +211,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handlePromoteNext = useCallback(async () => {
     try {
       await promoteNextTask({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        chatroomId,
       });
     } catch (error) {
       console.error('Failed to promote next task:', error);
@@ -290,7 +290,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleMarkAllReviewed = useCallback(async () => {
     try {
       const result = await completeAllPendingReview({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        chatroomId,
       });
       toast.success(`Marked ${result.completed} backlog item(s) as reviewed`);
     } catch {
@@ -392,6 +392,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
             {queuedMessages.slice(0, 3).map((message) => (
               <QueuedMessageItem
                 key={message._id}
+                chatroomId={chatroomId}
                 message={message}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
@@ -506,7 +507,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       <ReviewPanel
         isOpen={isPendingReviewModalOpen}
         onClose={() => setIsPendingReviewModalOpen(false)}
-        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+        chatroomId={chatroomId}
       />
 
       {/* Current Tasks Modal */}

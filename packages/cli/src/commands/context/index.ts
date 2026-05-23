@@ -380,6 +380,9 @@ export function viewTemplate(): string {
 ## Requirements
 - <outcome or requirement>
 
+## Structure
+- <concrete folder structure, architecture style (e.g. vertical slice + clean architecture), key shape decisions>
+
 ## Avoid
 - <thing to not do / out of scope>`;
 }

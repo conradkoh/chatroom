@@ -1604,7 +1604,7 @@ export function ChatroomDashboard({
                   onOpenAgents={handleOpenAgents}
                 />
                 <WorkQueue
-                  chatroomId={chatroomId}
+                  chatroomId={chatroomId as Id<'chatroom_rooms'>}
                   lifecycle={lifecycle}
                   onRegisterActions={handleRegisterWorkQueueActions}
                 />
