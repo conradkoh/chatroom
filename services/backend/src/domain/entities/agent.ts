@@ -34,6 +34,7 @@ export const AGENT_HARNESSES = [
   'cursor',
   'claude',
   'copilot',
+  'commandcode',
 ] as const;
 
 /** The type of agent harness used to run an agent process. */
