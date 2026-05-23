@@ -15,13 +15,15 @@ import {
 
 import { compactMarkdownComponents, messageFeedProseClassNames } from './markdown-utils';
 
-interface AttachedMessageChipProps {
-  messageId: Id<'chatroom_messages'>;
-  content: string;
-  senderRole: string;
-  /** When undefined the remove button is hidden (read-only chip). */
-  onRemove?: () => void;
-}
+type AttachedMessageChipProps =
+  | {
+      mode: 'editable';
+      messageId: Id<'chatroom_messages'>;
+      content: string;
+      senderRole: string;
+      onRemove: () => void;
+    }
+  | { mode: 'view'; messageId: Id<'chatroom_messages'>; content: string; senderRole: string };
 
 /**
  * Truncate text to a maximum length with ellipsis.
@@ -40,14 +42,16 @@ function stripMarkdownHeading(line: string): string {
 }
 
 /**
- * Displays a single attached message as a removable chip.
- * Click the chip label to open a centered modal showing the full content.
+ * Displays a single attached message as a chip.
+ *
+ * Supports two modes via a discriminated union on `mode`:
+ * - `'view'` — read-only chip. Clicking the label opens a full preview modal.
+ * - `'editable'` — includes an X remove button. `onRemove` is required.
  */
-export function AttachedMessageChip({ content, senderRole, onRemove }: AttachedMessageChipProps) {
+export function AttachedMessageChip(props: AttachedMessageChipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Get first non-empty line for chip label, stripping markdown heading syntax
-  const rawFirstLine = content.split('\n').find((line) => line.trim()) || content;
+  const rawFirstLine = props.content.split('\n').find((line) => line.trim()) || props.content;
   const firstLine = stripMarkdownHeading(rawFirstLine);
   const displayText = truncateText(firstLine);
 
@@ -63,7 +67,7 @@ export function AttachedMessageChip({ content, senderRole, onRemove }: AttachedM
         >
           <MessageSquare size={12} className="text-chatroom-text-muted flex-shrink-0" />
           <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wider flex-shrink-0">
-            {senderRole}:
+            {props.senderRole}:
           </span>
           <span
             className="text-chatroom-text-secondary truncate max-w-[150px] hover:text-chatroom-text-primary transition-colors text-[10px] font-bold uppercase tracking-wider"
@@ -73,10 +77,10 @@ export function AttachedMessageChip({ content, senderRole, onRemove }: AttachedM
           </span>
         </button>
 
-        {/* Remove button — only rendered when a handler is provided */}
-        {onRemove && (
+        {/* Remove button — only in editable mode */}
+        {props.mode === 'editable' && (
           <button
-            onClick={onRemove}
+            onClick={props.onRemove}
             className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
             aria-label="Remove attachment"
             type="button"
@@ -94,14 +98,14 @@ export function AttachedMessageChip({ content, senderRole, onRemove }: AttachedM
               <FixedModalTitle>
                 Attached Message
                 <span className="ml-2 text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wider">
-                  from {senderRole}
+                  from {props.senderRole}
                 </span>
               </FixedModalTitle>
             </div>
           </FixedModalHeader>
           <FixedModalBody>
             <div className={`p-4 ${messageFeedProseClassNames}`}>
-              <Markdown>{content}</Markdown>
+              <Markdown>{props.content}</Markdown>
             </div>
           </FixedModalBody>
         </FixedModalContent>

@@ -36,6 +36,7 @@ export function MessageAttachmentChips({ message, chatroomId }: MessageAttachmen
       {message.attachedTasks?.map((task) => (
         <AttachedTaskChip
           key={task._id}
+          mode="view"
           taskId={task._id as Id<'chatroom_tasks'>}
           content={task.content}
         />
@@ -43,6 +44,7 @@ export function MessageAttachmentChips({ message, chatroomId }: MessageAttachmen
       {message.attachedBacklogItems?.map((item) => (
         <AttachedBacklogItemChip
           key={item.id}
+          mode="view"
           itemId={item.id as Id<'chatroom_backlog'>}
           content={item.content}
         />
@@ -59,6 +61,7 @@ export function MessageAttachmentChips({ message, chatroomId }: MessageAttachmen
       {message.attachedMessages?.map((msg) => (
         <AttachedMessageChip
           key={msg._id}
+          mode="view"
           messageId={msg._id as Id<'chatroom_messages'>}
           content={msg.content}
           senderRole={msg.senderRole}
