@@ -212,4 +212,20 @@ describe('QueuedMessageDetailModal', () => {
     expect(screen.getByText('Attachments (1)')).toBeInTheDocument();
     expect(screen.getByText('my-workflow')).toBeInTheDocument();
   });
+
+  it('clicking a task attachment chip opens the full preview modal', () => {
+    const message = makeMessage({
+      attachedTasks: [{ _id: 'task-1', content: 'Fix the bug' }],
+    });
+    renderModal(message);
+
+    // Click the task chip's "View attached task" button
+    const chipButton = screen.getByLabelText('View attached task');
+    act(() => {
+      fireEvent.click(chipButton);
+    });
+
+    // The AttachedTaskChip's inner FixedModal should be open
+    expect(screen.getByText('Attached Task')).toBeInTheDocument();
+  });
 });
