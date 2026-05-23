@@ -8,6 +8,7 @@
  */
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,12 +16,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionQuery: () => undefined,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
       updateQueuedMessage: 'messages:updateQueuedMessage',
+    },
+    workflows: {
+      getWorkflowDetail: 'workflows:getWorkflowDetail',
     },
   },
 }));
@@ -94,6 +99,7 @@ const noop = vi.fn().mockResolvedValue(undefined);
 function renderModal(message: Message, isOpen = true) {
   return render(
     <QueuedMessageDetailModal
+      chatroomId={'test-room' as Id<'chatroom_rooms'>}
       message={message}
       isOpen={isOpen}
       onClose={noop}

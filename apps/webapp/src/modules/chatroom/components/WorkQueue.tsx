@@ -392,6 +392,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
             {queuedMessages.slice(0, 3).map((message) => (
               <QueuedMessageItem
                 key={message._id}
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
                 message={message}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}

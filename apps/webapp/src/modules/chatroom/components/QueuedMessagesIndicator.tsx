@@ -113,6 +113,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
 
       {/* Detail modal for the last queued message */}
       <QueuedMessageDetailModal
+        chatroomId={chatroomId as Id<'chatroom_rooms'>}
         message={lastMessage}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

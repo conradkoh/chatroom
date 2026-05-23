@@ -3,16 +3,18 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ArrowUp, Check, ChevronRight, GitBranch, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
+import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import type { Message } from '../../types/message';
+import { AttachedBacklogItemChip } from '../AttachedBacklogItemChip';
 import { AttachedMessageChip } from '../AttachedMessageChip';
-import { getBacklogStatusBadge } from '../backlog/presenters';
-import { baseMarkdownComponents, compactMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
+import { AttachedTaskChip } from '../AttachedTaskChip';
+import { AttachedWorkflowChip } from '../AttachedWorkflowChip';
+import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +33,8 @@ import {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface QueuedMessageDetailModalProps {
+  /** The chatroom ID (needed by AttachedWorkflowChip). */
+  chatroomId: Id<'chatroom_rooms'>;
   /** The queued message to display. */
   message: Message;
   /** Whether the modal is open. */
@@ -45,33 +49,17 @@ interface QueuedMessageDetailModalProps {
 
 // ─── Attachments helpers ──────────────────────────────────────────────────────
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
-
-/** Status badge for attached tasks / backlog items (mirrors MessageFeed). */
-function getAttachmentStatusBadge(status?: string): { label: string; classes: string } {
-  switch (status) {
-    case 'in_progress':
-      return { label: 'In Progress', classes: 'bg-chatroom-status-info/15 text-chatroom-status-info' };
-    case 'pending':
-      return { label: 'Pending', classes: 'bg-chatroom-status-success/15 text-chatroom-status-success' };
-    case 'acknowledged':
-      return { label: 'Acknowledged', classes: 'bg-chatroom-status-success/15 text-chatroom-status-success' };
-    case 'completed':
-      return { label: 'Completed', classes: 'bg-chatroom-status-success/15 text-chatroom-status-success' };
-    case 'backlog':
-    case 'pending_user_review':
-    case 'closed':
-      return getBacklogStatusBadge(status);
-    default:
-      return { label: status ?? 'Unknown', classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted' };
-  }
-}
-
 /**
  * Renders the "Attachments (N)" section for a queued message, mirroring the
- * pattern used by `MessageFeed.tsx:873–980`. Only shown in non-editing view.
+ * pattern used by `QueuedMessageItem.tsx`. Only shown in non-editing view.
  */
-function QueuedMessageAttachments({ message }: { message: Message }) {
+function QueuedMessageAttachments({
+  message,
+  chatroomId,
+}: {
+  message: Message;
+  chatroomId: Id<'chatroom_rooms'>;
+}) {
   const taskCount = message.attachedTasks?.length ?? 0;
   const backlogCount = message.attachedBacklogItems?.length ?? 0;
   const workflowCount = message.attachedWorkflows?.length ?? 0;
@@ -86,79 +74,39 @@ function QueuedMessageAttachments({ message }: { message: Message }) {
         Attachments ({totalCount})
       </div>
 
-      {/* Tasks */}
-      {message.attachedTasks?.map((task) => {
-        const badge = getAttachmentStatusBadge(task.backlogStatus);
-        return (
-          <div
+      <div className="flex flex-wrap gap-1.5">
+        {message.attachedTasks?.map((task) => (
+          <AttachedTaskChip
             key={task._id}
-            className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
-                  {task.content}
-                </Markdown>
-              </div>
-              <span className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}>
-                {badge.label}
-              </span>
-              <ChevronRight size={14} className="flex-shrink-0 text-chatroom-text-muted opacity-50" />
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Backlog items */}
-      {message.attachedBacklogItems?.map((item) => {
-        const badge = getAttachmentStatusBadge(item.status);
-        return (
-          <div
+            taskId={task._id as Id<'chatroom_tasks'>}
+            content={task.content}
+          />
+        ))}
+        {message.attachedBacklogItems?.map((item) => (
+          <AttachedBacklogItemChip
             key={item.id}
-            className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
-                  {item.content}
-                </Markdown>
-              </div>
-              <span className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}>
-                {badge.label}
-              </span>
-              <ChevronRight size={14} className="flex-shrink-0 text-chatroom-text-muted opacity-50" />
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Workflows — simple chip summary (TODO: use AttachedWorkflowChip for full visualizer) */}
-      {message.attachedWorkflows?.map((wf) => (
-        <div
-          key={wf._id}
-          className="inline-flex items-center gap-1.5 px-2 py-1 mb-2 mr-1.5 bg-chatroom-bg-tertiary border border-chatroom-border text-xs"
-        >
-          <GitBranch size={12} className="text-chatroom-text-muted flex-shrink-0" />
-          <span className="text-chatroom-text-secondary text-[10px] font-bold uppercase tracking-wider">
-            {wf.workflowKey}
-          </span>
-          <span className="text-chatroom-text-muted text-[10px]">· {wf.status}</span>
-        </div>
-      ))}
-
-      {/* Attached messages — chip form (chip has its own preview modal) */}
-      {message.attachedMessages && message.attachedMessages.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {message.attachedMessages.map((msg) => (
-            <AttachedMessageChip
-              key={msg._id}
-              messageId={msg._id as Id<'chatroom_messages'>}
-              content={msg.content}
-              senderRole={msg.senderRole}
-            />
-          ))}
-        </div>
-      )}
+            itemId={item.id as Id<'chatroom_backlog'>}
+            content={item.content}
+          />
+        ))}
+        {message.attachedWorkflows?.map((wf) => (
+          <AttachedWorkflowChip
+            key={wf._id}
+            chatroomId={chatroomId}
+            workflowId={wf._id as Id<'chatroom_workflows'>}
+            workflowKey={wf.workflowKey}
+            status={wf.status}
+          />
+        ))}
+        {message.attachedMessages?.map((msg) => (
+          <AttachedMessageChip
+            key={msg._id}
+            messageId={msg._id as Id<'chatroom_messages'>}
+            content={msg.content}
+            senderRole={msg.senderRole}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -178,6 +126,7 @@ function QueuedMessageAttachments({ message }: { message: Message }) {
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
 export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
+  chatroomId,
   message,
   isOpen,
   onClose,
@@ -343,7 +292,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
               >
                 {message.content}
               </Markdown>
-              <QueuedMessageAttachments message={message} />
+              <QueuedMessageAttachments message={message} chatroomId={chatroomId} />
             </div>
           )}
         </FixedModalBody>

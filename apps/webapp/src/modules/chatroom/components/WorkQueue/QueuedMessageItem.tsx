@@ -41,6 +41,7 @@ function formatElapsed(creationTime: number): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface QueuedMessageItemProps {
+  chatroomId: Id<'chatroom_rooms'>;
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
@@ -52,6 +53,7 @@ interface QueuedMessageItemProps {
  * `BacklogItemDetailModal` and `TaskDetailModal`.
  */
 export const QueuedMessageItem = memo(function QueuedMessageItem({
+  chatroomId,
   message,
   onPromote,
   onDelete,
@@ -170,6 +172,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
       </div>
 
       <QueuedMessageDetailModal
+        chatroomId={chatroomId}
         message={message}
         isOpen={isModalOpen}
         onClose={closeModal}

@@ -8,6 +8,7 @@
  */
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -84,7 +85,12 @@ const noop = vi.fn().mockResolvedValue(undefined);
 
 function renderItem(message: Message) {
   return render(
-    <QueuedMessageItem message={message} onPromote={noop} onDelete={noop} />
+    <QueuedMessageItem
+      chatroomId={'test-room' as Id<'chatroom_rooms'>}
+      message={message}
+      onPromote={noop}
+      onDelete={noop}
+    />
   );
 }
 
