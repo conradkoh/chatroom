@@ -35,6 +35,8 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable';
 
+import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
+
 import { ProcessList } from '../../../features/run-command/components/ProcessList';
 import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
@@ -106,6 +108,22 @@ export function ProcessesPanel({
     runningProcesses,
     recentRuns,
   } = state;
+
+  // Layout persistence — mirrors PullRequestsPanel pattern
+  const PROCESSES_LAYOUT_KEY = 'webapp:processesPanelSizes';
+  const PROCESSES_DEFAULT_LAYOUT: readonly number[] = [30, 70] as const;
+  const isValidProcessesLayout = (v: unknown): v is number[] =>
+    Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+  const [sizes, setSizes] = usePersistedState<number[]>(PROCESSES_LAYOUT_KEY, [...PROCESSES_DEFAULT_LAYOUT], {
+    validate: isValidProcessesLayout,
+  });
+  const handleLayoutChanged = useCallback(
+    (layout: { [id: string]: number }) => {
+      const next = [layout['processes-sidebar'] ?? sizes[0], layout['processes-detail'] ?? sizes[1]];
+      if (isValidProcessesLayout(next)) setSizes(next);
+    },
+    [setSizes, sizes]
+  );
 
   // Clear stuck dialog state
   const [clearStuckOpen, setClearStuckOpen] = useState(false);
@@ -362,12 +380,12 @@ export function ProcessesPanel({
         {/* Body — desktop: ResizablePanelGroup, mobile: master-detail */}
         {/* Desktop layout (md+) */}
         <div className="hidden md:flex flex-1 overflow-hidden">
-          <ResizablePanelGroup className="flex-1">
-            <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+          <ResizablePanelGroup className="flex-1" onLayoutChanged={handleLayoutChanged}>
+            <ResizablePanel id="processes-sidebar" defaultSize={sizes[0]} minSize={18}>
               {sidebar}
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel defaultSize={70} minSize={40}>
+            <ResizablePanel id="processes-detail" defaultSize={sizes[1]} minSize={30}>
               {detail}
             </ResizablePanel>
           </ResizablePanelGroup>
