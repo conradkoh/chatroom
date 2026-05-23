@@ -61,10 +61,10 @@ export function ProcessList({
                     e.stopPropagation();
                     onStop(run._id);
                   }}
-                  className="p-0.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                  className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Stop"
                 >
-                  <Square size={10} />
+                  <Square size={14} />
                 </button>
               ) : (
                 <button
@@ -72,10 +72,10 @@ export function ProcessList({
                     e.stopPropagation();
                     onRestart(run);
                   }}
-                  className="p-0.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
+                  className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Restart"
                 >
-                  <RefreshCw size={10} />
+                  <RefreshCw size={14} />
                 </button>
               )}
             </div>
