@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
-import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
+import type { CommandRun } from '@/modules/chatroom/features/run-command/types/run';
 import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
 import { AnsiText } from '@/modules/chatroom/features/run-command/components/AnsiText';
 

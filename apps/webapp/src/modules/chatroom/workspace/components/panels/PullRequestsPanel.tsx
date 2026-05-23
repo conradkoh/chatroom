@@ -22,6 +22,7 @@ import type { GitPullRequest } from '../../types/git';
 import { prStateBadge, relativeTime } from '../../utils/pr-helpers';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
+import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -41,7 +42,6 @@ const FILTER_LABELS: Record<PRFilter, string> = {
 interface PullRequestsPanelProps {
   machineId: string;
   workingDir: string;
-  chatroomId: string;
 }
 
 // ─── PR List Item ─────────────────────────────────────────────────────────────
@@ -170,15 +170,13 @@ const PRListColumn = memo(function PRListColumn({
 
 const PR_LAYOUT_KEY = 'webapp:pullRequestsPanelSizes';
 const PR_DEFAULT_LAYOUT: readonly number[] = [30, 70] as const;
-const isValidPRLayout = (v: unknown): v is number[] =>
-  Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+const isValidPRLayout = isValidTwoPaneLayout;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const PullRequestsPanel = memo(function PullRequestsPanel({
   machineId,
   workingDir,
-  chatroomId: _chatroomId,
 }: PullRequestsPanelProps) {
   const [filter, setFilter] = useState<PRFilter>('my-prs');
   const [selectedPR, setSelectedPR] = useState<GitPullRequest | null>(null);
