@@ -106,13 +106,13 @@ describe('PullRequestsPanel', () => {
         request: mockRequestAllPRs,
       }),
     }));
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
     // Mount triggers requestAllPRs via useEffect
     // (already mocked; just verify no crash)
   });
 
   it('renders PR list with current-branch PR selected by default', () => {
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
     // PR list is visible (multiple occurrences possible - list + review)
     expect(screen.getAllByText('PR #10').length).toBeGreaterThan(0);
@@ -126,7 +126,7 @@ describe('PullRequestsPanel', () => {
 
   it('shows star indicator on the current-branch PR', () => {
     const { container } = render(
-      <PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />
+      <PullRequestsPanel machineId="m1" workingDir="/repo" />
     );
     // The Star icon has title="Current branch PR"
     const starTitle = container.querySelector('[title="Current branch PR"]');
@@ -134,7 +134,7 @@ describe('PullRequestsPanel', () => {
   });
 
   it('filters to my-prs by default (alice only)', () => {
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
     // alice's PRs: #10, #9 — visible
     expect(screen.getAllByText('PR #10').length).toBeGreaterThan(0);
@@ -144,7 +144,7 @@ describe('PullRequestsPanel', () => {
   });
 
   it('switching to all filter shows all PRs including other authors', () => {
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
     const select = screen.getByRole('combobox');
     fireEvent.change(select, { target: { value: 'all' } });
@@ -163,7 +163,7 @@ describe('PullRequestsPanel', () => {
     mockCurrentUserLogin = 'alice';
     mockCurrentBranchPR = null;
 
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
     expect(screen.getByText(/No PRs match/)).toBeTruthy();
   });
@@ -172,7 +172,7 @@ describe('PullRequestsPanel', () => {
     mockAllPRsState = { status: 'loading' };
     mockCurrentBranchPR = null;
 
-    render(<PullRequestsPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+    render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
     // Loading spinner in the list column
     expect(screen.getAllByText(/Loading/i).length).toBeGreaterThan(0);

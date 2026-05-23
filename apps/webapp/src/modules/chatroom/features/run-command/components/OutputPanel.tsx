@@ -1,15 +1,16 @@
 /**
- * OutputPanel — terminal output viewer for the Process Manager right panel.
+ * OutputPanel — terminal output viewer for the Processes panel right pane.
+ * Part of the run-command vertical slice.
  */
 
 'use client';
 
 import { useEffect, useRef } from 'react';
 import { Square, RefreshCw, Terminal } from 'lucide-react';
-import type { CommandRun, OutputChunk } from '../../features/run-command/types/run';
-import { StatusBadge } from '../../features/run-command/components/StatusBadge';
-import { isActiveRun } from '../../features/run-command/utils/run-status';
-import { TerminalView } from '../../features/run-command/components/TerminalView';
+import type { CommandRun, OutputChunk } from '../types/run';
+import { StatusBadge } from './StatusBadge';
+import { isActiveRun } from '../utils/run-status';
+import { TerminalView } from './TerminalView';
 
 interface OutputPanelProps {
   run: CommandRun | null;

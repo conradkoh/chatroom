@@ -13,7 +13,6 @@ import {
   ListTodo,
   MessagesSquare,
   MessageSquare,
-  PanelBottomOpen,
   Pencil,
   Play,
   Plus,
@@ -63,12 +62,12 @@ interface UseCommandPaletteCommandsProps {
   onSwitchToPullRequests?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: { name: string; script: string; source: string }[];
-  /** Callback to open the Process Manager with a specific command selected */
-  onOpenProcessManagerWithCommand?: (commandName: string) => void;
+  /** Callback to open the Processes panel with a specific command selected */
+  onOpenProcessesPanelWithCommand?: (commandName: string) => void;
   /** Callback to directly execute a command (run + open terminal) */
   onRunCommand?: (commandName: string, script: string) => void;
-  /** Callback to open the Process Manager */
-  onOpenProcessManager?: () => void;
+  /** Callback to open the Processes panel */
+  onOpenProcessesPanel?: () => void;
   /** Callback to switch to Explorer view */
   onShowExplorer?: (() => void) | null;
   /** Callback to switch to Messages view */
@@ -126,9 +125,9 @@ export function useCommandPaletteCommands({
   onViewGitHubRepository,
   onOpenWorkspaceDetails,
   runnableCommands,
-  onOpenProcessManagerWithCommand,
+  onOpenProcessesPanelWithCommand,
   onRunCommand,
-  onOpenProcessManager,
+  onOpenProcessesPanel,
   onShowExplorer,
   onShowMessages,
   onToggleChatSplitPanel,
@@ -217,8 +216,8 @@ export function useCommandPaletteCommands({
             action: () => {
               if (onRunCommand) {
                 onRunCommand(cmd.name, cmd.script);
-              } else if (onOpenProcessManagerWithCommand) {
-                onOpenProcessManagerWithCommand(cmd.name);
+              } else if (onOpenProcessesPanelWithCommand) {
+                onOpenProcessesPanelWithCommand(cmd.name);
               }
             },
           });
@@ -329,28 +328,6 @@ export function useCommandPaletteCommands({
         });
       }
 
-      if (onSwitchToPullRequests || onOpenPRReview) {
-        commands.push({
-          id: 'action-pr-review-diff',
-          label: 'View: Pull Requests',
-          icon: <GitPullRequest size={14} />,
-          category: 'Actions',
-          keywords: ['PR', 'PRs', 'Review', 'pull requests panel'],
-          action: onSwitchToPullRequests ?? onOpenPRReview!,
-        });
-      }
-
-      if (onSwitchToSourceControl || onOpenWorkspaceDetails) {
-        commands.push({
-          id: 'action-open-workspace-details',
-          label: 'View: Source Control',
-          icon: <PanelBottomOpen size={14} />,
-          category: 'Actions',
-          keywords: ['git', 'source control', 'diff', 'history', 'workspace details'],
-          action: onSwitchToSourceControl ?? onOpenWorkspaceDetails!,
-        });
-      }
-
       // Git Diff has no global registration here.
       //
       // Per-workspace 'Git: Show Current Changes' commands are contributed by
@@ -376,10 +353,10 @@ export function useCommandPaletteCommands({
     if (onSwitchToSourceControl || onOpenGitPanel) {
       commands.push({
         id: 'panel-git',
-        label: 'View: Source Control',
+        label: 'View: Show Source Control',
         icon: <GitBranch size={14} />,
         category: 'Panels',
-        keywords: ['git', 'git panel', 'source control', 'diff', 'history'],
+        keywords: ['git', 'git panel', 'source control', 'diff', 'history', 'workspace details'],
         action: onSwitchToSourceControl ?? onOpenGitPanel!,
       });
     }
@@ -395,34 +372,47 @@ export function useCommandPaletteCommands({
       },
       {
         id: 'panel-event-stream',
-        label: 'Chatroom: Event Stream',
+        label: 'View: Show Event Stream',
         icon: <Activity size={14} />,
         category: 'Panels',
+        keywords: ['event', 'events', 'stream', 'activity'],
         action: onOpenEventStream,
       },
       {
         id: 'panel-pending-review',
-        label: 'Chatroom: Pending Review',
+        label: 'View: Show Pending Review',
         icon: <ClipboardCheck size={14} />,
         category: 'Panels',
+        keywords: ['pending', 'review', 'pr review'],
         action: onOpenPendingReview,
       },
       {
         id: 'panel-backlog',
-        label: 'Chatroom: Backlog',
+        label: 'View: Show Backlog',
         icon: <ListTodo size={14} />,
         category: 'Panels',
+        keywords: ['backlog', 'tasks', 'todo'],
         action: onOpenBacklog,
       }
     );
 
-    // ─── View ──────────────────────────────────────────────
+    if (onSwitchToPullRequests || onOpenPRReview) {
+      commands.push({
+        id: 'panel-pull-requests',
+        label: 'View: Show Pull Requests',
+        icon: <GitPullRequest size={14} />,
+        category: 'Panels',
+        keywords: ['PR', 'PRs', 'Review', 'pull requests panel', 'pulls', 'github'],
+        action: onSwitchToPullRequests ?? onOpenPRReview!,
+      });
+    }
+
     if (onShowExplorer) {
       commands.push({
         id: 'view-explorer',
         label: 'View: Show Explorer',
         icon: <Files size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['files', 'tree', 'explorer', 'workspace'],
         action: onShowExplorer,
       });
@@ -433,7 +423,7 @@ export function useCommandPaletteCommands({
         id: 'view-messages',
         label: 'View: Show Messages',
         icon: <MessagesSquare size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['chat', 'messages', 'feed', 'history'],
         action: onShowMessages,
       });
@@ -444,7 +434,7 @@ export function useCommandPaletteCommands({
         id: 'view-toggle-chat-split-panel',
         label: 'View: Toggle Split Chat',
         icon: <MessageSquare size={14} />,
-        category: 'View',
+        category: 'Panels',
         keywords: ['chat', 'split', 'panel', 'messages', 'side', 'toggle'],
         action: onToggleChatSplitPanel,
       });
@@ -507,14 +497,15 @@ export function useCommandPaletteCommands({
       });
     }
 
-    // ─── Process Manager ────────────────────────────────
-    if (onOpenProcessManager) {
+    // ─── Processes panel ────────────────────────────────
+    if (onOpenProcessesPanel) {
       commands.push({
-        id: 'panel-process-manager',
-        label: 'Chatroom: Process Manager',
+        id: 'panel-processes',
+        label: 'View: Show Processes',
         icon: <Terminal size={14} />,
         category: 'Panels',
-        action: onOpenProcessManager,
+        keywords: ['processes', 'process manager', 'commands', 'terminal', 'run'],
+        action: onOpenProcessesPanel,
       });
     }
 
@@ -536,9 +527,9 @@ export function useCommandPaletteCommands({
     onViewGitHubRepository,
     onOpenWorkspaceDetails,
     runnableCommands,
-    onOpenProcessManagerWithCommand,
+    onOpenProcessesPanelWithCommand,
     onRunCommand,
-    onOpenProcessManager,
+    onOpenProcessesPanel,
     onShowExplorer,
     onShowMessages,
     onToggleChatSplitPanel,
