@@ -1,7 +1,7 @@
 /**
  * PRActionButtons — shared PR action buttons (Merge Squash, Merge, Close).
  *
- * Used by both WorkspaceGitPanel and PRDetailModal.
+ * Used by WorkspaceGitPanel.
  * Includes close confirmation, inline feedback, and onSuccess callback.
  */
 
