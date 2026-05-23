@@ -171,7 +171,15 @@ describe('CommandCodeAgentService', () => {
 
       expect(spawnFn).toHaveBeenCalledWith(
         'cmd',
-        ['-p', '--skip-onboarding', '--yolo', '--max-turns', '100', '--model', 'deepseek/deepseek-v4-flash'],
+        [
+          '-p',
+          '--skip-onboarding',
+          '--yolo',
+          '--max-turns',
+          '999999',
+          '--model',
+          'deepseek/deepseek-v4-flash',
+        ],
         expect.objectContaining({
           cwd: '/tmp/test',
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -218,7 +226,7 @@ describe('CommandCodeAgentService', () => {
 
       expect(spawnFn).toHaveBeenCalledWith(
         'cmd',
-        ['-p', '--skip-onboarding', '--yolo', '--max-turns', '100'],
+        ['-p', '--skip-onboarding', '--yolo', '--max-turns', '999999'],
         expect.any(Object)
       );
     });

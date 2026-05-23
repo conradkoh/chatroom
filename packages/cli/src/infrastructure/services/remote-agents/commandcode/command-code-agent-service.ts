@@ -92,11 +92,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    // --max-turns 100: the default of 10 is far too low for the chatroom workflow.
-    // A single session needs ~2–20 turns: register-agent → get-next-task (blocking) →
-    // task-read → work iterations → handoff. Raising the cap avoids premature exit-8
-    // (cap-hit) which the daemon would classify as a crash and back off from.
-    const args: string[] = ['-p', '--skip-onboarding', '--yolo', '--max-turns', '100'];
+    // --max-turns 999999: the default of 10 is far too low for the chatroom workflow.
+    // A single session may run many turns: register-agent → get-next-task (blocking) →
+    // task-read → work iterations → handoff. Effectively uncap turns so the cmd
+    // process never exits prematurely with exit-8 (which the daemon classifies as a crash).
+    const args: string[] = ['-p', '--skip-onboarding', '--yolo', '--max-turns', '999999'];
     if (options.model) {
       args.push('--model', options.model);
     }
