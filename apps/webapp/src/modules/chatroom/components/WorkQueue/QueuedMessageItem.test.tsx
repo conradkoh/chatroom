@@ -42,25 +42,30 @@ vi.mock('./QueuedMessageDetailModal', () => ({
 
 // Mock chip components to render a simple button with the content so we can
 // test click propagation without needing the real modal infrastructure.
-vi.mock('../AttachedTaskChip', () => ({
-  AttachedTaskChip: ({ content }: { content: string }) => (
-    <button type="button" data-testid="task-chip">
-      {content}
-    </button>
-  ),
-}));
-vi.mock('../AttachedBacklogItemChip', () => ({
-  AttachedBacklogItemChip: ({ content }: { content: string }) => (
-    <button type="button" data-testid="backlog-chip">
-      {content}
-    </button>
-  ),
-}));
-vi.mock('../AttachedMessageChip', () => ({
-  AttachedMessageChip: ({ content }: { content: string }) => (
-    <button type="button" data-testid="message-chip">
-      {content}
-    </button>
+vi.mock('../MessageAttachmentChips', () => ({
+  MessageAttachmentChips: ({ message }: { message: { attachedTasks?: { _id: string; content: string }[]; attachedBacklogItems?: { id: string; content: string }[]; attachedWorkflows?: { _id: string; workflowKey: string }[]; attachedMessages?: { _id: string; content: string }[] } }) => (
+    <>
+      {message.attachedTasks?.map((task: { _id: string; content: string }) => (
+        <button key={task._id} type="button" data-testid="task-chip">
+          {task.content}
+        </button>
+      ))}
+      {message.attachedBacklogItems?.map((item: { id: string; content: string }) => (
+        <button key={item.id} type="button" data-testid="backlog-chip">
+          {item.content}
+        </button>
+      ))}
+      {message.attachedWorkflows?.map((wf: { _id: string; workflowKey: string }) => (
+        <button key={wf._id} type="button" data-testid="workflow-chip">
+          {wf.workflowKey}
+        </button>
+      ))}
+      {message.attachedMessages?.map((msg: { _id: string; content: string }) => (
+        <button key={msg._id} type="button" data-testid="message-chip">
+          {msg.content}
+        </button>
+      ))}
+    </>
   ),
 }));
 
@@ -174,5 +179,14 @@ describe('QueuedMessageItem', () => {
     renderItem(message);
     expect(screen.getByTestId('message-chip')).toBeInTheDocument();
     expect(screen.getByText('See this context')).toBeInTheDocument();
+  });
+
+  it('workflow attachment → workflow chip rendered in row strip', () => {
+    const message = makeMessage({
+      attachedWorkflows: [{ _id: 'wf-1', workflowKey: 'my-workflow', status: 'active' }],
+    });
+    renderItem(message);
+    expect(screen.getByTestId('workflow-chip')).toBeInTheDocument();
+    expect(screen.getByText('my-workflow')).toBeInTheDocument();
   });
 });

@@ -10,10 +10,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import type { Message } from '../../types/message';
-import { AttachedBacklogItemChip } from '../AttachedBacklogItemChip';
-import { AttachedMessageChip } from '../AttachedMessageChip';
-import { AttachedTaskChip } from '../AttachedTaskChip';
-import { AttachedWorkflowChip } from '../AttachedWorkflowChip';
+import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 import {
   DropdownMenu,
@@ -47,13 +44,10 @@ interface QueuedMessageDetailModalProps {
   onDelete: (queuedMessageId: string) => Promise<void>;
 }
 
-// ─── Attachments helpers ──────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-/**
- * Renders the "Attachments (N)" section for a queued message, mirroring the
- * pattern used by `QueuedMessageItem.tsx`. Only shown in non-editing view.
- */
-function QueuedMessageAttachments({
+/** Inline helper: renders "Attachments (N)" header + the shared chip strip. */
+function QueuedMessageAttachmentsSection({
   message,
   chatroomId,
 }: {
@@ -73,45 +67,11 @@ function QueuedMessageAttachments({
       <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
         Attachments ({totalCount})
       </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {message.attachedTasks?.map((task) => (
-          <AttachedTaskChip
-            key={task._id}
-            taskId={task._id as Id<'chatroom_tasks'>}
-            content={task.content}
-          />
-        ))}
-        {message.attachedBacklogItems?.map((item) => (
-          <AttachedBacklogItemChip
-            key={item.id}
-            itemId={item.id as Id<'chatroom_backlog'>}
-            content={item.content}
-          />
-        ))}
-        {message.attachedWorkflows?.map((wf) => (
-          <AttachedWorkflowChip
-            key={wf._id}
-            chatroomId={chatroomId}
-            workflowId={wf._id as Id<'chatroom_workflows'>}
-            workflowKey={wf.workflowKey}
-            status={wf.status}
-          />
-        ))}
-        {message.attachedMessages?.map((msg) => (
-          <AttachedMessageChip
-            key={msg._id}
-            messageId={msg._id as Id<'chatroom_messages'>}
-            content={msg.content}
-            senderRole={msg.senderRole}
-          />
-        ))}
-      </div>
+      <MessageAttachmentChips message={message} chatroomId={chatroomId} />
     </div>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 /**
  * Detail modal for a queued chatroom message.
@@ -292,7 +252,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
               >
                 {message.content}
               </Markdown>
-              <QueuedMessageAttachments message={message} chatroomId={chatroomId} />
+              <QueuedMessageAttachmentsSection message={message} chatroomId={chatroomId} />
             </div>
           )}
         </FixedModalBody>

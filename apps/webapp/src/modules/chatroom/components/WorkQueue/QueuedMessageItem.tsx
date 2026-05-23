@@ -5,9 +5,7 @@ import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Message } from '../../types/message';
-import { AttachedBacklogItemChip } from '../AttachedBacklogItemChip';
-import { AttachedMessageChip } from '../AttachedMessageChip';
-import { AttachedTaskChip } from '../AttachedTaskChip';
+import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -97,6 +95,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   const hasAttachments =
     (message.attachedTasks?.length ?? 0) > 0 ||
     (message.attachedBacklogItems?.length ?? 0) > 0 ||
+    (message.attachedWorkflows?.length ?? 0) > 0 ||
     (message.attachedMessages?.length ?? 0) > 0;
 
   return (
@@ -122,28 +121,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
               className="flex flex-wrap gap-1.5 mt-1"
               onClick={stopRowClick}
             >
-              {message.attachedTasks?.map((task) => (
-                <AttachedTaskChip
-                  key={task._id}
-                  taskId={task._id as Id<'chatroom_tasks'>}
-                  content={task.content}
-                />
-              ))}
-              {message.attachedBacklogItems?.map((item) => (
-                <AttachedBacklogItemChip
-                  key={item.id}
-                  itemId={item.id as Id<'chatroom_backlog'>}
-                  content={item.content}
-                />
-              ))}
-              {message.attachedMessages?.map((msg) => (
-                <AttachedMessageChip
-                  key={msg._id}
-                  messageId={msg._id as Id<'chatroom_messages'>}
-                  content={msg.content}
-                  senderRole={msg.senderRole}
-                />
-              ))}
+              <MessageAttachmentChips message={message} chatroomId={chatroomId} />
             </div>
           )}
         </div>
