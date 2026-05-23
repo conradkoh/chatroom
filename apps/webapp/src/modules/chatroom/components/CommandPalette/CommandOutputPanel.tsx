@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
+import type { CommandRun } from '@/modules/chatroom/features/run-command/types/run';
 import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

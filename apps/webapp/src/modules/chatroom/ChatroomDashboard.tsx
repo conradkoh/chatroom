@@ -37,7 +37,7 @@ import {
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 import { MessageFeed } from './components/MessageFeed';
-import { ProcessManager } from './components/ProcessManager';
+import { ProcessesPanel } from './workspace/components/panels/ProcessesPanel';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { MessageInput } from './components/MessageInput';
@@ -415,11 +415,8 @@ export function ChatroomDashboard({
   // Terminal output panel state
   const [terminalOpen, setTerminalOpen] = useState(false);
 
-  // Process Manager state
-  const [processManagerOpen, setProcessManagerOpen] = useState(false);
-  const [processManagerInitialCommand, setProcessManagerInitialCommand] = useState<string | null>(
-    null
-  );
+  // Processes panel state — pre-selected command for deep-linking from palette
+  const [processesInitialCommand, setProcessesInitialCommand] = useState<string | null>(null);
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
@@ -1066,16 +1063,16 @@ export function ChatroomDashboard({
     };
   }, [chatroomId]);
 
-  // Handler to open Process Manager from command palette
-  const handleOpenProcessManager = useCallback(() => {
-    setProcessManagerInitialCommand(null);
-    setProcessManagerOpen(true);
+  // Handler to open Processes panel from command palette
+  const handleOpenProcessesPanel = useCallback(() => {
+    setProcessesInitialCommand(null);
+    setActivityView('processes');
   }, []);
 
-  // Handler to open Process Manager with a specific command pre-selected
-  const handleOpenProcessManagerWithCommand = useCallback((commandName: string) => {
-    setProcessManagerInitialCommand(commandName);
-    setProcessManagerOpen(true);
+  // Handler to open Processes panel with a specific command pre-selected
+  const handleOpenProcessesPanelWithCommand = useCallback((commandName: string) => {
+    setProcessesInitialCommand(commandName);
+    setActivityView('processes');
   }, []);
 
   // Handler to run a command from Process Manager (opens PM, not terminal)
@@ -1135,9 +1132,9 @@ export function ChatroomDashboard({
     onSwitchToSourceControl: activeWorkspace ? handleSwitchToSourceControl : null,
     onSwitchToPullRequests: activeWorkspace ? handleSwitchToPullRequests : null,
     runnableCommands: commandRunner.commands,
-    onOpenProcessManagerWithCommand: handleOpenProcessManagerWithCommand,
+    onOpenProcessesPanelWithCommand: handleOpenProcessesPanelWithCommand,
     onRunCommand: handleRunCommand,
-    onOpenProcessManager: handleOpenProcessManager,
+    onOpenProcessesPanel: handleOpenProcessesPanel,
     onShowExplorer: activeWorkspace
       ? () => {
           setActivityView('explorer');
@@ -1552,6 +1549,22 @@ export function ChatroomDashboard({
                     workingDir={activeWorkspace?.workingDir ?? ''}
                     chatroomId={chatroomId}
                   />
+                ) : activeView === 'processes' ? (
+                  /* Processes — command launcher / process manager */
+                  <ProcessesPanel
+                    chatroomId={chatroomId}
+                    machineId={activeWorkspace?.machineId}
+                    workingDir={activeWorkspace?.workingDir}
+                    commands={commandRunner.commands}
+                    runs={commandRunner.runs}
+                    activeRunOutput={commandRunner.activeRunOutput}
+                    onRunCommand={handleRunFromProcessManager}
+                    onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+                    onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+                    onClearRun={() => commandRunner.setActiveRunId(null)}
+                    initialSelectedCommand={processesInitialCommand}
+                    onConsumedInitialCommand={() => setProcessesInitialCommand(null)}
+                  />
                 ) : (
                   /* Explorer view — file tabs + content or empty state (no split) */
                   <ExplorerContent
@@ -1695,22 +1708,6 @@ export function ChatroomDashboard({
                 }
               }
             }}
-          />
-
-          {/* Process Manager */}
-          <ProcessManager
-            open={processManagerOpen}
-            onOpenChange={setProcessManagerOpen}
-            commands={commandRunner.commands as any[]}
-            runs={commandRunner.runs as any[]}
-            activeRunOutput={commandRunner.activeRunOutput as any}
-            onRunCommand={handleRunFromProcessManager}
-            onStopCommand={(runId) => commandRunner.stopCommand(runId)}
-            onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
-            onClearRun={() => commandRunner.setActiveRunId(null)}
-            initialSelectedCommand={processManagerInitialCommand}
-            machineId={activeWorkspace?.machineId}
-            workingDir={activeWorkspace?.workingDir}
           />
 
           {/* Stop All Agents Confirmation Dialog */}

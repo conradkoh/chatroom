@@ -1,6 +1,6 @@
 'use client';
 
-import { Files, MessageCircle, MessagesSquare } from 'lucide-react';
+import { Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
 import { memo } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
@@ -16,7 +16,8 @@ export type ActivityView =
   | 'messages'
   | 'direct-harness'
   | 'source-control'
-  | 'pull-requests';
+  | 'pull-requests'
+  | 'processes';
 
 interface ActivityBarProps {
   /** Currently active view */
@@ -71,6 +72,7 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 3. Direct Harness — direct AI harness
  * 4. Source Control — git diff + history (new)
  * 5. Pull Requests  — GitHub PR list (new)
+ * 6. Processes  — command launcher / process manager (new)
  *
  * On mobile (hidden via CSS):
  * - Shows a chatroom switch trigger at the bottom
@@ -112,6 +114,12 @@ export const ActivityBar = memo(function ActivityBar({
         label="Pull Requests"
         isActive={activeView === 'pull-requests'}
         onClick={() => onViewChange('pull-requests')}
+      />
+      <ActivityBarItem
+        icon={<Terminal size={20} />}
+        label="Processes"
+        isActive={activeView === 'processes'}
+        onClick={() => onViewChange('processes')}
       />
 
       {/* Spacer to push chatroom switch to bottom */}

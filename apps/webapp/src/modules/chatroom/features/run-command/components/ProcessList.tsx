@@ -1,13 +1,14 @@
 /**
  * ProcessList — shows running/recent processes with status and action buttons.
+ * Moved from components/ProcessManager/ProcessList.tsx into the vertical slice.
  */
 
 'use client';
 
 import { Square, RefreshCw } from 'lucide-react';
-import type { CommandRun } from '../../features/run-command/types/run';
-import { StatusIcon } from '../../features/run-command/components/StatusIcon';
-import { isActiveRun } from '../../features/run-command/utils/run-status';
+import type { CommandRun } from '../types/run';
+import { StatusIcon } from './StatusIcon';
+import { isActiveRun } from '../utils/run-status';
 
 interface ProcessListProps {
   title: string;

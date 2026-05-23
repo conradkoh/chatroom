@@ -1,8 +1,9 @@
 /**
- * Shared helpers for ProcessManager and its panels.
+ * Shared grouping helpers for the Process Manager / Processes panel.
+ * Moved from components/ProcessManager/helpers.ts into the vertical slice.
  */
 
-import type { RunnableCommand } from '../../features/run-command/types/run';
+import type { RunnableCommand } from '../types/run';
 
 export interface WorkspaceGroup {
   /** Relative path (e.g., '.', 'apps/webapp') */
@@ -11,7 +12,7 @@ export interface WorkspaceGroup {
   allCommands: RunnableCommand[];
 }
 
-/** Check if a command name contains a quick command (e.g., 'pnpm: dev' → 'dev'). */
+/** Extract the script portion of a command name (e.g., 'pnpm: dev' → 'dev'). */
 export function extractScriptName(commandName: string): string {
   // Handle patterns like "pnpm: dev", "turbo: build", "@workspace/webapp: dev"
   const colonIdx = commandName.indexOf(':');

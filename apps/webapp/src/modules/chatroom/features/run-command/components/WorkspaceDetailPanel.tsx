@@ -1,12 +1,13 @@
 /**
  * WorkspaceDetailPanel — shows all commands in a workspace with run and favorite actions.
+ * Moved from components/ProcessManager/panels/WorkspaceDetailPanel.tsx into the vertical slice.
  */
 
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import type { RunnableCommand } from '../../../features/run-command/types/run';
-import { extractScriptName, type WorkspaceGroup } from '../helpers';
+import type { RunnableCommand } from '../types/run';
+import { extractScriptName, type WorkspaceGroup } from '../utils/grouping';
 
 interface WorkspaceDetailPanelProps {
   workspace: WorkspaceGroup;

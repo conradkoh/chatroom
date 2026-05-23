@@ -1,12 +1,13 @@
 /**
  * CommandDetailPanel — shows detail, script, actions, and run history for a single command.
+ * Moved from components/ProcessManager/panels/CommandDetailPanel.tsx into the vertical slice.
  */
 
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import type { RunnableCommand, CommandRun } from '../../../features/run-command/types/run';
-import { isActiveRun } from '../../../features/run-command/utils/run-status';
+import type { RunnableCommand, CommandRun } from '../types/run';
+import { isActiveRun } from '../utils/run-status';
 
 interface CommandDetailPanelProps {
   command: RunnableCommand;
@@ -33,12 +34,9 @@ export function CommandDetailPanel({
     (r) => r.commandName === command.name && isActiveRun(r.status)
   );
   const recentInstances = runs
-    .filter(
-      (r) => r.commandName === command.name && !isActiveRun(r.status)
-    )
+    .filter((r) => r.commandName === command.name && !isActiveRun(r.status))
     .slice(0, 5);
 
-  // Handle Enter key to run command
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();

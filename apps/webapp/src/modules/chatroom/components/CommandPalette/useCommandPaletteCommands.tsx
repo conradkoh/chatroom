@@ -63,12 +63,12 @@ interface UseCommandPaletteCommandsProps {
   onSwitchToPullRequests?: (() => void) | null;
   /** Runnable commands for matching favorites to scripts */
   runnableCommands?: { name: string; script: string; source: string }[];
-  /** Callback to open the Process Manager with a specific command selected */
-  onOpenProcessManagerWithCommand?: (commandName: string) => void;
+  /** Callback to open the Processes panel with a specific command selected */
+  onOpenProcessesPanelWithCommand?: (commandName: string) => void;
   /** Callback to directly execute a command (run + open terminal) */
   onRunCommand?: (commandName: string, script: string) => void;
-  /** Callback to open the Process Manager */
-  onOpenProcessManager?: () => void;
+  /** Callback to open the Processes panel */
+  onOpenProcessesPanel?: () => void;
   /** Callback to switch to Explorer view */
   onShowExplorer?: (() => void) | null;
   /** Callback to switch to Messages view */
@@ -126,9 +126,9 @@ export function useCommandPaletteCommands({
   onViewGitHubRepository,
   onOpenWorkspaceDetails,
   runnableCommands,
-  onOpenProcessManagerWithCommand,
+  onOpenProcessesPanelWithCommand,
   onRunCommand,
-  onOpenProcessManager,
+  onOpenProcessesPanel,
   onShowExplorer,
   onShowMessages,
   onToggleChatSplitPanel,
@@ -217,8 +217,8 @@ export function useCommandPaletteCommands({
             action: () => {
               if (onRunCommand) {
                 onRunCommand(cmd.name, cmd.script);
-              } else if (onOpenProcessManagerWithCommand) {
-                onOpenProcessManagerWithCommand(cmd.name);
+              } else if (onOpenProcessesPanelWithCommand) {
+                onOpenProcessesPanelWithCommand(cmd.name);
               }
             },
           });
@@ -504,14 +504,14 @@ export function useCommandPaletteCommands({
       });
     }
 
-    // ─── Process Manager ────────────────────────────────
-    if (onOpenProcessManager) {
+    // ─── Processes panel ────────────────────────────────
+    if (onOpenProcessesPanel) {
       commands.push({
-        id: 'panel-process-manager',
-        label: 'Chatroom: Process Manager',
+        id: 'panel-processes',
+        label: 'Chatroom: Processes',
         icon: <Terminal size={14} />,
         category: 'Panels',
-        action: onOpenProcessManager,
+        action: onOpenProcessesPanel,
       });
     }
 
@@ -533,9 +533,9 @@ export function useCommandPaletteCommands({
     onViewGitHubRepository,
     onOpenWorkspaceDetails,
     runnableCommands,
-    onOpenProcessManagerWithCommand,
+    onOpenProcessesPanelWithCommand,
     onRunCommand,
-    onOpenProcessManager,
+    onOpenProcessesPanel,
     onShowExplorer,
     onShowMessages,
     onToggleChatSplitPanel,
