@@ -18,7 +18,8 @@ import {
 interface AttachedTaskChipProps {
   taskId: Id<'chatroom_tasks'>;
   content: string;
-  onRemove: () => void;
+  /** When undefined the remove button is hidden (read-only chip). */
+  onRemove?: () => void;
 }
 
 /**
@@ -69,15 +70,17 @@ export function AttachedTaskChip({ content, onRemove }: AttachedTaskChipProps) {
           </span>
         </button>
 
-        {/* Remove button */}
-        <button
-          onClick={onRemove}
-          className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
-          aria-label="Remove attachment"
-          type="button"
-        >
-          <X size={12} />
-        </button>
+        {/* Remove button — only rendered when a handler is provided */}
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
+            aria-label="Remove attachment"
+            type="button"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       <FixedModal isOpen={isOpen} onClose={() => setIsOpen(false)} maxWidth="max-w-2xl">

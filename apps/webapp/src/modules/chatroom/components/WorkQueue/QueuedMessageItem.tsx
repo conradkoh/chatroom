@@ -1,9 +1,13 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Message } from '../../types/message';
+import { AttachedBacklogItemChip } from '../AttachedBacklogItemChip';
+import { AttachedMessageChip } from '../AttachedMessageChip';
+import { AttachedTaskChip } from '../AttachedTaskChip';
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -88,6 +92,11 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   /** Stop the surrounding row click from firing when an action button is pressed. */
   const stopRowClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
+  const hasAttachments =
+    (message.attachedTasks?.length ?? 0) > 0 ||
+    (message.attachedBacklogItems?.length ?? 0) > 0 ||
+    (message.attachedMessages?.length ?? 0) > 0;
+
   return (
     <>
       <div
@@ -105,6 +114,36 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         <div className="flex-1 min-w-0">
           <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
+          {/* Attachment chip strip — stopPropagation so clicks open chip preview, not the row modal */}
+          {hasAttachments && (
+            <div
+              className="flex flex-wrap gap-1.5 mt-1"
+              onClick={stopRowClick}
+            >
+              {message.attachedTasks?.map((task) => (
+                <AttachedTaskChip
+                  key={task._id}
+                  taskId={task._id as Id<'chatroom_tasks'>}
+                  content={task.content}
+                />
+              ))}
+              {message.attachedBacklogItems?.map((item) => (
+                <AttachedBacklogItemChip
+                  key={item.id}
+                  itemId={item.id as Id<'chatroom_backlog'>}
+                  content={item.content}
+                />
+              ))}
+              {message.attachedMessages?.map((msg) => (
+                <AttachedMessageChip
+                  key={msg._id}
+                  messageId={msg._id as Id<'chatroom_messages'>}
+                  content={msg.content}
+                  senderRole={msg.senderRole}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Inline quick actions — always visible. */}
