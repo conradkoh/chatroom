@@ -1,6 +1,6 @@
 /**
  * OutputPanel — terminal output viewer for the Processes panel right pane.
- * Moved from components/ProcessManager/OutputPanel.tsx into the vertical slice.
+ * Part of the run-command vertical slice.
  */
 
 'use client';

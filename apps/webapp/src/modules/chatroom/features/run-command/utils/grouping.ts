@@ -1,6 +1,6 @@
 /**
  * Shared grouping helpers for the Process Manager / Processes panel.
- * Moved from components/ProcessManager/helpers.ts into the vertical slice.
+ * Part of the run-command vertical slice.
  */
 
 import type { RunnableCommand } from '../types/run';

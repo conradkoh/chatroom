@@ -1,6 +1,6 @@
 /**
  * ProcessList — shows running/recent processes with status and action buttons.
- * Moved from components/ProcessManager/ProcessList.tsx into the vertical slice.
+ * Part of the run-command vertical slice.
  */
 
 'use client';
@@ -63,6 +63,7 @@ export function ProcessList({
                   }}
                   className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Stop"
+                  aria-label={`Stop ${run.commandName}`}
                 >
                   <Square size={14} />
                 </button>
@@ -74,6 +75,7 @@ export function ProcessList({
                   }}
                   className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Restart"
+                  aria-label={`Restart ${run.commandName}`}
                 >
                   <RefreshCw size={14} />
                 </button>

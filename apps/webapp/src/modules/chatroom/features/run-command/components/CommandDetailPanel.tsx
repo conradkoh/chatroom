@@ -1,6 +1,6 @@
 /**
  * CommandDetailPanel — shows detail, script, actions, and run history for a single command.
- * Moved from components/ProcessManager/panels/CommandDetailPanel.tsx into the vertical slice.
+ * Part of the run-command vertical slice.
  */
 
 'use client';

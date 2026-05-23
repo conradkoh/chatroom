@@ -81,7 +81,7 @@ export function useProcessesPanelState({
       setInitialHandled(true);
       onConsumedInitialCommand?.();
     }
-  }, [initialSelectedCommand, commands, initialHandled, onConsumedInitialCommand]);
+  }, [initialSelectedCommand, commands, onConsumedInitialCommand]);
 
   // Reset initialHandled when initialSelectedCommand changes so next pre-select fires
   useEffect(() => {

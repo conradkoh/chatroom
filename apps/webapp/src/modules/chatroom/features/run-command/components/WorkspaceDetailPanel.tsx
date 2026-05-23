@@ -1,6 +1,6 @@
 /**
  * WorkspaceDetailPanel — shows all commands in a workspace with run and favorite actions.
- * Moved from components/ProcessManager/panels/WorkspaceDetailPanel.tsx into the vertical slice.
+ * Part of the run-command vertical slice.
  */
 
 'use client';

@@ -36,14 +36,21 @@ import {
 } from '@/components/ui/resizable';
 
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
+import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
 
 import { ProcessList } from '../../../features/run-command/components/ProcessList';
 import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
 import { WorkspaceDetailPanel } from '../../../features/run-command/components/WorkspaceDetailPanel';
+import { EmptyOutputState } from './EmptyOutputState';
 import { useProcessesPanelState } from '../../../features/run-command/hooks/useProcessesPanelState';
 import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
 import type { CommandRun, RunnableCommand, OutputChunk } from '../../../features/run-command/types/run';
+
+// ─── Layout Persistence ───────────────────────────────────────────────────────
+
+const PROCESSES_LAYOUT_KEY = 'webapp:processesPanelSizes';
+const PROCESSES_DEFAULT_LAYOUT: readonly number[] = [30, 70] as const;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -107,17 +114,13 @@ export function ProcessesPanel({
   } = state;
 
   // Layout persistence — mirrors PullRequestsPanel pattern
-  const PROCESSES_LAYOUT_KEY = 'webapp:processesPanelSizes';
-  const PROCESSES_DEFAULT_LAYOUT: readonly number[] = [30, 70] as const;
-  const isValidProcessesLayout = (v: unknown): v is number[] =>
-    Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
   const [sizes, setSizes] = usePersistedState<number[]>(PROCESSES_LAYOUT_KEY, [...PROCESSES_DEFAULT_LAYOUT], {
-    validate: isValidProcessesLayout,
+    validate: isValidTwoPaneLayout,
   });
   const handleLayoutChanged = useCallback(
     (layout: { [id: string]: number }) => {
       const next = [layout['processes-sidebar'] ?? sizes[0], layout['processes-detail'] ?? sizes[1]];
-      if (isValidProcessesLayout(next)) setSizes(next);
+      if (isValidTwoPaneLayout(next)) setSizes(next);
     },
     [setSizes, sizes]
   );
@@ -202,11 +205,10 @@ export function ProcessesPanel({
               Search Results (
               {workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
             </div>
-            {(() => {
-              let idx = 0;
-              return workspaceGroups.flatMap((ws) =>
-                ws.allCommands.map((cmd) => {
-                  const currentIdx = idx++;
+            {workspaceGroups.flatMap((ws, wsIdx) => {
+              const offset = workspaceGroups.slice(0, wsIdx).reduce((sum, g) => sum + g.allCommands.length, 0);
+              return ws.allCommands.map((cmd, cmdIdx) => {
+                  const currentIdx = offset + cmdIdx;
                   const isFav = favorites.has(cmd.name);
                   const isFocused = currentIdx === focusedIndex;
                   return (
@@ -238,9 +240,8 @@ export function ProcessesPanel({
                       </div>
                     </button>
                   );
-                })
-              );
-            })()}
+                });
+            })}
           </div>
         ) : (
           /* Workspace list */
@@ -349,7 +350,7 @@ export function ProcessesPanel({
       }}
     />
   ) : (
-    <OutputPanel run={null} chunks={[]} onStop={() => {}} onRestart={() => {}} />
+    <EmptyOutputState />
   );
 
   // ─── Render ───────────────────────────────────────────────────────────────
