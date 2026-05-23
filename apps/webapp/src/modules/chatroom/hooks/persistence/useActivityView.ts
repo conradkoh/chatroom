@@ -12,7 +12,8 @@ const isValidActivityView = (v: unknown): v is ActivityView =>
   v === 'explorer' ||
   v === 'direct-harness' ||
   v === 'source-control' ||
-  v === 'pull-requests';
+  v === 'pull-requests' ||
+  v === 'processes';
 
 /**
  * Persisted ActivityView for the chatroom activity bar.

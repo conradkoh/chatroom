@@ -1,13 +1,14 @@
 /**
  * ProcessList — shows running/recent processes with status and action buttons.
+ * Part of the run-command vertical slice.
  */
 
 'use client';
 
 import { Square, RefreshCw } from 'lucide-react';
-import type { CommandRun } from '../../features/run-command/types/run';
-import { StatusIcon } from '../../features/run-command/components/StatusIcon';
-import { isActiveRun } from '../../features/run-command/utils/run-status';
+import type { CommandRun } from '../types/run';
+import { StatusIcon } from './StatusIcon';
+import { isActiveRun } from '../utils/run-status';
 
 interface ProcessListProps {
   title: string;
@@ -60,10 +61,11 @@ export function ProcessList({
                     e.stopPropagation();
                     onStop(run._id);
                   }}
-                  className="p-0.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                  className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Stop"
+                  aria-label={`Stop ${run.commandName}`}
                 >
-                  <Square size={10} />
+                  <Square size={14} />
                 </button>
               ) : (
                 <button
@@ -71,10 +73,11 @@ export function ProcessList({
                     e.stopPropagation();
                     onRestart(run);
                   }}
-                  className="p-0.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
+                  className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   title="Restart"
+                  aria-label={`Restart ${run.commandName}`}
                 >
-                  <RefreshCw size={10} />
+                  <RefreshCw size={14} />
                 </button>
               )}
             </div>

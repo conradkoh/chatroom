@@ -11,6 +11,7 @@
  */
 
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,7 +63,7 @@ vi.mock('./WorkQueue/QueuedMessageDetailModal', () => ({
 
 import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 
-const CHATROOM_ID = 'room-test-1';
+const CHATROOM_ID = 'room-test-1' as Id<'chatroom_rooms'>;
 
 function makeMessage(id: string, content: string, creationTime: number) {
   return { _id: id, _creationTime: creationTime, content, senderRole: 'user' };

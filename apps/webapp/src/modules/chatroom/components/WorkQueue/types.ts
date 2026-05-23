@@ -36,7 +36,7 @@ export interface TaskCounts {
 }
 
 export interface WorkQueueProps {
-  chatroomId: string;
+  chatroomId: Id<'chatroom_rooms'>;
   /** Lifecycle data from the parent — used to derive needsPromotion without a separate checkQueueHealth subscription */
   lifecycle?: TeamLifecycle | null;
   /** Optional ref to expose imperative open actions to parent (e.g. command palette) */

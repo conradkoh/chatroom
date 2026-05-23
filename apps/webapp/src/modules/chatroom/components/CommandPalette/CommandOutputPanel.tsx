@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Square, RotateCcw } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import type { CommandRun } from '@/modules/chatroom/components/ProcessManager/ProcessManager';
+import type { CommandRun } from '@/modules/chatroom/features/run-command/types/run';
 import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
+import { AnsiText } from '@/modules/chatroom/features/run-command/components/AnsiText';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,18 +112,8 @@ export function CommandOutputPanel({
           <span className="text-chatroom-text-muted italic">Waiting for output...</span>
         ) : (
           output.map((line, index) => (
-            <div
-              key={index}
-              className={cn(
-                'whitespace-pre-wrap break-all',
-                line.toLowerCase().includes('error')
-                  ? 'text-red-400'
-                  : line.toLowerCase().includes('warning')
-                    ? 'text-yellow-400'
-                    : 'text-chatroom-text-secondary'
-              )}
-            >
-              {line}
+            <div key={index} className="whitespace-pre-wrap break-all text-chatroom-text-secondary">
+              <AnsiText text={line} />
             </div>
           ))
         )}

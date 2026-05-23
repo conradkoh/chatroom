@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import type { CommandRun } from '../types/run';
 import { isActiveRun } from '../utils/run-status';
+import { AnsiText } from './AnsiText';
 
 interface TerminalViewProps {
   output: string;
@@ -27,7 +28,7 @@ export const TerminalView = forwardRef<HTMLPreElement, TerminalViewProps>(
             {'\n'}
           </>
         )}
-        {output || emptyHint}
+        <AnsiText text={output || emptyHint} />
         {showCursor && <span className="text-chatroom-text-muted animate-pulse">▌</span>}
       </pre>
     );

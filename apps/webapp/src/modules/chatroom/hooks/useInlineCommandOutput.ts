@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 
-import type { CommandRun } from '../components/ProcessManager/ProcessManager';
+import type { CommandRun } from '../features/run-command/types/run';
 import type { useCommandRunner } from './useCommandRunner';
 
 /** Maximum number of output lines to keep in buffer to prevent memory issues */

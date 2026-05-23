@@ -37,7 +37,7 @@ describe('useCommandPaletteCommands', () => {
       (command) => command.id === 'nav-new-chatroom'
     );
     expect(newChatroomCommand).toMatchObject({
-      label: 'Chatroom: New Chatroom',
+      label: 'Chatroom: New',
       keywords: ['new', 'create', 'chatroom'],
     });
 
@@ -67,7 +67,7 @@ describe('useCommandPaletteCommands', () => {
 
       expect(stopCommand).toBeDefined();
       expect(stopCommand).toMatchObject({
-        label: 'Chatroom: Stop all remote agents',
+        label: 'Agents: Stop All Remote',
         keywords: ['stop', 'remote', 'kill', 'terminate', 'all'],
       });
     });
@@ -174,7 +174,7 @@ describe('useCommandPaletteCommands', () => {
 
       expect(startCommand).toBeDefined();
       expect(startCommand).toMatchObject({
-        label: 'Chatroom: Start all remote agents',
+        label: 'Agents: Start All Remote',
         keywords: ['start', 'remote', 'run', 'launch', 'all'],
       });
     });
@@ -219,7 +219,7 @@ describe('useCommandPaletteCommands', () => {
         useCommandPaletteCommands({ ...baseProps, onRefreshWorkspaceState })
       );
 
-      const cmd = result.current.find((c) => c.id === 'workspace.refreshState');
+      const cmd = result.current.find((c) => c.id === 'action-refresh-workspace-state');
       expect(cmd).toBeDefined();
       expect(cmd).toMatchObject({
         label: 'Chatroom: Refresh Workspace State',
@@ -237,14 +237,14 @@ describe('useCommandPaletteCommands', () => {
         useCommandPaletteCommands({ ...baseProps, onRefreshWorkspaceState })
       );
 
-      const cmd = result.current.find((c) => c.id === 'workspace.refreshState');
+      const cmd = result.current.find((c) => c.id === 'action-refresh-workspace-state');
       cmd?.action();
       expect(onRefreshWorkspaceState).toHaveBeenCalledTimes(1);
     });
 
     it('omits command when handler is not provided', () => {
       const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
-      expect(result.current.some((c) => c.id === 'workspace.refreshState')).toBe(false);
+      expect(result.current.some((c) => c.id === 'action-refresh-workspace-state')).toBe(false);
     });
   });
 });

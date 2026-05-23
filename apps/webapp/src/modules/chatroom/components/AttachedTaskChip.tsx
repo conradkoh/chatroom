@@ -15,11 +15,9 @@ import {
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
 
-interface AttachedTaskChipProps {
-  taskId: Id<'chatroom_tasks'>;
-  content: string;
-  onRemove: () => void;
-}
+type AttachedTaskChipProps =
+  | { mode: 'editable'; taskId: Id<'chatroom_tasks'>; content: string; onRemove: () => void }
+  | { mode: 'view'; taskId: Id<'chatroom_tasks'>; content: string };
 
 /**
  * Truncate text to a maximum length with ellipsis.
@@ -38,15 +36,18 @@ function stripMarkdownHeading(line: string): string {
 }
 
 /**
- * Displays a single attached task as a removable chip.
- * Click the chip label to open a centered modal showing the full content.
+ * Displays a single attached task as a chip.
+ *
+ * Supports two modes via a discriminated union on `mode`:
+ * - `'view'` — read-only chip. Clicking the label opens a full preview modal.
+ * - `'editable'` — includes an X remove button. `onRemove` is required.
+ *
  * Renders minimal markdown in the chip; full markdown in the modal.
  */
-export function AttachedTaskChip({ content, onRemove }: AttachedTaskChipProps) {
+export function AttachedTaskChip(props: AttachedTaskChipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Get first non-empty line for chip label, stripping markdown heading syntax
-  const rawFirstLine = content.split('\n').find((line) => line.trim()) || content;
+  const rawFirstLine = props.content.split('\n').find((line) => line.trim()) || props.content;
   const firstLine = stripMarkdownHeading(rawFirstLine);
   const displayText = truncateText(firstLine);
 
@@ -69,15 +70,17 @@ export function AttachedTaskChip({ content, onRemove }: AttachedTaskChipProps) {
           </span>
         </button>
 
-        {/* Remove button */}
-        <button
-          onClick={onRemove}
-          className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
-          aria-label="Remove attachment"
-          type="button"
-        >
-          <X size={12} />
-        </button>
+        {/* Remove button — only in editable mode */}
+        {props.mode === 'editable' && (
+          <button
+            onClick={props.onRemove}
+            className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
+            aria-label="Remove attachment"
+            type="button"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       <FixedModal isOpen={isOpen} onClose={() => setIsOpen(false)} maxWidth="max-w-2xl">
@@ -90,7 +93,7 @@ export function AttachedTaskChip({ content, onRemove }: AttachedTaskChipProps) {
           </FixedModalHeader>
           <FixedModalBody>
             <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown>{content}</Markdown>
+              <Markdown>{props.content}</Markdown>
             </div>
           </FixedModalBody>
         </FixedModalContent>
