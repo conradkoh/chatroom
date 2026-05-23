@@ -33,7 +33,6 @@ export interface ProcessManagerState {
 
   // Derived lists
   workspaceGroups: WorkspaceGroup[];
-  selectableItems: SelectableItem[];
   runningProcesses: CommandRun[];
   recentRuns: CommandRun[];
 }
@@ -165,7 +164,6 @@ export function useProcessManagerState({
     toggleFavorite,
     isFavorite,
     workspaceGroups,
-    selectableItems,
     runningProcesses,
     recentRuns,
   };

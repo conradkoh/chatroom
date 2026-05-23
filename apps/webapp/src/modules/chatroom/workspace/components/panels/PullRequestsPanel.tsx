@@ -41,7 +41,6 @@ const FILTER_LABELS: Record<PRFilter, string> = {
 interface PullRequestsPanelProps {
   machineId: string;
   workingDir: string;
-  chatroomId: string;
 }
 
 // ─── PR List Item ─────────────────────────────────────────────────────────────
@@ -178,7 +177,6 @@ const isValidPRLayout = (v: unknown): v is number[] =>
 export const PullRequestsPanel = memo(function PullRequestsPanel({
   machineId,
   workingDir,
-  chatroomId: _chatroomId,
 }: PullRequestsPanelProps) {
   const [filter, setFilter] = useState<PRFilter>('my-prs');
   const [selectedPR, setSelectedPR] = useState<GitPullRequest | null>(null);

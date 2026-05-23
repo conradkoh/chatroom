@@ -1547,12 +1547,10 @@ export function ChatroomDashboard({
                   <PullRequestsPanel
                     machineId={activeWorkspace?.machineId ?? ''}
                     workingDir={activeWorkspace?.workingDir ?? ''}
-                    chatroomId={chatroomId}
                   />
                 ) : activeView === 'processes' ? (
                   /* Processes — command launcher / process manager */
                   <ProcessesPanel
-                    chatroomId={chatroomId}
                     machineId={activeWorkspace?.machineId}
                     workingDir={activeWorkspace?.workingDir}
                     commands={commandRunner.commands}

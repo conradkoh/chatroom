@@ -94,7 +94,6 @@ const defaultRun: CommandRun = {
 const defaultChunks: OutputChunk[] = [];
 
 const defaultProps = {
-  chatroomId: 'room-1',
   machineId: 'machine-1',
   workingDir: '/workspace',
   commands: [makeCommand('dev'), makeCommand('build'), makeCommand('test', 'apps/api')],

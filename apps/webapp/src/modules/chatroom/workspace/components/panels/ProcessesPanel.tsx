@@ -48,7 +48,6 @@ import type { CommandRun, RunnableCommand, OutputChunk } from '../../../features
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ProcessesPanelProps {
-  chatroomId: string;
   machineId?: string | null;
   workingDir?: string | null;
   commands: RunnableCommand[];
@@ -67,7 +66,6 @@ interface ProcessesPanelProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ProcessesPanel({
-  chatroomId: _chatroomId,
   machineId,
   workingDir,
   commands,
@@ -104,7 +102,6 @@ export function ProcessesPanel({
     favorites,
     toggleFavorite,
     workspaceGroups,
-    selectableItems: _selectableItems,
     runningProcesses,
     recentRuns,
   } = state;
