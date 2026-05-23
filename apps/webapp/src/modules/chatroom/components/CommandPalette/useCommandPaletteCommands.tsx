@@ -229,7 +229,7 @@ export function useCommandPaletteCommands({
     // ─── Navigate (shown first) ──────────────────────────
     commands.push({
       id: 'nav-switch-chatroom',
-      label: 'Chatroom: Switch Chatroom',
+      label: 'Chatroom: Switch',
       icon: <ArrowRightLeft size={14} />,
       category: 'Navigate',
       shortcut: '⌘K',
@@ -239,7 +239,7 @@ export function useCommandPaletteCommands({
     if (onCreateNewChatroom) {
       commands.push({
         id: 'nav-new-chatroom',
-        label: 'Chatroom: New Chatroom',
+        label: 'Chatroom: New',
         icon: <Plus size={14} />,
         category: 'Navigate',
         keywords: ['new', 'create', 'chatroom'],
@@ -251,7 +251,7 @@ export function useCommandPaletteCommands({
     if (onCreateCommand) {
       commands.push({
         id: 'action-create-command',
-        label: 'Create Command',
+        label: 'Chatroom: Create Command',
         icon: <Plus size={14} />,
         category: 'Actions',
         keywords: ['new', 'create', 'command', 'prompt', 'saved'],
@@ -373,20 +373,23 @@ export function useCommandPaletteCommands({
     }
 
     // ─── Panels ──────────────────────────────────────────
-    commands.push(
-      {
+    if (onSwitchToSourceControl || onOpenGitPanel) {
+      commands.push({
         id: 'panel-git',
         label: 'View: Source Control',
         icon: <GitBranch size={14} />,
         category: 'Panels',
         keywords: ['git', 'git panel', 'source control', 'diff', 'history'],
-        action: onSwitchToSourceControl ?? onOpenGitPanel ?? (() => {}),
-      },
+        action: onSwitchToSourceControl ?? onOpenGitPanel!,
+      });
+    }
+
+    commands.push(
       {
         id: 'panel-configuration',
-        label: 'Chatroom: Settings',
+        label: 'Preferences: Settings',
         icon: <Settings size={14} />,
-        category: 'Panels',
+        category: 'Preferences',
         keywords: ['settings', 'configuration', 'config', 'preferences'],
         action: () => onOpenSettings('setup'),
       },
@@ -451,7 +454,7 @@ export function useCommandPaletteCommands({
     if (onStartAllRemoteAgents) {
       commands.push({
         id: 'agents-start-all-remote',
-        label: 'Chatroom: Start all remote agents',
+        label: 'Agents: Start All Remote',
         icon: <Play size={14} />,
         category: 'Agents',
         keywords: ['start', 'remote', 'run', 'launch', 'all'],
@@ -462,7 +465,7 @@ export function useCommandPaletteCommands({
     if (onStopAllRemoteAgents) {
       commands.push({
         id: 'agents-stop-all-remote',
-        label: 'Chatroom: Stop all remote agents',
+        label: 'Agents: Stop All Remote',
         icon: <StopCircle size={14} />,
         category: 'Agents',
         keywords: ['stop', 'remote', 'kill', 'terminate', 'all'],
@@ -473,7 +476,7 @@ export function useCommandPaletteCommands({
     if (onRestartAllRemoteAgents) {
       commands.push({
         id: 'agents-restart-all-remote',
-        label: 'Chatroom: Restart all remote agents',
+        label: 'Agents: Restart All Remote',
         icon: <RefreshCw size={14} />,
         category: 'Agents',
         keywords: ['restart', 'remote', 'reload', 'refresh', 'all'],
@@ -484,7 +487,7 @@ export function useCommandPaletteCommands({
     // ─── Workspace ──────────────────────────────────────────────
     if (onRefreshWorkspaceState) {
       commands.push({
-        id: 'workspace.refreshState',
+        id: 'action-refresh-workspace-state',
         label: 'Chatroom: Refresh Workspace State',
         icon: <RefreshCw size={14} />,
         category: 'Actions',
