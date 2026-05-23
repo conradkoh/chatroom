@@ -1,9 +1,11 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Message } from '../../types/message';
+import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -37,6 +39,7 @@ function formatElapsed(creationTime: number): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface QueuedMessageItemProps {
+  chatroomId: Id<'chatroom_rooms'>;
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
@@ -48,6 +51,7 @@ interface QueuedMessageItemProps {
  * `BacklogItemDetailModal` and `TaskDetailModal`.
  */
 export const QueuedMessageItem = memo(function QueuedMessageItem({
+  chatroomId,
   message,
   onPromote,
   onDelete,
@@ -88,6 +92,12 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   /** Stop the surrounding row click from firing when an action button is pressed. */
   const stopRowClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
+  const hasAttachments =
+    (message.attachedTasks?.length ?? 0) > 0 ||
+    (message.attachedBacklogItems?.length ?? 0) > 0 ||
+    (message.attachedWorkflows?.length ?? 0) > 0 ||
+    (message.attachedMessages?.length ?? 0) > 0;
+
   return (
     <>
       <div
@@ -105,6 +115,15 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         <div className="flex-1 min-w-0">
           <p className="text-xs text-foreground line-clamp-2 break-words">{message.content}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
+          {/* Attachment chip strip — stopPropagation so clicks open chip preview, not the row modal */}
+          {hasAttachments && (
+            <div
+              className="flex flex-wrap gap-1.5 mt-1"
+              onClick={stopRowClick}
+            >
+              <MessageAttachmentChips message={message} chatroomId={chatroomId} />
+            </div>
+          )}
         </div>
 
         {/* Inline quick actions — always visible. */}
@@ -131,6 +150,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
       </div>
 
       <QueuedMessageDetailModal
+        chatroomId={chatroomId}
         message={message}
         isOpen={isModalOpen}
         onClose={closeModal}

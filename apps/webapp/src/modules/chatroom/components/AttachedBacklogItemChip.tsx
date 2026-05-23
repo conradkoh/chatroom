@@ -16,14 +16,17 @@ import {
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
 
-interface AttachedBacklogItemChipProps {
+type AttachedBacklogItemChipCommon = {
   itemId: Id<'chatroom_backlog'>;
   content: string;
-  onRemove: () => void;
   complexity?: 'low' | 'medium' | 'high';
   value?: 'low' | 'medium' | 'high';
   priority?: number;
-}
+};
+
+type AttachedBacklogItemChipProps =
+  | (AttachedBacklogItemChipCommon & { mode: 'editable'; onRemove: () => void })
+  | (AttachedBacklogItemChipCommon & { mode: 'view' });
 
 /**
  * Truncate text to a maximum length with ellipsis.
@@ -42,21 +45,18 @@ function stripMarkdownHeading(line: string): string {
 }
 
 /**
- * Displays a single attached backlog item as a removable chip.
- * Click the chip label to open a centered modal showing the full content.
+ * Displays a single attached backlog item as a chip.
+ *
+ * Supports two modes via a discriminated union on `mode`:
+ * - `'view'` — read-only chip. Clicking the label opens a full preview modal.
+ * - `'editable'` — includes an X remove button. `onRemove` is required.
+ *
  * Renders minimal markdown in the chip; full markdown in the modal.
  */
-export function AttachedBacklogItemChip({
-  content,
-  onRemove,
-  complexity,
-  value,
-  priority,
-}: AttachedBacklogItemChipProps) {
+export function AttachedBacklogItemChip(props: AttachedBacklogItemChipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Get first non-empty line for chip label, stripping markdown heading syntax
-  const rawFirstLine = content.split('\n').find((line) => line.trim()) || content;
+  const rawFirstLine = props.content.split('\n').find((line) => line.trim()) || props.content;
   const firstLine = stripMarkdownHeading(rawFirstLine);
   const displayText = truncateText(firstLine);
 
@@ -79,15 +79,17 @@ export function AttachedBacklogItemChip({
           </span>
         </button>
 
-        {/* Remove button */}
-        <button
-          onClick={onRemove}
-          className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
-          aria-label="Remove attachment"
-          type="button"
-        >
-          <X size={12} />
-        </button>
+        {/* Remove button — only in editable mode */}
+        {props.mode === 'editable' && (
+          <button
+            onClick={props.onRemove}
+            className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
+            aria-label="Remove attachment"
+            type="button"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       <FixedModal isOpen={isOpen} onClose={() => setIsOpen(false)} maxWidth="max-w-2xl">
@@ -97,30 +99,30 @@ export function AttachedBacklogItemChip({
               <ListChecks size={14} className="text-chatroom-text-muted" />
               <FixedModalTitle>Backlog Item</FixedModalTitle>
               {/* Scoring Badges */}
-              {priority !== undefined && (
+              {props.priority !== undefined && (
                 <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
-                  P:{priority}
+                  P:{props.priority}
                 </span>
               )}
-              {complexity && (
+              {props.complexity && (
                 <span
-                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', complexity).classes}`}
+                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', props.complexity).classes}`}
                 >
-                  {getScoringBadge('complexity', complexity).label}
+                  {getScoringBadge('complexity', props.complexity).label}
                 </span>
               )}
-              {value && (
+              {props.value && (
                 <span
-                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', value).classes}`}
+                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', props.value).classes}`}
                 >
-                  {getScoringBadge('value', value).label}
+                  {getScoringBadge('value', props.value).label}
                 </span>
               )}
             </div>
           </FixedModalHeader>
           <FixedModalBody>
             <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown>{content}</Markdown>
+              <Markdown>{props.content}</Markdown>
             </div>
           </FixedModalBody>
         </FixedModalContent>

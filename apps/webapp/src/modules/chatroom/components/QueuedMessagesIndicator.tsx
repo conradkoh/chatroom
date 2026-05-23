@@ -12,7 +12,7 @@ import { QueuedMessageDetailModal } from './WorkQueue/QueuedMessageDetailModal';
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface QueuedMessagesIndicatorProps {
-  chatroomId: string;
+  chatroomId: Id<'chatroom_rooms'>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   chatroomId,
 }: QueuedMessagesIndicatorProps) {
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
@@ -113,6 +113,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
 
       {/* Detail modal for the last queued message */}
       <QueuedMessageDetailModal
+        chatroomId={chatroomId}
         message={lastMessage}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
