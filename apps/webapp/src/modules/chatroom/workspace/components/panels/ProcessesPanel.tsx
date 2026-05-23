@@ -29,11 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from '@/components/ui/resizable';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
@@ -45,7 +41,11 @@ import { WorkspaceDetailPanel } from '../../../features/run-command/components/W
 import { EmptyOutputState } from './EmptyOutputState';
 import { useProcessesPanelState } from '../../../features/run-command/hooks/useProcessesPanelState';
 import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
-import type { CommandRun, RunnableCommand, OutputChunk } from '../../../features/run-command/types/run';
+import type {
+  CommandRun,
+  RunnableCommand,
+  OutputChunk,
+} from '../../../features/run-command/types/run';
 
 // ─── Layout Persistence ───────────────────────────────────────────────────────
 
@@ -114,12 +114,19 @@ export function ProcessesPanel({
   } = state;
 
   // Layout persistence — mirrors PullRequestsPanel pattern
-  const [sizes, setSizes] = usePersistedState<number[]>(PROCESSES_LAYOUT_KEY, [...PROCESSES_DEFAULT_LAYOUT], {
-    validate: isValidTwoPaneLayout,
-  });
+  const [sizes, setSizes] = usePersistedState<number[]>(
+    PROCESSES_LAYOUT_KEY,
+    [...PROCESSES_DEFAULT_LAYOUT],
+    {
+      validate: isValidTwoPaneLayout,
+    }
+  );
   const handleLayoutChanged = useCallback(
     (layout: { [id: string]: number }) => {
-      const next = [layout['processes-sidebar'] ?? sizes[0], layout['processes-detail'] ?? sizes[1]];
+      const next = [
+        layout['processes-sidebar'] ?? sizes[0],
+        layout['processes-detail'] ?? sizes[1],
+      ];
       if (isValidTwoPaneLayout(next)) setSizes(next);
     },
     [setSizes, sizes]
@@ -202,45 +209,46 @@ export function ProcessesPanel({
           /* Search results: flat list of matching commands */
           <div>
             <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted/70 border-b border-chatroom-border/30">
-              Search Results (
-              {workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
+              Search Results ({workspaceGroups.reduce((sum, ws) => sum + ws.allCommands.length, 0)})
             </div>
             {workspaceGroups.flatMap((ws, wsIdx) => {
-              const offset = workspaceGroups.slice(0, wsIdx).reduce((sum, g) => sum + g.allCommands.length, 0);
+              const offset = workspaceGroups
+                .slice(0, wsIdx)
+                .reduce((sum, g) => sum + g.allCommands.length, 0);
               return ws.allCommands.map((cmd, cmdIdx) => {
-                  const currentIdx = offset + cmdIdx;
-                  const isFav = favorites.has(cmd.name);
-                  const isFocused = currentIdx === focusedIndex;
-                  return (
-                    <button
-                      key={cmd.name}
-                      onClick={() => {
-                        onClearRun();
-                        setSelectedWorkspace(ws);
-                        setSelectedCommand(cmd);
-                      }}
-                      className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
-                        isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
-                      }`}
-                    >
-                      <span className="text-yellow-500 flex-shrink-0 mt-0.5">
-                        {isFav ? '★' : '☆'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div
-                          className={`text-xs font-bold uppercase tracking-wider truncate ${
-                            isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
-                          }`}
-                        >
-                          {getCompactDisplayName(cmd.name, cmd.script)}
-                        </div>
-                        <div className="text-[10px] text-chatroom-text-muted/70 truncate">
-                          {ws.path === '.' ? 'Root' : ws.path}
-                        </div>
+                const currentIdx = offset + cmdIdx;
+                const isFav = favorites.has(cmd.name);
+                const isFocused = currentIdx === focusedIndex;
+                return (
+                  <button
+                    key={cmd.name}
+                    onClick={() => {
+                      onClearRun();
+                      setSelectedWorkspace(ws);
+                      setSelectedCommand(cmd);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2 transition-colors border-b border-chatroom-border/20 text-left ${
+                      isFocused ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
+                    }`}
+                  >
+                    <span className="text-yellow-500 flex-shrink-0 mt-0.5">
+                      {isFav ? '★' : '☆'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={`text-xs font-bold uppercase tracking-wider truncate ${
+                          isFocused ? 'text-blue-400' : 'text-chatroom-text-primary'
+                        }`}
+                      >
+                        {getCompactDisplayName(cmd.name, cmd.script)}
                       </div>
-                    </button>
-                  );
-                });
+                      <div className="text-[10px] text-chatroom-text-muted/70 truncate">
+                        {ws.path === '.' ? 'Root' : ws.path}
+                      </div>
+                    </div>
+                  </button>
+                );
+              });
             })}
           </div>
         ) : (
@@ -375,23 +383,28 @@ export function ProcessesPanel({
           )}
         </div>
 
-        {/* Body — desktop: ResizablePanelGroup, mobile: master-detail */}
-        {/* Desktop layout (md+) */}
-        <div className="hidden md:flex flex-1 overflow-hidden">
-          <ResizablePanelGroup className="flex-1" onLayoutChanged={handleLayoutChanged}>
-            <ResizablePanel id="processes-sidebar" defaultSize={sizes[0]} minSize={18}>
-              {sidebar}
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel id="processes-detail" defaultSize={sizes[1]} minSize={30}>
-              {detail}
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
+        {/* Body — layout is driven by the panel's own width via container queries,
+            not the viewport. Below @md (28rem ≈ 448px) we collapse to a single
+            master-detail pane so a narrow docked sidebar gets the full width. */}
+        <div className="@container flex-1 overflow-hidden flex flex-col">
+          {/* Split layout (container ≥ @md) */}
+          <div className="hidden @md:flex flex-1 overflow-hidden">
+            <ResizablePanelGroup className="flex-1" onLayoutChanged={handleLayoutChanged}>
+              <ResizablePanel id="processes-sidebar" defaultSize={sizes[0]} minSize={18}>
+                {sidebar}
+              </ResizablePanel>
+              <ResizableHandle />
+              <ResizablePanel id="processes-detail" defaultSize={sizes[1]} minSize={30}>
+                {detail}
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
 
-        {/* Mobile layout — one pane at a time */}
-        <div className="flex md:hidden flex-1 overflow-hidden">
-          {hasRightPanelContent ? detail : sidebar}
+          {/* Single-pane layout (container < @md) — back buttons on detail
+              panels handle navigation back to the list. */}
+          <div className="flex @md:hidden flex-1 overflow-hidden">
+            {hasRightPanelContent ? detail : sidebar}
+          </div>
         </div>
       </div>
 
