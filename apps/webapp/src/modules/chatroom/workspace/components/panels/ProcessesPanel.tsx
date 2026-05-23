@@ -41,7 +41,7 @@ import { ProcessList } from '../../../features/run-command/components/ProcessLis
 import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
 import { WorkspaceDetailPanel } from '../../../features/run-command/components/WorkspaceDetailPanel';
-import { useProcessManagerState } from '../../../features/run-command/hooks/useProcessManagerState';
+import { useProcessesPanelState } from '../../../features/run-command/hooks/useProcessesPanelState';
 import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
 import type { CommandRun, RunnableCommand, OutputChunk } from '../../../features/run-command/types/run';
 
@@ -78,7 +78,7 @@ export function ProcessesPanel({
   initialSelectedCommand,
   onConsumedInitialCommand,
 }: ProcessesPanelProps) {
-  const state = useProcessManagerState({
+  const state = useProcessesPanelState({
     commands,
     runs,
     onClearRun,

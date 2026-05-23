@@ -6,7 +6,7 @@ import { groupCommandsByWorkspace, type WorkspaceGroup } from '../utils/grouping
 import { isActiveRun } from '../utils/run-status';
 import { useCommandFavorites } from './useCommandFavorites';
 
-export interface ProcessManagerState {
+export interface ProcessesPanelState {
   // Search
   searchQuery: string;
   setSearchQuery: (q: string) => void;
@@ -41,7 +41,7 @@ type SelectableItem =
   | { type: 'workspace'; ws: WorkspaceGroup }
   | { type: 'command'; ws: WorkspaceGroup; cmd: RunnableCommand };
 
-interface UseProcessManagerStateOptions {
+interface UseProcessesPanelStateOptions {
   commands: RunnableCommand[];
   runs: CommandRun[];
   onClearRun: () => void;
@@ -51,13 +51,13 @@ interface UseProcessManagerStateOptions {
   onConsumedInitialCommand?: () => void;
 }
 
-export function useProcessManagerState({
+export function useProcessesPanelState({
   commands,
   runs,
   onClearRun,
   initialSelectedCommand,
   onConsumedInitialCommand,
-}: UseProcessManagerStateOptions): ProcessManagerState {
+}: UseProcessesPanelStateOptions): ProcessesPanelState {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceGroup | null>(null);

@@ -1076,7 +1076,7 @@ export function ChatroomDashboard({
   }, []);
 
   // Handler to run a command from Process Manager (opens PM, not terminal)
-  const handleRunFromProcessManager = useCallback(
+  const handleRunFromProcessesPanel = useCallback(
     (commandName: string, script: string) => {
       commandRunner.runCommand(commandName, script);
     },
@@ -1556,7 +1556,7 @@ export function ChatroomDashboard({
                     commands={commandRunner.commands}
                     runs={commandRunner.runs}
                     activeRunOutput={commandRunner.activeRunOutput}
-                    onRunCommand={handleRunFromProcessManager}
+                    onRunCommand={handleRunFromProcessesPanel}
                     onStopCommand={(runId) => commandRunner.stopCommand(runId)}
                     onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
                     onClearRun={() => commandRunner.setActiveRunId(null)}

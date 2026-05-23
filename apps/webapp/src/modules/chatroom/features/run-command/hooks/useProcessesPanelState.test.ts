@@ -12,7 +12,7 @@ vi.mock('./useCommandFavorites', () => ({
   }),
 }));
 
-import { useProcessManagerState } from './useProcessManagerState';
+import { useProcessesPanelState } from './useProcessesPanelState';
 
 const makeCommand = (name: string, subPath = '.'): RunnableCommand => ({
   _id: `cmd-${name}` as RunnableCommand['_id'],
@@ -47,9 +47,9 @@ const defaultOpts = {
   onClearRun: vi.fn(),
 };
 
-describe('useProcessManagerState', () => {
+describe('useProcessesPanelState', () => {
   it('initialises with empty search and no selections', () => {
-    const { result } = renderHook(() => useProcessManagerState(defaultOpts));
+    const { result } = renderHook(() => useProcessesPanelState(defaultOpts));
     expect(result.current.searchQuery).toBe('');
     expect(result.current.selectedCommand).toBeNull();
     expect(result.current.selectedWorkspace).toBeNull();
@@ -57,7 +57,7 @@ describe('useProcessManagerState', () => {
   });
 
   it('filters commands by search query', () => {
-    const { result } = renderHook(() => useProcessManagerState(defaultOpts));
+    const { result } = renderHook(() => useProcessesPanelState(defaultOpts));
 
     act(() => result.current.setSearchQuery('dev'));
 
@@ -66,7 +66,7 @@ describe('useProcessManagerState', () => {
   });
 
   it('resets focusedIndex when search changes', () => {
-    const { result } = renderHook(() => useProcessManagerState(defaultOpts));
+    const { result } = renderHook(() => useProcessesPanelState(defaultOpts));
 
     act(() => result.current.setFocusedIndex(2));
     expect(result.current.focusedIndex).toBe(2);
@@ -82,7 +82,7 @@ describe('useProcessManagerState', () => {
       makeRun('r3', 'test', 'failed'),
     ];
     const { result } = renderHook(() =>
-      useProcessManagerState({ ...defaultOpts, runs })
+      useProcessesPanelState({ ...defaultOpts, runs })
     );
     expect(result.current.runningProcesses).toHaveLength(1);
     expect(result.current.recentRuns).toHaveLength(2);
@@ -91,7 +91,7 @@ describe('useProcessManagerState', () => {
   it('pre-selects command from initialSelectedCommand', async () => {
     const onConsumedInitialCommand = vi.fn();
     const { result } = renderHook(() =>
-      useProcessManagerState({
+      useProcessesPanelState({
         ...defaultOpts,
         initialSelectedCommand: 'dev',
         onConsumedInitialCommand,
@@ -110,7 +110,7 @@ describe('useProcessManagerState', () => {
       ({ key, preventDefault: vi.fn() }) as unknown as React.KeyboardEvent;
 
     it('ArrowDown increments focusedIndex', () => {
-      const { result } = renderHook(() => useProcessManagerState(defaultOpts));
+      const { result } = renderHook(() => useProcessesPanelState(defaultOpts));
       expect(result.current.focusedIndex).toBe(0);
 
       act(() => result.current.handleKeyDown(makeKeyEvent('ArrowDown')));
@@ -118,7 +118,7 @@ describe('useProcessManagerState', () => {
     });
 
     it('ArrowUp wraps to end', () => {
-      const { result } = renderHook(() => useProcessManagerState(defaultOpts));
+      const { result } = renderHook(() => useProcessesPanelState(defaultOpts));
 
       act(() => result.current.handleKeyDown(makeKeyEvent('ArrowUp')));
       // 2 workspace groups: '.' and 'apps/api' → items.length = 2, wraps to 1
@@ -128,7 +128,7 @@ describe('useProcessManagerState', () => {
     it('Enter selects the focused workspace', () => {
       const onClearRun = vi.fn();
       const { result } = renderHook(() =>
-        useProcessManagerState({ ...defaultOpts, onClearRun })
+        useProcessesPanelState({ ...defaultOpts, onClearRun })
       );
 
       act(() => result.current.handleKeyDown(makeKeyEvent('Enter')));
