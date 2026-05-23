@@ -92,6 +92,15 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    // NOTE: Tool-call logging to the daemon is currently UNSUPPORTED for commandcode.
+    // `cmd -p` has no structured output / verbose / stream-events flag — only the final
+    // model text reaches stdout. The only documented way to surface tool calls is via
+    // `.commandcode/settings.json` hooks (https://commandcode.ai/docs/hooks), but that
+    // requires writing config files into the agent's working directory (a stateful
+    // change on the user's machine), which we explicitly do not want. So tool calls
+    // run inside `cmd` are invisible to the daemon log channel; only the final response
+    // text is forwarded. Revisit if `cmd` adds a `--output-format json` or similar.
+    //
     // --max-turns 999999: the default of 10 is far too low for the chatroom workflow.
     // A single session may run many turns: register-agent → get-next-task (blocking) →
     // task-read → work iterations → handoff. Effectively uncap turns so the cmd
