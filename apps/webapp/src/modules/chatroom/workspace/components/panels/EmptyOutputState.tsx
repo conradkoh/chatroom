@@ -4,7 +4,7 @@
 
 export function EmptyOutputState() {
   return (
-    <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+    <div className="flex-1 flex items-center justify-center pt-6 text-xs text-muted-foreground">
       Select a command to view output
     </div>
   );
