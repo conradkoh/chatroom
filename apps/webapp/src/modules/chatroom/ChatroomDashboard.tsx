@@ -401,6 +401,8 @@ export function ChatroomDashboard({
     setSelectedHarnessSessionId,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
+    explorerSyncEnabled,
+    setExplorerSyncEnabled,
   } = chatroomLifecycle;
 
   const [modalState, setModalState] = useState<ModalState>({
@@ -1445,6 +1447,9 @@ export function ChatroomDashboard({
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
                       revealPath={revealPath}
+                      activeTabPath={fileTabs.activeTabPath}
+                      explorerSyncEnabled={explorerSyncEnabled}
+                      onToggleSync={setExplorerSyncEnabled}
                     />
                   </div>
                 )}
