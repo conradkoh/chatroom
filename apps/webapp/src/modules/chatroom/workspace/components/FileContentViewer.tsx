@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
-import { isMarkdownFile, isCsvFile } from '../file-renderers';
+import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
 import { memo, useEffect } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
@@ -144,9 +144,11 @@ const FileContentInner = memo(function FileContentInner({
 
       {/* File content — source only */}
       <div className="flex-1 overflow-auto">
-        <pre className="p-4 text-[13px] leading-relaxed font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto">
-          <code>{content.content}</code>
-        </pre>
+        <SyntaxHighlighter
+          code={content.content}
+          path={filePath}
+          className="p-4 text-[13px] leading-relaxed font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto block"
+        />
       </div>
     </div>
   );
