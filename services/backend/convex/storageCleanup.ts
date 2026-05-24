@@ -59,15 +59,15 @@ export const cleanupCommandOutput = internalMutation({
   },
 });
 
-// ─── Command Runs Cleanup (30-day TTL) ──────────────────────────────────────
+// ─── Command Runs Cleanup (7-day TTL) ──────────────────────────────────────
 
 /**
- * Delete completed/failed/stopped command runs older than 30 days.
+ * Delete completed/failed/stopped command runs older than 7 days.
  */
 export const cleanupCommandRuns = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - THIRTY_DAYS_MS;
+    const cutoff = Date.now() - SEVEN_DAYS_MS;
 
     const oldRuns = await ctx.db
       .query('chatroom_commandRuns')
