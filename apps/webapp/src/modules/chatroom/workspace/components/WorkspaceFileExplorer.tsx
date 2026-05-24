@@ -31,7 +31,7 @@ interface WorkspaceFileExplorerProps {
   /** When set, auto-expand tree to reveal this file path */
   revealPath?: string | null;
   /** When set, visually highlights and scrolls to this path */
-  selectedPath?: string | null;
+  selectedPath: string | null;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -355,7 +355,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           node={node}
           depth={0}
           expandedPaths={expandedPaths}
-          selectedPath={selectedPath ?? null}
+          selectedPath={selectedPath}
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}

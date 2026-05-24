@@ -28,11 +28,11 @@ interface FileExplorerPanelProps {
   /** When set, auto-expand tree to reveal this file path (always honored) */
   revealPath?: string | null;
   /** The currently active file tab path; used for sync when preference is enabled */
-  activeTabPath?: string | null;
+  activeTabPath: string | null;
   /** Whether Explorer↔active-editor sync is enabled */
-  explorerSyncEnabled?: boolean;
+  explorerSyncEnabled: boolean;
   /** Toggle for Explorer↔active-editor sync */
-  onToggleSync?: (enabled: boolean) => void;
+  onToggleSync: (enabled: boolean) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Explorer
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
