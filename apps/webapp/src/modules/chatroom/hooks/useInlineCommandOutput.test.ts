@@ -5,6 +5,7 @@
  * - detach() clears UI state WITHOUT calling stopCommand
  * - stop() calls stopCommand
  * - close() calls stopCommand AND clears state
+ * - getRunOutput subscription is skipped when no modal is visible
  */
 
 import { act, renderHook } from '@testing-library/react';
@@ -12,6 +13,25 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import type { useCommandRunner } from './useCommandRunner';
 import { useInlineCommandOutput } from './useInlineCommandOutput';
+
+// ─── Mocks ──────────────────────────────────────────────────────────────────
+
+vi.mock('./useActiveRunOutput', () => ({
+  useActiveRunOutput: vi.fn((activeRunId: string | null) => {
+    if (!activeRunId) return { chunks: [], run: null };
+    return {
+      chunks: [{ content: 'hello' }],
+      run: {
+        _id: activeRunId,
+        commandName: 'test',
+        status: 'running',
+        script: 'pnpm test',
+      },
+    };
+  }),
+}));
+
+import { useActiveRunOutput } from './useActiveRunOutput';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +45,6 @@ function createMockCommandRunner(
     runs: [],
     activeRunId: null,
     setActiveRunId: vi.fn(),
-    activeRunOutput: { chunks: [], run: null },
     runCommand: vi.fn().mockResolvedValue('run-id-1'),
     stopCommand: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -38,6 +57,7 @@ describe('useInlineCommandOutput', () => {
   let mockRunner: CommandRunner;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockRunner = createMockCommandRunner({
       activeRunId: 'run-id-123',
     });
@@ -119,6 +139,44 @@ describe('useInlineCommandOutput', () => {
       expect(mockRunner.stopCommand).toHaveBeenCalledWith('run-id-123');
       expect(result.current.commandName).toBeNull();
       expect(result.current.script).toBeNull();
+    });
+  });
+
+  describe('demand-driven subscription', () => {
+    it('skips useActiveRunOutput when no modal is visible (commandName null)', () => {
+      const { result } = renderHook(() => useInlineCommandOutput(mockRunner));
+
+      // No modal visible initially
+      expect(result.current.commandName).toBeNull();
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null);
+    });
+
+    it('subscribes to useActiveRunOutput when modal is visible', async () => {
+      const { result } = renderHook(() => useInlineCommandOutput(mockRunner));
+
+      await act(async () => {
+        result.current.run('dev', 'pnpm dev');
+      });
+
+      expect(result.current.commandName).toBe('dev');
+      // After run(), commandName is non-null so the hook passes
+      // commandRunner.activeRunId (which is 'run-id-123') to useActiveRunOutput
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith('run-id-123');
+    });
+
+    it('unsubscribes when modal is detached', async () => {
+      const { result } = renderHook(() => useInlineCommandOutput(mockRunner));
+
+      await act(async () => {
+        result.current.run('dev', 'pnpm dev');
+      });
+
+      act(() => {
+        result.current.detach();
+      });
+
+      expect(result.current.commandName).toBeNull();
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null);
     });
   });
 });

@@ -51,6 +51,7 @@ import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
+import { useActiveRunOutput } from './hooks/useActiveRunOutput';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
@@ -736,6 +737,14 @@ export function ChatroomDashboard({
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
   });
+
+  // Demand-driven: subscribe to output only when a UI surface is showing it.
+  // Convex deduplicates identical queries, so multiple consumers of the same
+  // `runId` share one backend subscription.  When neither surface is visible,
+  // the query is skipped entirely — no reactive push from the backend.
+  const activeRunOutput = useActiveRunOutput(
+    activeView === 'processes' || terminalOpen ? commandRunner.activeRunId : null
+  );
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
@@ -1560,7 +1569,7 @@ export function ChatroomDashboard({
                     workingDir={activeWorkspace?.workingDir}
                     commands={commandRunner.commands}
                     runs={commandRunner.runs}
-                    activeRunOutput={commandRunner.activeRunOutput}
+                    activeRunOutput={activeRunOutput}
                     onRunCommand={handleRunFromProcessesPanel}
                     onStopCommand={(runId) => commandRunner.stopCommand(runId)}
                     onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
@@ -1693,17 +1702,17 @@ export function ChatroomDashboard({
           <TerminalOutputPanel
             open={terminalOpen}
             onOpenChange={setTerminalOpen}
-            commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
-            status={commandRunner.activeRunOutput.run?.status ?? null}
-            terminationReason={commandRunner.activeRunOutput.run?.terminationReason}
-            output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
+            commandName={activeRunOutput.run?.commandName ?? null}
+            status={activeRunOutput.run?.status ?? null}
+            terminationReason={activeRunOutput.run?.terminationReason}
+            output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
             onStop={() => {
               if (commandRunner.activeRunId) {
                 commandRunner.stopCommand(commandRunner.activeRunId);
               }
             }}
             onRestart={() => {
-              const run = commandRunner.activeRunOutput.run;
+              const run = activeRunOutput.run;
               if (run) {
                 const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
                 if (cmd) {

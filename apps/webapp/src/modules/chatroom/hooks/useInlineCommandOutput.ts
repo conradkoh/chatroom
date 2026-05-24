@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 
 import type { CommandRun } from '../features/run-command/types/run';
+import { useActiveRunOutput } from './useActiveRunOutput';
 import type { useCommandRunner } from './useCommandRunner';
 
 /** Maximum number of output lines to keep in buffer to prevent memory issues */
@@ -43,9 +44,9 @@ export interface InlineCommandState {
 /**
  * Hook that manages inline command output state directly from reactive Convex data.
  *
- * Replaces the closure-based RunnableCommandHandle pattern with direct reactive state,
- * eliminating stale closure bugs. Output is derived from `commandRunner.activeRunOutput`
- * on every render — no subscriptions, no callbacks.
+ * The `getRunOutput` subscription is demand-driven: it's skipped when no output
+ * modal is visible (`commandName === null`). Convex's client-side query dedup
+ * means multiple consumers of the same `runId` share one backend subscription.
  *
  * @param commandRunner - The command runner hook return value from useCommandRunner
  */
@@ -55,11 +56,16 @@ export function useInlineCommandOutput(
   const [commandName, setCommandName] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
 
+  // Subscribe only when the output modal is actually visible (commandName non-null)
+  const activeRunOutput = useActiveRunOutput(
+    commandName !== null ? commandRunner.activeRunId : null
+  );
+
   // Derive isRunning, status, terminationReason, and output directly from reactive Convex state (no closures)
-  const isRunning = commandRunner.activeRunOutput.run?.status === 'running';
-  const status = commandRunner.activeRunOutput.run?.status ?? null;
-  const terminationReason = commandRunner.activeRunOutput.run?.terminationReason ?? null;
-  const output = commandRunner.activeRunOutput.chunks
+  const isRunning = activeRunOutput.run?.status === 'running';
+  const status = activeRunOutput.run?.status ?? null;
+  const terminationReason = activeRunOutput.run?.terminationReason ?? null;
+  const output = activeRunOutput.chunks
     .map((c: { content: string }) => c.content)
     .slice(-MAX_OUTPUT_LINES);
 

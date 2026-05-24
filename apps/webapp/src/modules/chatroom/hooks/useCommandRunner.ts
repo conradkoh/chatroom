@@ -34,11 +34,6 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
     machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
 
-  const activeRunOutput = useSessionQuery(
-    api.commands.getRunOutput,
-    activeRunId ? { runId: activeRunId as any } : 'skip'
-  );
-
   // Mutations
   const runCommandMutation = useSessionMutation(api.commands.runCommand);
   const stopCommandMutation = useSessionMutation(api.commands.stopCommand);
@@ -75,7 +70,6 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
     runs: runs ?? [],
     activeRunId,
     setActiveRunId,
-    activeRunOutput: activeRunOutput ?? { chunks: [], run: null },
     runCommand,
     stopCommand,
   };
