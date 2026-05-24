@@ -2,8 +2,15 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { RefreshCw } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
@@ -18,8 +25,14 @@ interface FileExplorerPanelProps {
   workingDir: string | null;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
-  /** When set, auto-expand tree to reveal this file path */
+  /** When set, auto-expand tree to reveal this file path (always honored) */
   revealPath?: string | null;
+  /** The currently active file tab path; used for sync when preference is enabled */
+  activeTabPath: string | null;
+  /** Whether Explorer↔active-editor sync is enabled */
+  explorerSyncEnabled: boolean;
+  /** Toggle for Explorer↔active-editor sync */
+  onToggleSync: (enabled: boolean) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -31,9 +44,20 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   onFileSelect,
   onFileDoubleClick,
   revealPath,
+  activeTabPath,
+  explorerSyncEnabled,
+  onToggleSync,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
+
+  // When sync is enabled, the active tab path becomes the effective reveal/select target.
+  // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
+  const effectiveSelectedPath = useMemo<string | null>(() => {
+    if (explorerSyncEnabled && activeTabPath) return activeTabPath;
+    return null;
+  }, [explorerSyncEnabled, activeTabPath]);
+  const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
 
   const handleRefresh = useCallback(() => {
     if (machineId && workingDir) {
@@ -82,13 +106,33 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Explorer
         </span>
-        <button
-          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
-          onClick={handleRefresh}
-          title="Refresh file tree"
-        >
-          <RefreshCw size={13} />
-        </button>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-sm p-0.5"
+                aria-label="Explorer options"
+              >
+                <MoreHorizontal size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuCheckboxItem
+                checked={explorerSyncEnabled}
+                onCheckedChange={onToggleSync}
+              >
+                Sync with active editor
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+            onClick={handleRefresh}
+            title="Refresh file tree"
+          >
+            <RefreshCw size={13} />
+          </button>
+        </div>
       </div>
 
       {/* Tree content */}
@@ -100,7 +144,8 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
           workingDir={workingDir}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}
-          revealPath={revealPath}
+          revealPath={effectiveRevealPath}
+          selectedPath={effectiveSelectedPath}
         />
       </div>
     </div>

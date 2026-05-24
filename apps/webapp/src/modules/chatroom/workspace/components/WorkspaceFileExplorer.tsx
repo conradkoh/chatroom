@@ -5,7 +5,7 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
@@ -30,6 +30,8 @@ interface WorkspaceFileExplorerProps {
   onFileDoubleClick?: (filePath: string) => void;
   /** When set, auto-expand tree to reveal this file path */
   revealPath?: string | null;
+  /** When set, visually highlights and scrolls to this path */
+  selectedPath: string | null;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -93,20 +95,34 @@ const TreeNodeItem = memo(function TreeNodeItem({
   node,
   depth,
   expandedPaths,
+  selectedPath,
   onToggle,
   onFileSelect,
   onFileDoubleClick,
+  nodeRefs,
 }: {
   node: TreeNode;
   depth: number;
   expandedPaths: Set<string>;
+  selectedPath: string | null;
   onToggle: (path: string) => void;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
+  nodeRefs: Map<string, HTMLElement>;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const isDirectory = node.type === 'directory';
+  const isSelected = node.path === selectedPath;
   const paddingLeft = 12 + depth * 16;
+
+  const refCallback = useCallback(
+    (el: HTMLButtonElement | null) => {
+      if (el) {
+        nodeRefs.set(node.path, el);
+      }
+    },
+    [node.path, nodeRefs]
+  );
 
   const handleClick = useCallback(() => {
     if (isDirectory) {
@@ -125,9 +141,12 @@ const TreeNodeItem = memo(function TreeNodeItem({
   return (
     <>
       <button
+        ref={refCallback}
         className={cn(
           'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
-          'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
+          isSelected
+            ? 'bg-chatroom-accent/10 text-chatroom-accent'
+            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
           'transition-colors duration-75 cursor-pointer select-none'
         )}
         style={{ paddingLeft }}
@@ -172,9 +191,11 @@ const TreeNodeItem = memo(function TreeNodeItem({
               node={child}
               depth={depth + 1}
               expandedPaths={expandedPaths}
+              selectedPath={selectedPath}
               onToggle={onToggle}
               onFileSelect={onFileSelect}
               onFileDoubleClick={onFileDoubleClick}
+              nodeRefs={nodeRefs}
             />
           ))}
         </div>
@@ -214,6 +235,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   onFileSelect,
   onFileDoubleClick,
   revealPath,
+  selectedPath,
 }: WorkspaceFileExplorerProps) {
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
@@ -258,6 +280,38 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     });
   }, [revealPath, expandedPathsStorageKey]);
 
+  // Node ref map for scroll-into-view on selection change
+  const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
+  useEffect(() => {
+    nodeRefs.current = new Map();
+  }, [treeNodes]);
+
+  // Scroll the selected node into view (after render, when the node's element is mounted)
+  const scrollTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const targetPath = revealPath || selectedPath;
+    if (!targetPath) return;
+
+    // Clear any pending scroll tick
+    if (scrollTickRef.current) {
+      clearTimeout(scrollTickRef.current);
+    }
+
+    // Defer one tick so the node's ref callback has fired after render
+    scrollTickRef.current = setTimeout(() => {
+      const el = nodeRefs.current.get(targetPath);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    return () => {
+      if (scrollTickRef.current) {
+        clearTimeout(scrollTickRef.current);
+      }
+    };
+  }, [revealPath, selectedPath]);
+
   const handleToggle = useCallback(
     (path: string) => {
       setExpandedPaths((prev) => {
@@ -301,9 +355,11 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           node={node}
           depth={0}
           expandedPaths={expandedPaths}
+          selectedPath={selectedPath}
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}
+          nodeRefs={nodeRefs.current}
         />
       ))}
     </div>
