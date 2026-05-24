@@ -21,21 +21,30 @@ async function flushOutput(ctx: DaemonContext, tracked: RunningProcess): Promise
 
   const content = tracked.outputBuffer;
   tracked.outputBuffer = '';
-  const chunkIndex = tracked.chunkIndex++;
 
-  try {
-    await ctx.deps.backend.mutation(api.commands.appendOutput, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
-      runId: tracked.runId as any,
-      content,
-      chunkIndex,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to flush output for run ${tracked.runId}: ${getErrorMessage(err)}`
-    );
-    tracked.outputBuffer = content + tracked.outputBuffer;
+  const slices: string[] = [];
+  for (let i = 0; i < content.length; i += MAX_BUFFER_SIZE) {
+    slices.push(content.slice(i, i + MAX_BUFFER_SIZE));
+  }
+
+  for (let i = 0; i < slices.length; i++) {
+    const chunkIndex = tracked.chunkIndex++;
+    try {
+      await ctx.deps.backend.mutation(api.commands.appendOutput, {
+        sessionId: ctx.sessionId as SessionId,
+        machineId: ctx.machineId,
+        runId: tracked.runId as any,
+        content: slices[i],
+        chunkIndex,
+      });
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️ Failed to flush output for run ${tracked.runId}: ${getErrorMessage(err)}`
+      );
+      tracked.outputBuffer = slices.slice(i).join('') + tracked.outputBuffer;
+      tracked.chunkIndex--;
+      return;
+    }
   }
 }
 
