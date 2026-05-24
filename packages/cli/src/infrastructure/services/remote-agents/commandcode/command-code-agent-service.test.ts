@@ -257,6 +257,145 @@ describe('CommandCodeAgentService', () => {
       ).rejects.toThrow('exited immediately');
     });
 
+    it('fires onExit even when process exits before consumer attaches listener (race condition fix)', async () => {
+      // Simulate a short-lived `cmd -p` process that exits synchronously after spawn returns.
+      // The test asserts that onExit callbacks registered AFTER exit still fire — preventing
+      // the agent-process-manager from missing the exit event (which would skip auto-restart).
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 100,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CommandCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('short-lived test'),
+        systemPrompt: 'test',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+      });
+
+      // Simulate process exit BEFORE consumer attaches onExit
+      const expectedCode = 0;
+      const expectedSignal = null;
+      mockChild.emit('exit', expectedCode, expectedSignal);
+
+      // Now consumer attaches onExit — should replay immediately
+      const onExitCb = vi.fn();
+      result.onExit(onExitCb);
+
+      expect(onExitCb).toHaveBeenCalledTimes(1);
+      expect(onExitCb).toHaveBeenCalledWith({
+        code: expectedCode,
+        signal: expectedSignal,
+        context: expect.objectContaining({ chatroomId: 'test-chatroom', role: 'test-role' }),
+      });
+    });
+
+    it('replays exit to multiple onExit listeners registered after process exit', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 101,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CommandCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('multi-listener test'),
+        systemPrompt: 'test',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+      });
+
+      mockChild.emit('exit', 1, 'SIGTERM');
+
+      const cb1 = vi.fn();
+      const cb2 = vi.fn();
+      result.onExit(cb1);
+      result.onExit(cb2);
+
+      expect(cb1).toHaveBeenCalledTimes(1);
+      expect(cb1).toHaveBeenCalledWith({
+        code: 1,
+        signal: 'SIGTERM',
+        context: expect.objectContaining({ role: 'test-role' }),
+      });
+      expect(cb2).toHaveBeenCalledTimes(1);
+      expect(cb2).toHaveBeenCalledWith({
+        code: 1,
+        signal: 'SIGTERM',
+        context: expect.objectContaining({ role: 'test-role' }),
+      });
+    });
+
+    it('calls onExit via listener when exit fires AFTER consumer attaches (normal path)', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 102,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CommandCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('normal exit test'),
+        systemPrompt: 'test',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+      });
+
+      const onExitCb = vi.fn();
+      result.onExit(onExitCb);
+
+      // Exit fires AFTER listener is attached (normal path)
+      mockChild.emit('exit', 0, null);
+
+      expect(onExitCb).toHaveBeenCalledTimes(1);
+      expect(onExitCb).toHaveBeenCalledWith({
+        code: 0,
+        signal: null,
+        context: expect.objectContaining({ role: 'test-role' }),
+      });
+    });
+
     it('uses only prompt when systemPrompt is empty', async () => {
       const mockStdin = { write: vi.fn(), end: vi.fn() };
       const mockStdout = new Readable({ read() {} });

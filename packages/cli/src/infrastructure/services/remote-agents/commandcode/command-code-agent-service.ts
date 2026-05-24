@@ -188,13 +188,30 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
         });
       }
 
+      // Capture exit synchronously — for short-lived processes like `cmd -p`,
+      // the process may exit before the consumer calls onExit(). Node does NOT
+      // replay 'exit' events to late listeners, so we store exit info and
+      // replay it when a consumer attaches onExit(). Without this, handleExit
+      // never fires → no auto-restart.
+      let exitInfo: { code: number | null; signal: string | null } | null = null;
+      const exitCallbacks: Array<(exit: { code: number | null; signal: string | null; context: typeof context }) => void> = [];
+
+      childProcess.on('exit', (code, signal) => {
+        this.deleteProcess(pid);
+        exitInfo = { code, signal };
+        for (const cb of exitCallbacks) {
+          cb({ code, signal, context });
+        }
+      });
+
       return {
         pid,
         onExit: (cb) => {
-          childProcess.on('exit', (code, signal) => {
-            this.deleteProcess(pid);
-            cb({ code, signal, context });
-          });
+          if (exitInfo) {
+            cb({ ...exitInfo, context });
+          } else {
+            exitCallbacks.push(cb);
+          }
         },
         onOutput: (cb) => {
           outputCallbacks.push(cb);
@@ -204,6 +221,18 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
         },
       };
     }
+
+    // Capture exit synchronously (same pattern as stdout branch above)
+    let exitInfo: { code: number | null; signal: string | null } | null = null;
+    const exitCallbacks: Array<(exit: { code: number | null; signal: string | null; context: typeof context }) => void> = [];
+
+    childProcess.on('exit', (code, signal) => {
+      this.deleteProcess(pid);
+      exitInfo = { code, signal };
+      for (const cb of exitCallbacks) {
+        cb({ code, signal, context });
+      }
+    });
 
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
@@ -216,10 +245,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     return {
       pid,
       onExit: (cb) => {
-        childProcess.on('exit', (code, signal) => {
-          this.deleteProcess(pid);
-          cb({ code, signal, context });
-        });
+        if (exitInfo) {
+          cb({ ...exitInfo, context });
+        } else {
+          exitCallbacks.push(cb);
+        }
       },
       onOutput: (cb) => {
         outputCallbacks.push(cb);
