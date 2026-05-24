@@ -23,6 +23,7 @@ import {
   type FileViewMode,
   MarkdownRenderer,
   CsvTableRenderer,
+  SyntaxHighlighter,
 } from '../../workspace/file-renderers';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useFileContent } from '../../workspace/hooks/useFileContent';
@@ -398,23 +399,12 @@ const FileContentPanel = memo(function FileContentPanel({
         </div>
       ) : (
         /* Raw source with line numbers */
-        <>
-          {/* Line numbers */}
-          <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
-            {contentResult.content.split('\n').map((_: string, i: number) => (
-              <div
-                key={i}
-                className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed"
-              >
-                {i + 1}
-              </div>
-            ))}
-          </div>
-          {/* Content */}
-          <pre className="flex-1 p-4 text-[13px] font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto leading-relaxed">
-            {contentResult.content}
-          </pre>
-        </>
+        <SyntaxHighlighter
+          code={contentResult.content}
+          path={filePath}
+          lineNumbers
+          className="text-[13px] leading-relaxed [&>pre]:p-4 [&>pre]:text-[13px] [&>pre]:leading-relaxed [&>pre]:font-mono [&>pre]:text-chatroom-text-primary [&>pre]:whitespace-pre [&>pre]:overflow-x-auto [&_code]:font-mono flex-1 overflow-auto block"
+        />
       )}
     </div>
   );
