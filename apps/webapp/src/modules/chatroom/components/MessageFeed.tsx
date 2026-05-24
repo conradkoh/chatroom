@@ -1,12 +1,12 @@
 'use client';
+'use client';
 
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
-
-import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
 import { usePaginatedQuery } from 'convex/react';
+import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -42,14 +42,16 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { AttachedWorkflowChip } from './AttachedWorkflowChip';
+import { useAttachments } from '../context/AttachmentsContext';
+import { useHandoffNotification } from '../hooks/useHandoffNotification';
+import { useMessages } from '../hooks/useMessages';
+import { getBacklogStatusBadge } from './backlog/presenters';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 import {
   compactMarkdownComponents,
   fullMarkdownComponents,
@@ -57,14 +59,14 @@ import {
   contextSummaryProseClassNames,
 } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
+import type { ScrollController } from '../hooks/useScrollController';
+import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
 import {
   type EventStreamEvent,
   formatEventType,
   getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
-import { useAttachments } from '../context/AttachmentsContext';
-import { useHandoffNotification } from '../hooks/useHandoffNotification';
-import { useMessages } from '../hooks/useMessages';
 
 import {
   FixedModal,
@@ -78,8 +80,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 // Stable reference for remarkPlugins — avoids re-allocation on every render
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
-
-import type { ScrollController } from '../hooks/useScrollController';
 
 interface MessageFeedProps {
   chatroomId: string;
@@ -1365,6 +1365,16 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [canLoadMore, loadOlderMessages, scrollController, purgeOldMessages]);
 
+  // Virtualize the message list so only ~tens of DOM nodes are mounted
+  // regardless of chat history length. Keeps dialog open times fast.
+  const virtualizer = useVirtualizer({
+    count: displayMessages.length,
+    getScrollElement: () => feedRef.current,
+    estimateSize: () => 200,
+    overscan: 6,
+    getItemKey: (index) => displayMessages[index]._id,
+  });
+
   if (isLoading && displayMessages.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-4 min-h-0">
@@ -1420,33 +1430,51 @@ export const MessageFeed = memo(function MessageFeed({
             Loading...
           </div>
         )}
-        {displayMessages.map((message) => (
-          <React.Fragment key={message._id}>
-            {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader
-              message={message}
-              onTap={handleMessageDetailClick}
-              onDelete={handleDeletePendingMessage}
-              isDeleting={deletingMessageId === message._id}
-              onStartEdit={handleStartEditPendingMessage}
-              isEditing={editingMessageId === message._id}
-            />
-            {/* Task Progress - inline progress updates below task header */}
-            <TaskProgress message={message} chatroomId={chatroomId} />
-            <MessageItem
-              message={message}
-              chatroomId={chatroomId}
-              onFeatureClick={handleFeatureClick}
-              onAttachedTaskClick={handleAttachedTaskClick}
-              onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
-              onAddToContext={handleAddToContext}
-              isAddedToContext={isAttached('message', message._id)}
-              isEditing={editingMessageId === message._id}
-              onSaveEdit={handleSaveEditPendingMessage}
-              onCancelEdit={handleCancelEditPendingMessage}
-            />
-          </React.Fragment>
-        ))}
+        {/* Virtualized message list — only items near the viewport are mounted to DOM. */}
+        {/* NOTE: TaskHeader's `position: sticky` won't work inside the virtualized */}
+        {/* absolutely-positioned rows. Header becomes an inline section divider instead. */}
+        {/* Sticky header behavior can be added later via a rangeExtractor. */}
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const message = displayMessages[virtualItem.index];
+            return (
+              <div
+                key={virtualItem.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                <TaskHeader
+                  message={message}
+                  onTap={handleMessageDetailClick}
+                  onDelete={handleDeletePendingMessage}
+                  isDeleting={deletingMessageId === message._id}
+                  onStartEdit={handleStartEditPendingMessage}
+                  isEditing={editingMessageId === message._id}
+                />
+                <TaskProgress message={message} chatroomId={chatroomId} />
+                <MessageItem
+                  message={message}
+                  chatroomId={chatroomId}
+                  onFeatureClick={handleFeatureClick}
+                  onAttachedTaskClick={handleAttachedTaskClick}
+                  onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
+                  onAddToContext={handleAddToContext}
+                  isAddedToContext={isAttached('message', message._id)}
+                  isEditing={editingMessageId === message._id}
+                  onSaveEdit={handleSaveEditPendingMessage}
+                  onCancelEdit={handleCancelEditPendingMessage}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
       {/* Scroll to bottom floating button - appears when user scrolls up */}
       {!isPinned && (
