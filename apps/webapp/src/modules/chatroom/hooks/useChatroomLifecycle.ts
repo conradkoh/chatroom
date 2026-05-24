@@ -8,6 +8,7 @@ import { useActivityView } from './persistence/useActivityView';
 import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import { useExplorerSplitViewEnabled } from './persistence/useExplorerSplitViewEnabled';
+import { useExplorerSyncPreference } from './persistence/useExplorerSyncPreference';
 import { useHarnessSessionId } from './persistence/useHarnessSessionId';
 import type { Workspace } from '../types/workspace';
 import { useFileTabs } from '../workspace/hooks/useFileTabs';
@@ -39,6 +40,10 @@ export interface UseChatroomLifecycleReturn {
   explorerSplitViewEnabled: boolean;
   /** Setter for explorer-split chat panel visibility. */
   setExplorerSplitViewEnabled: (enabled: boolean) => void;
+  /** Whether Explorer↔active-editor sync is enabled, persisted per chatroom. */
+  explorerSyncEnabled: boolean;
+  /** Setter for Explorer↔active-editor sync preference. */
+  setExplorerSyncEnabled: (enabled: boolean) => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -58,6 +63,8 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
   const [selectedHarnessSessionId, setSelectedHarnessSessionId] = useHarnessSessionId(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
+  const [explorerSyncEnabled, setExplorerSyncEnabled] =
+    useExplorerSyncPreference(chatroomId);
 
   return {
     fileTabs,
@@ -71,5 +78,7 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
     setSelectedHarnessSessionId,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
+    explorerSyncEnabled,
+    setExplorerSyncEnabled,
   };
 }
