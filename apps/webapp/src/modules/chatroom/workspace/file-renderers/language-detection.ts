@@ -35,6 +35,8 @@ const EAGER_LANGS = new Set([
   'md',
 ]);
 
+export const MAX_FILE_SIZE = 500_000;
+
 export type DetectedLanguage = { lang: string; isEager: boolean } | null;
 
 export function detectLanguage(path: string): DetectedLanguage {

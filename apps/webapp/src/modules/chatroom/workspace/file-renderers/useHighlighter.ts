@@ -1,8 +1,6 @@
 import { createHighlighter, type Highlighter } from 'shiki';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { detectLanguage } from './language-detection';
-
-const MAX_FILE_SIZE = 500_000;
+import { detectLanguage, MAX_FILE_SIZE } from './language-detection';
 
 type HighlighterStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -20,7 +18,7 @@ function getHighlighter(): Promise<Highlighter> {
 
 interface UseHighlighterResult {
   status: HighlighterStatus;
-  highlight: (code: string, path: string) => Promise<string>;
+  highlight: (code: string, path: string, theme: 'light' | 'dark') => Promise<string>;
 }
 
 export function useHighlighter(): UseHighlighterResult {
@@ -42,7 +40,7 @@ export function useHighlighter(): UseHighlighterResult {
       });
   }, []);
 
-  const highlight = useCallback(async (code: string, path: string): Promise<string> => {
+  const highlight = useCallback(async (code: string, path: string, theme: 'light' | 'dark'): Promise<string> => {
     if (code.length > MAX_FILE_SIZE) {
       return escapeHtml(code);
     }
@@ -66,13 +64,9 @@ export function useHighlighter(): UseHighlighterResult {
       }
     }
 
-    const isDark =
-      typeof document !== 'undefined' &&
-      document.documentElement.classList.contains('dark');
-
     return hl.codeToHtml(code, {
       lang: detected.lang,
-      theme: isDark ? 'github-dark' : 'github-light',
+      theme: theme === 'dark' ? 'github-dark' : 'github-light',
     });
   }, []);
 

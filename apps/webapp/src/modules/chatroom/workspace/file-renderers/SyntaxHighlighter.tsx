@@ -1,10 +1,9 @@
 'use client';
 
 import { memo, useEffect, useState, useRef } from 'react';
+import { useTheme } from '@/modules/theme/ThemeProvider';
 import { useHighlighter } from './useHighlighter';
-import { detectLanguage } from './language-detection';
-
-const MAX_FILE_SIZE = 500_000;
+import { detectLanguage, MAX_FILE_SIZE } from './language-detection';
 
 interface SyntaxHighlighterProps {
   code: string;
@@ -21,8 +20,11 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
   className = '',
 }: SyntaxHighlighterProps) {
   const { status, highlight } = useHighlighter();
+  const { theme } = useTheme();
   const [html, setHtml] = useState<string | null>(null);
   const latestRequest = useRef(0);
+
+  const resolvedTheme = theme === 'dark' ? 'dark' : 'light';
 
   const shouldHighlight =
     code.length <= MAX_FILE_SIZE && detectLanguage(path) !== null && status !== 'error';
@@ -38,7 +40,7 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     const requestId = ++latestRequest.current;
     let cancelled = false;
 
-    highlight(code, path).then((result) => {
+    highlight(code, path, resolvedTheme).then((result) => {
       if (cancelled || requestId !== latestRequest.current) return;
       setHtml(result);
     });
@@ -46,7 +48,7 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     return () => {
       cancelled = true;
     };
-  }, [code, path, status, shouldHighlight, highlight]);
+  }, [code, path, status, shouldHighlight, highlight, resolvedTheme]);
 
   if (!shouldHighlight || html === null) {
     if (lineNumbers) {
