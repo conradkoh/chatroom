@@ -67,6 +67,27 @@ export function useHighlighter(): UseHighlighterResult {
     return hl.codeToHtml(code, {
       lang: detected.lang,
       theme: theme === 'dark' ? 'github-dark' : 'github-light',
+      transformers: [
+        {
+          name: 'remove-bg',
+          pre(node) {
+            if (typeof node.properties.style === 'string') {
+              node.properties.style = node.properties.style
+                .replace(/background-color\s*:\s*[^;]+;?/gi, '')
+                .trim();
+              if (!node.properties.style) delete node.properties.style;
+            }
+          },
+          code(node) {
+            if (typeof node.properties.style === 'string') {
+              node.properties.style = node.properties.style
+                .replace(/background-color\s*:\s*[^;]+;?/gi, '')
+                .trim();
+              if (!node.properties.style) delete node.properties.style;
+            }
+          },
+        },
+      ],
     });
   }, []);
 
