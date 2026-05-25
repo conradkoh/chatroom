@@ -4,12 +4,28 @@ vi.mock('../../../../../api.js', () => ({
   api: {
     commands: {
       appendOutput: 'mock-appendOutput',
+      updateRunTail: 'mock-updateRunTail',
+      updateRunStatus: 'mock-updateRunStatus',
     },
   },
 }));
 
+vi.mock('@workspace/backend/src/output-encoding.js', () => ({
+  encodeOutput: vi.fn((plain: string) => ({
+    compression: 'gzip' as const,
+    content: `gzip:${plain}`,
+  })),
+}));
+
+vi.mock('./output-store.js', () => ({
+  createOutputStore: vi.fn(),
+  ensureTempDir: vi.fn().mockResolvedValue(undefined),
+  TAIL_WINDOW_BYTES: 32 * 1024,
+}));
+
 import type { DaemonContext } from '../../types.js';
 import { MAX_BUFFER_SIZE } from './state.js';
+import { createOutputStore, ensureTempDir } from './output-store.js';
 
 type MutationFn = (endpoint: any, args: any) => Promise<any>;
 
@@ -62,8 +78,25 @@ function createCtx(mutationImpl?: MutationFn): DaemonContext {
   };
 }
 
-function buildContent(size: number): string {
-  return 'a'.repeat(size);
+function createMockStore(initialContent = '') {
+  let inMemory = initialContent;
+  let totalBytes = initialContent.length;
+  return {
+    append: vi.fn().mockImplementation(async (data: string) => {
+      inMemory += data;
+      totalBytes += data.length;
+    }),
+    getTail: vi.fn().mockImplementation(() => ({
+      content: inMemory,
+      totalBytes,
+    })),
+    getFullOutput: vi.fn().mockImplementation(async () => inMemory),
+    destroy: vi.fn().mockResolvedValue(undefined),
+    _setContent: (content: string) => {
+      inMemory = content;
+      totalBytes = content.length;
+    },
+  };
 }
 
 import { spawn } from 'node:child_process';
@@ -72,13 +105,18 @@ vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 
-describe('flushOutput slicing behavior', () => {
+describe('spawnCommandProcess — new output flow', () => {
   let ctx: DaemonContext;
+  let mockStore: ReturnType<typeof createMockStore>;
 
   beforeEach(() => {
     ctx = createCtx();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockStore = createMockStore();
+    vi.mocked(createOutputStore).mockReturnValue(mockStore as any);
+    vi.mocked(ensureTempDir).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -89,10 +127,14 @@ describe('flushOutput slicing behavior', () => {
   function makeFakeChild() {
     const stdoutListeners: Record<string, Array<(...args: any[]) => void>> = {};
     const stderrListeners: Record<string, Array<(...args: any[]) => void>> = {};
+    const exitListeners: Array<(...args: any[]) => void> = [];
+    const errorListeners: Array<(...args: any[]) => void> = [];
     return {
       pid: 99999,
-      kill: vi.fn(),
-      on: (event: string, fn: (...args: any[]) => void) => {},
+      on: (event: string, fn: (...args: any[]) => void) => {
+        if (event === 'exit') exitListeners.push(fn);
+        else if (event === 'error') errorListeners.push(fn);
+      },
       stdout: {
         on: (event: string, fn: (...args: any[]) => void) => {
           (stdoutListeners[event] ??= []).push(fn);
@@ -109,238 +151,109 @@ describe('flushOutput slicing behavior', () => {
           stderrListeners[event]?.forEach((fn: (...args: any[]) => void) => fn(...args));
         },
       } as any,
+      _exit: (...args: any[]) => exitListeners.forEach((fn) => fn(...args)),
+      _error: (...args: any[]) => errorListeners.forEach((fn) => fn(...args)),
     };
   }
 
-  it('1. empty buffer — no mutation call', async () => {
+  it('calls updateRunTail on every flush interval, not appendOutput during run', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
+    await spawnCommandProcess(
       ctx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-empty',
-        script: 'echo hi',
-        runId: 'run-empty' as any,
-      },
-      'test-machine|/tmp|test-empty'
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-1' as any },
+      'key-1'
     );
 
-    await vi.advanceTimersByTimeAsync(5_000);
+    fakeChild.stdout.emit('data', Buffer.from('hello output'));
+    await vi.advanceTimersByTimeAsync(3_500);
 
-    const appendCalls = vi
-      .mocked(ctx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
+    const tailCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-updateRunTail'
+    );
+    expect(tailCalls.length).toBeGreaterThanOrEqual(1);
+
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
     expect(appendCalls).toHaveLength(0);
   });
 
-  it('2. content exactly at MAX_BUFFER_SIZE — single slice', async () => {
+  it('flushes final chunks via appendOutput on exit, then destroys store', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
+    const fullContent = 'a'.repeat(50 * 1024);
+    mockStore._setContent(fullContent);
+
     const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
+    await spawnCommandProcess(
       ctx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-exact',
-        script: 'echo hi',
-        runId: 'run-exact' as any,
-      },
-      'test-machine|/tmp|test-exact'
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-2' as any },
+      'key-2'
     );
 
-    const exactContent = buildContent(MAX_BUFFER_SIZE);
-    fakeChild.stdout.emit('data', Buffer.from(exactContent));
+    fakeChild._exit(0, null);
 
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.runAllTimersAsync();
 
-    const appendCalls = vi
-      .mocked(ctx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-    expect(appendCalls).toHaveLength(1);
-    expect((appendCalls[0][1] as any).content.length).toBe(MAX_BUFFER_SIZE);
-    expect((appendCalls[0][1] as any).chunkIndex).toBe(0);
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
+    expect(appendCalls.length).toBeGreaterThanOrEqual(1);
+    expect(mockStore.destroy).toHaveBeenCalled();
   });
 
-  it('3. 250KB content — 3 slices (100KB + 100KB + 50KB)', async () => {
+  it('flushes final chunks with compressed content', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
+    const fullContent = 'hello final output';
+    mockStore._setContent(fullContent);
+
     const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
+    await spawnCommandProcess(
       ctx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-250kb',
-        script: 'echo hi',
-        runId: 'run-250kb' as any,
-      },
-      'test-machine|/tmp|test-250kb'
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-3' as any },
+      'key-3'
     );
 
-    const content250 = buildContent(250 * 1024);
-    fakeChild.stdout.emit('data', Buffer.from(content250));
+    fakeChild._exit(0, null);
+    await vi.runAllTimersAsync();
 
-    await vi.advanceTimersByTimeAsync(5_000);
-
-    const appendCalls = vi
-      .mocked(ctx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-    expect(appendCalls).toHaveLength(3);
-
-    expect((appendCalls[0][1] as any).content.length).toBe(MAX_BUFFER_SIZE);
-    expect((appendCalls[0][1] as any).chunkIndex).toBe(0);
-    expect((appendCalls[1][1] as any).content.length).toBe(MAX_BUFFER_SIZE);
-    expect((appendCalls[1][1] as any).chunkIndex).toBe(1);
-    expect((appendCalls[2][1] as any).content.length).toBe(50 * 1024);
-    expect((appendCalls[2][1] as any).chunkIndex).toBe(2);
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
+    expect(appendCalls.length).toBe(1);
+    const content = (appendCalls[0][1] as any).content;
+    expect(content.compression).toBe('gzip');
+    expect(content.content).toBe('gzip:hello final output');
   });
 
-  it('4. multi-flush ordering — chunk indices grow monotonically across flushes', async () => {
+  it('updates run status after final flush', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
+    await spawnCommandProcess(
       ctx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-multi',
-        script: 'echo hi',
-        runId: 'run-multi' as any,
-      },
-      'test-machine|/tmp|test-multi'
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-4' as any },
+      'key-4'
     );
 
-    fakeChild.stdout.emit('data', Buffer.from('first-chunk'));
-    await vi.advanceTimersByTimeAsync(3_500);
+    fakeChild._exit(0, null);
+    await vi.runAllTimersAsync();
 
-    fakeChild.stdout.emit('data', Buffer.from('second-chunk'));
-    await vi.advanceTimersByTimeAsync(3_500);
-
-    fakeChild.stdout.emit('data', Buffer.from('third-chunk'));
-    await vi.advanceTimersByTimeAsync(3_500);
-
-    const appendCalls = vi
-      .mocked(ctx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-
-    expect(appendCalls.length).toBeGreaterThanOrEqual(3);
-
-    const indices: number[] = appendCalls.map((c: any) => (c[1] as any).chunkIndex);
-    const sortedIndices = [...indices].sort((a: number, b: number) => a - b);
-    expect(indices).toEqual(sortedIndices);
-    expect(indices[0]).toBe(0);
-    expect(indices[1]).toBe(1);
-    expect(indices[2]).toBe(2);
-  });
-
-  it('5. partial failure — failed slices re-prepended, chunkIndex rewound, remaining slices NOT sent', async () => {
-    vi.useFakeTimers();
-
-    let mutationCallCount = 0;
-    const failingCtx = createCtx(async (_endpoint: any, args: any) => {
-      mutationCallCount++;
-      if (args.chunkIndex === 1) {
-        throw new Error('Simulated network failure on slice 1');
-      }
-    });
-
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const fakeChild = makeFakeChild();
-    vi.mocked(spawn).mockReturnValue(fakeChild as any);
-
-    const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
-      failingCtx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-partial-fail',
-        script: 'echo hi',
-        runId: 'run-partial-fail' as any,
-      },
-      'test-machine|/tmp|test-partial-fail'
+    const statusCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-updateRunStatus'
     );
-
-    const content250 = buildContent(250 * 1024);
-    fakeChild.stdout.emit('data', Buffer.from(content250));
-
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(mutationCallCount).toBe(2);
-
-    const appendCalls = vi
-      .mocked(failingCtx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-
-    expect((appendCalls[0][1] as any).chunkIndex).toBe(0);
-    expect((appendCalls[0][1] as any).content.length).toBe(MAX_BUFFER_SIZE);
-    expect((appendCalls[1][1] as any).chunkIndex).toBe(1);
-    expect((appendCalls[1][1] as any).content.length).toBe(MAX_BUFFER_SIZE);
-
-    const slice2Attempts = appendCalls.filter(
-      (c: any) => (c[1] as any).chunkIndex === 2
-    );
-    expect(slice2Attempts).toHaveLength(0);
-  });
-
-  it('6. retry contiguity — after partial failure + re-flush, chunk indices resume correctly', async () => {
-    vi.useFakeTimers();
-
-    let callCount = 0;
-    const failingCtx = createCtx(async (_endpoint: any, args: any) => {
-      callCount++;
-      if (args.chunkIndex === 1 && callCount <= 2) {
-        throw new Error('Simulated network failure on slice 1');
-      }
-    });
-
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const fakeChild = makeFakeChild();
-    vi.mocked(spawn).mockReturnValue(fakeChild as any);
-
-    const { spawnCommandProcess } = await import('./spawner.js');
-    spawnCommandProcess(
-      failingCtx,
-      {
-        workingDir: '/tmp',
-        commandName: 'test-retry',
-        script: 'echo hi',
-        runId: 'run-retry' as any,
-      },
-      'test-machine|/tmp|test-retry'
-    );
-
-    const content250 = buildContent(250 * 1024);
-    fakeChild.stdout.emit('data', Buffer.from(content250));
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    await vi.advanceTimersByTimeAsync(5_000);
-
-    const appendCalls = vi
-      .mocked(failingCtx.deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-
-    expect(appendCalls.length).toBe(4);
-
-    expect((appendCalls[0][1] as any).chunkIndex).toBe(0);
-    expect((appendCalls[1][1] as any).chunkIndex).toBe(1);
-    expect((appendCalls[2][1] as any).chunkIndex).toBe(1);
-    expect((appendCalls[3][1] as any).chunkIndex).toBe(2);
-
-    const totalContent = appendCalls
-      .slice(0, 1)
-      .concat(appendCalls.slice(2))
-      .reduce((sum: number, c: any) => sum + (c[1] as any).content.length, 0);
-    expect(totalContent).toBe(250 * 1024);
+    expect(statusCalls.length).toBe(1);
+    expect((statusCalls[0][1] as any).status).toBe('completed');
   });
 });

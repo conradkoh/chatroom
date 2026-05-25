@@ -1,11 +1,13 @@
 import type { ChildProcess } from 'node:child_process';
 
+import type { OutputStore } from './output-store';
+
 export interface RunningProcess {
   process: ChildProcess;
   runId: string;
   commandKey: string;
-  outputBuffer: string;
-  chunkIndex: number;
+  store: OutputStore;
+  startedAt: number;
   flushTimer: ReturnType<typeof setInterval>;
   softTimeoutTimer: ReturnType<typeof setTimeout> | null;
   terminationIntent: 'killed' | 'stopped' | null;

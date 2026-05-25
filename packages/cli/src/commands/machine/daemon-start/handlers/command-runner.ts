@@ -132,7 +132,7 @@ export async function onCommandRun(
   }
 
   // Delegate spawning, output streaming, event handler attachment to spawner
-  const tracked = spawnCommandProcess(ctx, event, commandKey);
+  const tracked = await spawnCommandProcess(ctx, event, commandKey);
 
   // Update status to running with PID
   try {

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 import { api } from '../../../../../api.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
+import { encodeOutput } from '@workspace/backend/src/output-encoding.js';
 import type { DaemonContext, SessionId } from '../../types.js';
 import { formatTimestamp } from '../../utils.js';
 import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
@@ -15,48 +16,77 @@ import {
 } from './state.js';
 import { processManager } from './manager.js';
 import { killProcess } from './killer.js';
+import { createOutputStore, ensureTempDir } from './output-store.js';
 
-async function flushOutput(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
-  if (tracked.outputBuffer.length === 0) return;
+let tempDirReady = false;
 
-  const content = tracked.outputBuffer;
-  tracked.outputBuffer = '';
+async function flushTail(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
+  const tail = tracked.store.getTail();
+  if (tail.content.length === 0) return;
 
-  const slices: string[] = [];
-  for (let i = 0; i < content.length; i += MAX_BUFFER_SIZE) {
-    slices.push(content.slice(i, i + MAX_BUFFER_SIZE));
+  const compressed = encodeOutput(tail.content);
+  try {
+    await ctx.deps.backend.mutation(api.commands.updateRunTail, {
+      sessionId: ctx.sessionId as SessionId,
+      machineId: ctx.machineId,
+      runId: tracked.runId as any,
+      tailOutput: {
+        compression: compressed.compression,
+        content: compressed.content,
+        byteLength: tail.content.length,
+        totalBytesWritten: tail.totalBytes,
+        updatedAt: Date.now(),
+      },
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to flush tail for run ${tracked.runId}: ${getErrorMessage(err)}`
+    );
+  }
+}
+
+async function flushFinalChunks(
+  ctx: DaemonContext,
+  tracked: RunningProcess,
+  runId: any
+): Promise<void> {
+  await flushTail(ctx, tracked);
+
+  let fullOutput: string;
+  try {
+    fullOutput = await tracked.store.getFullOutput();
+  } catch (err) {
+    console.error(
+      `[${formatTimestamp()}] ❌ Failed to read temp file for run ${tracked.runId}: ${getErrorMessage(err)}`
+    );
+    fullOutput = tracked.store.getTail().content;
   }
 
-  for (let i = 0; i < slices.length; i++) {
-    const chunkIndex = tracked.chunkIndex++;
+  if (fullOutput.length === 0) return;
+
+  let chunkIndex = 0;
+  for (let i = 0; i < fullOutput.length; i += MAX_BUFFER_SIZE) {
+    const slice = fullOutput.slice(i, i + MAX_BUFFER_SIZE);
+    const compressed = encodeOutput(slice);
     try {
       await ctx.deps.backend.mutation(api.commands.appendOutput, {
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
-        runId: tracked.runId as any,
-        content: slices[i],
+        runId,
+        content: compressed,
         chunkIndex,
       });
+      chunkIndex++;
     } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to flush output for run ${tracked.runId}: ${getErrorMessage(err)}`
+      console.error(
+        `[${formatTimestamp()}] ❌ Failed to flush final chunk ${chunkIndex} for run ${tracked.runId}: ${getErrorMessage(err)}`
       );
-      tracked.outputBuffer = slices.slice(i).join('') + tracked.outputBuffer;
-      tracked.chunkIndex--;
       return;
     }
   }
 }
 
-function appendToBuffer(ctx: DaemonContext, tracked: RunningProcess, data: string): void {
-  tracked.outputBuffer += data;
-
-  if (tracked.outputBuffer.length >= MAX_BUFFER_SIZE) {
-    flushOutput(ctx, tracked).catch(() => {});
-  }
-}
-
-export function spawnCommandProcess(
+export async function spawnCommandProcess(
   ctx: DaemonContext,
   event: {
     workingDir: string;
@@ -65,9 +95,16 @@ export function spawnCommandProcess(
     runId: any;
   },
   commandKey: string
-): RunningProcess {
+): Promise<RunningProcess> {
   const { workingDir, commandName, script, runId } = event;
   const runIdStr = runId.toString();
+
+  if (!tempDirReady) {
+    await ensureTempDir();
+    tempDirReady = true;
+  }
+
+  const store = createOutputStore(runIdStr);
 
   const child = spawn('sh', ['-c', script], {
     cwd: workingDir,
@@ -80,10 +117,10 @@ export function spawnCommandProcess(
     process: child,
     runId: runIdStr,
     commandKey,
-    outputBuffer: '',
-    chunkIndex: 0,
+    store,
+    startedAt: Date.now(),
     flushTimer: setInterval(() => {
-      flushOutput(ctx, tracked).catch(() => {});
+      flushTail(ctx, tracked).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
     terminationIntent: null,
@@ -130,31 +167,28 @@ export function spawnCommandProcess(
   tracked.softTimeoutTimer = softTimeoutTimer;
 
   child.stdout?.on('data', (data: Buffer) => {
-    appendToBuffer(ctx, tracked, data.toString());
+    tracked.store.append(data.toString()).catch(() => {});
   });
 
   child.stderr?.on('data', (data: Buffer) => {
-    appendToBuffer(ctx, tracked, data.toString());
+    tracked.store.append(data.toString()).catch(() => {});
   });
 
-  child.on('exit', async (code, signal) => {
-    console.log(
-      `[${formatTimestamp()}] 🏁 Command exited: ${commandName} (code=${code}, signal=${signal})`
-    );
-
-    await flushOutput(ctx, tracked).catch(() => {});
+  const finalize = async (code: number | null, signal: NodeJS.Signals | null) => {
+    clearInterval(tracked.flushTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
 
     if (tracked.process.pid != null) {
       untrackChildPid(tracked.process.pid);
     }
 
-    clearInterval(tracked.flushTimer);
-    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+    await flushFinalChunks(ctx, tracked, runId);
+    await tracked.store.destroy();
     processManager.unregister(runIdStr, commandKey);
 
     const status = deriveTerminalStatus(
       code,
-      signal as NodeJS.Signals | null,
+      signal,
       tracked.terminationIntent
     );
 
@@ -163,7 +197,7 @@ export function spawnCommandProcess(
         sessionId: ctx.sessionId as SessionId,
         machineId: ctx.machineId,
         runId,
-        status: status,
+        status,
         exitCode: code ?? undefined,
       });
     } catch (err) {
@@ -171,31 +205,18 @@ export function spawnCommandProcess(
         `[${formatTimestamp()}] ⚠️ Failed to update run status on exit: ${getErrorMessage(err)}`
       );
     }
+  };
+
+  child.on('exit', (code, signal) => {
+    console.log(
+      `[${formatTimestamp()}] 🏁 Command exited: ${commandName} (code=${code}, signal=${signal})`
+    );
+    finalize(code, signal as NodeJS.Signals | null).catch(() => {});
   });
 
   child.on('error', async (err) => {
     console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
-
-    if (tracked.process.pid != null) {
-      untrackChildPid(tracked.process.pid);
-    }
-
-    clearInterval(tracked.flushTimer);
-    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-    processManager.unregister(runIdStr, commandKey);
-
-    try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
-        runId,
-        status: 'failed',
-      });
-    } catch (updateErr) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to update run status on error: ${getErrorMessage(updateErr)}`
-      );
-    }
+    finalize(null, null).catch(() => {});
   });
 
   return tracked;
