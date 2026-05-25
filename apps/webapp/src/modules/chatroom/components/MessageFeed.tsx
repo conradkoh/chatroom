@@ -395,7 +395,7 @@ const TaskHeader = function TaskHeader({
       </div>
     </div>
   );
-}
+};
 
 // Task Progress - renders inline progress updates below the task header
 // Shows the latest progress message with expand/collapse for full history
@@ -1274,8 +1274,15 @@ export const MessageFeed = memo(function MessageFeed({
     [addAttachment]
   );
 
+  // Load-more anchor — capture topmost visible message before paginating.
+  // getFirstVisibleIdRef is set imperatively after useVirtualizer to avoid
+  // temporal-dead-zone issues (useVirtualizer is defined later in the component).
+  const getFirstVisibleIdRef = useRef<() => string | null>(() => null);
+  const loadMoreAnchorRef = useRef<string | null>(null);
+
   // Load more messages handler - stable reference for button onClick
   const handleLoadMore = useCallback(() => {
+    loadMoreAnchorRef.current = getFirstVisibleIdRef.current();
     loadOlderMessages();
   }, [loadOlderMessages]);
 
@@ -1318,7 +1325,7 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Preserve scroll position when loading older messages at the top
   useLayoutEffect(() => {
-    if (feedRef.current) {
+    if (feedRef.current && !wasLoadingMoreRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
@@ -1373,6 +1380,27 @@ export const MessageFeed = memo(function MessageFeed({
     overscan: 6,
     getItemKey: (index) => displayMessages[index]._id,
   });
+
+  // Imperative ref so handleLoadMore (defined earlier) can snapshot the topmost
+  // visible message before pagination, despite useVirtualizer being declared here.
+  getFirstVisibleIdRef.current = () => {
+    const firstItem = virtualizer.getVirtualItems()[0];
+    if (firstItem && displayMessages[firstItem.index]) {
+      return displayMessages[firstItem.index]._id;
+    }
+    return null;
+  };
+
+  // After load-more completes, scroll the virtualizer to preserve the anchor
+  useEffect(() => {
+    if (loadMoreAnchorRef.current) {
+      const anchorIndex = displayMessages.findIndex((m) => m._id === loadMoreAnchorRef.current);
+      if (anchorIndex >= 0) {
+        virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      }
+      loadMoreAnchorRef.current = null;
+    }
+  }, [displayMessages, virtualizer]);
 
   if (isLoading && displayMessages.length === 0) {
     return (
