@@ -3,6 +3,7 @@
  *
  * Covers:
  * - runCommand always dispatches a fresh mutation (no "focus existing" branch)
+ * - activeRunOutput is no longer returned (moved to useActiveRunOutput)
  */
 
 import { act, renderHook } from '@testing-library/react';
@@ -14,7 +15,6 @@ const mockRunCommandMutation = vi.fn().mockResolvedValue('run-id-new');
 const mockStopCommandMutation = vi.fn().mockResolvedValue(undefined);
 const mockListCommandsQuery = vi.fn().mockReturnValue([]);
 const mockListRunsQuery = vi.fn().mockReturnValue([]);
-const mockGetRunOutputQuery = vi.fn().mockReturnValue({ chunks: [], run: null });
 
 // Mock useSessionMutation and useSessionQuery
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -26,7 +26,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: vi.fn((key: string) => {
     if (key === 'listCommands') return mockListCommandsQuery();
     if (key === 'listRuns') return mockListRunsQuery();
-    if (key === 'getRunOutput') return mockGetRunOutputQuery();
     return undefined;
   }),
 }));
@@ -37,7 +36,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     commands: {
       listCommands: 'listCommands',
       listRuns: 'listRuns',
-      getRunOutput: 'getRunOutput',
       runCommand: 'runCommand',
       stopCommand: 'stopCommand',
     },
@@ -59,7 +57,6 @@ describe('useCommandRunner', () => {
     vi.clearAllMocks();
     mockRunCommandMutation.mockResolvedValue('run-id-new');
     mockListRunsQuery.mockReturnValue([]);
-    mockGetRunOutputQuery.mockReturnValue({ chunks: [], run: null });
   });
 
   describe('runCommand', () => {
@@ -117,6 +114,23 @@ describe('useCommandRunner', () => {
 
       expect(returnedId).toBeNull();
       expect(mockRunCommandMutation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('return contract', () => {
+    it('does not include activeRunOutput (moved to useActiveRunOutput)', () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+      expect(result.current).not.toHaveProperty('activeRunOutput');
+    });
+
+    it('includes commands, runs, activeRunId, setActiveRunId, runCommand, stopCommand', () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+      expect(result.current).toHaveProperty('commands');
+      expect(result.current).toHaveProperty('runs');
+      expect(result.current).toHaveProperty('activeRunId');
+      expect(result.current).toHaveProperty('setActiveRunId');
+      expect(result.current).toHaveProperty('runCommand');
+      expect(result.current).toHaveProperty('stopCommand');
     });
   });
 });

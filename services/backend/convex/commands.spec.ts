@@ -388,3 +388,146 @@ describe('reapOrphansForDaemonRestart', () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── getRunOutput tests ─────────────────────────────────────────────────────
+
+describe('getRunOutput', () => {
+  test('running run with tailOutput → returns tail, empty chunks', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-tail');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        tailOutput: {
+          compression: 'gzip' as const,
+          content: 'base64gzippedcontent',
+          byteLength: 1024,
+          totalBytesWritten: 2048,
+          updatedAt: FIXED_NOW,
+        },
+      });
+    });
+
+    const result = await t.query(api.commands.getRunOutput, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run).toBeDefined();
+    expect(result.tail).toEqual({
+      compression: 'gzip',
+      content: 'base64gzippedcontent',
+      byteLength: 1024,
+      totalBytesWritten: 2048,
+      updatedAt: FIXED_NOW,
+    });
+    expect(result.chunks).toEqual([]);
+  });
+
+  test('running run with no tailOutput → returns null tail, empty chunks', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-no-tail');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    const result = await t.query(api.commands.getRunOutput, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run).toBeDefined();
+    expect(result.tail).toBeNull();
+    expect(result.chunks).toEqual([]);
+  });
+
+  test('completed run with chunks → returns chunks, null tail', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-completed');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_commandOutput', {
+        runId,
+        content: 'hello world',
+        chunkIndex: 0,
+        timestamp: FIXED_NOW,
+      });
+      await ctx.db.insert('chatroom_commandOutput', {
+        runId,
+        content: 'second chunk',
+        chunkIndex: 1,
+        timestamp: FIXED_NOW + 1,
+      });
+      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'completed', completedAt: FIXED_NOW });
+    });
+
+    const result = await t.query(api.commands.getRunOutput, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run!.status).toBe('completed');
+    expect(result.tail).toBeNull();
+    expect(result.chunks).toHaveLength(2);
+    expect(result.chunks[0]!.content).toBe('hello world');
+    expect(result.chunks[1]!.content).toBe('second chunk');
+  });
+
+  test('completed run with legacy plain-text content → returns correctly', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-legacy');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_commandOutput', {
+        runId,
+        content: 'legacy plain text',
+        chunkIndex: 0,
+        timestamp: FIXED_NOW,
+      });
+      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'completed', completedAt: FIXED_NOW });
+    });
+
+    const result = await t.query(api.commands.getRunOutput, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run!.status).toBe('completed');
+    expect(result.tail).toBeNull();
+    expect(result.chunks).toHaveLength(1);
+    expect(result.chunks[0]!.content).toBe('legacy plain text');
+  });
+
+  test('completed run with both tail and chunks → returns chunks, ignores tail', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-terminal-tail');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_commandOutput', {
+        runId,
+        content: 'final output',
+        chunkIndex: 0,
+        timestamp: FIXED_NOW,
+      });
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        status: 'completed',
+        completedAt: FIXED_NOW,
+        tailOutput: {
+          compression: 'gzip' as const,
+          content: 'stale-tail',
+          byteLength: 512,
+          totalBytesWritten: 1024,
+          updatedAt: FIXED_NOW - 1000,
+        },
+      });
+    });
+
+    const result = await t.query(api.commands.getRunOutput, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run!.status).toBe('completed');
+    expect(result.tail).toBeNull();
+    expect(result.chunks).toHaveLength(1);
+    expect(result.chunks[0]!.content).toBe('final output');
+  });
+
+});

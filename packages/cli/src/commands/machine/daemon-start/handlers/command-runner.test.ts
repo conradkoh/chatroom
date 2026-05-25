@@ -37,6 +37,8 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('node:fs/promises', () => ({
   access: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  rm: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock the convex api — mutation/query refs are just opaque tokens for the mock
@@ -45,9 +47,31 @@ vi.mock('../../../../api.js', () => ({
     commands: {
       updateRunStatus: 'mock-updateRunStatus',
       appendOutput: 'mock-appendOutput',
+      updateRunTail: 'mock-updateRunTail',
       getRunStatus: 'mock-getRunStatus',
     },
   },
+}));
+
+// Mock the output-store module (needed by spawner.ts)
+vi.mock('./process/output-store.js', () => ({
+  createOutputStore: vi.fn(() => ({
+    append: vi.fn().mockResolvedValue(undefined),
+    getTail: vi.fn().mockReturnValue({ content: '', totalBytes: 0 }),
+    getFullOutput: vi.fn().mockResolvedValue(''),
+    destroy: vi.fn().mockResolvedValue(undefined),
+  })),
+  ensureTempDir: vi.fn().mockResolvedValue(undefined),
+  cleanOrphanTempFiles: vi.fn().mockResolvedValue(undefined),
+  TAIL_WINDOW_BYTES: 32 * 1024,
+}));
+
+// Mock output-encoding (needed by spawner.ts)
+vi.mock('@workspace/backend/src/output-encoding.js', () => ({
+  encodeOutput: vi.fn((plain: string) => ({
+    compression: 'gzip',
+    content: `gzip:${plain}`,
+  })),
 }));
 
 // ---------------------------------------------------------------------------

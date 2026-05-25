@@ -118,12 +118,17 @@ export async function handleAppendOutput(
   ctx: MutationCtx,
   args: {
     runId: RunId;
-    content: string;
+    content: string | { compression: 'gzip'; content: string };
     chunkIndex: number;
   }
 ) {
-  if (args.content.length > MAX_OUTPUT_CHUNK_BYTES) {
-    throw new ConvexError(`Output chunk too large (max ${MAX_OUTPUT_CHUNK_BYTES} bytes)`);
+  // Size check: for compressed content, check the base64 string length (it's already ≤ original)
+  const sizeForCheck = typeof args.content === 'string' ? args.content.length : args.content.content.length;
+  if (sizeForCheck > MAX_OUTPUT_CHUNK_BYTES) {
+    throw new ConvexError({
+      code: 'OUTPUT_CHUNK_TOO_LARGE',
+      message: `Output chunk too large (max ${MAX_OUTPUT_CHUNK_BYTES} bytes)`,
+    });
   }
 
   const existingChunks = await ctx.db
@@ -140,5 +145,32 @@ export async function handleAppendOutput(
     content: args.content,
     chunkIndex: args.chunkIndex,
     timestamp: Date.now(),
+  });
+}
+
+export async function handleUpdateRunTail(
+  ctx: MutationCtx,
+  args: {
+    machineId: string;
+    runId: RunId;
+    tailOutput: {
+      compression: 'gzip';
+      content: string;
+      byteLength: number;
+      totalBytesWritten: number;
+      updatedAt: number;
+    };
+  }
+) {
+  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+  if (run.machineId !== args.machineId)
+    throw new ConvexError({
+      code: 'RUN_WRONG_MACHINE',
+      message: 'Run does not belong to this machine',
+    });
+
+  await ctx.db.patch(args.runId, {
+    tailOutput: args.tailOutput,
   });
 }
