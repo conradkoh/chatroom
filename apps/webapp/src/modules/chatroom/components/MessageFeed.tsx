@@ -1390,6 +1390,28 @@ export const MessageFeed = memo(function MessageFeed({
     paddingStart: bannerHeight,
   });
 
+  // Sample measured row sizes for the running-average estimateSize.
+  // Done in a useEffect (not inside the measureElement ref) so mutations
+  // to measuredSizesByIdRef don't trigger setState as a side effect of
+  // virtualizer.measureElement, which would cause an infinite re-render loop.
+  const virtualItems = virtualizer.getVirtualItems();
+  useEffect(() => {
+    for (const item of virtualItems) {
+      const id = displayMessages[item.index]?._id;
+      if (!id) continue;
+      const size = item.size;
+      if (size <= 0) continue;
+      const prev = measuredSizesByIdRef.current.get(id);
+      if (prev !== size) {
+        measuredSizesByIdRef.current.set(id, size);
+        if (measuredSizesByIdRef.current.size > 50) {
+          const firstKey = measuredSizesByIdRef.current.keys().next().value;
+          if (firstKey !== undefined) measuredSizesByIdRef.current.delete(firstKey);
+        }
+      }
+    }
+  }, [virtualItems, displayMessages]);
+
   // Imperative ref so handleLoadMore (defined earlier) can snapshot the topmost
   // visible message before pagination, despite useVirtualizer being declared here.
   getFirstVisibleIdRef.current = () => {
@@ -1524,23 +1546,7 @@ export const MessageFeed = memo(function MessageFeed({
             return (
               <div
                 key={virtualItem.key}
-                ref={(node) => {
-                  virtualizer.measureElement(node);
-                  if (node) {
-                    const height = node.getBoundingClientRect().height;
-                    if (height > 0) {
-                      const id = message._id;
-                      const prev = measuredSizesByIdRef.current.get(id);
-                      if (prev !== height) {
-                        measuredSizesByIdRef.current.set(id, height);
-                        if (measuredSizesByIdRef.current.size > 50) {
-                          const firstKey = measuredSizesByIdRef.current.keys().next().value;
-                          if (firstKey) measuredSizesByIdRef.current.delete(firstKey);
-                        }
-                      }
-                    }
-                  }
-                }}
+                ref={virtualizer.measureElement}
                 data-index={virtualItem.index}
                 style={{
                   position: 'absolute',
