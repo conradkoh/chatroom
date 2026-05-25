@@ -1380,22 +1380,6 @@ export const MessageFeed = memo(function MessageFeed({
     paddingStart: bannerHeight,
   });
 
-  // Auto-load more messages when content genuinely doesn't fill the container.
-  // Use virtualizer.getTotalSize() (NOT feedRef.scrollHeight) because the
-  // scroll container's DOM scrollHeight is driven by virtualizer estimates on
-  // first render — pre-measurement those estimates are too small, which would
-  // cause runaway pagination. Gate on having measured at least one row so we
-  // use real heights instead of the initial average.
-  useEffect(() => {
-    if (!feedRef.current || !canLoadMore) return;
-    if (measuredSizesByIdRef.current.size === 0) return;
-    const totalSize = virtualizer.getTotalSize();
-    const { clientHeight } = feedRef.current;
-    if (totalSize <= clientHeight) {
-      loadOlderMessages();
-    }
-  }, [canLoadMore, loadOlderMessages, displayMessages.length, virtualizer]);
-
   // Sample measured row sizes for the running-average estimateSize.
   // Done in a useEffect (not inside the measureElement ref) so mutations
   // to measuredSizesByIdRef don't trigger setState as a side effect of
