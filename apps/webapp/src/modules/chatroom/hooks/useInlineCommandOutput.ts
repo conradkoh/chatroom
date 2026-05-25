@@ -66,7 +66,7 @@ export function useInlineCommandOutput(
   const status = activeRunOutput.run?.status ?? null;
   const terminationReason = activeRunOutput.run?.terminationReason ?? null;
   const output = activeRunOutput.chunks
-    .map((c: { content: string }) => c.content)
+    .map((c) => c.content)
     .slice(-MAX_OUTPUT_LINES);
 
   const run = useCallback(
