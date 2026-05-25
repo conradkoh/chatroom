@@ -1362,22 +1362,10 @@ export const MessageFeed = memo(function MessageFeed({
   // sizes for rows that have ever been rendered — eliminates re-measurement jank.
   const measuredSizesByIdRef = useRef<Map<string, number>>(new Map());
 
-  // Track banner height for virtualizer paddingStart so the virtual list
-  // doesn't shift when banners (load-more, spinner) toggle visibility.
+  // Top sentinel for the IntersectionObserver autoload trigger.
+  // The banner renders in normal flow above the virtualized container,
+  // so its layout space is naturally accounted for — no need for paddingStart.
   const bannerRef = useRef<HTMLDivElement>(null);
-  const [bannerHeight, setBannerHeight] = useState(0);
-
-  useEffect(() => {
-    const el = bannerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setBannerHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   // Virtualize the message list so only ~tens of DOM nodes are mounted
   // regardless of chat history length. Keeps dialog open times fast.
@@ -1396,7 +1384,6 @@ export const MessageFeed = memo(function MessageFeed({
     },
     overscan: 6,
     getItemKey: (index) => displayMessages[index]._id,
-    paddingStart: bannerHeight,
   });
 
   // Sample measured row sizes for the running-average estimateSize.
