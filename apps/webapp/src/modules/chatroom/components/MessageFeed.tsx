@@ -1489,7 +1489,7 @@ export const MessageFeed = memo(function MessageFeed({
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRefCallback}
       >
-        {/* Wrapped banner group — ResizeObserver tracks height for virtualizer paddingStart */}
+        {/* Top sentinel — observed by IntersectionObserver to trigger autoload of older messages */}
         <div ref={bannerRef}>
           {/* Load More indicator at top - clickable to load older messages */}
           {canLoadMore && (
