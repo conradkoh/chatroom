@@ -1399,6 +1399,25 @@ export const MessageFeed = memo(function MessageFeed({
     return null;
   };
 
+  // Sticky TaskHeader index — the latest user message (non-queued) whose row
+  // top is at or above the viewport. Re-computed on every render since
+  // virtualizer.getVirtualItems() provides fresh measurements on scroll.
+  const activeStickyIndex = (() => {
+    if (displayMessages.length === 0) return null;
+    const scrollTop = virtualizer.scrollOffset;
+    if (scrollTop == null) return null;
+    for (let i = displayMessages.length - 1; i >= 0; i--) {
+      const msg = displayMessages[i];
+      if (msg.senderRole === 'user' && !msg.isQueued) {
+        const itemStart = virtualizer.getVirtualItems().find((vi) => vi.index === i)?.start;
+        if (itemStart !== undefined && itemStart <= scrollTop) {
+          return i;
+        }
+      }
+    }
+    return null;
+  })();
+
   // After load-more completes, scroll the virtualizer to preserve the anchor
   useEffect(() => {
     if (loadMoreAnchorRef.current) {
@@ -1483,13 +1502,26 @@ export const MessageFeed = memo(function MessageFeed({
             </div>
           )}
         </div>
+        {/* Sticky TaskHeader — renders the most recent user message's header
+            as a sticky bar above the virtualized list. Duplicate inside the list
+            is suppressed. */}
+        {activeStickyIndex !== null && (
+          <div className="sticky top-0 z-[5] bg-chatroom-bg-primary px-2 py-1 border-b border-chatroom-border shadow-sm">
+            <TaskHeader
+              message={displayMessages[activeStickyIndex]}
+              onTap={handleMessageDetailClick}
+              onDelete={handleDeletePendingMessage}
+              isDeleting={deletingMessageId === displayMessages[activeStickyIndex]._id}
+              onStartEdit={handleStartEditPendingMessage}
+              isEditing={editingMessageId === displayMessages[activeStickyIndex]._id}
+            />
+          </div>
+        )}
         {/* Virtualized message list — only items near the viewport are mounted to DOM. */}
-        {/* NOTE: TaskHeader's `position: sticky` won't work inside the virtualized */}
-        {/* absolutely-positioned rows. Header becomes an inline section divider instead. */}
-        {/* Sticky header behavior can be added later via a rangeExtractor. */}
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const message = displayMessages[virtualItem.index];
+            const isSticky = virtualItem.index === activeStickyIndex;
             return (
               <div
                 key={virtualItem.key}
@@ -1514,14 +1546,16 @@ export const MessageFeed = memo(function MessageFeed({
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <TaskHeader
-                  message={message}
-                  onTap={handleMessageDetailClick}
-                  onDelete={handleDeletePendingMessage}
-                  isDeleting={deletingMessageId === message._id}
-                  onStartEdit={handleStartEditPendingMessage}
-                  isEditing={editingMessageId === message._id}
-                />
+                {!isSticky && (
+                  <TaskHeader
+                    message={message}
+                    onTap={handleMessageDetailClick}
+                    onDelete={handleDeletePendingMessage}
+                    isDeleting={deletingMessageId === message._id}
+                    onStartEdit={handleStartEditPendingMessage}
+                    isEditing={editingMessageId === message._id}
+                  />
+                )}
                 <TaskProgress message={message} chatroomId={chatroomId} />
                 <MessageItem
                   message={message}
