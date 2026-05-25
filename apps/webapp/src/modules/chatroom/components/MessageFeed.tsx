@@ -1006,9 +1006,6 @@ const MessageItem = memo(function MessageItem({
   );
 });
 
-// Threshold in pixels from top to trigger auto-load
-const SCROLL_THRESHOLD = 100;
-
 // State for feature detail modal
 interface FeatureModalState {
   isOpen: boolean;
@@ -1336,13 +1333,30 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length, scrollController]);
 
-  // Handle scroll: load more when near top
-  const handleScroll = useCallback(() => {
-    const pos = scrollController.current.getScrollPosition();
-    if (pos && canLoadMore && pos.scrollTop < SCROLL_THRESHOLD) {
-      loadOlderMessages();
-    }
-  }, [canLoadMore, loadOlderMessages, scrollController]);
+  // Autoload older messages when the top banner sentinel scrolls into view
+  useEffect(() => {
+    const banner = bannerRef.current;
+    const root = feedRef.current;
+    if (!banner || !root || !canLoadMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && canLoadMore && !isLoadingOlder) {
+          loadOlderMessages();
+        }
+      },
+      {
+        root,
+        // Fire slightly before banner is fully visible — replaces the old scroll threshold
+        rootMargin: '200px 0px 0px 0px',
+        threshold: 0,
+      }
+    );
+
+    observer.observe(banner);
+    return () => observer.disconnect();
+  }, [canLoadMore, isLoadingOlder, loadOlderMessages]);
 
   // Running average of measured row heights for smarter virtualizer estimates.
   // Keyed by message id so the same row only contributes once, capped at 50 entries.
@@ -1486,7 +1500,6 @@ export const MessageFeed = memo(function MessageFeed({
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRefCallback}
-        onScroll={handleScroll}
       >
         {/* Wrapped banner group — ResizeObserver tracks height for virtualizer paddingStart */}
         <div ref={bannerRef}>
