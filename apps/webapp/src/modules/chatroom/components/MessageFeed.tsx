@@ -1392,6 +1392,21 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [displayMessages, virtualizer]);
 
+  // Post-snap correction: when pinned and a new message arrives, snapImmediate()
+  // uses unmeasured scrollHeight, causing jiggle. Wait one frame then re-anchor
+  // to the last message using the virtualizer's measured positions.
+  useEffect(() => {
+    if (
+      scrollController.current.isPinned &&
+      displayMessages.length > 0 &&
+      displayMessages.length > prevMessageCountRef.current
+    ) {
+      requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(displayMessages.length - 1, { align: 'end' });
+      });
+    }
+  }, [displayMessages.length, scrollController, virtualizer]);
+
   if (isLoading && displayMessages.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-4 min-h-0">
