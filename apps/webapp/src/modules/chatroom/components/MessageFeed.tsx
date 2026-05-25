@@ -1357,6 +1357,23 @@ export const MessageFeed = memo(function MessageFeed({
   // Capped at last 50 measurements to adapt as chat content style changes.
   const measuredSizesRef = useRef<number[]>([]);
 
+  // Track banner height for virtualizer paddingStart so the virtual list
+  // doesn't shift when banners (load-more, spinner) toggle visibility.
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const [bannerHeight, setBannerHeight] = useState(0);
+
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setBannerHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Virtualize the message list so only ~tens of DOM nodes are mounted
   // regardless of chat history length. Keeps dialog open times fast.
   const virtualizer = useVirtualizer({
@@ -1369,6 +1386,7 @@ export const MessageFeed = memo(function MessageFeed({
     },
     overscan: 6,
     getItemKey: (index) => displayMessages[index]._id,
+    paddingStart: bannerHeight,
   });
 
   // Imperative ref so handleLoadMore (defined earlier) can snapshot the topmost
@@ -1440,28 +1458,31 @@ export const MessageFeed = memo(function MessageFeed({
         ref={feedRefCallback}
         onScroll={handleScroll}
       >
-        {/* Load More indicator at top - clickable to load older messages */}
-        {canLoadMore && (
-          <button
-            type="button"
-            onClick={handleLoadMore}
-            className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
-          >
-            <ChevronUp size={12} />
-            Load older messages
-          </button>
-        )}
-        {!hasMoreOlder && displayMessages.length > 0 && (
-          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
-            Beginning of conversation
-          </div>
-        )}
-        {isLoadingOlder && (
-          <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
-            Loading...
-          </div>
-        )}
+        {/* Wrapped banner group — ResizeObserver tracks height for virtualizer paddingStart */}
+        <div ref={bannerRef}>
+          {/* Load More indicator at top - clickable to load older messages */}
+          {canLoadMore && (
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
+            >
+              <ChevronUp size={12} />
+              Load older messages
+            </button>
+          )}
+          {!hasMoreOlder && displayMessages.length > 0 && (
+            <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
+              Beginning of conversation
+            </div>
+          )}
+          {isLoadingOlder && (
+            <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+              Loading...
+            </div>
+          )}
+        </div>
         {/* Virtualized message list — only items near the viewport are mounted to DOM. */}
         {/* NOTE: TaskHeader's `position: sticky` won't work inside the virtualized */}
         {/* absolutely-positioned rows. Header becomes an inline section divider instead. */}
