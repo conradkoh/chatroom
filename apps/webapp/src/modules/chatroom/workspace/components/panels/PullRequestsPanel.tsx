@@ -23,11 +23,7 @@ import { prStateBadge, relativeTime } from '../../utils/pr-helpers';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from '@/components/ui/resizable';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -192,18 +188,13 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
     [setSizes, sizes]
   );
   const [prActionLoading, setPrActionLoading] = useState(false);
+  const [prActionError, setPrActionError] = useState<string | null>(null);
 
   // Current branch PR + current user login
-  const { currentBranchPR, currentUserLogin } = useCurrentBranchPullRequest(
-    machineId,
-    workingDir
-  );
+  const { currentBranchPR, currentUserLogin } = useCurrentBranchPullRequest(machineId, workingDir);
 
   // All PRs for this workspace
-  const { state: allPRsState, request: requestAllPRs } = useAllPullRequests(
-    machineId,
-    workingDir
-  );
+  const { state: allPRsState, request: requestAllPRs } = useAllPullRequests(machineId, workingDir);
 
   // PR action mutation (merge, close, etc.)
   const requestPRActionMutation = useSessionMutation(api.workspaces.requestPRAction);
@@ -261,6 +252,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
     async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
       if (!selectedPR || prActionLoading) return;
       setPrActionLoading(true);
+      setPrActionError(null);
       try {
         await requestPRActionMutation({
           machineId,
@@ -269,7 +261,9 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
           prAction: action,
         });
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         console.error('[PullRequestsPanel] PR action failed:', err);
+        setPrActionError(message);
       } finally {
         setPrActionLoading(false);
       }
@@ -321,6 +315,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
               baseBranch={baseBranch}
               onPRAction={handlePRAction}
               prActionLoading={prActionLoading}
+              prActionError={prActionError}
             />
           )}
         </div>

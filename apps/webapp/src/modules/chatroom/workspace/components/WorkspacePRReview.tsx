@@ -18,6 +18,7 @@ interface WorkspacePRReviewProps {
   baseBranch: string;
   onPRAction: (action: 'merge_squash' | 'merge_no_squash' | 'close') => Promise<void>;
   prActionLoading: boolean;
+  prActionError?: string | null;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   baseBranch,
   onPRAction,
   prActionLoading,
+  prActionError,
 }: WorkspacePRReviewProps) {
   const prNumber = activePR.prNumber!;
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
@@ -83,7 +85,11 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
 
       {/* PR action buttons */}
       <div className="px-4 py-2 border-b border-chatroom-border">
-        <PRActionButtons onAction={handlePRAction} loading={prActionLoading} />
+        <PRActionButtons
+          onAction={handlePRAction}
+          loading={prActionLoading}
+          error={prActionError}
+        />
       </div>
 
       {/* PR diff content */}
