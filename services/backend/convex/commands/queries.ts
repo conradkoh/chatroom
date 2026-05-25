@@ -72,8 +72,19 @@ export async function handleGetRunOutput(
   }
 ) {
   const run = await ctx.db.get('chatroom_commandRuns', args.runId);
-  if (!run) return { chunks: [], run: null };
+  if (!run) return { run: null, tail: null, chunks: [] };
 
+  const isActive = run.status === 'running' || run.status === 'pending';
+
+  if (isActive) {
+    return {
+      run,
+      tail: run.tailOutput ?? null,
+      chunks: [],
+    };
+  }
+
+  // Terminal run: return completed chunks, no tail
   const chunks = await ctx.db
     .query('chatroom_commandOutput')
     .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
@@ -81,7 +92,11 @@ export async function handleGetRunOutput(
 
   chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
-  return { chunks, run };
+  return {
+    run,
+    tail: null,
+    chunks,
+  };
 }
 
 export async function handleGetRunStatus(
