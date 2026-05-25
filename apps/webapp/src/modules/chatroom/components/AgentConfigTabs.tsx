@@ -34,6 +34,7 @@ import {
   getModelDisplayLabel,
   getMachineDisplayName,
 } from '../types/machine';
+import type { Workspace } from '../types/workspace';
 
 import {
   Command,
@@ -156,13 +157,18 @@ function deriveInitialHarness(
 function deriveInitialWorkingDir(
   machineId: string | null,
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined
+  preference: AgentPreference | undefined,
+  chatroomWorkspaces?: Workspace[]
 ): string {
   if (machineId) {
     const config = roleConfigs.find((c) => c.machineId === machineId);
     if (config?.workingDir) return config.workingDir;
     if (preference && preference.machineId === machineId && preference.workingDir) {
       return preference.workingDir;
+    }
+    if (chatroomWorkspaces) {
+      const ws = chatroomWorkspaces.find((w) => w.machineId === machineId);
+      if (ws?.workingDir) return ws.workingDir;
     }
   }
   if (roleConfigs.length > 0) {
@@ -183,6 +189,7 @@ export function useAgentControls({
   agentPreference,
   onSavePreference,
   teamConfigMachineId,
+  chatroomWorkspaces,
 }: {
   role: string;
   chatroomId: string;
@@ -200,6 +207,8 @@ export function useAgentControls({
   onSavePreference?: (pref: AgentPreference) => void;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
+  /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
+  chatroomWorkspaces?: Workspace[];
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
@@ -239,7 +248,9 @@ export function useAgentControls({
 
   // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find((c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId));
+    return roleConfigs.find(
+      (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
+    );
   }, [roleConfigs, connectedMachines]);
 
   // Get available harnesses for selected machine
@@ -277,7 +288,7 @@ export function useAgentControls({
       pref,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -289,7 +300,7 @@ export function useAgentControls({
   const machineModels = useMachineModels(selectedMachineId ?? undefined);
   const availableModelsForHarness = useMemo(
     () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
-    [machineModels, selectedMachineId, selectedHarness],
+    [machineModels, selectedMachineId, selectedHarness]
   );
 
   // Machine-level model filter — used to exclude blacklisted models from
@@ -496,10 +507,10 @@ export function useAgentControls({
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
       const pref = initialPreferenceRef.current;
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref, chatroomWorkspaces);
       setWorkingDir(wd);
     },
-    [roleConfigs]
+    [roleConfigs, chatroomWorkspaces]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
@@ -866,9 +877,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 <MachineCapabilitiesRefreshButton
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
-                  daemonConnected={
-                    connectedMachines.some((m) => m.machineId === displayMachineId)
-                  }
+                  daemonConnected={connectedMachines.some((m) => m.machineId === displayMachineId)}
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />
               ) : null}
