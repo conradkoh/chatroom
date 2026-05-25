@@ -1353,12 +1353,20 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [canLoadMore, loadOlderMessages, scrollController]);
 
+  // Running average of measured row heights for smarter virtualizer estimates.
+  // Capped at last 50 measurements to adapt as chat content style changes.
+  const measuredSizesRef = useRef<number[]>([]);
+
   // Virtualize the message list so only ~tens of DOM nodes are mounted
   // regardless of chat history length. Keeps dialog open times fast.
   const virtualizer = useVirtualizer({
     count: displayMessages.length,
     getScrollElement: () => feedRef.current,
-    estimateSize: () => 200,
+    estimateSize: () => {
+      const sizes = measuredSizesRef.current;
+      if (sizes.length === 0) return 200;
+      return sizes.reduce((a, b) => a + b, 0) / sizes.length;
+    },
     overscan: 6,
     getItemKey: (index) => displayMessages[index]._id,
   });
@@ -1449,7 +1457,18 @@ export const MessageFeed = memo(function MessageFeed({
             return (
               <div
                 key={virtualItem.key}
-                ref={virtualizer.measureElement}
+                ref={(node) => {
+                  virtualizer.measureElement(node);
+                  if (node) {
+                    const height = node.getBoundingClientRect().height;
+                    if (height > 0) {
+                      measuredSizesRef.current.push(height);
+                      if (measuredSizesRef.current.length > 50) {
+                        measuredSizesRef.current = measuredSizesRef.current.slice(-50);
+                      }
+                    }
+                  }
+                }}
                 data-index={virtualItem.index}
                 style={{
                   position: 'absolute',
