@@ -1109,7 +1109,6 @@ export const MessageFeed = memo(function MessageFeed({
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
-    purgeOldMessages,
   } = useMessages(chatroomId);
 
   // Mutations for pending message controls (used in MessageFeed, not moved to WorkQueue)
@@ -1291,10 +1290,6 @@ export const MessageFeed = memo(function MessageFeed({
     return storeMessages as Message[];
   }, [storeMessages]);
 
-  // Ref to avoid re-creating handleScroll on every message change
-  const displayMessagesLengthRef = useRef(displayMessages.length);
-  displayMessagesLengthRef.current = displayMessages.length;
-
   // Fire browser notifications when an agent hands off to the user
   useHandoffNotification(displayMessages, chatroomId);
 
@@ -1350,26 +1345,13 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, [canLoadMore, loadOlderMessages, displayMessages.length]);
 
-  // Handle scroll: load more when near top, purge when scrolled back down
+  // Handle scroll: load more when near top
   const handleScroll = useCallback(() => {
     const pos = scrollController.current.getScrollPosition();
     if (pos && canLoadMore && pos.scrollTop < SCROLL_THRESHOLD) {
       loadOlderMessages();
     }
-
-    // Purge old messages when user scrolls back down near bottom
-    if (pos && feedRef.current && scrollController.current.isPinned) {
-      // Estimate which message is at the top of the viewport
-      // Simple heuristic: estimate average message height from container
-      const container = feedRef.current;
-      const msgCount = displayMessagesLengthRef.current;
-      const avgMessageHeight = msgCount > 0 ? container.scrollHeight / msgCount : 80;
-      const viewportTopIndex = Math.floor(pos.scrollTop / avgMessageHeight);
-      if (viewportTopIndex > 50) {
-        purgeOldMessages(viewportTopIndex);
-      }
-    }
-  }, [canLoadMore, loadOlderMessages, scrollController, purgeOldMessages]);
+  }, [canLoadMore, loadOlderMessages, scrollController]);
 
   // Virtualize the message list so only ~tens of DOM nodes are mounted
   // regardless of chat history length. Keeps dialog open times fast.
