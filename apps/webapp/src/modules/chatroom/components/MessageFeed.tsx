@@ -1358,8 +1358,8 @@ export const MessageFeed = memo(function MessageFeed({
     return () => observer.disconnect();
   }, [canLoadMore, isLoadingOlder, loadOlderMessages]);
 
-  // Running average of measured row heights for smarter virtualizer estimates.
-  // Keyed by message id so the same row only contributes once, capped at 50 entries.
+  // Per-message-id cache of measured row heights so estimateSize returns accurate
+  // sizes for rows that have ever been rendered — eliminates re-measurement jank.
   const measuredSizesByIdRef = useRef<Map<string, number>>(new Map());
 
   // Track banner height for virtualizer paddingStart so the virtual list
@@ -1384,7 +1384,12 @@ export const MessageFeed = memo(function MessageFeed({
   const virtualizer = useVirtualizer({
     count: displayMessages.length,
     getScrollElement: () => feedRef.current,
-    estimateSize: () => {
+    estimateSize: (index) => {
+      const id = displayMessages[index]?._id;
+      if (id) {
+        const cached = measuredSizesByIdRef.current.get(id);
+        if (cached !== undefined) return cached;
+      }
       const sizes = Array.from(measuredSizesByIdRef.current.values());
       if (sizes.length === 0) return 200;
       return sizes.reduce((a, b) => a + b, 0) / sizes.length;
@@ -1408,10 +1413,6 @@ export const MessageFeed = memo(function MessageFeed({
       const prev = measuredSizesByIdRef.current.get(id);
       if (prev !== size) {
         measuredSizesByIdRef.current.set(id, size);
-        if (measuredSizesByIdRef.current.size > 50) {
-          const firstKey = measuredSizesByIdRef.current.keys().next().value;
-          if (firstKey !== undefined) measuredSizesByIdRef.current.delete(firstKey);
-        }
       }
     }
   }, [virtualItems, displayMessages]);
