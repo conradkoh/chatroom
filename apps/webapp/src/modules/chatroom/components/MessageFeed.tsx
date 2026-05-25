@@ -1118,6 +1118,7 @@ export const MessageFeed = memo(function MessageFeed({
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevScrollHeightRef = useRef(0);
+  const prevMessageCountForSnapRef = useRef(0);
 
   // Feature detail modal state
   const [featureModal, setFeatureModal] = useState<FeatureModalState>({
@@ -1354,8 +1355,8 @@ export const MessageFeed = memo(function MessageFeed({
   }, [canLoadMore, loadOlderMessages, scrollController]);
 
   // Running average of measured row heights for smarter virtualizer estimates.
-  // Capped at last 50 measurements to adapt as chat content style changes.
-  const measuredSizesRef = useRef<number[]>([]);
+  // Keyed by message id so the same row only contributes once, capped at 50 entries.
+  const measuredSizesByIdRef = useRef<Map<string, number>>(new Map());
 
   // Track banner height for virtualizer paddingStart so the virtual list
   // doesn't shift when banners (load-more, spinner) toggle visibility.
@@ -1380,7 +1381,7 @@ export const MessageFeed = memo(function MessageFeed({
     count: displayMessages.length,
     getScrollElement: () => feedRef.current,
     estimateSize: () => {
-      const sizes = measuredSizesRef.current;
+      const sizes = Array.from(measuredSizesByIdRef.current.values());
       if (sizes.length === 0) return 200;
       return sizes.reduce((a, b) => a + b, 0) / sizes.length;
     },
@@ -1433,11 +1434,9 @@ export const MessageFeed = memo(function MessageFeed({
   // uses unmeasured scrollHeight, causing jiggle. Wait one frame then re-anchor
   // to the last message using the virtualizer's measured positions.
   useEffect(() => {
-    if (
-      scrollController.current.isPinned &&
-      displayMessages.length > 0 &&
-      displayMessages.length > prevMessageCountRef.current
-    ) {
+    const grew = displayMessages.length > prevMessageCountForSnapRef.current;
+    prevMessageCountForSnapRef.current = displayMessages.length;
+    if (scrollController.current.isPinned && displayMessages.length > 0 && grew) {
       requestAnimationFrame(() => {
         virtualizer.scrollToIndex(displayMessages.length - 1, { align: 'end' });
       });
@@ -1530,9 +1529,14 @@ export const MessageFeed = memo(function MessageFeed({
                   if (node) {
                     const height = node.getBoundingClientRect().height;
                     if (height > 0) {
-                      measuredSizesRef.current.push(height);
-                      if (measuredSizesRef.current.length > 50) {
-                        measuredSizesRef.current = measuredSizesRef.current.slice(-50);
+                      const id = message._id;
+                      const prev = measuredSizesByIdRef.current.get(id);
+                      if (prev !== height) {
+                        measuredSizesByIdRef.current.set(id, height);
+                        if (measuredSizesByIdRef.current.size > 50) {
+                          const firstKey = measuredSizesByIdRef.current.keys().next().value;
+                          if (firstKey) measuredSizesByIdRef.current.delete(firstKey);
+                        }
                       }
                     }
                   }
