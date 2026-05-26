@@ -4,6 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import { deriveChatStatus } from '../utils/deriveChatStatus';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Agent {
@@ -115,23 +117,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     return baseChatrooms.map((chatroom) => {
       const agents = presenceByRoom.get(chatroom._id) ?? [];
 
-      // Derive chatStatus from presence and chatroom status
-      type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
-      let chatStatus: ChatStatus;
-      if (chatroom.status === 'completed') {
-        chatStatus = 'completed';
-      } else {
-        const onlineAgents = agents.filter((a) => a.lastSeenAction !== 'exited' && a.isAlive);
-        if (onlineAgents.length === 0) {
-          chatStatus = 'idle';
-        } else {
-          // 'working': any online agent is actively doing something (not waiting for next task)
-          const hasWorking = onlineAgents.some(
-            (a) => a.lastSeenAction && a.lastSeenAction !== 'get-next-task:started'
-          );
-          chatStatus = hasWorking ? 'working' : 'active';
-        }
-      }
+      const chatStatus = deriveChatStatus(chatroom.status, agents);
 
       return {
         ...chatroom,
