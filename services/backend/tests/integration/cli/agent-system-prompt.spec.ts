@@ -395,7 +395,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
@@ -718,7 +718,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10007;chatroom_rooms" --role="reviewer"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10007;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`

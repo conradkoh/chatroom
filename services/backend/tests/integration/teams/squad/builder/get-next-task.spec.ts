@@ -95,7 +95,7 @@ describe('Squad Team > Builder > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\` for current chatroom task.
       ============================================================"
     `);
@@ -158,7 +158,7 @@ describe('Squad Team > Builder > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\` for current chatroom task.
       ============================================================"
     `);

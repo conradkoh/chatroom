@@ -1377,8 +1377,8 @@ OAuth2`,
       expect(initPrompt!.prompt).toContain('get-next-task');
       expect(initPrompt!.prompt).toContain('foreground');
       expect(initPrompt!.prompt).toContain('Message availability');
-      expect(initPrompt!.prompt).toContain('stay connected');
-      expect(initPrompt!.prompt).toContain('team cannot reach you');
+      expect(initPrompt!.prompt).toContain('Run only one');
+      expect(initPrompt!.prompt).toContain('stale waiters');
     });
 
     test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
@@ -1420,9 +1420,9 @@ OAuth2`,
 
       const hasGetNextTaskReminder =
         taskPrompt.fullCliOutput.includes('Message availability') ||
-        taskPrompt.fullCliOutput.includes('stay connected') ||
+        taskPrompt.fullCliOutput.includes('Run only one') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
-        taskPrompt.fullCliOutput.includes('background');
+        taskPrompt.fullCliOutput.includes('backgrounded');
 
       expect(hasGetNextTaskReminder).toBe(true);
     });

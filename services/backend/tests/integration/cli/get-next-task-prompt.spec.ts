@@ -160,7 +160,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
+      Run a single \`get-next-task\` in the foreground after completing work and handing off. This is how your team sends you the next chatroom task.
+
+      Before starting a new session, terminate any older backgrounded \`get-next-task\` processes for this role. Stale sessions can acknowledge incoming tasks and cause grace-period conflicts for your active agent.
 
       If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
@@ -442,7 +444,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
@@ -517,7 +519,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current chatroom task.
       ============================================================
       "
@@ -969,7 +971,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
+      Run a single \`get-next-task\` in the foreground after completing work and handing off. This is how your team sends you the next chatroom task.
+
+      Before starting a new session, terminate any older backgrounded \`get-next-task\` processes for this role. Stale sessions can acknowledge incoming tasks and cause grace-period conflicts for your active agent.
 
       If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
@@ -1225,7 +1229,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10039;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
@@ -1287,7 +1291,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current chatroom task.
       ============================================================
       "
