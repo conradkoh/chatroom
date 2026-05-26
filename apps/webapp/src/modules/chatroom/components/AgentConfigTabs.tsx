@@ -332,7 +332,9 @@ export function useAgentControls({
   ]);
 
   // Available models from the selected machine filtered by selected harness
-  const machineModels = useMachineModels(selectedMachineId ?? undefined);
+  const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
+    selectedMachineId ?? undefined
+  );
   const availableModelsForHarness = useMemo(
     () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
     [machineModels, selectedMachineId, selectedHarness]
@@ -340,12 +342,23 @@ export function useAgentControls({
 
   // Machine-level model filter — used to exclude blacklisted models from
   // automatic selection and the model combobox.
-  const machineModelFilter = useSessionQuery(
+  const machineModelFilterResult = useSessionQuery(
     api.machines.getMachineModelFilters,
     selectedMachineId && selectedHarness
       ? { machineId: selectedMachineId, agentHarness: selectedHarness }
       : 'skip'
   );
+  const machineModelFilter = machineModelFilterResult ?? null;
+  const machineModelFilterLoading =
+    !!selectedMachineId && !!selectedHarness && machineModelFilterResult === undefined;
+
+  // Wait for async machine models + filter before deriving selection — avoids flashing
+  // a stale model label when switching machines or harnesses.
+  const modelSelectionReady =
+    !!selectedMachineId &&
+    !!selectedHarness &&
+    !machineModelsLoading &&
+    !machineModelFilterLoading;
 
   // Visible models = available models minus those hidden by the filter.
   // The combobox and automatic model selection use this list.
@@ -358,6 +371,7 @@ export function useAgentControls({
   // selectedModel is a pure derivation — no useEffect, no setState.
   // Uses the extracted selectModel utility for testability.
   const selectedModel = useMemo((): string | null => {
+    if (!modelSelectionReady) return null;
     // Machine config model — only if it's saved under the same harness type
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
@@ -383,6 +397,7 @@ export function useAgentControls({
       preferenceModel: prefModel,
     });
   }, [
+    modelSelectionReady,
     selectedHarness,
     availableModelsForHarness,
     visibleModels,
