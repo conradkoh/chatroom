@@ -19,6 +19,38 @@ function createMockDeps(
   };
 }
 
+function createMockChildWithStreams(options: {
+  pid: number;
+  stdout?: Readable | null;
+  stderr?: Readable | null;
+  killed?: boolean;
+  exitCode?: number | null;
+}) {
+  const mockStdin = { write: vi.fn(), end: vi.fn() };
+  const stdout =
+    options.stdout === undefined ? new Readable({ read() {} }) : options.stdout;
+  const stderr =
+    options.stderr === undefined ? new Readable({ read() {} }) : options.stderr;
+
+  const mockChild = Object.assign(new EventEmitter(), {
+    stdin: mockStdin,
+    stdout,
+    stderr,
+    pid: options.pid,
+    killed: options.killed ?? false,
+    exitCode: options.exitCode ?? null,
+  });
+
+  if (mockChild.stdout) {
+    mockChild.stdout.pipe = vi.fn().mockReturnValue(mockChild.stdout);
+  }
+  if (mockChild.stderr) {
+    mockChild.stderr.pipe = vi.fn().mockReturnValue(mockChild.stderr);
+  }
+
+  return mockChild;
+}
+
 describe('CommandCodeAgentService', () => {
   describe('isInstalled', () => {
     it('returns true when cmd command exists', async () => {
@@ -261,21 +293,7 @@ describe('CommandCodeAgentService', () => {
       // Simulate a short-lived `cmd -p` process that exits synchronously after spawn returns.
       // The test asserts that onExit callbacks registered AFTER exit still fire — preventing
       // the agent-process-manager from missing the exit event (which would skip auto-restart).
-      const mockStdin = { write: vi.fn(), end: vi.fn() };
-      const mockStdout = new Readable({ read() {} });
-      const mockStderr = new Readable({ read() {} });
-
-      const mockChild = Object.assign(new EventEmitter(), {
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        pid: 100,
-        killed: false,
-        exitCode: null,
-      });
-
-      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
-      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+      const mockChild = createMockChildWithStreams({ pid: 100 });
 
       const spawnFn = vi.fn().mockReturnValue(mockChild);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -306,21 +324,7 @@ describe('CommandCodeAgentService', () => {
     });
 
     it('replays exit to multiple onExit listeners registered after process exit', async () => {
-      const mockStdin = { write: vi.fn(), end: vi.fn() };
-      const mockStdout = new Readable({ read() {} });
-      const mockStderr = new Readable({ read() {} });
-
-      const mockChild = Object.assign(new EventEmitter(), {
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        pid: 101,
-        killed: false,
-        exitCode: null,
-      });
-
-      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
-      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+      const mockChild = createMockChildWithStreams({ pid: 101 });
 
       const spawnFn = vi.fn().mockReturnValue(mockChild);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -355,21 +359,7 @@ describe('CommandCodeAgentService', () => {
     });
 
     it('calls onExit via listener when exit fires AFTER consumer attaches (normal path)', async () => {
-      const mockStdin = { write: vi.fn(), end: vi.fn() };
-      const mockStdout = new Readable({ read() {} });
-      const mockStderr = new Readable({ read() {} });
-
-      const mockChild = Object.assign(new EventEmitter(), {
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        pid: 102,
-        killed: false,
-        exitCode: null,
-      });
-
-      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
-      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+      const mockChild = createMockChildWithStreams({ pid: 102 });
 
       const spawnFn = vi.fn().mockReturnValue(mockChild);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -394,6 +384,34 @@ describe('CommandCodeAgentService', () => {
         signal: null,
         context: expect.objectContaining({ role: 'test-role' }),
       });
+    });
+
+    it('fires onExit replay when stdout is null (no-stdout branch)', async () => {
+      const mockChild = createMockChildWithStreams({ pid: 103, stdout: null, stderr: null });
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CommandCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('no-stdout test'),
+        systemPrompt: 'test',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+      });
+
+      mockChild.emit('exit', 0, null);
+
+      const onExitCb = vi.fn();
+      result.onExit(onExitCb);
+
+      expect(onExitCb).toHaveBeenCalledTimes(1);
+      expect(onExitCb).toHaveBeenCalledWith({
+        code: 0,
+        signal: null,
+        context: expect.objectContaining({ chatroomId: 'test-chatroom', role: 'test-role' }),
+      });
+      expect(result.onAgentEnd).toBeUndefined();
     });
 
     it('uses only prompt when systemPrompt is empty', async () => {
