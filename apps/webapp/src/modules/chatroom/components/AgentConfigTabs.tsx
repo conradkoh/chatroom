@@ -178,6 +178,25 @@ function deriveInitialWorkingDir(
   return preference?.workingDir ?? '';
 }
 
+/** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
+export function shouldDeferInitUntilWorkspacesLoad(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): boolean {
+  if (machineId) {
+    const config = roleConfigs.find((c) => c.machineId === machineId);
+    if (config?.workingDir) return false;
+    if (preference && preference.machineId === machineId && preference.workingDir) {
+      return false;
+    }
+    return true;
+  }
+  if (roleConfigs.some((c) => c.workingDir)) return false;
+  if (preference?.workingDir) return false;
+  return false;
+}
+
 export function useAgentControls({
   role,
   chatroomId,
@@ -190,6 +209,7 @@ export function useAgentControls({
   onSavePreference,
   teamConfigMachineId,
   chatroomWorkspaces,
+  chatroomWorkspacesLoading,
 }: {
   role: string;
   chatroomId: string;
@@ -209,6 +229,8 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
+  /** When true, init defers until workspaces load if working dir may come from the registry */
+  chatroomWorkspacesLoading?: boolean;
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
@@ -281,6 +303,12 @@ export function useAgentControls({
       runningAgentConfig,
       pref
     );
+    if (
+      chatroomWorkspacesLoading &&
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, pref)
+    ) {
+      return;
+    }
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
@@ -294,7 +322,14 @@ export function useAgentControls({
     setSelectedHarness(harness);
     setWorkingDir(wd);
     setIsInitialized(true);
-  }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
+  }, [
+    isInitialized,
+    connectedMachines,
+    roleConfigs,
+    runningAgentConfig,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
+  ]);
 
   // Available models from the selected machine filtered by selected harness
   const machineModels = useMachineModels(selectedMachineId ?? undefined);
