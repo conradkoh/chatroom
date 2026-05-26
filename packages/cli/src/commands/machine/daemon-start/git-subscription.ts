@@ -94,6 +94,12 @@ export function startGitRequestSubscription(
     },
     (requests) => {
       if (!requests || requests.length === 0) return;
+
+      const logger = ctx.logger ?? console;
+      logger.log(
+        `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
+      );
+
       if (processing) return; // Skip if still processing previous batch
 
       processing = true;
@@ -490,6 +496,11 @@ export async function processRequests(
         requestId: req._id,
         status: 'processing',
       });
+
+      const logger = ctx.logger ?? console;
+      logger.log(
+        `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
+      );
 
       switch (req.requestType) {
         case 'full_diff':
