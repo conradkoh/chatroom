@@ -278,22 +278,14 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
   }
 
   const execAsync = promisify(exec);
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error(`PR action '${action}' on #${prNumber} timed out after 60s`)),
-        EXEC_TIMEOUT_MS
-      );
-    });
-    const result = await Promise.race([execAsync(cmd, { cwd: req.workingDir }), timeoutPromise]);
-    console.log(
-      `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
-    );
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-  }
+  const result = await execAsync(cmd, {
+    cwd: req.workingDir,
+    // 60s: PR merge/close can exceed git-reader's 15s gh timeout; kills child on expiry
+    timeout: EXEC_TIMEOUT_MS,
+  });
+  console.log(
+    `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
+  );
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
   await pushGitState(ctx).catch((err: unknown) => {
