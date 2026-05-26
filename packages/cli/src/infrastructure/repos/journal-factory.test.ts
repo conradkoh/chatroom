@@ -275,7 +275,7 @@ describe('BufferedJournalFactory', () => {
     expect(repo.appendChunks).toHaveBeenCalledTimes(2);
   });
 
-  it('flush() is a no-op when buffer is empty', async () => {
+  it('flush() is a no-op when buffer is empty and no flush is in flight', async () => {
     const repo = mockOutputRepository();
     const factory = new BufferedJournalFactory({
       outputRepository: repo,
@@ -287,5 +287,39 @@ describe('BufferedJournalFactory', () => {
     await journal.flush();
 
     expect(repo.appendChunks).not.toHaveBeenCalled();
+  });
+
+  it('flush() waits for in-flight periodic flush when buffer is already empty', async () => {
+    let resolveAppend!: () => void;
+    const appendPromise = new Promise<void>((resolve) => {
+      resolveAppend = resolve;
+    });
+    const repo: OutputRepository = {
+      appendChunks: vi.fn().mockImplementation(() => appendPromise),
+    };
+    const factory = new BufferedJournalFactory({
+      outputRepository: repo,
+      flushIntervalMs: 500,
+      logger: { warn: warnSpy },
+    });
+
+    const journal = factory.create('row-1');
+    journal.record({ content: 'inflight', timestamp: 100 });
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(repo.appendChunks).toHaveBeenCalledTimes(1);
+
+    let flushDone = false;
+    const flushPromise = journal.flush().then(() => {
+      flushDone = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(50);
+    expect(flushDone).toBe(false);
+
+    resolveAppend();
+    await vi.advanceTimersByTimeAsync(20);
+    await flushPromise;
+    expect(flushDone).toBe(true);
   });
 });
