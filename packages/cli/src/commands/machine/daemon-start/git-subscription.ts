@@ -32,6 +32,9 @@ import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
+/** Timeout for PR action execAsync calls (60s) — prevents indefinite hangs. */
+const EXEC_TIMEOUT_MS = 60_000;
+
 /** Handle returned by `startGitRequestSubscription` to stop the subscription. */
 export interface GitSubscriptionHandle {
   /** Stop the subscription and clean up. */
@@ -269,10 +272,22 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
   }
 
   const execAsync = promisify(exec);
-  const result = await execAsync(cmd, { cwd: req.workingDir });
-  console.log(
-    `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
-  );
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error(`PR action '${action}' on #${prNumber} timed out after 60s`)),
+        EXEC_TIMEOUT_MS
+      );
+    });
+    const result = await Promise.race([execAsync(cmd, { cwd: req.workingDir }), timeoutPromise]);
+    console.log(
+      `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
+    );
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
   await pushGitState(ctx).catch((err: unknown) => {
