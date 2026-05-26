@@ -120,7 +120,7 @@ describe('handoff', () => {
       expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
-      expect(output).toContain('Task completed and handed off to builder');
+      expect(output).toContain('Chatroom task completed and handed off to builder');
       expect(output).toContain('Level B complete');
       expect(output).toContain('Level A continues');
       expect(output).toContain('get-next-task');

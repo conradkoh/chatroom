@@ -30,8 +30,8 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'session',
     definition:
-      'The entire agent invocation — from harness startup to shutdown. ' +
-      'A session spans many chatroom tasks. Completing a task (handoff) does NOT end the session. ' +
+      'The entire agent invocation (one harness turn) — from harness startup to shutdown. ' +
+      'A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. ' +
       'Always run `get-next-task` after a handoff to stay in the session.',
   },
   {
@@ -40,12 +40,6 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       'One discrete unit of work delivered by `get-next-task`. ' +
       'A chatroom task begins when the agent receives it and ends when the agent runs `handoff`. ' +
       'Completing a chatroom task only closes Level B — the session (Level A) continues.',
-  },
-  {
-    term: 'harness-turn',
-    definition:
-      'One invocation of the agent by its harness (e.g., Cursor, OpenCode, Command Code, remote agent). ' +
-      'A harness turn = a session. Within a harness turn, the agent processes many chatroom tasks.',
   },
   {
     term: 'listen-loop',

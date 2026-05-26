@@ -69,7 +69,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
     expect(prompt).toContain('## Your Role: REVIEWER');
     expect(prompt).toContain('## Getting Started');
     // Reviewer is NOT entry point in squad
-    expect(prompt).not.toContain('### Classify Task');
+    expect(prompt).not.toContain('### Classify message');
     expect(prompt).toContain('### Start Working');
     expect(prompt).toContain('## Reviewer Workflow');
     // Squad reviewer CANNOT hand off to user
@@ -87,13 +87,10 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       # Glossary
 
       - \`session\`
-          - The entire agent invocation — from harness startup to shutdown. A session spans many chatroom tasks. Completing a task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
 
       - \`chatroom-task\`
           - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
-
-      - \`harness-turn\`
-          - One invocation of the agent by its harness (e.g., Cursor, OpenCode, Command Code, remote agent). A harness turn = a session. Within a harness turn, the agent processes many chatroom tasks.
 
       - \`listen-loop\`
           - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
@@ -159,7 +156,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
 
       ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
-      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next task.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
 
       ## Getting Started
 
@@ -169,20 +166,20 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      task notification]
+      chatroom task notification]
           C --> D[task read
-      get content +
+      get chatroom task +
       mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the task immediately
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
 
-      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Get the task content** — the full task description
+      1. **Get the chatroom task content** — the full description
       2. **Mark it as in_progress** — signals you're working on it
 
       Failure to run \`task read\` promptly may trigger the system to restart you.
@@ -195,7 +192,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"
-      to see your current task context.
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -216,7 +213,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       ### Start Working
 
-      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
+      After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.
 
 
        **Squad Team Context:**
@@ -240,7 +237,8 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task read]
+          B -->|from builder or other agent| C[Run task read
+      on chatroom task]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to planner]
@@ -286,7 +284,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       - [ ] Performance implications
 
       **Review Process:**
-      1. **Understand the requirements**: Review the original task and expected outcome
+      1. **Understand the requirements**: Review the original chatroom task and expected outcome
       2. **Check implementation**: Verify the code meets the requirements
       3. **Test the changes**: If possible, test the implementation
       4. **Provide feedback**: Be specific and constructive in feedback
@@ -346,7 +344,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
@@ -360,7 +358,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="reviewer" << 'EOF'
@@ -369,7 +367,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
       **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
@@ -386,7 +384,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"\`
 
       ### Next
 

@@ -32,7 +32,7 @@ describe('Duo Team > Builder > Handoff Output', () => {
     expect(output).toContain('get-next-task');
 
     expect(output).toMatchInlineSnapshot(`
-      "✅ Task completed and handed off to planner
+      "✅ Chatroom task completed and handed off to planner
 
       ✅ Level B complete (chatroom task handed off).
       ⏳ Level A continues (session is still active) — run get-next-task to stay connected:

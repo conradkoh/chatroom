@@ -15,7 +15,6 @@ import {
   getTeamAvailabilitySection,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
-import { getTwoLevelsTableSection } from '../../../sections/session-vs-chatroom-task';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 import { getCliEnvPrefix } from '../../../utils/env';
 
@@ -31,7 +30,7 @@ export function getSoloGuidance(ctx: PlannerGuidanceParams): string {
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
 4. Plan and implement the solution yourself`
@@ -39,9 +38,7 @@ As the entry point, you receive user messages directly. When you receive a user 
 
   return `## Solo Workflow
 
-${getTwoLevelsTableSection()}
-
-You are an autonomous agent responsible for BOTH planning and implementing tasks independently.
+You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
 ${classificationNote}
 
 **Solo Team Context:**

@@ -122,7 +122,7 @@ describe('generator > composeSystemPrompt with solo team', () => {
     });
 
     expect(prompt).toContain('## Getting Started');
-    expect(prompt).toContain('### Classify Task');
+    expect(prompt).toContain('### Classify message');
     expect(prompt).toContain('### Commands');
   });
 });

@@ -115,7 +115,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('<task>');
   lines.push(SEP_EQUAL);
-  lines.push('📋 TASK');
+  lines.push('📋 CHATROOM TASK');
   lines.push(SEP_EQUAL);
   lines.push(`Task ID: ${task._id}`);
   if (message) {
@@ -192,8 +192,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   // Task content — hidden; agent must call task read to get content (marks in_progress)
   lines.push('');
-  lines.push('## Task');
-  lines.push(`To read this task and mark it as in_progress, run:`);
+  lines.push('## Chatroom task');
+  lines.push(`To read this chatroom task and mark it as in_progress, run:`);
   lines.push('```');
   lines.push(
     `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
@@ -231,12 +231,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   if (isUserMessage) {
     // User message case: read task first, then classify
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.');
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
     lines.push('');
 
     // Step 1: Read task
     lines.push(
-      `1. Read task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
     );
 
     // Step 2: Classify
@@ -272,7 +272,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
-        `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
+        `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
       lines.push(contextNewHint());
       lines.push('4. Delegate phase 1 to builder:');
@@ -294,7 +294,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       if (isEntryPoint) {
         lines.push('');
         lines.push(
-          `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
+          `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
         );
         lines.push(contextNewHint());
         nextStepNum++;
@@ -315,19 +315,19 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   } else if (message) {
     // Handoff case: read task first (marks in_progress), then work
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.');
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
     lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
     lines.push('');
 
     // Step 1: Read task
     lines.push(
-      `1. Read task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
     );
 
     let nextStepNum = 2;
     if (isEntryPoint) {
       lines.push(
-        `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current task.`
+        `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
       lines.push(contextNewHint());
       nextStepNum++;

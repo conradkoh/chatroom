@@ -24,7 +24,7 @@ export function getHandoffRulesSection(config: TeamCompositionConfig): string {
   const lines = [
     config.hasBuilder
       ? '- **To delegate implementation** → Hand off to `builder` with clear requirements'
-      : '- **To implement** → Work on the task directly (you are acting as implementer)',
+      : '- **To implement** → Work on the chatroom task directly (you are acting as implementer)',
     ...(config.hasReviewer
       ? ['- **To request review** → Hand off to `reviewer` with context about what to check']
       : []), // No reviewer line for duo or solo — the workflow diagram covers self-review

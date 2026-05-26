@@ -57,7 +57,7 @@ export function getSessionAntiPatternsSection(): string {
 ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
 
 ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
-✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next task.`;
+✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.`;
 }
 
 /**

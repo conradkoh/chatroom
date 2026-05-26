@@ -27,9 +27,9 @@ export const getWaitForTaskReminder = getNextTaskReminder;
 export function getNextTaskGuidance(): string {
   return `🔗 STAYING CONNECTED TO YOUR TEAM
 
-Your primary directive: Stay available to receive tasks from your team.
+Your primary directive: Stay available to receive chatroom tasks from your team.
 
-Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
+Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
 
 If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.`;
 }
@@ -55,7 +55,7 @@ export function getCompactionRecoveryNote(params: {
   ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
 to reload your full system and role prompt. Then run:
   ${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
-to see your current task context.`;
+to see your current chatroom task context.`;
 }
 
 /**
@@ -71,5 +71,5 @@ export function getCompactionRecoveryOneLiner(params: {
   role: string;
 }): string {
   const { cliEnvPrefix, chatroomId, role } = params;
-  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current task.`;
+  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current chatroom task.`;
 }

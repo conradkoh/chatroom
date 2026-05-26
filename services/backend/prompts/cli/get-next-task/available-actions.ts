@@ -60,7 +60,7 @@ ${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --r
   if (isEntryPoint) {
     sections.push(`
 ### Context Management
-Only the entry point role can create new contexts. By default, set a new context for every user message — skip ONLY when the message is clearly a follow-up of the current task.
+Only the entry point role can create new contexts. By default, set a new context for every user message — skip ONLY when the message is clearly a follow-up of the current chatroom task.
 
 **Create new context:**
 \`\`\`bash

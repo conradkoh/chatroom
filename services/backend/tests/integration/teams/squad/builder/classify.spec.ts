@@ -43,7 +43,7 @@ describe('Squad Team > Builder > Classify Reminder', () => {
     expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as QUESTION.
+      "✅ Chatroom task acknowledged as QUESTION.
 
       **Next steps:**
       1. Implement the requested changes
@@ -81,7 +81,7 @@ describe('Squad Team > Builder > Classify Reminder', () => {
     expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as NEW FEATURE.
+      "✅ Chatroom task acknowledged as NEW FEATURE.
 
       **Next steps:**
       1. Implement the requested changes
@@ -119,7 +119,7 @@ describe('Squad Team > Builder > Classify Reminder', () => {
     expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as FOLLOW UP.
+      "✅ Chatroom task acknowledged as FOLLOW UP.
 
       **Next steps:**
       1. Implement the requested changes

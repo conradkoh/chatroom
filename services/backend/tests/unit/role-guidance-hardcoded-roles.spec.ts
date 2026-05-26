@@ -99,7 +99,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
 
-      - **To implement** → Work on the task directly (you are acting as implementer)
+      - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Revise your implementation directly and re-validate"
@@ -127,7 +127,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
 
-      - **To implement** → Work on the task directly (you are acting as implementer)
+      - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To request review** → Hand off to \`reviewer\` with context about what to check
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
@@ -248,9 +248,9 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task
+          A([Start]) --> B[Receive chatroom task
       notification]
-          B -->|from planner| C[Read task with
+          B -->|from planner| C[Read chatroom task with
       task read]
           C --> D[Implement changes]
           D --> E[Commit work]

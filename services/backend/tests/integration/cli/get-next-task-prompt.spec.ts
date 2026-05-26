@@ -121,7 +121,7 @@ describe('Get-Next-Task Full Prompt', () => {
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for task...
+[TIMESTAMP] ✅ Connected. Waiting for chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -138,7 +138,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 ══════════════════════════════════════════════════
 -->
 
-[TIMESTAMP] 📨 Task received!
+[TIMESTAMP] 📨 CHATROOM TASK received
 
 ${taskDeliveryPrompt.fullCliOutput}
 `;
@@ -148,7 +148,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
-      [TIMESTAMP] ✅ Connected. Waiting for task...
+      [TIMESTAMP] ✅ Connected. Waiting for chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -158,9 +158,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to receive tasks from your team.
+      Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
+      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
 
       If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
@@ -175,13 +175,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       # Glossary
 
       - \`session\`
-          - The entire agent invocation — from harness startup to shutdown. A session spans many chatroom tasks. Completing a task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
 
       - \`chatroom-task\`
           - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
-
-      - \`harness-turn\`
-          - One invocation of the agent by its harness (e.g., Cursor, OpenCode, Command Code, remote agent). A harness turn = a session. Within a harness turn, the agent processes many chatroom tasks.
 
       - \`listen-loop\`
           - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
@@ -247,7 +244,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
 
       ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
-      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next task.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
 
       ## Getting Started
 
@@ -257,20 +254,20 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      task notification]
+      chatroom task notification]
           C --> D[task read
-      get content +
+      get chatroom task +
       mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the task immediately
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
 
-      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Get the task content** — the full task description
+      1. **Get the chatroom task content** — the full description
       2. **Mark it as in_progress** — signals you're working on it
 
       Failure to run \`task read\` promptly may trigger the system to restart you.
@@ -283,7 +280,7 @@ ${taskDeliveryPrompt.fullCliOutput}
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
-      to see your current task context.
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -302,9 +299,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 
 
-      ### Classify Task
+      ### Classify message
 
-      Acknowledge and classify user messages after reading the task.
+      Acknowledge and classify user messages after reading the chatroom task.
 
       Run this after \`task read\` to classify the message type.
 
@@ -336,7 +333,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current task. Only the entry point role can set contexts:
+      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
@@ -361,7 +358,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
       2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       3. Then do your work
       4. Hand off to planner for code changes, or directly to planner for questions
@@ -370,9 +367,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task
+          A([Start]) --> B[Receive chatroom task
       notification]
-          B -->|from planner| C[Read task with
+          B -->|from planner| C[Read chatroom task with
       task read]
           C --> D[Implement changes]
           D --> E[Commit work]
@@ -413,7 +410,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
@@ -427,7 +424,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
@@ -436,7 +433,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
       **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
@@ -453,7 +450,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ### Next
 
@@ -466,11 +463,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       ══════════════════════════════════════════════════
       -->
 
-      [TIMESTAMP] 📨 Task received!
+      [TIMESTAMP] 📨 CHATROOM TASK received
 
       <task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: 10007;chatroom_tasks
       Origin Message ID: 10006;chatroom_messages
@@ -479,17 +476,17 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"
       \`\`\`
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
       2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
 
          new_feature example:
@@ -504,7 +501,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       3. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\` — skip ONLY when the message is clearly a follow-up of the current task.
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       4. Hand off when complete:
 
@@ -521,7 +518,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current task.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current chatroom task.
       ============================================================
       "
     `);
@@ -540,7 +537,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // Should have classification section
-    expect(initPrompt?.prompt).toContain('### Classify Task');
+    expect(initPrompt?.prompt).toContain('### Classify message');
     expect(initPrompt?.prompt).toContain('#### Question');
     expect(initPrompt?.prompt).toContain('#### Follow Up');
     expect(initPrompt?.prompt).toContain('#### New Feature');
@@ -550,7 +547,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should include commands section
     expect(initPrompt?.prompt).toContain('### Commands');
-    expect(initPrompt?.prompt).toContain('**Complete task and hand off:**');
+    expect(initPrompt?.prompt).toContain('**Complete chatroom task and hand off:**');
 
     // ===== VERIFY TASK DELIVERY PROMPT =====
     expect(taskDeliveryPrompt).toBeDefined();
@@ -933,7 +930,7 @@ Testing: Toggle in settings switches between light/dark modes`,
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for task...
+[TIMESTAMP] ✅ Connected. Waiting for chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -950,7 +947,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 ══════════════════════════════════════════════════
 -->
 
-[TIMESTAMP] 📨 Task received!
+[TIMESTAMP] 📨 CHATROOM TASK received
 
 ${taskDeliveryPrompt.fullCliOutput}
 `;
@@ -960,7 +957,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
-      [TIMESTAMP] ✅ Connected. Waiting for task...
+      [TIMESTAMP] ✅ Connected. Waiting for chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -970,9 +967,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to receive tasks from your team.
+      Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
+      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
 
       If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
@@ -987,13 +984,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       # Glossary
 
       - \`session\`
-          - The entire agent invocation — from harness startup to shutdown. A session spans many chatroom tasks. Completing a task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
 
       - \`chatroom-task\`
           - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
-
-      - \`harness-turn\`
-          - One invocation of the agent by its harness (e.g., Cursor, OpenCode, Command Code, remote agent). A harness turn = a session. Within a harness turn, the agent processes many chatroom tasks.
 
       - \`listen-loop\`
           - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
@@ -1059,7 +1053,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
 
       ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
-      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next task.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
 
       ## Getting Started
 
@@ -1069,20 +1063,20 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      task notification]
+      chatroom task notification]
           C --> D[task read
-      get content +
+      get chatroom task +
       mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the task immediately
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
 
-      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Get the task content** — the full task description
+      1. **Get the chatroom task content** — the full description
       2. **Mark it as in_progress** — signals you're working on it
 
       Failure to run \`task read\` promptly may trigger the system to restart you.
@@ -1095,7 +1089,7 @@ ${taskDeliveryPrompt.fullCliOutput}
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"
-      to see your current task context.
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -1116,7 +1110,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Start Working
 
-      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
+      After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.
 
 
       ## Reviewer Workflow
@@ -1130,7 +1124,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task read]
+          B -->|from builder or other agent| C[Run task read
+      on chatroom task]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to user]
@@ -1176,7 +1171,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [ ] Performance implications
 
       **Review Process:**
-      1. **Understand the requirements**: Review the original task and expected outcome
+      1. **Understand the requirements**: Review the original chatroom task and expected outcome
       2. **Check implementation**: Verify the code meets the requirements
       3. **Test the changes**: If possible, test the implementation
       4. **Provide feedback**: Be specific and constructive in feedback
@@ -1198,7 +1193,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
@@ -1212,7 +1207,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10039;chatroom_rooms" --role="reviewer" << 'EOF'
@@ -1221,7 +1216,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
       **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
@@ -1238,7 +1233,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
       ### Next
 
@@ -1251,11 +1246,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       ══════════════════════════════════════════════════
       -->
 
-      [TIMESTAMP] 📨 Task received!
+      [TIMESTAMP] 📨 CHATROOM TASK received
 
       <task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: 10051;chatroom_tasks
       Origin Message ID: 10050;chatroom_messages
@@ -1264,8 +1259,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"
       \`\`\`
@@ -1274,10 +1269,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
          handed off from builder — start work immediately.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"\`
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"\`
       2. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
@@ -1293,7 +1288,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current task.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current chatroom task.
       ============================================================
       "
     `);
@@ -1317,7 +1312,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).not.toContain('task-started');
 
     // Should NOT have classification section (that's only for entry point roles)
-    expect(initPrompt?.prompt).not.toContain('### Classify Task');
+    expect(initPrompt?.prompt).not.toContain('### Classify message');
     expect(initPrompt?.prompt).not.toContain('--origin-message-classification');
 
     // Should have reviewer workflow instructions
@@ -1373,7 +1368,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     // Updated guidance should contain key sections
     expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
     expect(guidance).toContain('get-next-task');
-    expect(guidance).toContain('Stay available to receive tasks from your team');
+    expect(guidance).toContain('Stay available to receive chatroom tasks from your team');
 
     // Should NOT contain shell-specific language that is misleading for coding agents
     expect(guidance).not.toContain('FOREGROUND');

@@ -30,7 +30,7 @@ You receive handoffs from other agents containing work to review or validate.
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive handoff]
-    B -->|from builder or other agent| C[Run task read]
+    B -->|from builder or other agent| C[Run task read\non chatroom task]
     C --> D[Review code changes]
     D --> E{Meets requirements?}
     E -->|yes| F[Hand off to ${approvalTarget}]
@@ -70,7 +70,7 @@ Replace \`[Your message here]\` with:
 - [ ] Performance implications
 
 **Review Process:**
-1. **Understand the requirements**: Review the original task and expected outcome
+1. **Understand the requirements**: Review the original chatroom task and expected outcome
 2. **Check implementation**: Verify the code meets the requirements
 3. **Test the changes**: If possible, test the implementation
 4. **Provide feedback**: Be specific and constructive in feedback

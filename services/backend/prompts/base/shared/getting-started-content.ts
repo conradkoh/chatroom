@@ -29,18 +29,18 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 \`\`\`mermaid
 flowchart LR
     A([Start]) --> B[register-agent]
-    B --> C[get-next-task\ntask notification]
-    C --> D[task read\nget content +\nmark in_progress]
+    B --> C[get-next-task\nchatroom task notification]
+    C --> D[task read\nget chatroom task +\nmark in_progress]
     D --> E[Do Work]
     E --> F[handoff]
     F --> C
 \`\`\`
 
-### ⚠️ CRITICAL: Read the task immediately
+### ⚠️ CRITICAL: Read the chatroom task immediately
 
-When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
+When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
 
-1. **Get the task content** — the full task description
+1. **Get the chatroom task content** — the full description
 2. **Mark it as in_progress** — signals you're working on it
 
 Failure to run \`task read\` promptly may trigger the system to restart you.

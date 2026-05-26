@@ -44,7 +44,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
     expect(output).toContain('Set a new context per user message');
@@ -55,7 +55,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: test-task-id
       Origin Message ID: test-message-id
@@ -64,17 +64,17 @@ describe('Squad Team > Planner > Get Next Task', () => {
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"
       \`\`\`
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"\`
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"\`
       2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id" --origin-message-classification=<type>\`
 
          new_feature example:
@@ -89,7 +89,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
 
       3. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\` — skip ONLY when the message is clearly a follow-up of the current task.
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       4. Delegate phase 1 to builder:
 
@@ -106,7 +106,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current task.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current chatroom task.
       ============================================================"
     `);
   });
@@ -127,7 +127,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Team handoff should show "handed off from" instead of classification
     expect(output).toContain('handed off from builder');
@@ -136,7 +136,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: test-task-id
       Origin Message ID: test-message-id
@@ -145,8 +145,8 @@ describe('Squad Team > Planner > Get Next Task', () => {
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"
       \`\`\`
@@ -155,13 +155,13 @@ describe('Squad Team > Planner > Get Next Task', () => {
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
          handed off from builder — start work immediately.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"\`
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id"\`
       2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\` — skip ONLY when the message is clearly a follow-up of the current task.
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       3. Hand off when complete:
 
@@ -178,7 +178,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current task.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current chatroom task.
       ============================================================"
     `);
   });
