@@ -94,7 +94,7 @@ describe('Squad Team - Planner Init Prompt', () => {
     expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Planner IS the entry point — should have Classify Task
-    expect(prompt).toContain('### Classify Task');
+    expect(prompt).toContain('### Classify message');
     expect(prompt).toContain('--origin-message-classification');
 
     // Should have planner-specific workflow instructions
@@ -141,7 +141,7 @@ describe('Squad Team - Planner Init Prompt', () => {
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Planner is entry point — should have Classify Task
-    expect(rolePrompt).toContain('### Classify Task');
+    expect(rolePrompt).toContain('### Classify message');
     expect(rolePrompt).toContain('--origin-message-classification');
 
     // Should have planner workflow
@@ -209,7 +209,7 @@ describe('Squad Team - Builder Init Prompt', () => {
     expect(prompt).toContain('### Start Working');
     expect(prompt).not.toContain('--no-classify');
     expect(prompt).not.toContain('task-started');
-    expect(prompt).not.toContain('### Classify Task');
+    expect(prompt).not.toContain('### Classify message');
 
     // Should have squad-specific builder guidance
     expect(prompt).toContain('## Builder Workflow');
@@ -253,7 +253,7 @@ describe('Squad Team - Builder Init Prompt', () => {
 
     // Builder is NOT entry point — should have Start Working
     expect(rolePrompt).toContain('### Start Working');
-    expect(rolePrompt).not.toContain('### Classify Task');
+    expect(rolePrompt).not.toContain('### Classify message');
   });
 });
 
@@ -293,7 +293,7 @@ describe('Squad Team - Reviewer Init Prompt', () => {
     expect(prompt).toContain('### Start Working');
     expect(prompt).not.toContain('--no-classify');
     expect(prompt).not.toContain('task-started');
-    expect(prompt).not.toContain('### Classify Task');
+    expect(prompt).not.toContain('### Classify message');
 
     // Should have squad-specific reviewer guidance
     expect(prompt).toContain('## Reviewer Workflow');
@@ -340,7 +340,7 @@ describe('Squad Team - Reviewer Init Prompt', () => {
 
     // Reviewer is NOT entry point — should have Start Working
     expect(rolePrompt).toContain('### Start Working');
-    expect(rolePrompt).not.toContain('### Classify Task');
+    expect(rolePrompt).not.toContain('### Classify message');
   });
 });
 
@@ -412,7 +412,7 @@ describe('Squad Team - Planner as Point of Contact', () => {
     ]);
 
     // Only planner should have Classify Task (as entry point)
-    expect(plannerPrompt!.prompt).toContain('### Classify Task');
+    expect(plannerPrompt!.prompt).toContain('### Classify message');
 
     // Builder and reviewer should have Start Working (non-entry point)
     expect(builderPrompt!.prompt).toContain('### Start Working');

@@ -47,14 +47,16 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-4. Decompose the task into actionable work items if needed
+4. Decompose the chatroom task into actionable work items if needed
 5. Delegate to the appropriate team member or handle it yourself`
     : '';
 
   return `## Planner Workflow
+
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
 You are the team coordinator and the **single point of contact** for the user.
 ${classificationNote}

@@ -201,6 +201,8 @@ chatroom/
 
 ### Workflow Loop
 
+**Level A (session)** = the outer loop. **Level B (chatroom task)** = one iteration.
+
 ```
 get-next-task → do work → handoff → get-next-task → repeat
 ```
@@ -209,6 +211,12 @@ get-next-task → do work → handoff → get-next-task → repeat
 2. **Process** the task
 3. **Run `handoff`** to signal completion
 4. **Run `get-next-task`** again to wait for next task
+
+### Session Model (Level A vs Level B)
+
+A session (Level A) processes many chatroom tasks (Level B). Completing one chatroom task does NOT end the session.
+
+**Explicit rule:** After EVERY handoff — even to `user` — you MUST run `get-next-task` in the foreground to continue the session. The workflow loop above never ends: each handoff completes Level B, and `get-next-task` keeps Level A alive.
 
 ### Reliability
 

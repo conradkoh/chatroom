@@ -163,7 +163,7 @@ describe('Available Actions (Task Delivery)', () => {
 });
 
 describe('Task Classification Prompt', () => {
-  test('generates concise Classify Task format with all classification types', () => {
+  test('generates concise Classify message format with all classification types', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'test-chatroom-456',
@@ -171,8 +171,8 @@ describe('Task Classification Prompt', () => {
       cliEnvPrefix,
     });
 
-    // Should have Classify Task header
-    expect(prompt).toContain('### Classify Task');
+    // Should have Classify message header
+    expect(prompt).toContain('### Classify message');
 
     // Should have all three classification types
     expect(prompt).toContain('#### Question');

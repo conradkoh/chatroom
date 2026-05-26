@@ -45,7 +45,7 @@ export function getCommandsReferenceSection(params: CommandsReferenceParams): Pr
 
   const content = `### Commands
 
-**Complete task and hand off:**
+**Complete chatroom task and hand off:**
 
 \`\`\`bash
 ${handoffCmd}
@@ -56,13 +56,13 @@ Replace \`[Your message here]\` with:
 - **Changes Made**: Key changes (bullets)
 - **Testing**: How to verify the work
 
-**Report progress on current task:**
+**Report progress on current chatroom task:**
 
 \`\`\`bash
 ${progressCmd}
 \`\`\`
 
-Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
 **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
@@ -79,7 +79,7 @@ ${getNextTaskReminder()}
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
-- Read current task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\``;
+- Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\``;
 
   return createSection('commands-reference', 'knowledge', content);
 }
