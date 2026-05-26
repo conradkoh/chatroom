@@ -35,5 +35,8 @@ export function getHandoffRulesSection(config: TeamCompositionConfig): string {
   ].join('\n');
 
   return `**Handoff Rules:**
+
+⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+
 ${lines}`;
 }

@@ -36,6 +36,8 @@ As the entry point, you receive user messages directly. When you receive a user 
   return `
 ## Builder Workflow
 
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
 You are responsible for implementing code changes based on requirements.
 ${classificationNote}
 

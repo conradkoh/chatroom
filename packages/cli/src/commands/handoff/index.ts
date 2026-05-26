@@ -11,8 +11,8 @@
  * 6. Promotes the next queued task to pending
  */
 
-import { getNextTaskCommand } from '@workspace/backend/prompts/cli/get-next-task/command.js';
 import { handoffCommand } from '@workspace/backend/prompts/cli/handoff/command.js';
+import { generateHandoffOutput } from '@workspace/backend/prompts/generator.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
@@ -222,8 +222,9 @@ export async function handoff(
     process.exit(1);
   }
 
-  console.log(`✅ Task completed and handed off to ${nextRole}`);
-  console.log(`📋 Summary: ${message}`);
+  const convexUrl = d.session.getConvexUrl();
+
+  console.log(generateHandoffOutput({ role, nextRole, chatroomId, convexUrl }));
 
   if (attachedArtifactIds.length > 0) {
     console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);
@@ -279,8 +280,4 @@ export async function handoff(
       }
     }
   }
-
-  const convexUrl = d.session.getConvexUrl();
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  console.log(`\n⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 }

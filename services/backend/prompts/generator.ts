@@ -35,6 +35,7 @@ import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
+import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import {
   getTeamHeaderSection,
   getRoleTitleSection,
@@ -636,6 +637,9 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getRoleDescriptionSection(selectorCtx));
   sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }));
 
+  // Session model: explains Level A (session) vs Level B (chatroom task) — high salience
+  sections.push(getSessionVsChatroomTaskSection());
+
   // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
 
@@ -692,7 +696,9 @@ export function generateHandoffOutput(params: {
   const lines: string[] = [];
   lines.push(`✅ Task completed and handed off to ${nextRole}`);
   lines.push('');
-  lines.push(`Run now to receive your next task:`);
+  lines.push('✅ Level B complete (chatroom task handed off).');
+  lines.push('⏳ Level A continues (session is still active) — run get-next-task to stay connected:');
+  lines.push('');
   lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 
   return lines.join('\n');

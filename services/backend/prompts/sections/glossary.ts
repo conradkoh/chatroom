@@ -28,6 +28,32 @@ export interface GlossaryTerm {
 
 export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
+    term: 'session',
+    definition:
+      'The entire agent invocation — from harness startup to shutdown. ' +
+      'A session spans many chatroom tasks. Completing a task (handoff) does NOT end the session. ' +
+      'Always run `get-next-task` after a handoff to stay in the session.',
+  },
+  {
+    term: 'chatroom-task',
+    definition:
+      'One discrete unit of work delivered by `get-next-task`. ' +
+      'A chatroom task begins when the agent receives it and ends when the agent runs `handoff`. ' +
+      'Completing a chatroom task only closes Level B — the session (Level A) continues.',
+  },
+  {
+    term: 'harness-turn',
+    definition:
+      'One invocation of the agent by its harness (e.g., Cursor, OpenCode, Command Code, remote agent). ' +
+      'A harness turn = a session. Within a harness turn, the agent processes many chatroom tasks.',
+  },
+  {
+    term: 'listen-loop',
+    definition:
+      'The mandatory foreground loop: after every `handoff`, run `get-next-task` to listen for the next chatroom task. ' +
+      'Running `get-next-task` in the background or skipping it breaks the listen loop and disconnects the agent.',
+  },
+  {
     term: 'backlog',
     definition:
       'The list of work items the team intends to do but has not yet started. ' +

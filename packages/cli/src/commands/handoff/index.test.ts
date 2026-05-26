@@ -121,7 +121,8 @@ describe('handoff', () => {
 
       const output = getAllLogOutput();
       expect(output).toContain('Task completed and handed off to builder');
-      expect(output).toContain('Task completed, handing off');
+      expect(output).toContain('Level B complete');
+      expect(output).toContain('Level A continues');
       expect(output).toContain('get-next-task');
     });
   });

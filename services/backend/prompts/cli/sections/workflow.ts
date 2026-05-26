@@ -52,7 +52,7 @@ flowchart TD
     M -->|yes| F
     M -->|no| N[Verify: pnpm typecheck && pnpm test]
     N --> O[Deliver final result to user]
-    O --> P([Stop])
+    O --> P[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -79,7 +79,7 @@ flowchart TD
     L -->|yes| F
     L -->|no| M[Verify: pnpm typecheck && pnpm test]
     M --> N[Deliver final result to user]
-    N --> O([Stop])
+    N --> O[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -105,7 +105,7 @@ flowchart TD
     K -->|yes| F
     K -->|no| L[Verify: pnpm typecheck && pnpm test]
     L --> M[Deliver final result to user]
-    M --> N([Stop])
+    M --> N[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -122,5 +122,6 @@ export function getPlannerSoloWorkflow(): string {
 5. Implement the solution yourself (following workflow steps if created)
 6. Review your own work for quality
 7. Verify: \`pnpm typecheck && pnpm test\`
-8. Deliver to **user**`;
+8. Deliver to **user**
+9. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)`;
 }

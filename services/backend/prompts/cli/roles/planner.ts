@@ -56,6 +56,8 @@ As the entry point, you receive user messages directly. When you receive a user 
 
   return `## Planner Workflow
 
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
 You are the team coordinator and the **single point of contact** for the user.
 ${classificationNote}
 

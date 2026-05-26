@@ -15,6 +15,7 @@ import {
   getTeamAvailabilitySection,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import { getTwoLevelsTableSection } from '../../../sections/session-vs-chatroom-task';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 import { getCliEnvPrefix } from '../../../utils/env';
 
@@ -37,6 +38,8 @@ As the entry point, you receive user messages directly. When you receive a user 
     : '';
 
   return `## Solo Workflow
+
+${getTwoLevelsTableSection()}
 
 You are an autonomous agent responsible for BOTH planning and implementing tasks independently.
 ${classificationNote}

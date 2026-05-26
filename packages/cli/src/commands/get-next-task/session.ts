@@ -425,7 +425,7 @@ export class GetNextTaskSession {
 
       // Log task received with timestamp
       const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
+      console.log(`\n[${taskReceivedTime}] 📨 CHATROOM TASK received\n`);
 
       // Print the complete backend-generated output
       console.log(sanitizeForTerminal(taskDeliveryPrompt.fullCliOutput));

@@ -32,7 +32,9 @@ describe('Duo Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to builder
 
-      Run now to receive your next task:
+      ✅ Level B complete (chatroom task handed off).
+      ⏳ Level A continues (session is still active) — run get-next-task to stay connected:
+
       \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
@@ -50,7 +52,9 @@ describe('Duo Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to user
 
-      Run now to receive your next task:
+      ✅ Level B complete (chatroom task handed off).
+      ⏳ Level A continues (session is still active) — run get-next-task to stay connected:
+
       \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });

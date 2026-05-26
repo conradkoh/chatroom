@@ -45,6 +45,8 @@ When you receive a task from \`get-next-task\`, the task content is hidden. You 
 
 Failure to run \`task read\` promptly may trigger the system to restart you.
 
+⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
+
 ### Context Recovery (after compaction/summarization)
 
 ${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
@@ -62,5 +64,7 @@ Listen for incoming tasks assigned to your role.
 \`\`\`bash
 ${cliEnvPrefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\`
+
+**This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 `;
 }

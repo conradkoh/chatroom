@@ -21,6 +21,8 @@ export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
   return `
 ## Reviewer Workflow
 
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
 You receive handoffs from other agents containing work to review or validate.
 
 **Typical Flow:**
