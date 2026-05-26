@@ -9,7 +9,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { validateSession } from './auth/cliSessionAuth';
 import { str } from './utils/types';
@@ -371,6 +371,34 @@ export const getPendingRequests = query({
       .collect();
 
     return rows;
+  },
+});
+
+/**
+ * Resets any orphaned 'processing' requests back to 'pending' for the given machine.
+ *
+ * Called by the CLI daemon on startup to recover requests that were interrupted
+ * by a previous daemon crash. Without this, requests stuck in 'processing' are
+ * permanently orphaned since getPendingRequests only returns status='pending' rows.
+ */
+export const resetProcessingRequests = internalMutation({
+  args: {
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'processing')
+      )
+      .collect();
+
+    const now = Date.now();
+    for (const row of rows) {
+      await ctx.db.patch(row._id, { status: 'pending', updatedAt: now });
+    }
+
+    return rows.length;
   },
 });
 
