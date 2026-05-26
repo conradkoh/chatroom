@@ -21,7 +21,7 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
 
 export type CommandCodeAgentServiceDeps = CLIAgentServiceDeps;
@@ -89,6 +89,38 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
   async listModels(): Promise<string[]> {
     return COMMANDCODE_MODELS;
+  }
+
+  /**
+   * Registers exit handling synchronously so short-lived `cmd -p` processes that
+   * exit before the consumer calls onExit() still deliver callbacks (Node does
+   * not replay late 'exit' listeners).
+   */
+  private createExitSubscription(
+    childProcess: ChildProcess,
+    pid: number,
+    context: SpawnContext
+  ): SpawnResult['onExit'] {
+    let exitInfo: { code: number | null; signal: string | null } | null = null;
+    const exitCallbacks: Array<
+      (exit: { code: number | null; signal: string | null; context: SpawnContext }) => void
+    > = [];
+
+    childProcess.on('exit', (code, signal) => {
+      this.deleteProcess(pid);
+      exitInfo = { code, signal };
+      for (const cb of exitCallbacks) {
+        cb({ code, signal, context });
+      }
+    });
+
+    return (cb) => {
+      if (exitInfo) {
+        cb({ ...exitInfo, context });
+      } else {
+        exitCallbacks.push(cb);
+      }
+    };
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
@@ -188,14 +220,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
         });
       }
 
+      const onExit = this.createExitSubscription(childProcess, pid, context);
+
       return {
         pid,
-        onExit: (cb) => {
-          childProcess.on('exit', (code, signal) => {
-            this.deleteProcess(pid);
-            cb({ code, signal, context });
-          });
-        },
+        onExit,
         onOutput: (cb) => {
           outputCallbacks.push(cb);
         },
@@ -204,6 +233,8 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
         },
       };
     }
+
+    const onExit = this.createExitSubscription(childProcess, pid, context);
 
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
@@ -215,12 +246,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
     return {
       pid,
-      onExit: (cb) => {
-        childProcess.on('exit', (code, signal) => {
-          this.deleteProcess(pid);
-          cb({ code, signal, context });
-        });
-      },
+      onExit,
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
