@@ -393,7 +393,9 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
   const { reaped } = await reapOrphanedProcessGroups();
   if (reaped > 0) {
-    console.log(`[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`);
+    console.log(
+      `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
+    );
   }
 
   // Clean up orphaned temp files from previous daemon runs.
@@ -483,6 +485,7 @@ export async function initDaemon(): Promise<DaemonContext> {
           config.harnessVersions as Record<string, unknown>
         ),
         observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
+        logger: console,
       };
 
       registerEventListeners(ctx);

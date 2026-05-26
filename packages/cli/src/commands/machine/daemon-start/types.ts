@@ -127,4 +127,6 @@ export interface DaemonContext {
    * does not require another push unless models also changed.
    */
   lastPushedHarnessFingerprint: string | null;
+  /** Logger for daemon output. Defaults to console if not provided. */
+  logger?: Pick<Console, 'log' | 'warn'>;
 }
