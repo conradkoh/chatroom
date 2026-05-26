@@ -309,6 +309,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
             </div>
           ) : (
             <WorkspacePRReview
+              key={selectedPR.prNumber}
               activePR={selectedPR}
               machineId={machineId}
               workingDir={workingDir}
