@@ -16,28 +16,44 @@ interface PRActionButtonsProps {
   loading?: boolean;
   /** Called after a successful action trigger — consumers can close modals, etc. */
   onSuccess?: () => void;
+  /** Error message to display after a failed action — cleared on next action */
+  error?: string | null;
 }
 
 export const PRActionButtons = memo(function PRActionButtons({
   onAction,
   loading,
   onSuccess,
+  error,
 }: PRActionButtonsProps) {
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showError, setShowError] = useState(false);
   const prevLoadingRef = useRef(loading);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect when loading transitions from true → false (action completed)
   useEffect(() => {
     if (prevLoadingRef.current && !loading) {
-      setShowFeedback(true);
-      const timer = setTimeout(() => setShowFeedback(false), 2000);
-      onSuccess?.();
-      return () => clearTimeout(timer);
+      if (error) {
+        setShowError(true);
+        setTimeout(() => setShowError(false), 4000);
+      } else {
+        setShowFeedback(true);
+        setTimeout(() => setShowFeedback(false), 2000);
+        onSuccess?.();
+      }
     }
     prevLoadingRef.current = loading;
-  }, [loading, onSuccess]);
+  }, [loading, onSuccess, error]);
+
+  // Clear error when a new action starts (loading goes true)
+  useEffect(() => {
+    if (loading) {
+      setShowError(false);
+      setShowFeedback(false);
+    }
+  }, [loading]);
 
   // Auto-reset close confirmation after 3s
   useEffect(() => {
@@ -91,6 +107,14 @@ export const PRActionButtons = memo(function PRActionButtons({
       {showFeedback && (
         <span className="text-[10px] font-bold text-green-500 dark:text-green-400 uppercase tracking-wider animate-pulse">
           ✓ Action sent
+        </span>
+      )}
+      {showError && error && (
+        <span
+          className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider truncate max-w-[200px]"
+          title={error}
+        >
+          ✗ {error}
         </span>
       )}
     </div>
