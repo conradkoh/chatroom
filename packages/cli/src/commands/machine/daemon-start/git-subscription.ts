@@ -62,6 +62,27 @@ export function startGitRequestSubscription(
   // Track whether we're currently processing to avoid overlapping batches
   let processing = false;
 
+  // Reset any orphaned 'processing' requests left behind by a previous daemon crash.
+  // Without this, requests stuck in 'processing' are permanently lost since
+  // getPendingRequests only returns status='pending' rows.
+  ctx.deps.backend
+    .mutation(api.workspaces.resetProcessingRequests, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    })
+    .then((resetCount: number) => {
+      if (resetCount > 0) {
+        console.log(
+          `[${formatTimestamp()}] 🔀 Reset ${resetCount} orphaned processing request(s) to pending`
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Failed to reset orphaned processing requests: ${getErrorMessage(err)}`
+      );
+    });
+
   const unsubscribe = wsClient.onUpdate(
     api.workspaces.getPendingRequests,
     {

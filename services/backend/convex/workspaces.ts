@@ -9,7 +9,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { internalMutation, mutation, query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { validateSession } from './auth/cliSessionAuth';
 import { str } from './utils/types';
@@ -381,11 +381,15 @@ export const getPendingRequests = query({
  * by a previous daemon crash. Without this, requests stuck in 'processing' are
  * permanently orphaned since getPendingRequests only returns status='pending' rows.
  */
-export const resetProcessingRequests = internalMutation({
+export const resetProcessingRequests = mutation({
   args: {
+    ...SessionIdArg,
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) throw new Error('Authentication required');
+
     const rows = await ctx.db
       .query('chatroom_workspaceDiffRequests')
       .withIndex('by_machine_status', (q) =>
