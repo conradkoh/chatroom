@@ -20,6 +20,9 @@ interface PRActionButtonsProps {
   error?: string | null;
 }
 
+const SENT_FEEDBACK_MS = 1000;
+const ERROR_FEEDBACK_MS = 4000;
+
 export const PRActionButtons = memo(function PRActionButtons({
   onAction,
   loading,
@@ -27,33 +30,62 @@ export const PRActionButtons = memo(function PRActionButtons({
   error,
 }: PRActionButtonsProps) {
   const [confirmingClose, setConfirmingClose] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
+  const [lastAction, setLastAction] = useState<PRAction | null>(null);
+  const [sentAction, setSentAction] = useState<PRAction | null>(null);
   const [showError, setShowError] = useState(false);
   const prevLoadingRef = useRef(loading);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSentTimer = useCallback(() => {
+    if (sentTimerRef.current) {
+      clearTimeout(sentTimerRef.current);
+      sentTimerRef.current = null;
+    }
+  }, []);
+
+  const clearErrorTimer = useCallback(() => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+  }, []);
 
   // Detect when loading transitions from true → false (action completed)
   useEffect(() => {
     if (prevLoadingRef.current && !loading) {
       if (error) {
         setShowError(true);
-        setTimeout(() => setShowError(false), 4000);
-      } else {
-        setShowFeedback(true);
-        setTimeout(() => setShowFeedback(false), 2000);
+        clearErrorTimer();
+        errorTimerRef.current = setTimeout(() => setShowError(false), ERROR_FEEDBACK_MS);
+      } else if (lastAction) {
+        setSentAction(lastAction);
+        clearSentTimer();
+        sentTimerRef.current = setTimeout(() => setSentAction(null), SENT_FEEDBACK_MS);
         onSuccess?.();
       }
     }
     prevLoadingRef.current = loading;
-  }, [loading, onSuccess, error]);
+  }, [loading, onSuccess, error, lastAction, clearSentTimer, clearErrorTimer]);
 
-  // Clear error when a new action starts (loading goes true)
+  // Clear feedback when a new action starts (loading goes true)
   useEffect(() => {
     if (loading) {
       setShowError(false);
-      setShowFeedback(false);
+      setSentAction(null);
+      clearSentTimer();
+      clearErrorTimer();
     }
-  }, [loading]);
+  }, [loading, clearSentTimer, clearErrorTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearSentTimer();
+      clearErrorTimer();
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, [clearSentTimer, clearErrorTimer]);
 
   // Auto-reset close confirmation after 3s
   useEffect(() => {
@@ -65,32 +97,46 @@ export const PRActionButtons = memo(function PRActionButtons({
     }
   }, [confirmingClose]);
 
+  const triggerAction = useCallback(
+    (action: PRAction) => {
+      setLastAction(action);
+      onAction(action);
+    },
+    [onAction],
+  );
+
   const handleClose = useCallback(() => {
     if (confirmingClose) {
       setConfirmingClose(false);
-      onAction('close');
+      triggerAction('close');
     } else {
       setConfirmingClose(true);
     }
-  }, [confirmingClose, onAction]);
+  }, [confirmingClose, triggerAction]);
+
+  const labelFor = (action: PRAction, defaultLabel: string) => {
+    if (loading && lastAction === action) return '...';
+    if (sentAction === action) return 'SENT!';
+    return defaultLabel;
+  };
 
   return (
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={() => onAction('merge_squash')}
+        onClick={() => triggerAction('merge_squash')}
         disabled={loading}
         className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary border border-chatroom-accent transition-all duration-100 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? '...' : 'Merge (Squash)'}
+        {labelFor('merge_squash', 'Merge (Squash)')}
       </button>
       <button
         type="button"
-        onClick={() => onAction('merge_no_squash')}
+        onClick={() => triggerAction('merge_no_squash')}
         disabled={loading}
         className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-chatroom-bg-primary text-chatroom-text-secondary border border-chatroom-border transition-all duration-100 hover:border-chatroom-accent hover:text-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Merge
+        {labelFor('merge_no_squash', 'Merge')}
       </button>
       <button
         type="button"
@@ -102,13 +148,14 @@ export const PRActionButtons = memo(function PRActionButtons({
             : 'bg-chatroom-bg-primary text-red-500 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20'
         }`}
       >
-        {confirmingClose ? 'Confirm Close?' : 'Close'}
+        {loading && lastAction === 'close'
+          ? '...'
+          : sentAction === 'close'
+            ? 'SENT!'
+            : confirmingClose
+              ? 'Confirm Close?'
+              : 'Close'}
       </button>
-      {showFeedback && (
-        <span className="text-[10px] font-bold text-green-500 dark:text-green-400 uppercase tracking-wider animate-pulse">
-          ✓ Action sent
-        </span>
-      )}
       {showError && error && (
         <span
           className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider truncate max-w-[200px]"
