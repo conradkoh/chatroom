@@ -21,7 +21,13 @@ function createMockDeps(
   return {
     execSync: vi.fn(),
     spawn: vi.fn(),
-    kill: vi.fn(),
+    kill: vi.fn((pid: number, signal?: number | string) => {
+      // Signal 0 = existence check (isAlive). Treat unknown PIDs as dead in tests.
+      if (signal === 0) {
+        throw new Error('ESRCH');
+      }
+      return true;
+    }),
     sessionMetadataStore: new InMemorySessionMetadataStore(),
     ...overrides,
   };
@@ -141,7 +147,8 @@ function stubSdkClientForStop(overrides?: { abortThrows?: Error }) {
   return { abort: sharedAbortFn };
 }
 
-const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
+/** Isolated IDs — avoid collision with ~/.chatroom/opencode-sdk-sessions.json test fixtures. */
+const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'test-spawn-chatroom', role: 'builder' };
 
 function spawnOptions(
   overrides?: { model?: string; systemPrompt?: string; prompt?: string },
@@ -165,6 +172,13 @@ describe('OpenCodeSdkAgentService', () => {
 
   afterEach(() => {
     stderrWriteSpy.mockRestore();
+  });
+
+  it('uses injected sessionMetadataStore from deps', () => {
+    const store = new InMemorySessionMetadataStore();
+    const deps = createMockDeps({ sessionMetadataStore: store });
+    const service = new OpenCodeSdkAgentService(deps);
+    expect((service as unknown as { sessionStore: unknown }).sessionStore).toBe(store);
   });
 
   describe('isInstalled', () => {
@@ -394,6 +408,37 @@ describe('OpenCodeSdkAgentService', () => {
   describe('spawn lifecycle', () => {
     beforeEach(() => {
       vi.mocked(createOpencodeClient).mockReset();
+    });
+
+    it('clears stale session metadata for same chatroom+role before spawning', async () => {
+      const store = new InMemorySessionMetadataStore();
+      store.upsert({
+        sessionId: 'old-sess',
+        machineId: 'm1',
+        chatroomId: SPAWN_CONTEXT.chatroomId,
+        role: 'builder',
+        pid: 1111,
+        createdAt: '2026-04-25T00:00:00.000Z',
+        baseUrl: 'http://127.0.0.1:1111',
+      });
+
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({
+        sessionMetadataStore: store,
+        spawn: vi.fn().mockReturnValue(child),
+      });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+      await spawnPromise;
+
+      expect(store.get('old-sess')).toBeUndefined();
+      expect(deps.spawn).toHaveBeenCalled();
     });
 
     it('happy path: spawns serve, parses URL, creates session, sends promptAsync with built-in agent', async () => {

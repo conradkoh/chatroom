@@ -17,6 +17,7 @@ export interface SessionMetadata {
 export interface SessionMetadataStore {
   get(sessionId: string): SessionMetadata | undefined;
   findByPid(pid: number): SessionMetadata | undefined;
+  findByChatroomRole(chatroomId: string, role: string): SessionMetadata[];
   upsert(meta: SessionMetadata): void;
   remove(sessionId: string): void;
 }
@@ -32,6 +33,12 @@ export class InMemorySessionMetadataStore implements SessionMetadataStore {
 
   findByPid(pid: number): SessionMetadata | undefined {
     return Object.values(this.sessions).find((m) => m.pid === pid);
+  }
+
+  findByChatroomRole(chatroomId: string, role: string): SessionMetadata[] {
+    return Object.values(this.sessions).filter(
+      (m) => m.chatroomId === chatroomId && m.role === role
+    );
   }
 
   upsert(meta: SessionMetadata): void {
@@ -80,6 +87,13 @@ export class FileSessionMetadataStore implements SessionMetadataStore {
   findByPid(pid: number): SessionMetadata | undefined {
     const sessions = this.load();
     return Object.values(sessions).find((m) => m.pid === pid);
+  }
+
+  findByChatroomRole(chatroomId: string, role: string): SessionMetadata[] {
+    const sessions = this.load();
+    return Object.values(sessions).filter(
+      (m) => m.chatroomId === chatroomId && m.role === role
+    );
   }
 
   upsert(meta: SessionMetadata): void {

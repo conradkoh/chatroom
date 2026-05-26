@@ -49,6 +49,31 @@ describe('InMemorySessionMetadataStore', () => {
     });
   });
 
+  describe('findByChatroomRole', () => {
+    it('returns empty array when no sessions match', () => {
+      expect(store.findByChatroomRole('c1', 'builder')).toEqual([]);
+    });
+
+    it('returns all sessions for chatroom+role', () => {
+      store.upsert(SAMPLE_META);
+      store.upsert({
+        ...SAMPLE_META,
+        sessionId: 'sess-2',
+        pid: 5678,
+      });
+      store.upsert({
+        ...SAMPLE_META,
+        sessionId: 'sess-3',
+        chatroomId: 'c2',
+        pid: 9012,
+      });
+
+      const matches = store.findByChatroomRole('c1', 'builder');
+      expect(matches).toHaveLength(2);
+      expect(matches.map((m) => m.sessionId).sort()).toEqual(['sess-1', 'sess-2']);
+    });
+  });
+
   describe('upsert', () => {
     it('stores new session', () => {
       store.upsert(SAMPLE_META);

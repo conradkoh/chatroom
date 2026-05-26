@@ -23,6 +23,7 @@ import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { dedupeRequestStartEvents } from './utils/dedupeRequestStartEvents';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
@@ -779,6 +780,9 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    const requestStartEvents = startEvents.filter((e) => e.type === 'agent.requestStart');
+    const dedupedStartEvents = dedupeRequestStartEvents(requestStartEvents);
+
     // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
     const stopEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -860,7 +864,7 @@ export const getCommandEvents = query({
 
     // 7. Merge and sort by _creationTime ascending
     const all = [
-      ...startEvents,
+      ...dedupedStartEvents,
       ...stopEvents,
       ...pingEvents,
       ...gitRefreshEvents,

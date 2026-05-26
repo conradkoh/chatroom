@@ -64,7 +64,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
   constructor(deps?: Partial<OpenCodeSdkAgentServiceDeps>) {
     super(deps);
-    this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
+    // Read from merged this.deps — super() spreads sessionMetadataStore into deps.
+    const resolvedDeps = this.deps as OpenCodeSdkAgentServiceDeps;
+    this.sessionStore =
+      resolvedDeps.sessionMetadataStore ?? new FileSessionMetadataStore();
   }
 
   async isInstalled(): Promise<boolean> {
@@ -123,6 +126,22 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const { prompt, systemPrompt, model, context } = options;
+
+    // Stop tracked serve processes for the same chatroom+role before spawning.
+    // Guards against orphans when duplicate agent.requestStart events arrive.
+    const existingSessions = this.sessionStore.findByChatroomRole(
+      context.chatroomId,
+      context.role
+    );
+    for (const meta of existingSessions) {
+      if (this.isAlive(meta.pid)) {
+        console.log(
+          `[opencode-sdk] Stopping existing serve process pid=${meta.pid} for role=${context.role} before respawn`
+        );
+        await this.stop(meta.pid);
+      }
+      this.sessionStore.remove(meta.sessionId);
+    }
 
     const childProcess = this.deps.spawn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
       cwd: options.workingDir,
