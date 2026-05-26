@@ -5,7 +5,10 @@
  * init prompt) and then delegates to `GetNextTaskSession.start()`.
  */
 
-import { getNextTaskGuidance } from '@workspace/backend/prompts/cli/index.js';
+import {
+  getNextTaskGuidance,
+  getNextTaskReminder,
+} from '@workspace/backend/prompts/cli/index.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { GetNextTaskSession } from './session.js';
@@ -158,9 +161,7 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
       console.log(
         `💡 Session active (Level A). Waiting for chatroom tasks (Level B). Each chatroom task completes with handoff; the session continues with get-next-task.\n`
       );
-      console.log(
-        `⚠️ IMPORTANT: This command must stay in the FOREGROUND. If moved to background, terminate and restart it — background processes cannot deliver tasks.\n`
-      );
+      console.log(`⚠️ IMPORTANT: ${getNextTaskReminder()}\n`);
 
       if (!initPromptResult.hasSystemPromptControl) {
         console.log('<!-- REFERENCE: Agent Initialization');

@@ -12,7 +12,7 @@
  * Format: Single line, positive framing, clear consequence
  */
 export function getNextTaskReminder(): string {
-  return 'Message availability is critical: Use `get-next-task` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.';
+  return 'Message availability is critical: Run only one `get-next-task` in the foreground at a time. Before reconnecting, terminate any older backgrounded `get-next-task` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.';
 }
 
 /**
@@ -29,7 +29,9 @@ export function getNextTaskGuidance(): string {
 
 Your primary directive: Stay available to receive chatroom tasks from your team.
 
-Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
+Run a single \`get-next-task\` in the foreground after completing work and handing off. This is how your team sends you the next chatroom task.
+
+Before starting a new session, terminate any older backgrounded \`get-next-task\` processes for this role. Stale sessions can acknowledge incoming tasks and cause grace-period conflicts for your active agent.
 
 If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.`;
 }
