@@ -96,7 +96,9 @@ export type SectionId =
   // Get-next-task reminder
   | 'get-next-task-reminder'
   // Glossary
-  | 'glossary';
+  | 'glossary'
+  // Session model
+  | 'session-vs-chatroom-task';
 
 /**
  * Helper to create a PromptSection with type safety.

@@ -27,7 +27,7 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. Then do your work
 4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
@@ -36,6 +36,8 @@ As the entry point, you receive user messages directly. When you receive a user 
   return `
 ## Builder Workflow
 
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
 You are responsible for implementing code changes based on requirements.
 ${classificationNote}
 
@@ -43,8 +45,8 @@ ${classificationNote}
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task\nnotification]
-    ${hasReviewer ? 'B -->|from user or reviewer| C[Read task with\ntask read]' : 'B -->|from planner| C[Read task with\ntask read]'}
+    A([Start]) --> B[Receive chatroom task\nnotification]
+    ${hasReviewer ? 'B -->|from user or reviewer| C[Read chatroom task with\ntask read]' : 'B -->|from planner| C[Read chatroom task with\ntask read]'}
     C --> D[Implement changes]
     D --> E[Commit work]
     E --> F{Classification?}

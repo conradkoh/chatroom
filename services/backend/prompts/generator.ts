@@ -35,6 +35,7 @@ import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
+import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import {
   getTeamHeaderSection,
   getRoleTitleSection,
@@ -327,7 +328,7 @@ export function generateTaskStartedReminder(
           nextRole: 'user',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as QUESTION.
+        return `✅ Chatroom task acknowledged as QUESTION.
 
 **Next steps:**
 1. Answer the user's question
@@ -354,10 +355,10 @@ Task ID: ${taskId}`;
           role: 'planner',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as NEW FEATURE.
+        return `✅ Chatroom task acknowledged as NEW FEATURE.
 
 **Next steps:**
-1. Decompose the task into clear, actionable work items
+1. Decompose the chatroom task into clear, actionable work items
 2. **Report progress to the user** before delegating — so they know work has started:
 
 \`\`\`bash
@@ -383,7 +384,7 @@ Task ID: ${taskId}`;
           role: 'planner',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as FOLLOW UP.
+        return `✅ Chatroom task acknowledged as FOLLOW UP.
 
 **Next steps:**
 1. Review the follow-up request against previous work
@@ -394,7 +395,7 @@ ${progressCmdFollowUp}
 \`\`\`
 
 3. Delegate to appropriate team member or handle yourself
-4. Follow-up inherits the workflow rules from the original task:
+4. Follow-up inherits the workflow rules from the original chatroom task:
    - If original was a QUESTION → handle and hand off to user when done
    - If original was a NEW FEATURE → delegate, review, and deliver to user
 
@@ -416,7 +417,7 @@ Task ID: ${taskId}`;
         nextRole: handoffTarget,
         cliEnvPrefix,
       });
-      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+      return `✅ Chatroom task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
 
 **Next steps:**
 1. Implement the requested changes
@@ -439,7 +440,7 @@ Task ID: ${taskId}`;
         nextRole: 'planner',
         cliEnvPrefix,
       });
-      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+      return `✅ Chatroom task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
 
 **Next steps:**
 1. Implement the requested changes
@@ -511,7 +512,7 @@ Task ID: ${taskId}`;
 
     switch (classification) {
       case 'question':
-        return `✅ Task acknowledged as QUESTION.
+        return `✅ Chatroom task acknowledged as QUESTION.
 
 **Next steps:**
 1. Answer the user's question
@@ -524,10 +525,10 @@ ${handoffToUserCmd}
 💡 You're working on:
 Task ID: ${taskId}`;
       case 'new_feature':
-        return `✅ Task acknowledged as NEW FEATURE.
+        return `✅ Chatroom task acknowledged as NEW FEATURE.
 
 **Next steps:**
-1. **Plan**: Decompose the task into actionable work items
+1. **Plan**: Decompose the chatroom task into actionable work items
 2. **Report progress**: \`${progressCmd}\` — keep the user informed at milestones
 3. **Implement**: Build the solution yourself using best practices
 4. **Verify**: Run \`pnpm typecheck && pnpm test\` before delivering
@@ -540,14 +541,14 @@ ${handoffToUserCmd}
 💡 Use the workflow skill for multi-step tasks. You're working on:
 Task ID: ${taskId}`;
       case 'follow_up':
-        return `✅ Task acknowledged as FOLLOW UP.
+        return `✅ Chatroom task acknowledged as FOLLOW UP.
 
 **Next steps:**
 1. Review the follow-up request against previous work
 2. **Report progress**: \`${progressCmd}\` — let the user know you're handling it
 3. Plan and implement the follow-up changes yourself
 4. \`pnpm typecheck && pnpm test\` before delivering
-5. Follow-up inherits workflow rules from the original task
+5. Follow-up inherits workflow rules from the original chatroom task
 
 💡 You're working on:
 Task ID: ${taskId}`;
@@ -555,7 +556,7 @@ Task ID: ${taskId}`;
   }
 
   // Generic fallback for unknown roles
-  return `Proceed with your task and hand off when complete.`;
+  return `Proceed with your chatroom task and hand off when complete.`;
 }
 
 // =============================================================================
@@ -636,6 +637,9 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getRoleDescriptionSection(selectorCtx));
   sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }));
 
+  // Session model: explains Level A (session) vs Level B (chatroom task) — high salience
+  sections.push(getSessionVsChatroomTaskSection());
+
   // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
 
@@ -690,9 +694,11 @@ export function generateHandoffOutput(params: {
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
-  lines.push(`✅ Task completed and handed off to ${nextRole}`);
+  lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   lines.push('');
-  lines.push(`Run now to receive your next task:`);
+  lines.push('✅ Level B complete (chatroom task handed off).');
+  lines.push('⏳ Level A continues (session is still active) — run get-next-task to stay connected:');
+  lines.push('');
   lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 
   return lines.join('\n');

@@ -40,3 +40,6 @@ export { getCommandsReferenceSection } from './commands-reference';
 
 // Next Step
 export { getNextStepSection } from './next-step';
+
+// Session vs Chatroom Task
+export { getSessionVsChatroomTaskSection } from './session-vs-chatroom-task';

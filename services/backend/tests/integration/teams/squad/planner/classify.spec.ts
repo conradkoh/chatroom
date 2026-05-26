@@ -40,7 +40,7 @@ describe('Squad Team > Planner > Classify Reminder', () => {
     expect(reminder).toContain('hand off to user');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as QUESTION.
+      "✅ Chatroom task acknowledged as QUESTION.
 
       **Next steps:**
       1. Answer the user's question
@@ -76,10 +76,10 @@ describe('Squad Team > Planner > Classify Reminder', () => {
     expect(reminder).toContain('builder');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as NEW FEATURE.
+      "✅ Chatroom task acknowledged as NEW FEATURE.
 
       **Next steps:**
-      1. Decompose the task into clear, actionable work items
+      1. Decompose the chatroom task into clear, actionable work items
       2. **Report progress to the user** before delegating — so they know work has started:
 
       \`\`\`bash
@@ -123,7 +123,7 @@ describe('Squad Team > Planner > Classify Reminder', () => {
     expect(reminder).toContain('FOLLOW UP');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as FOLLOW UP.
+      "✅ Chatroom task acknowledged as FOLLOW UP.
 
       **Next steps:**
       1. Review the follow-up request against previous work
@@ -137,7 +137,7 @@ describe('Squad Team > Planner > Classify Reminder', () => {
       \`\`\`
 
       3. Delegate to appropriate team member or handle yourself
-      4. Follow-up inherits the workflow rules from the original task:
+      4. Follow-up inherits the workflow rules from the original chatroom task:
          - If original was a QUESTION → handle and hand off to user when done
          - If original was a NEW FEATURE → delegate, review, and deliver to user
 
