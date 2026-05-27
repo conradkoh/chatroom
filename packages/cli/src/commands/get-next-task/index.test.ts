@@ -120,9 +120,9 @@ describe('get-next-task — agent config ownership', () => {
     await getNextTask(TEST_CHATROOM_ID, { role: 'builder' }).catch(() => {});
 
     const allOutput = consoleSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(allOutput).toContain('blocking tool call');
     expect(allOutput).toContain('foreground');
-    expect(allOutput).toContain('backgrounded');
-    expect(allOutput).toContain('kill it and restart');
+    expect(allOutput).toContain('grace-period');
 
     consoleSpy.mockRestore();
   });

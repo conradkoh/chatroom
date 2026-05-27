@@ -406,7 +406,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-squad-chatroom" --role="planner"
       \`\`\`
 
-      Message availability is critical: Run only one \`get-next-task\` in the foreground at a time. Before reconnecting, terminate any older backgrounded \`get-next-task\` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.
+      Message availability requires exactly one foreground \`get-next-task\` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-squad-chatroom" --role="planner" --sender-role=user --limit=5 --full\`

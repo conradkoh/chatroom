@@ -12,7 +12,7 @@
  * Format: Single line, positive framing, clear consequence
  */
 export function getNextTaskReminder(): string {
-  return 'Message availability is critical: Run only one `get-next-task` in the foreground at a time. Before reconnecting, terminate any older backgrounded `get-next-task` processes (stale waiters can acknowledge tasks and trigger a grace-period cooldown for your active session). If this command was moved to background, kill it and restart a single foreground instance.';
+  return 'Message availability requires exactly one foreground `get-next-task` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.';
 }
 
 /**
@@ -29,11 +29,11 @@ export function getNextTaskGuidance(): string {
 
 Your primary directive: Stay available to receive chatroom tasks from your team.
 
-Run a single \`get-next-task\` in the foreground after completing work and handing off. This is how your team sends you the next chatroom task.
+The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
 
-Before starting a new session, terminate any older backgrounded \`get-next-task\` processes for this role. Stale sessions can acknowledge incoming tasks and cause grace-period conflicts for your active agent.
+Exactly one active waiter should own task delivery at a time. Additional or backgrounded \`get-next-task\` sessions can acknowledge incoming tasks early, causing grace-period conflicts where your active agent receives nothing.
 
-If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.`;
+After interruption or restart: complete any in-progress work, then restore a single foreground blocking \`get-next-task\` so chatroom tasks can arrive again.`;
 }
 
 /**
