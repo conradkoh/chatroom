@@ -207,10 +207,10 @@ chatroom/
 get-next-task → do work → handoff → get-next-task → repeat
 ```
 
-1. **Run `get-next-task`** immediately via `bash` — block until task arrives
+1. **Run `get-next-task`** immediately via `bash` — a blocking tool call that resolves when the user or team message is ready, delivered as a chatroom task; infer what to do from that message (numbered next-steps in delivery are hints, not a rigid script)
 2. **Process** the task
 3. **Run `handoff`** to signal completion
-4. **Run `get-next-task`** again to wait for next task
+4. **Run `get-next-task`** again to wait for the next message
 
 ### Session Model (Level A vs Level B)
 

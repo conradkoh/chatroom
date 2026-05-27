@@ -12,7 +12,7 @@
  * Format: Single line, positive framing, clear consequence
  */
 export function getNextTaskReminder(): string {
-  return 'Message availability is critical: Use `get-next-task` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.';
+  return 'A foreground `get-next-task` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.';
 }
 
 /**
@@ -29,9 +29,13 @@ export function getNextTaskGuidance(): string {
 
 Your primary directive: Stay available to receive chatroom tasks from your team.
 
-Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next chatroom task.
+When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
 
-If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.`;
+The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
+
+Exactly one active waiter should own task delivery at a time. Additional or backgrounded \`get-next-task\` sessions can acknowledge incoming tasks early, causing grace-period conflicts where your active agent receives nothing.
+
+After interruption or restart: complete any in-progress work, then restore a single foreground blocking \`get-next-task\` so chatroom tasks can arrive again.`;
 }
 
 /**

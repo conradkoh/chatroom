@@ -59,7 +59,7 @@ ${cliEnvPrefix}chatroom register-agent --chatroom-id="${chatroomId}" --role="${r
 \`\`\`
 
 ### Get Next Task
-Listen for incoming tasks assigned to your role.
+Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"
