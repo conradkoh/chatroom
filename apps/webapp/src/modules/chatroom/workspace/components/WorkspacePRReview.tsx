@@ -47,12 +47,10 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   const prNumber = activePR.prNumber!;
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
 
-  // Auto-request PR diff when component mounts or PR number changes
+  // Always request a fresh diff when the selected PR changes (cached rows may be stale).
   useEffect(() => {
-    if (prDiffState.status === 'idle') {
-      requestPRDiff(baseBranch, prNumber);
-    }
-  }, [prDiffState.status, requestPRDiff, baseBranch, prNumber]);
+    requestPRDiff(baseBranch, prNumber);
+  }, [requestPRDiff, baseBranch, prNumber]);
 
   const handlePRAction = useCallback(
     async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
@@ -92,9 +90,10 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
         />
       </div>
 
-      {/* PR diff content */}
+      {/* PR diff content — key resets file selection when switching PRs */}
       <div className="flex-1 overflow-y-auto">
         <WorkspaceDiffViewer
+          key={prNumber}
           state={prDiffState}
           onRequest={() => requestPRDiff(baseBranch, prNumber)}
           machineId={machineId}
