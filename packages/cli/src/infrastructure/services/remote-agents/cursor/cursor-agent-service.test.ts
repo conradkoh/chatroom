@@ -3,7 +3,11 @@ import { EventEmitter, Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSpawnPrompt } from '../spawn-prompt.js';
-import { CursorAgentService, type CursorAgentServiceDeps } from './cursor-agent-service.js';
+import {
+  CursorAgentService,
+  resolveCursorCliModel,
+  type CursorAgentServiceDeps,
+} from './cursor-agent-service.js';
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {
   return {
@@ -84,6 +88,16 @@ describe('CursorAgentService', () => {
       expect(models).toContain('gpt-5.4-high');
       expect(models).toContain('claude-4.6-sonnet-medium');
       expect(models).toContain('gemini-3.1-pro');
+    });
+  });
+
+  describe('resolveCursorCliModel', () => {
+    it('strips cursor/ prefix for CLI', () => {
+      expect(resolveCursorCliModel('cursor/gpt-5.4-high')).toBe('gpt-5.4-high');
+    });
+
+    it('passes through bare slugs', () => {
+      expect(resolveCursorCliModel('gpt-5.4-high')).toBe('gpt-5.4-high');
     });
   });
 
@@ -183,6 +197,78 @@ describe('CursorAgentService', () => {
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
       expect(typeof result.onAgentEnd).toBe('function');
+    });
+
+    it('strips cursor/ prefix from model before passing to CLI', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 43,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        prompt: createSpawnPrompt('Hello'),
+        systemPrompt: 'System',
+        model: 'cursor/gpt-5.4-high',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'agent',
+        ['-p', '--force', '--output-format', 'stream-json', '--model', 'gpt-5.4-high'],
+        expect.any(Object)
+      );
+    });
+
+    it('accepts bare model slug for backward compatibility with saved preferences', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 44,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        prompt: createSpawnPrompt('Hello'),
+        systemPrompt: 'System',
+        model: 'gpt-5.4-high',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'agent',
+        ['-p', '--force', '--output-format', 'stream-json', '--model', 'gpt-5.4-high'],
+        expect.any(Object)
+      );
     });
 
     it('spawns without --model flag when model is not specified', async () => {
