@@ -140,7 +140,7 @@ export interface UserProfileProps {
  *
  * @public
  */
-export type UserRole = "admin" | "user" | "guest";
+export type UserRole = 'admin' | 'user' | 'guest';
 
 /**
  * Internal state for managing user profile form data.
@@ -205,7 +205,7 @@ function processData(data: DataItem[]): number[] {}
 function handleClick(event: React.MouseEvent<HTMLButtonElement>) {}
 
 // ✅ MUST use proper Convex context types
-import { type MutationCtx, type QueryCtx } from "./_generated/server";
+import { type MutationCtx, type QueryCtx } from './_generated/server';
 ```
 
 ### Step 3: Reorganize File Structure
@@ -223,9 +223,9 @@ import { type MutationCtx, type QueryCtx } from "./_generated/server";
 **Properly Organized File:**
 
 ```typescript
-import React, { useCallback, useState } from "react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import React, { useCallback, useState } from 'react';
+import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 
 /**
  * Configuration for user profile display and editing capabilities.
@@ -242,7 +242,7 @@ export interface UserProfileProps {
  * Available user roles in the system with different permission levels.
  * @public
  */
-export type UserRole = "admin" | "user" | "guest";
+export type UserRole = 'admin' | 'user' | 'guest';
 
 /**
  * Internal state for managing user profile form data.
@@ -282,7 +282,7 @@ export function UserProfile({ userId, editable }: UserProfileProps) {
 export async function createUser(userData: CreateUserRequest): Promise<string> {
   const validation = validateUserData(userData);
   if (!validation.isValid) {
-    throw new Error(validation.errors.join(", "));
+    throw new Error(validation.errors.join(', '));
   }
   // Implementation
 }
@@ -295,7 +295,7 @@ function validateUserData(userData: CreateUserRequest): ValidationResult {
   const errors: string[] = [];
 
   if (!validateEmail(userData.email)) {
-    errors.push("Invalid email format");
+    errors.push('Invalid email format');
   }
 
   return {
@@ -523,6 +523,7 @@ This document uses RFC 2119 terminology:
 - **MAY**: Optional
 
 ---
+
 <!-- Ignore section if arguments are not replaced -->
 <userinput>
 $ARGUMENTS

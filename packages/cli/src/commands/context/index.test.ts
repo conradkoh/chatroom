@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContextDeps } from './deps.js';
-import { readContext, listContexts, newContext } from './index.js';
+import { readContext, listContexts, newContext, viewTemplate } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -25,9 +25,9 @@ function createMockDeps(overrides?: Partial<ContextDeps>): ContextDeps {
       query: vi.fn().mockResolvedValue(null),
     },
     session: {
-      getSessionId: vi.fn().mockReturnValue(TEST_SESSION_ID),
+      getSessionId: vi.fn().mockResolvedValue(TEST_SESSION_ID),
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-      getOtherSessionUrls: vi.fn().mockReturnValue([]),
+      getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
@@ -68,9 +68,9 @@ describe('readContext', () => {
     it('exits with code 1 when not authenticated', async () => {
       const deps = createMockDeps({
         session: {
-          getSessionId: vi.fn().mockReturnValue(null),
+          getSessionId: vi.fn().mockResolvedValue(null),
           getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-          getOtherSessionUrls: vi.fn().mockReturnValue([]),
+          getOtherSessionUrls: vi.fn().mockResolvedValue([]),
         },
       });
 
@@ -285,6 +285,54 @@ describe('listContexts', () => {
       expect(getAllErrorOutput()).toContain('Failed to list contexts');
       expect(getAllErrorOutput()).toContain('Permission denied');
     });
+  });
+});
+
+describe('viewTemplate', () => {
+  it('returns a string with Goal, Requirements, Structure, and Avoid headings in order', () => {
+    const template = viewTemplate();
+
+    expect(typeof template).toBe('string');
+
+    // Assert headings in order
+    const goalIndex = template.indexOf('## Goal');
+    const requirementsIndex = template.indexOf('## Requirements');
+    const structureIndex = template.indexOf('## Structure');
+    const avoidIndex = template.indexOf('## Avoid');
+
+    expect(goalIndex).toBeGreaterThanOrEqual(0);
+    expect(requirementsIndex).toBeGreaterThan(goalIndex);
+    expect(structureIndex).toBeGreaterThan(requirementsIndex);
+    expect(avoidIndex).toBeGreaterThan(structureIndex);
+  });
+
+  it('includes placeholder content for each section', () => {
+    const template = viewTemplate();
+
+    // Goal section should have at least one angle-bracketed placeholder
+    const goalSection = template.slice(
+      template.indexOf('## Goal'),
+      template.indexOf('## Requirements')
+    );
+    expect(goalSection).toMatch(/<[^>]+>/);
+
+    // Requirements section should have at least one bullet placeholder
+    const requirementsSection = template.slice(
+      template.indexOf('## Requirements'),
+      template.indexOf('## Structure')
+    );
+    expect(requirementsSection).toMatch(/- <[^>]+>/);
+
+    // Structure section should have at least one bullet placeholder
+    const structureSection = template.slice(
+      template.indexOf('## Structure'),
+      template.indexOf('## Avoid')
+    );
+    expect(structureSection).toMatch(/- <[^>]+>/);
+
+    // Avoid section should have at least one bullet placeholder
+    const avoidSection = template.slice(template.indexOf('## Avoid'));
+    expect(avoidSection).toMatch(/- <[^>]+>/);
   });
 });
 

@@ -5,8 +5,8 @@
  * after receiving an event.
  */
 
-import type { Id } from '../../../convex/_generated/dataModel';
 import type { AgentHarness } from './agent.js';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 export type AgentStartedEvent = {
   type: 'agent.started';
@@ -27,7 +27,9 @@ export type AgentExitedEvent = {
   role: string;
   machineId: string;
   pid: number;
-  intentional: boolean;
+  intentional?: boolean;
+  stopReason?: string;
+  stopSignal?: string;
   exitCode?: number;
   signal?: string;
   timestamp: number;
@@ -84,6 +86,16 @@ export type AgentRegisteredEvent = {
   timestamp: number;
 };
 
+export type MachineSwitchedEvent = {
+  type: 'machine.switched';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  previousMachineId: string;
+  newMachineId: string;
+  reason: string;
+  timestamp: number;
+};
+
 export type AgentCircuitOpenEvent = {
   type: 'agent.circuitOpen';
   chatroomId: Id<'chatroom_rooms'>;
@@ -98,6 +110,25 @@ export type AgentWaitingEvent = {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   machineId?: string;
+  timestamp: number;
+};
+
+export type AgentStartFailedEvent = {
+  type: 'agent.startFailed';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  error: string;
+  timestamp: number;
+};
+
+export type AgentRestartLimitReachedEvent = {
+  type: 'agent.restartLimitReached';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  restartCount: number;
+  windowMs: number;
   timestamp: number;
 };
 
@@ -130,6 +161,16 @@ export type DaemonPongEvent = {
   timestamp: number;
 };
 
+export type SkillActivatedEvent = {
+  type: 'skill.activated';
+  chatroomId: Id<'chatroom_rooms'>;
+  skillId: string;
+  skillName: string;
+  role: string;
+  prompt: string;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -139,8 +180,12 @@ export type ChatroomEvent =
   | AgentRequestStartEvent
   | AgentRequestStopEvent
   | AgentRegisteredEvent
+  | MachineSwitchedEvent
   | AgentWaitingEvent
   | TaskAcknowledgedEvent
   | TaskInProgressEvent
   | DaemonPingEvent
-  | DaemonPongEvent;
+  | DaemonPongEvent
+  | SkillActivatedEvent
+  | AgentStartFailedEvent
+  | AgentRestartLimitReachedEvent;

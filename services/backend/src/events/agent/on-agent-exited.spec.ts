@@ -1,27 +1,22 @@
 /**
- * Tests for on-agent-exited — verifies restart logic based on stopReason.
+ * Tests for on-agent-exited — verifies cleanup and event recording.
  *
- * Uses the recordAgentExited mutation (which calls onAgentExited internally)
- * to test the full pipeline. After calling recordAgentExited, we verify
- * side effects via the event stream (agent.exited events are written).
+ * The backend's onAgentExited is now a no-op for restart logic.
+ * Crash recovery is fully owned by the daemon's onAgentExited handler.
  *
- * The restart scheduling (ctx.scheduler.runAfter) is not directly observable
- * in convex-test, so we test the decision logic by verifying that:
- * 1. The function completes without errors for all stop reasons
- * 2. The agent.exited event is written correctly
- *
- * The core restart condition logic is:
- * - user.stop → NO restart
- * - Any other stopReason → restart (guarded by desiredState)
- * - No stopReason → falls back to !intentional flag
+ * These tests verify:
+ * 1. agent.exited event is recorded for all stop reasons
+ * 2. spawnedAgentPid is cleared on exit
+ * 3. participant status is updated to 'exited'
+ * 4. NO agent.requestStart events are emitted (daemon owns restarts)
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { t } from '../../../test.setup';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
+import { t } from '../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,7 +33,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   const { api } = await import('../../../convex/_generated/api');
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -49,26 +44,28 @@ async function registerMachineAndConfig(
   sessionId: SessionId,
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
-  desiredState?: 'running' | 'stopped'
+  desiredState?: 'running' | 'stopped',
+  agentHarness?: string
 ) {
   const { api } = await import('../../../convex/_generated/api');
+  const harness = (agentHarness ?? 'opencode') as 'opencode' | 'pi' | 'cursor';
   await t.mutation(api.machines.register, {
     sessionId,
     machineId,
     hostname: 'test-host',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: [harness],
   });
 
   await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
       chatroomId,
       role: 'builder',
       type: 'remote',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: harness,
       model: 'anthropic/claude-sonnet-4',
       workingDir: '/tmp/test',
       createdAt: now,
@@ -80,9 +77,7 @@ async function registerMachineAndConfig(
   });
 }
 
-async function seedPendingTask(
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<Id<'chatroom_tasks'>> {
+async function seedPendingTask(chatroomId: Id<'chatroom_rooms'>): Promise<Id<'chatroom_tasks'>> {
   return await t.run(async (ctx) => {
     const now = Date.now();
     return await ctx.db.insert('chatroom_tasks', {
@@ -103,8 +98,8 @@ async function callRecordAgentExited(
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
   opts: {
-    intentional: boolean;
     stopReason?: string;
+    agentHarness?: string;
   }
 ) {
   const { api } = await import('../../../convex/_generated/api');
@@ -114,8 +109,18 @@ async function callRecordAgentExited(
     chatroomId,
     role: 'builder',
     pid: 1234,
-    intentional: opts.intentional,
     stopReason: opts.stopReason,
+    agentHarness: opts.agentHarness as 'opencode' | 'pi' | 'cursor' | undefined,
+  });
+}
+
+async function countAgentRequestStartEvents(chatroomId: Id<'chatroom_rooms'>) {
+  return await t.run(async (ctx) => {
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+      .collect();
+    return events.filter((e) => e.type === 'agent.requestStart').length;
   });
 }
 
@@ -123,9 +128,7 @@ async function countAgentExitedEvents(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const events = await ctx.db
       .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
-      )
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
       .collect();
     return events.filter((e) => e.type === 'agent.exited').length;
   });
@@ -142,7 +145,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     await registerMachineAndConfig(sessionId, 'oae-m1', chatroomId, 'running');
 
     await callRecordAgentExited(sessionId, 'oae-m1', chatroomId, {
-      intentional: true,
       stopReason: 'user.stop',
     });
 
@@ -157,7 +159,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     await seedPendingTask(chatroomId);
 
     await callRecordAgentExited(sessionId, 'oae-m2', chatroomId, {
-      intentional: false,
       stopReason: 'agent_process.exited_clean',
     });
 
@@ -174,7 +175,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     // This should NOT throw — agent_process.signal is now restartable
     await callRecordAgentExited(sessionId, 'oae-m3', chatroomId, {
-      intentional: false,
       stopReason: 'agent_process.signal',
     });
 
@@ -189,7 +189,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     await seedPendingTask(chatroomId);
 
     await callRecordAgentExited(sessionId, 'oae-m4', chatroomId, {
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -205,7 +204,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     // Should complete without error — desiredState guard prevents restart
     await callRecordAgentExited(sessionId, 'oae-m5', chatroomId, {
-      intentional: false,
       stopReason: 'agent_process.signal',
     });
 
@@ -219,7 +217,6 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     await registerMachineAndConfig(sessionId, 'oae-m6', chatroomId, 'running');
 
     await callRecordAgentExited(sessionId, 'oae-m6', chatroomId, {
-      intentional: true,
       stopReason: 'user.stop',
     });
 
@@ -227,7 +224,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .filter((q) => q.eq(q.field('machineId'), 'oae-m6'))
         .first();
@@ -235,6 +232,58 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     expect(config?.spawnedAgentPid).toBeUndefined();
     expect(config?.spawnedAt).toBeUndefined();
+  });
+});
+
+describe('onAgentExited — no backend restart (daemon owns restarts)', () => {
+  test('Pi harness does NOT generate agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('oae-pi-1');
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachineAndConfig(sessionId, 'oae-pi-m1', chatroomId, 'running', 'pi');
+
+    await callRecordAgentExited(sessionId, 'oae-pi-m1', chatroomId, {
+      stopReason: 'agent_process.crashed',
+      agentHarness: 'pi',
+    });
+
+    const exitEvents = await countAgentExitedEvents(chatroomId);
+    expect(exitEvents).toBe(1);
+
+    // Daemon owns all restarts — no agent.requestStart emitted by backend
+    const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
+    expect(requestStartEvents).toBe(0);
+  });
+
+  test('OpenCode harness also does NOT generate agent.requestStart (daemon owns restarts)', async () => {
+    const { sessionId } = await createTestSession('oae-pi-2');
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachineAndConfig(sessionId, 'oae-pi-m2', chatroomId, 'running', 'opencode');
+
+    await callRecordAgentExited(sessionId, 'oae-pi-m2', chatroomId, {
+      stopReason: 'agent_process.crashed',
+      agentHarness: 'opencode',
+    });
+
+    const exitEvents = await countAgentExitedEvents(chatroomId);
+    expect(exitEvents).toBe(1);
+
+    // Daemon owns restarts for all harnesses now
+    const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
+    expect(requestStartEvents).toBe(0);
+  });
+
+  test('user.stop still produces no agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('oae-pi-3');
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachineAndConfig(sessionId, 'oae-pi-m3', chatroomId, 'running', 'pi');
+
+    await callRecordAgentExited(sessionId, 'oae-pi-m3', chatroomId, {
+      stopReason: 'user.stop',
+      agentHarness: 'pi',
+    });
+
+    const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
+    expect(requestStartEvents).toBe(0);
   });
 });
 
@@ -252,7 +301,6 @@ describe('onAgentExited — participant persistence', () => {
     });
 
     await callRecordAgentExited(sessionId, `${sessionPrefix}-m`, chatroomId, {
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 

@@ -32,14 +32,20 @@ const CURSOR_PROVIDER = 'cursor';
 /** Bare model slugs accepted by the Cursor CLI `--model` flag. */
 const CURSOR_MODEL_SLUGS: string[] = [
   // Anthropic Claude
-  'opus-4.6',
-  'opus-4.6-thinking',
-  'opus-4.5',
-  'opus-4.5-thinking',
-  'sonnet-4.6',
-  'sonnet-4.6-thinking',
-  'sonnet-4.5',
-  'sonnet-4.5-thinking',
+  'claude-4.6-opus-high',
+  'claude-4.6-opus-high-thinking',
+  'claude-4.6-opus-max',
+  'claude-4.6-opus-max-thinking',
+  'claude-4.5-opus-high',
+  'claude-4.5-opus-high-thinking',
+  'claude-4.6-sonnet-medium',
+  'claude-4.6-sonnet-medium-thinking',
+  'claude-4.5-sonnet',
+  'claude-4.5-sonnet-thinking',
+  'claude-4-sonnet',
+  'claude-4-sonnet-thinking',
+  'claude-4-sonnet-1m',
+  'claude-4-sonnet-1m-thinking',
   // OpenAI GPT-5.4
   'gpt-5.4-low',
   'gpt-5.4-medium',
@@ -83,6 +89,8 @@ const CURSOR_MODEL_SLUGS: string[] = [
   'kimi-k2.5',
   // Cursor built-in
   'auto',
+  'composer-2.5',
+  'composer-2',
   'composer-1.5',
   'composer-1',
 ];
@@ -104,11 +112,11 @@ export class CursorAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(CURSOR_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(CURSOR_COMMAND);
   }
 
@@ -131,7 +139,12 @@ export class CursorAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        // Prevent git rebase/merge from opening an interactive editor
+        GIT_EDITOR: 'true',
+        GIT_SEQUENCE_EDITOR: 'true',
+      },
     });
 
     childProcess.stdin?.write(fullPrompt);

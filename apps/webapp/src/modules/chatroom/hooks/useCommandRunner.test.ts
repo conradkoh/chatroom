@@ -1,0 +1,136 @@
+/**
+ * useCommandRunner unit tests
+ *
+ * Covers:
+ * - runCommand always dispatches a fresh mutation (no "focus existing" branch)
+ * - activeRunOutput is no longer returned (moved to useActiveRunOutput)
+ */
+
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+const mockRunCommandMutation = vi.fn().mockResolvedValue('run-id-new');
+const mockStopCommandMutation = vi.fn().mockResolvedValue(undefined);
+const mockListCommandsQuery = vi.fn().mockReturnValue([]);
+const mockListRunsQuery = vi.fn().mockReturnValue([]);
+
+// Mock useSessionMutation and useSessionQuery
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: vi.fn((key: string) => {
+    if (key === 'runCommand') return mockRunCommandMutation;
+    if (key === 'stopCommand') return mockStopCommandMutation;
+    return vi.fn();
+  }),
+  useSessionQuery: vi.fn((key: string) => {
+    if (key === 'listCommands') return mockListCommandsQuery();
+    if (key === 'listRuns') return mockListRunsQuery();
+    return undefined;
+  }),
+}));
+
+// Mock the api module
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    commands: {
+      listCommands: 'listCommands',
+      listRuns: 'listRuns',
+      runCommand: 'runCommand',
+      stopCommand: 'stopCommand',
+    },
+  },
+}));
+
+// Import after mocks
+import { useCommandRunner } from './useCommandRunner';
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe('useCommandRunner', () => {
+  const props = {
+    machineId: 'test-machine',
+    workingDir: '/test/project',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRunCommandMutation.mockResolvedValue('run-id-new');
+    mockListRunsQuery.mockReturnValue([]);
+  });
+
+  describe('runCommand', () => {
+    it('always dispatches a fresh runCommand mutation (no focus-existing branch)', async () => {
+      // Set up a currently "running" entry in the runs list
+      mockListRunsQuery.mockReturnValue([
+        {
+          _id: 'run-id-existing',
+          commandName: 'dev',
+          script: 'pnpm dev',
+          status: 'running',
+          startedAt: Date.now(),
+          requestedBy: 'user-1',
+        },
+      ]);
+
+      const { result } = renderHook(() => useCommandRunner(props));
+
+      let returnedId: string | null = null;
+      await act(async () => {
+        returnedId = await result.current.runCommand('dev', 'pnpm dev');
+      });
+
+      // Mutation should have been called — NOT the "focus existing" shortcut
+      expect(mockRunCommandMutation).toHaveBeenCalledTimes(1);
+      expect(mockRunCommandMutation).toHaveBeenCalledWith({
+        machineId: 'test-machine',
+        workingDir: '/test/project',
+        commandName: 'dev',
+        script: 'pnpm dev',
+      });
+      // activeRunId set to the new run (not the existing one)
+      expect(returnedId).toBe('run-id-new');
+    });
+
+    it('dispatches mutation when no existing run found', async () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+
+      await act(async () => {
+        await result.current.runCommand('build', 'pnpm build');
+      });
+
+      expect(mockRunCommandMutation).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when machineId is null', async () => {
+      const { result } = renderHook(() =>
+        useCommandRunner({ machineId: null, workingDir: '/tmp' })
+      );
+
+      let returnedId: string | null | undefined = undefined;
+      await act(async () => {
+        returnedId = await result.current.runCommand('dev', 'pnpm dev');
+      });
+
+      expect(returnedId).toBeNull();
+      expect(mockRunCommandMutation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('return contract', () => {
+    it('does not include activeRunOutput (moved to useActiveRunOutput)', () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+      expect(result.current).not.toHaveProperty('activeRunOutput');
+    });
+
+    it('includes commands, runs, activeRunId, setActiveRunId, runCommand, stopCommand', () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+      expect(result.current).toHaveProperty('commands');
+      expect(result.current).toHaveProperty('runs');
+      expect(result.current).toHaveProperty('activeRunId');
+      expect(result.current).toHaveProperty('setActiveRunId');
+      expect(result.current).toHaveProperty('runCommand');
+      expect(result.current).toHaveProperty('stopCommand');
+    });
+  });
+});

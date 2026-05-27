@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { isActiveParticipant, PARTICIPANT_EXITED_ACTION } from './participant';
 
 describe('participant entity', () => {

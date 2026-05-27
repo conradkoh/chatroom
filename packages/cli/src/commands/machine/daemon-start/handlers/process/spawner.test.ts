@@ -1,0 +1,259 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../../../api.js', () => ({
+  api: {
+    commands: {
+      appendOutput: 'mock-appendOutput',
+      updateRunTail: 'mock-updateRunTail',
+      updateRunStatus: 'mock-updateRunStatus',
+    },
+  },
+}));
+
+vi.mock('@workspace/backend/src/output-encoding.js', () => ({
+  encodeOutput: vi.fn((plain: string) => ({
+    compression: 'gzip' as const,
+    content: `gzip:${plain}`,
+  })),
+}));
+
+vi.mock('./output-store.js', () => ({
+  createOutputStore: vi.fn(),
+  ensureTempDir: vi.fn().mockResolvedValue(undefined),
+  TAIL_WINDOW_BYTES: 32 * 1024,
+}));
+
+import type { DaemonContext } from '../../types.js';
+import { MAX_BUFFER_SIZE } from './state.js';
+import { createOutputStore, ensureTempDir } from './output-store.js';
+
+type MutationFn = (endpoint: any, args: any) => Promise<any>;
+
+function createCtx(mutationImpl?: MutationFn): DaemonContext {
+  return {
+    sessionId: 'test-session',
+    machineId: 'test-machine',
+    client: {} as any,
+    config: null,
+    deps: {
+      backend: {
+        mutation: mutationImpl
+          ? vi.fn().mockImplementation(mutationImpl as any)
+          : vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockResolvedValue(undefined),
+      },
+      processes: { kill: vi.fn() },
+      fs: { stat: vi.fn() as any },
+      machine: {
+        clearAgentPid: vi.fn(),
+        persistAgentPid: vi.fn(),
+        listAgentEntries: vi.fn().mockResolvedValue([]),
+        persistEventCursor: vi.fn(),
+        loadEventCursor: vi.fn().mockResolvedValue(null),
+      },
+      clock: {
+        now: vi.fn().mockReturnValue(Date.now()),
+        delay: vi.fn().mockResolvedValue(undefined),
+      },
+      spawning: {
+        shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+        recordSpawn: vi.fn(),
+        recordExit: vi.fn(),
+        getConcurrentCount: vi.fn().mockReturnValue(0),
+      },
+      agentProcessManager: {
+        ensureRunning: vi.fn(),
+        stop: vi.fn(),
+        handleExit: vi.fn(),
+        recover: vi.fn(),
+        getSlot: vi.fn(),
+        listActive: vi.fn().mockReturnValue([]),
+      } as any,
+    },
+    events: { emit: vi.fn() } as any,
+    agentServices: new Map(),
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
+  };
+}
+
+function createMockStore(initialContent = '') {
+  let inMemory = initialContent;
+  let totalBytes = initialContent.length;
+  return {
+    append: vi.fn().mockImplementation(async (data: string) => {
+      inMemory += data;
+      totalBytes += data.length;
+    }),
+    getTail: vi.fn().mockImplementation(() => ({
+      content: inMemory,
+      totalBytes,
+    })),
+    getFullOutput: vi.fn().mockImplementation(async () => inMemory),
+    destroy: vi.fn().mockResolvedValue(undefined),
+    _setContent: (content: string) => {
+      inMemory = content;
+      totalBytes = content.length;
+    },
+  };
+}
+
+import { spawn } from 'node:child_process';
+
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
+}));
+
+describe('spawnCommandProcess — new output flow', () => {
+  let ctx: DaemonContext;
+  let mockStore: ReturnType<typeof createMockStore>;
+
+  beforeEach(() => {
+    ctx = createCtx();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockStore = createMockStore();
+    vi.mocked(createOutputStore).mockReturnValue(mockStore as any);
+    vi.mocked(ensureTempDir).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  function makeFakeChild() {
+    const stdoutListeners: Record<string, Array<(...args: any[]) => void>> = {};
+    const stderrListeners: Record<string, Array<(...args: any[]) => void>> = {};
+    const exitListeners: Array<(...args: any[]) => void> = [];
+    const errorListeners: Array<(...args: any[]) => void> = [];
+    return {
+      pid: 99999,
+      on: (event: string, fn: (...args: any[]) => void) => {
+        if (event === 'exit') exitListeners.push(fn);
+        else if (event === 'error') errorListeners.push(fn);
+      },
+      stdout: {
+        on: (event: string, fn: (...args: any[]) => void) => {
+          (stdoutListeners[event] ??= []).push(fn);
+        },
+        emit: (event: string, ...args: any[]) => {
+          stdoutListeners[event]?.forEach((fn: (...args: any[]) => void) => fn(...args));
+        },
+      } as any,
+      stderr: {
+        on: (event: string, fn: (...args: any[]) => void) => {
+          (stderrListeners[event] ??= []).push(fn);
+        },
+        emit: (event: string, ...args: any[]) => {
+          stderrListeners[event]?.forEach((fn: (...args: any[]) => void) => fn(...args));
+        },
+      } as any,
+      _exit: (...args: any[]) => exitListeners.forEach((fn) => fn(...args)),
+      _error: (...args: any[]) => errorListeners.forEach((fn) => fn(...args)),
+    };
+  }
+
+  it('calls updateRunTail on every flush interval, not appendOutput during run', async () => {
+    vi.useFakeTimers();
+    const fakeChild = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(fakeChild as any);
+
+    const { spawnCommandProcess } = await import('./spawner.js');
+    await spawnCommandProcess(
+      ctx,
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-1' as any },
+      'key-1'
+    );
+
+    fakeChild.stdout.emit('data', Buffer.from('hello output'));
+    await vi.advanceTimersByTimeAsync(3_500);
+
+    const tailCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-updateRunTail'
+    );
+    expect(tailCalls.length).toBeGreaterThanOrEqual(1);
+
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
+    expect(appendCalls).toHaveLength(0);
+  });
+
+  it('flushes final chunks via appendOutput on exit, then destroys store', async () => {
+    vi.useFakeTimers();
+    const fakeChild = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(fakeChild as any);
+
+    const fullContent = 'a'.repeat(50 * 1024);
+    mockStore._setContent(fullContent);
+
+    const { spawnCommandProcess } = await import('./spawner.js');
+    await spawnCommandProcess(
+      ctx,
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-2' as any },
+      'key-2'
+    );
+
+    fakeChild._exit(0, null);
+
+    await vi.runAllTimersAsync();
+
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
+    expect(appendCalls.length).toBeGreaterThanOrEqual(1);
+    expect(mockStore.destroy).toHaveBeenCalled();
+  });
+
+  it('flushes final chunks with compressed content', async () => {
+    vi.useFakeTimers();
+    const fakeChild = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(fakeChild as any);
+
+    const fullContent = 'hello final output';
+    mockStore._setContent(fullContent);
+
+    const { spawnCommandProcess } = await import('./spawner.js');
+    await spawnCommandProcess(
+      ctx,
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-3' as any },
+      'key-3'
+    );
+
+    fakeChild._exit(0, null);
+    await vi.runAllTimersAsync();
+
+    const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-appendOutput'
+    );
+    expect(appendCalls.length).toBe(1);
+    const content = (appendCalls[0][1] as any).content;
+    expect(content.compression).toBe('gzip');
+    expect(content.content).toBe('gzip:hello final output');
+  });
+
+  it('updates run status after final flush', async () => {
+    vi.useFakeTimers();
+    const fakeChild = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(fakeChild as any);
+
+    const { spawnCommandProcess } = await import('./spawner.js');
+    await spawnCommandProcess(
+      ctx,
+      { workingDir: '/tmp', commandName: 'test', script: 'echo hi', runId: 'run-4' as any },
+      'key-4'
+    );
+
+    fakeChild._exit(0, null);
+    await vi.runAllTimersAsync();
+
+    const statusCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-updateRunStatus'
+    );
+    expect(statusCalls.length).toBe(1);
+    expect((statusCalls[0][1] as any).status).toBe('completed');
+  });
+});

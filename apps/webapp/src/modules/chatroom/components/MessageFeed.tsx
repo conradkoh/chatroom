@@ -3,7 +3,10 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
+
+import type { Message, AttachedTask, AttachedBacklogItem } from '../types/message';
+import { usePaginatedQuery } from 'convex/react';
 import {
   ChevronUp,
   ChevronDown,
@@ -11,7 +14,6 @@ import {
   MessageSquare,
   Clock,
   Loader2,
-  Timer,
   CheckCircle2,
   XCircle,
   Archive,
@@ -20,12 +22,12 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
-  ArrowUp,
   Activity,
   Trash2,
   Pencil,
   Check,
   Copy,
+  Paperclip,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -37,15 +39,32 @@ import React, {
   useState,
 } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
-import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
+import { getBacklogStatusBadge } from './backlog/presenters';
+import { AttachedArtifacts } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
+import { AttachedWorkflowChip } from './AttachedWorkflowChip';
+import { BacklogItemDetailModal } from './BacklogItemDetailModal';
+import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
+import {
+  compactMarkdownComponents,
+  fullMarkdownComponents,
+  messageFeedProseClassNames,
+  contextSummaryProseClassNames,
+} from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
-import { WorkingIndicator } from './WorkingIndicator';
+import {
+  type EventStreamEvent,
+  formatEventType,
+  getEventBadgeTextColor,
+} from '../viewModels/eventStreamViewModel';
+import { useAttachments } from '../context/AttachmentsContext';
+import { useHandoffNotification } from '../hooks/useHandoffNotification';
+import { useMessages } from '../hooks/useMessages';
 
 import {
   FixedModal,
@@ -55,50 +74,26 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 // Stable reference for remarkPlugins — avoids re-allocation on every render
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
+import type { ScrollController } from '../hooks/useScrollController';
+
 interface MessageFeedProps {
   chatroomId: string;
   activeTask?: { status: string; assignedTo?: string } | null;
+  controller: React.MutableRefObject<ScrollController>;
+  isPinned: boolean;
+  scrollToBottom: () => void;
+  /** Optional callback to open the event stream from an external trigger (e.g. command palette) */
+  onRegisterOpenEventStream?: (open: () => void) => void;
+  /** Machine info for displaying human-readable names in the event stream */
+  machines?: Map<string, { hostname: string; alias?: string }>;
 }
 
-interface Message {
-  _id: string;
-  type: string;
-  senderRole: string;
-  targetRole?: string;
-  content: string;
-  _creationTime: number;
-  classification?: 'question' | 'new_feature' | 'follow_up';
-  taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
-  // Feature metadata (only for new_feature classification)
-  featureTitle?: string;
-  featureDescription?: string;
-  featureTechSpecs?: string;
-  // Attached backlog tasks for context
-  attachedTasks?: AttachedTask[];
-  // Attached artifacts
-  attachedArtifacts?: ArtifactMeta[];
-  // Latest progress message for inline display
-  latestProgress?: {
-    content: string;
-    senderRole: string;
-    _creationTime: number;
-  };
-  // Queued message flag (from chatroom_messageQueue)
-  isQueued?: boolean;
-}
-
-interface AttachedTask {
-  _id: string;
-  content: string;
-  backlogStatus?: TaskStatus;
-}
+// Message, AttachedTask, AttachedBacklogItem, AttachedMessage imported from ../types/message
 
 // Shared badge styling constants
 const BADGE_BASE =
@@ -106,8 +101,7 @@ const BADGE_BASE =
 const ICON_SIZE = 10;
 
 // Shared message content classes - used in MessageContent and QueuedMessageCard modal
-const MESSAGE_CONTENT_CLASSES =
-  'text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary';
+// (Imported from markdown-utils.tsx)
 
 // Message type badge styling - with icons for visual consistency
 const getMessageTypeBadge = (type: string) => {
@@ -146,6 +140,12 @@ const getTaskStatusBadge = (status: Message['taskStatus']) => {
         className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
         label: 'pending',
         icon: <Clock size={ICON_SIZE} className="flex-shrink-0" />,
+      };
+    case 'acknowledged':
+      return {
+        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
+        label: 'acknowledged',
+        icon: <CheckCircle2 size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'in_progress':
       return {
@@ -204,8 +204,12 @@ const getClassificationBadge = (classification: Message['classification']) => {
 };
 
 // Map task status to display label and CSS classes for attached task badges
-function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
+function getAttachedTaskStatusBadge(status?: TaskStatus | string): {
+  label: string;
+  classes: string;
+} {
   switch (status) {
+    // Task-specific statuses
     case 'in_progress':
       return {
         label: 'In Progress',
@@ -213,30 +217,23 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
       };
     case 'pending':
     case 'acknowledged':
-    case 'backlog_acknowledged':
       return {
         label: status === 'pending' ? 'Pending' : 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'pending_user_review':
-      return {
-        label: 'Pending Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':
       return {
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
+    // Backlog-specific statuses
     case 'backlog':
+    case 'pending_user_review':
+    case 'closed':
+      return getBacklogStatusBadge(status);
     default:
       return {
-        label: 'Not Started',
+        label: status ?? 'Unknown',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
   }
@@ -248,15 +245,41 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
 interface TaskHeaderProps {
   message: Message;
   onTap?: (message: Message) => void;
+  onDelete?: (message: Message) => void;
+  isDeleting?: boolean;
+  onStartEdit?: (message: Message) => void;
+  isEditing?: boolean;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
+const TaskHeader = function TaskHeader({
+  message,
+  onTap,
+  onDelete,
+  isDeleting,
+  onStartEdit,
+  isEditing,
+}: TaskHeaderProps) {
+  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
+
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
+
+  const handleConfirmDelete = useCallback(() => {
+    setIsDeletePopoverOpen(false);
+    if (onDelete) {
+      onDelete(message);
+    }
+  }, [onDelete, message]);
+
+  const handleStartEdit = useCallback(() => {
+    if (onStartEdit) {
+      onStartEdit(message);
+    }
+  }, [onStartEdit, message]);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -270,6 +293,12 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+
+  // Show delete button only for pending messages (not yet picked up by agent)
+  const canDelete = message.taskStatus === 'pending' && onDelete;
+
+  // Show edit button only for pending messages
+  const canEdit = message.taskStatus === 'pending' && onStartEdit;
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -289,45 +318,85 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
   return (
     <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
       {/* Main header row - clickable */}
-      <button
-        onClick={handleClick}
-        className="w-full text-left h-8 px-3 flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
-      >
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {/* Left: Classification badge or shimmer */}
-          {isAwaitingClassification ? (
-            // Shimmer state - waiting for classification
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-            </div>
-          ) : (
-            // Classified state - show badge and single-line truncated content
-            <>
-              {classificationBadge && (
-                <span className={`${classificationBadge.className} flex-shrink-0`}>
-                  {classificationBadge.icon}
-                  {classificationBadge.label}
+      <div className="flex items-center h-8 px-3">
+        <button
+          onClick={handleClick}
+          className="flex-1 text-left flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors h-full min-w-0"
+        >
+          <div className="flex items-center gap-2 w-full min-w-0">
+            {/* Left: Classification badge or shimmer */}
+            {isAwaitingClassification ? (
+              // Shimmer state - waiting for classification
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+                <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+              </div>
+            ) : (
+              // Classified state - show badge and single-line truncated content
+              <>
+                {classificationBadge && (
+                  <span className={`${classificationBadge.className} flex-shrink-0`}>
+                    {classificationBadge.icon}
+                    {classificationBadge.label}
+                  </span>
+                )}
+                {message.sourcePlatform === 'telegram' && (
+                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
+                    ✈️
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                  {getDisplayText()}
                 </span>
-              )}
-              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-                {getDisplayText()}
-              </span>
-            </>
-          )}
+              </>
+            )}
 
-          {/* Right: Status badge */}
-          {taskStatusBadge && (
-            <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-              {taskStatusBadge.icon}
-              {taskStatusBadge.label}
-            </span>
-          )}
-        </div>
-      </button>
+            {/* Right: Status badge */}
+            {taskStatusBadge && (
+              <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+                {taskStatusBadge.icon}
+                {taskStatusBadge.label}
+              </span>
+            )}
+          </div>
+        </button>
+
+        {/* Edit button for pending messages */}
+        {canEdit && (
+          <button
+            onClick={handleStartEdit}
+            disabled={isEditing}
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Edit pending message"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
+
+        {/* Delete button for pending messages — with popover confirmation */}
+        {canDelete && (
+          <Popover open={isDeletePopoverOpen} onOpenChange={setIsDeletePopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                disabled={isDeleting}
+                className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Delete pending message"
+              >
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0 rounded-none" side="bottom" align="end">
+              <DeleteConfirmPopoverContent
+                onCancel={() => setIsDeletePopoverOpen(false)}
+                onConfirmDelete={handleConfirmDelete}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
     </div>
   );
-});
+}
 
 // Task Progress - renders inline progress updates below the task header
 // Shows the latest progress message with expand/collapse for full history
@@ -399,7 +468,7 @@ const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskPro
 
           {/* Expanded: full progress history - overlays as a floating panel */}
           {isExpanded && (
-            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-b-md bg-chatroom-bg-tertiary">
+            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-none bg-chatroom-bg-tertiary">
               <TaskProgressHistory chatroomId={chatroomId} taskId={message.taskId} />
             </div>
           )}
@@ -468,53 +537,29 @@ const TaskProgressHistory = memo(function TaskProgressHistory({
   );
 });
 
-// ─── Queued Message Utilities ──────────────────────────────────────────────────
-// Helpers shared by QueuedMessageCard.
-
-/** Returns a human-readable elapsed time string that updates every second. */
-function useElapsedTime(creationTime: number): string {
-  const [elapsed, setElapsed] = useState(() => formatElapsed(creationTime));
-
-  useEffect(() => {
-    const update = () => setElapsed(formatElapsed(creationTime));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [creationTime]);
-
-  return elapsed;
-}
-
-function formatElapsed(creationTime: number): string {
-  const diffMs = Date.now() - creationTime;
-  const totalSecs = Math.floor(diffMs / 1000);
-  if (totalSecs < 60) return `${totalSecs}s`;
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  if (mins < 60) return `${mins}m ${secs}s`;
-  const hrs = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return `${hrs}h ${remainMins}m`;
-}
-
 // ─── DeleteConfirmPopoverContent ──────────────────────────────────────────────
 // Shared popover body for delete confirmation dialogs.
-// Used by both the card icon-only button and the modal footer text button.
+// Used by PendingMessageCard for pending messages.
 
 interface DeleteConfirmPopoverContentProps {
   onCancel: () => void;
   onConfirmDelete: () => void;
 }
 
-function DeleteConfirmPopoverContent({ onCancel, onConfirmDelete }: DeleteConfirmPopoverContentProps) {
+function DeleteConfirmPopoverContent({
+  onCancel,
+  onConfirmDelete,
+}: DeleteConfirmPopoverContentProps) {
   return (
     <>
       <div className="border-b-2 border-border px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">
+          Delete Message
+        </p>
       </div>
       <div className="px-3 py-2">
         <p className="text-xs text-muted-foreground mb-3">
-          This message will be permanently removed from the queue.
+          This message will be permanently removed.
         </p>
         <div className="flex items-center gap-2 justify-end">
           <button
@@ -534,310 +579,6 @@ function DeleteConfirmPopoverContent({ onCancel, onConfirmDelete }: DeleteConfir
     </>
   );
 }
-
-// ─── QueuedMessageCard ────────────────────────────────────────────────────────
-// Compact fixed-height card for each queued message.
-// Row 1: truncated content (2 lines, clickable) | QUEUED badge | [↑] [🗑]
-// Row 2: right-aligned timestamp + elapsed time
-// Clicking the content area opens a modal with the full message.
-
-interface QueuedMessageCardProps {
-  message: Message;
-  onPromote: (queuedMessageId: string) => Promise<void>;
-  onDelete: (queuedMessageId: string) => Promise<void>;
-  onEdit: (queuedMessageId: string, newContent: string) => Promise<void>;
-}
-
-const QueuedMessageCard = memo(function QueuedMessageCard({
-  message,
-  onPromote,
-  onDelete,
-  onEdit,
-}: QueuedMessageCardProps) {
-  const elapsed = useElapsedTime(message._creationTime);
-  const [isPromoting, setIsPromoting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // Popover open states for delete confirmation (card and modal are independent)
-  const [isCardDeletePopoverOpen, setIsCardDeletePopoverOpen] = useState(false);
-  const [isModalDeletePopoverOpen, setIsModalDeletePopoverOpen] = useState(false);
-  // Edit state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const handlePromote = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
-
-  // Card delete — called from card popover "Delete" button
-  const handleCardDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
-    setIsCardDeletePopoverOpen(false);
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
-
-  const handleOpenModal = useCallback(() => {
-    setIsModalOpen(true);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setIsModalOpen(false);
-    setIsModalDeletePopoverOpen(false);
-  }, []);
-
-  // Promote and close modal on success
-  const handlePromoteAndClose = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-      setIsModalOpen(false);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
-
-  // Modal delete — called from modal popover "Delete" button
-  const handleModalDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
-    setIsModalDeletePopoverOpen(false);
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-      setIsModalOpen(false);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
-
-  // Edit handlers
-  const handleStartEdit = useCallback(() => {
-    setEditContent(message.content);
-    setEditError(null);
-    setIsEditing(true);
-  }, [message.content]);
-
-  const handleSaveEdit = useCallback(async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    setEditError(null);
-    try {
-      await onEdit(message._id, editContent);
-      setIsEditing(false);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [message._id, editContent, onEdit, isSaving]);
-
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditError(null);
-  }, []);
-
-  return (
-    <>
-      <div className="px-3 py-2 bg-card border-b border-border">
-        {/* Row 1: truncated content | QUEUED badge | action buttons */}
-        <div className="flex items-start gap-2">
-          {/* Message content — truncated 2 lines, compact markdown, clickable */}
-          <button
-            onClick={handleOpenModal}
-            className="flex-1 text-left text-sm line-clamp-2 cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </button>
-
-          {/* QUEUED badge removed — section header above container communicates queue status */}
-
-          {/* Promote button — icon only */}
-          <button
-            onClick={handlePromote}
-            disabled={isPromoting || isDeleting}
-            className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Promote to active (bypass queue)"
-          >
-            {isPromoting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <ArrowUp size={12} />
-            )}
-          </button>
-
-          {/* Delete button — icon only, with popover confirmation */}
-          <Popover open={isCardDeletePopoverOpen} onOpenChange={setIsCardDeletePopoverOpen}>
-            <PopoverTrigger asChild>
-              <button
-                disabled={isDeleting || isPromoting}
-                className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Delete queued message"
-              >
-                {isDeleting ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-              <DeleteConfirmPopoverContent
-                onCancel={() => setIsCardDeletePopoverOpen(false)}
-                onConfirmDelete={handleCardDelete}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Row 2: right-aligned timestamp + elapsed time */}
-        <div className="flex justify-end gap-2 mt-0.5 text-[10px] text-muted-foreground tabular-nums">
-          <span>
-            {formattedTime} ({elapsed})
-          </span>
-        </div>
-      </div>
-
-      {/* Full message modal */}
-      <FixedModal isOpen={isModalOpen} onClose={handleCloseModal} maxWidth="max-w-2xl">
-        <FixedModalContent>
-          <FixedModalHeader onClose={handleCloseModal}>
-            <FixedModalTitle>
-              <span className="flex items-center gap-2">
-                <Timer size={14} className="text-muted-foreground" />
-                Queued Message
-              </span>
-            </FixedModalTitle>
-          </FixedModalHeader>
-          <FixedModalBody>
-            {isEditing ? (
-              <div className="p-6 flex flex-col gap-3">
-                <textarea
-                  className="w-full min-h-[120px] p-3 text-sm bg-background border border-border resize-y focus:outline-none focus:ring-1 focus:ring-ring"
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  autoFocus
-                />
-                {editError && (
-                  <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
-                )}
-              </div>
-            ) : (
-              <div className="p-6">
-                <div className={MESSAGE_CONTENT_CLASSES}>
-                  <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-                    {message.content}
-                  </Markdown>
-                </div>
-              </div>
-            )}
-          </FixedModalBody>
-          {/* Mobile-friendly footer with action buttons */}
-          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-            {/* Left: QUEUED status + elapsed time */}
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
-                <Timer size={12} className="flex-shrink-0" />
-                Queued
-              </span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {elapsed}
-              </span>
-            </div>
-            {/* Right: action buttons (larger, thumb-friendly for mobile) */}
-            {isEditing ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={isSaving || !editContent.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  Save
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePromoteAndClose}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Promote to active"
-              >
-                {isPromoting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <ArrowUp size={14} />
-                )}
-                Promote
-              </button>
-              {/* Modal delete button with popover confirmation */}
-              <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={isDeleting || isPromoting}
-                    className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    title="Delete queued message"
-                  >
-                    {isDeleting ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                    Delete
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-                  <DeleteConfirmPopoverContent
-                    onCancel={() => setIsModalDeletePopoverOpen(false)}
-                    onConfirmDelete={handleModalDelete}
-                  />
-                </PopoverContent>
-              </Popover>
-              {/* Edit button */}
-              <button
-                onClick={handleStartEdit}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Edit queued message"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-            </div>
-            )}
-          </div>
-        </FixedModalContent>
-      </FixedModal>
-    </>
-  );
-});
 
 /** Small copy-to-clipboard button with brief check-mark feedback. */
 const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { content: string }) {
@@ -871,19 +612,22 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
       className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
       title="Copy as markdown"
     >
-      {copied ? (
-        <Check size={12} className="text-chatroom-status-success" />
-      ) : (
-        <Copy size={12} />
-      )}
+      {copied ? <Check size={12} className="text-chatroom-status-success" /> : <Copy size={12} />}
     </button>
   );
 });
 
 interface MessageItemProps {
   message: Message;
+  chatroomId: string;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
+  onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
+  onAddToContext?: (message: Message) => void;
+  isAddedToContext?: boolean;
+  isEditing?: boolean;
+  onSaveEdit?: (messageId: string, newContent: string) => Promise<void>;
+  onCancelEdit?: () => void;
 }
 
 // System notification message (e.g. context change)
@@ -935,7 +679,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           </FixedModalHeader>
           <FixedModalBody>
             <div className="p-6">
-              <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
+              <div className={contextSummaryProseClassNames}>
                 <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
                   {message.content}
                 </Markdown>
@@ -952,7 +696,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
 
 const MessageContent = memo(function MessageContent({ content }: { content: string }) {
   return (
-    <div className={MESSAGE_CONTENT_CLASSES}>
+    <div className={messageFeedProseClassNames}>
       <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
         {content}
       </Markdown>
@@ -963,9 +707,67 @@ const MessageContent = memo(function MessageContent({ content }: { content: stri
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
+  chatroomId,
   onFeatureClick,
   onAttachedTaskClick,
+  onAttachedBacklogItemClick,
+  onAddToContext,
+  isAddedToContext,
+  isEditing,
+  onSaveEdit,
+  onCancelEdit,
 }: MessageItemProps) {
+  // Inline edit state
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // When editing starts, initialize edit content and focus textarea
+  useEffect(() => {
+    if (isEditing) {
+      setEditContent(message.content);
+      setEditError(null);
+      // Focus with slight delay to let the textarea render
+      setTimeout(() => editTextareaRef.current?.focus(), 50);
+    }
+  }, [isEditing, message.content]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (isSaving || !onSaveEdit) return;
+    const trimmed = editContent.trim();
+    if (!trimmed) {
+      setEditError('Message cannot be empty');
+      return;
+    }
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      await onSaveEdit(message._id, trimmed);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [message._id, editContent, onSaveEdit, isSaving]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditError(null);
+    onCancelEdit?.();
+  }, [onCancelEdit]);
+
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        handleCancelEdit();
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSaveEdit();
+      }
+    },
+    [handleCancelEdit, handleSaveEdit]
+  );
+
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
@@ -1002,6 +804,11 @@ const MessageItem = memo(function MessageItem({
           {/* Right: Sender → Target - User always rendered in gold */}
           <div className="flex items-center gap-x-1.5">
             <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+            {message.sourcePlatform === 'telegram' && (
+              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
+                ✈️ Telegram
+              </span>
+            )}
             {message.targetRole && (
               <>
                 <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
@@ -1028,16 +835,54 @@ const MessageItem = memo(function MessageItem({
           )}
         </button>
       )}
-      {/* Message Content */}
-      {/* Message Content - unified renderer for all message types */}
-      <MessageContent content={message.content} />
-      {/* Attached Backlog Tasks */}
-      {message.attachedTasks && message.attachedTasks.length > 0 && (
+      {/* Message Content — inline edit mode for pending user messages */}
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            ref={editTextareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={handleEditKeyDown}
+            className="w-full min-h-[80px] p-2 text-sm bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-accent resize-y"
+            placeholder="Edit message content..."
+          />
+          {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium bg-chatroom-accent text-white hover:bg-chatroom-accent/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <span className="text-[10px] text-chatroom-text-muted ml-auto">
+              ⌘+Enter to save · Esc to cancel
+            </span>
+          </div>
+        </div>
+      ) : (
+        <MessageContent content={message.content} />
+      )}
+      {/* Attachments: Backlog Tasks + Backlog Items + Workflows */}
+      {((message.attachedTasks && message.attachedTasks.length > 0) ||
+        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0) ||
+        (message.attachedWorkflows && message.attachedWorkflows.length > 0)) && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-            Attached Backlog ({message.attachedTasks.length})
+            Attachments (
+            {(message.attachedTasks?.length ?? 0) +
+              (message.attachedBacklogItems?.length ?? 0) +
+              (message.attachedWorkflows?.length ?? 0)}
+            )
           </div>
-          {message.attachedTasks.map((task) => {
+          {message.attachedTasks?.map((task) => {
             const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
             return (
               <button
@@ -1064,17 +909,92 @@ const MessageItem = memo(function MessageItem({
               </button>
             );
           })}
+          {message.attachedBacklogItems?.map((item) => {
+            const statusBadge = getAttachedTaskStatusBadge(item.status);
+            return (
+              <button
+                key={item.id}
+                onClick={() => onAttachedBacklogItemClick?.(item)}
+                className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                    <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                      {item.content}
+                    </Markdown>
+                  </div>
+                  <span
+                    className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                  >
+                    {statusBadge.label}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+                  />
+                </div>
+              </button>
+            );
+          })}
+          {message.attachedWorkflows?.map((wf) => (
+            <div key={wf._id} className="mb-2 last:mb-0">
+              <AttachedWorkflowChip
+                chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                workflowId={wf._id as Id<'chatroom_workflows'>}
+                workflowKey={wf.workflowKey}
+                status={wf.status}
+              />
+            </div>
+          ))}
         </div>
       )}
       {/* Attached Artifacts */}
       {message.attachedArtifacts && message.attachedArtifacts.length > 0 && (
         <AttachedArtifacts artifacts={message.attachedArtifacts} />
       )}
+      {/* Attached Messages */}
+      {message.attachedMessages && message.attachedMessages.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-chatroom-border">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+            Attached Messages ({message.attachedMessages.length})
+          </div>
+          {message.attachedMessages.map((attachedMsg) => (
+            <div
+              key={attachedMsg._id}
+              className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare size={10} className="text-chatroom-text-muted flex-shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                  {attachedMsg.senderRole}
+                </span>
+                <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
+                  {formatTime(attachedMsg._creationTime)}
+                </span>
+              </div>
+              <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                  {attachedMsg.content}
+                </Markdown>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Message Footer */}
       <div className="flex justify-between items-center mt-2 pt-1.5">
-        {/* Left: Copy button — appears on hover */}
-        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+        {/* Left: Copy button + Add to Context — always visible */}
+        <div className="flex items-center gap-1 opacity-100">
           <CopyMarkdownButton content={message.content} />
+          {onAddToContext && (
+            <button
+              onClick={() => onAddToContext(message)}
+              className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+              title={isAddedToContext ? 'Added to context' : 'Add to context'}
+            >
+              <Paperclip size={12} />
+            </button>
+          )}
         </div>
         {/* Right: Timestamp (non-user messages only; user message status/time is in TaskHeader) */}
         {!isUserMessage && (
@@ -1087,14 +1007,8 @@ const MessageItem = memo(function MessageItem({
   );
 });
 
-// Number of messages to load initially and per page
-const INITIAL_PAGE_SIZE = 5;
-const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
-// Cap on total loaded messages to prevent unbounded memory growth.
-// Once reached, the "Load older messages" button is hidden and auto-load stops.
-const MAX_LOADED_MESSAGES = 200;
 
 // State for feature detail modal
 interface FeatureModalState {
@@ -1104,31 +1018,104 @@ interface FeatureModalState {
   techSpecs?: string;
 }
 
-export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }: MessageFeedProps) {
-  const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
-    api.messages.listPaginated,
-    { chatroomId: chatroomId as Id<'chatroom_rooms'> },
-    { initialNumItems: INITIAL_PAGE_SIZE }
-  ) as {
-    results: Message[];
-    status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-    isLoading: boolean;
-    loadMore: (numItems: number) => void;
-  };
+// ─── LatestEventTicker ────────────────────────────────────────────────────────
 
-  // Fetch queued messages (from chatroom_messageQueue)
-  const queuedMessages = useSessionQuery(api.messages.listQueued, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
+/**
+ * Returns a short contextual detail string for workflow events.
+ * - workflow.created → "5 steps"
+ * - workflow.stepCompleted → step key/description
+ * - workflow.stepStarted → step key
+ * - workflow.stepCancelled → step key
+ * Returns null for non-workflow events or when no extra info is available.
+ */
+function getWorkflowEventDetail(event: EventStreamEvent): string | null {
+  switch (event.type) {
+    case 'workflow.created':
+    case 'workflow.started':
+      return `${event.stepCount} steps`;
+    case 'workflow.stepCompleted':
+    case 'workflow.stepStarted':
+    case 'workflow.stepCancelled':
+    case 'workflow.specified':
+      return event.stepKey;
+    case 'workflow.completed':
+      return event.finalStatus === 'completed' ? 'all steps done' : 'cancelled';
+    default:
+      return null;
+  }
+}
 
-  const displayQueuedMessages = useMemo(() => {
-    return queuedMessages ?? [];
-  }, [queuedMessages]);
+const LatestEventTicker = memo(function LatestEventTicker({
+  event,
+  onClick,
+}: {
+  event: EventStreamEvent | null;
+  onClick: () => void;
+}) {
+  if (!event) {
+    return (
+      <button
+        onClick={onClick}
+        className="flex items-center gap-1.5 min-w-0 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer px-2 py-1 rounded"
+      >
+        <span className="uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+          Event Stream
+        </span>
+        <ChevronRight size={10} className="opacity-50 shrink-0" />
+      </button>
+    );
+  }
+  const workflowDetail = getWorkflowEventDetail(event);
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 min-w-0 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200 cursor-pointer px-2 py-1 rounded"
+    >
+      {/* Text content group — shrinks and truncates on tight widths. */}
+      <span className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        <span
+          className={`font-bold uppercase tracking-wider whitespace-nowrap shrink-0 ${getEventBadgeTextColor(event.type)}`}
+        >
+          {formatEventType(event.type)}
+        </span>
+        {/* Workflow-specific detail (step count, step name, etc.) */}
+        {workflowDetail && (
+          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+            {workflowDetail}
+          </span>
+        )}
+        {'role' in event && event.role && (
+          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
+            {event.role}
+          </span>
+        )}
+      </span>
+      <ChevronRight size={10} className="opacity-50 ml-0.5 shrink-0" />
+    </button>
+  );
+});
 
-  // Mutations for queued message controls
-  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
-  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+export const MessageFeed = memo(function MessageFeed({
+  chatroomId,
+  activeTask: _activeTask,
+  controller: scrollController,
+  isPinned,
+  scrollToBottom,
+  onRegisterOpenEventStream,
+  machines,
+}: MessageFeedProps) {
+  const {
+    messages: storeMessages,
+    isLoading,
+    hasMoreOlder,
+    isLoadingOlder,
+    loadOlderMessages,
+    purgeOldMessages,
+  } = useMessages(chatroomId);
+
+  // Mutations for pending message controls (used in MessageFeed, not moved to WorkQueue)
+  const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
+  const updatePendingMessage = useSessionMutation(api.messages.updatePendingMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -1140,14 +1127,44 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     title: '',
   });
 
-  // Attached task detail modal state
+  // Event stream panel state
+  const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+
+  // Register event stream open callback for external triggers (e.g. command palette)
+  useEffect(() => {
+    onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
+  }, [onRegisterOpenEventStream]);
+
+  // Always fetch just the latest 1 event for the ticker display
+  const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    limit: 1,
+  });
+
+  // Fetch events only when panel is open, using paginated query
+  const [eventSessionId] = useSessionId();
+  const eventsPaginated = usePaginatedQuery(
+    api.events.listLatestEventsPaginated,
+    isEventStreamOpen && eventSessionId
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
+      : 'skip',
+    { initialNumItems: 20 }
+  );
+  const paginatedEvents = eventsPaginated.results;
+  const eventsPaginationStatus = eventsPaginated.status;
+  const loadMoreEvents = eventsPaginated.loadMore;
+
+  // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
+  const latestEvent: EventStreamEvent | null =
+    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
+
+  // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
+  const [selectedAttachedBacklogItem, setSelectedAttachedBacklogItem] =
+    useState<AttachedBacklogItem | null>(null);
 
   // Message detail modal state (for TaskHeader tap and message content tap)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-
-  // Queue list modal state (shows all queued messages when "+ N more" row is clicked)
-  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
@@ -1176,6 +1193,16 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     setSelectedAttachedTask(null);
   }, []);
 
+  // Handle attached backlog item click - open BacklogItemDetailModal
+  const handleAttachedBacklogItemClick = useCallback((item: AttachedBacklogItem) => {
+    setSelectedAttachedBacklogItem(item);
+  }, []);
+
+  // Close attached backlog item modal
+  const handleCloseAttachedBacklogItemModal = useCallback(() => {
+    setSelectedAttachedBacklogItem(null);
+  }, []);
+
   // Handle TaskHeader tap or message content tap - open message detail modal
   const handleMessageDetailClick = useCallback((message: Message) => {
     setSelectedMessage(message);
@@ -1186,104 +1213,111 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     setSelectedMessage(null);
   }, []);
 
-  // Handle queued message Promote — calls promoteSpecificTask mutation
-  const handleQueuedPromote = useCallback(
-    async (queuedMessageId: string) => {
+  // Delete pending message state — tracks which message is being deleted
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+
+  // Handle delete of a pending message — hard deletes message + associated task
+  const handleDeletePendingMessage = useCallback(
+    async (message: Message) => {
+      if (deletingMessageId) return; // Already deleting
+      setDeletingMessageId(message._id);
       try {
-        await promoteSpecificTask({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        await deletePendingMessage({
+          messageId: message._id as Id<'chatroom_messages'>,
         });
       } catch (error) {
-        console.error('Failed to promote queued message:', error);
+        console.error('Failed to delete pending message:', error);
+      } finally {
+        setDeletingMessageId(null);
       }
     },
-    [promoteSpecificTask]
+    [deletePendingMessage, deletingMessageId]
   );
 
-  // Handle queued message Delete — removes the queue record directly
-  const handleQueuedDelete = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await deleteQueuedMessage({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        // Silently ignore if the record no longer exists (already promoted or deleted)
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('not found') || msg.includes('Already deleted')) {
-          return;
-        }
-        console.error('Failed to delete queued message:', error);
-      }
-    },
-    [deleteQueuedMessage]
-  );
+  // Edit pending message state — tracks which message is being edited
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
-  const handleQueuedEdit = useCallback(
-    async (queuedMessageId: string, newContent: string) => {
-      await updateQueuedMessage({
-        queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+  // Handle starting edit of a pending message
+  const handleStartEditPendingMessage = useCallback((message: Message) => {
+    setEditingMessageId(message._id);
+  }, []);
+
+  // Handle saving edit of a pending message
+  const handleSaveEditPendingMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      await updatePendingMessage({
+        messageId: messageId as Id<'chatroom_messages'>,
         content: newContent,
       });
+      setEditingMessageId(null);
     },
-    [updateQueuedMessage]
+    [updatePendingMessage]
+  );
+
+  // Handle canceling edit
+  const handleCancelEditPendingMessage = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
+
+  // Attachments context for "Add to Context" feature
+  const { add: addAttachment, isAttached } = useAttachments();
+
+  // Handle "Add to Context" — adds a message to the attachments context
+  const handleAddToContext = useCallback(
+    (message: Message) => {
+      addAttachment({
+        type: 'message',
+        id: message._id as Id<'chatroom_messages'>,
+        content: message.content,
+        senderRole: message.senderRole,
+      });
+    },
+    [addAttachment]
   );
 
   // Load more messages handler - stable reference for button onClick
   const handleLoadMore = useCallback(() => {
-    loadMore(LOAD_MORE_SIZE);
-  }, [loadMore]);
+    loadOlderMessages();
+  }, [loadOlderMessages]);
 
-  // Reverse to show oldest first (backend already filters out join/progress messages)
+  // Messages from store are already in chronological order (oldest-to-newest)
   const displayMessages = useMemo(() => {
-    // Reverse because paginated query returns newest first, we want oldest at top
-    const regularMessages = [...(results || [])].reverse();
-    return regularMessages; // Queued messages are shown separately (pinned at bottom)
-  }, [results]);
+    return storeMessages as Message[];
+  }, [storeMessages]);
 
-  // Effective loadable status — respects the message cap to prevent unbounded memory growth
-  const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
-  const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
+  // Ref to avoid re-creating handleScroll on every message change
+  const displayMessagesLengthRef = useRef(displayMessages.length);
+  displayMessagesLengthRef.current = displayMessages.length;
 
-  // Track if user is at bottom of scroll for auto-scroll behavior and floating button
-  // Using state instead of ref so the floating button can react to changes
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  // Also keep a ref for the auto-scroll useEffect (avoids stale closure issues)
-  const isAtBottomRef = useRef(true);
+  // Fire browser notifications when an agent hands off to the user
+  useHandoffNotification(displayMessages, chatroomId);
 
-  // Threshold for considering user "at bottom" (in pixels)
-  const AT_BOTTOM_THRESHOLD = 50;
+  // Effective loadable status — cursor-based store manages its own cap/bounds
+  const canLoadMore = hasMoreOlder && !isLoadingOlder;
 
-  // Check if user is at bottom and update both state and ref
-  const updateIsAtBottom = useCallback(() => {
-    if (feedRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
-      isAtBottomRef.current = atBottom;
-      setIsAtBottom(atBottom);
-    }
-  }, []);
-
-  // Scroll to bottom smoothly
-  const scrollToBottom = useCallback(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTo({
-        top: feedRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, []);
+  // ─── Scroll controller ref callback ──────────────────────────────────
+  // Attach/detach the external ScrollController to the DOM element
+  const feedRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      feedRef.current = node;
+      if (node) {
+        scrollController.current.attach(node);
+      } else {
+        scrollController.current.detach();
+      }
+    },
+    [scrollController]
+  );
 
   // Track if we're in a loading more state to handle scroll position
   const wasLoadingMoreRef = useRef(false);
 
   // Update loading state ref when status changes
   useEffect(() => {
-    wasLoadingMoreRef.current = status === 'LoadingMore';
-  }, [status]);
+    wasLoadingMoreRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
 
-  // CRITICAL: Use useLayoutEffect to adjust scroll position BEFORE browser paint
-  // This prevents the visual "jump" when loading older messages
+  // Preserve scroll position when loading older messages at the top
   useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
@@ -1291,87 +1325,47 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
       if (messagesAdded && heightDiff > 0) {
-        // Check if this was from loading older messages (content added at top)
-        // We detect this by checking if prevScrollHeight was smaller (content was added)
-        // and the user was near the top (likely paginating up)
         const wasNearTop = feedRef.current.scrollTop < 200;
-        const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
-
-        if (contentAddedAtTop) {
-          // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll position IMMEDIATELY
-          // This happens synchronously before paint, so user sees no jump
-          feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-        } else if (isAtBottomRef.current) {
-          // New message arrived and user was at bottom - scroll to bottom
-          feedRef.current.scrollTop = feedRef.current.scrollHeight;
-          // Ensure state is also updated
-          setIsAtBottom(true);
-        }
-        // If user scrolled up (not at bottom), don't auto-scroll
+        scrollController.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, wasNearTop);
       }
 
       prevScrollHeightRef.current = newScrollHeight;
     }
     prevMessageCountRef.current = displayMessages.length;
-  }, [displayMessages.length]);
+  }, [displayMessages.length, scrollController]);
 
-  // Auto-load more messages when content doesn't fill the container.
-  // This handles the edge case where initial messages are too few to create a scrollbar,
-  // making it impossible for the user to scroll up to trigger loading.
-  //
-  // Loop safety: This progressively loads until either:
-  // 1. Content fills the viewport (scrollHeight > clientHeight), or
-  // 2. All data is loaded (status becomes 'Exhausted')
-  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
+  // Auto-load more messages when content doesn't fill the container
   useEffect(() => {
     if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
-      // If content doesn't overflow (no scrollbar), auto-load more
       if (scrollHeight <= clientHeight) {
-        loadMore(LOAD_MORE_SIZE);
+        loadOlderMessages();
       }
     }
-  }, [canLoadMore, loadMore, displayMessages.length]);
+  }, [canLoadMore, loadOlderMessages, displayMessages.length]);
 
-  // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
-  // This ensures the last message stays visible when the queue section grows/shrinks
-  useEffect(() => {
-    if (isAtBottom) {
-      scrollToBottom();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayQueuedMessages.length]);
-
-  // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
-  // input growing/shrinking changes the available height for the message area)
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Handle scroll: load more when near top, track if at bottom
+  // Handle scroll: load more when near top, purge when scrolled back down
   const handleScroll = useCallback(() => {
-    // Track if user is at bottom for auto-scroll behavior
-    updateIsAtBottom();
+    const pos = scrollController.current.getScrollPosition();
+    if (pos && canLoadMore && pos.scrollTop < SCROLL_THRESHOLD) {
+      loadOlderMessages();
+    }
 
-    // Load more when user scrolls within threshold of top
-    if (feedRef.current && canLoadMore) {
-      const { scrollTop } = feedRef.current;
-      if (scrollTop < SCROLL_THRESHOLD) {
-        loadMore(LOAD_MORE_SIZE);
+    // Purge old messages when user scrolls back down near bottom
+    if (pos && feedRef.current && scrollController.current.isPinned) {
+      // Estimate which message is at the top of the viewport
+      // Simple heuristic: estimate average message height from container
+      const container = feedRef.current;
+      const msgCount = displayMessagesLengthRef.current;
+      const avgMessageHeight = msgCount > 0 ? container.scrollHeight / msgCount : 80;
+      const viewportTopIndex = Math.floor(pos.scrollTop / avgMessageHeight);
+      if (viewportTopIndex > 50) {
+        purgeOldMessages(viewportTopIndex);
       }
     }
-  }, [canLoadMore, loadMore, updateIsAtBottom]);
+  }, [canLoadMore, loadOlderMessages, scrollController, purgeOldMessages]);
 
-  if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
+  if (isLoading && displayMessages.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-4 min-h-0">
         <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
@@ -1401,7 +1395,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {/* Note: px-2 for horizontal padding, no vertical padding so sticky headers flush to top */}
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
-        ref={feedRef}
+        ref={feedRefCallback}
         onScroll={handleScroll}
       >
         {/* Load More indicator at top - clickable to load older messages */}
@@ -1415,12 +1409,12 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
             Load older messages
           </button>
         )}
-        {hasReachedCap && status !== 'Exhausted' && (
+        {!hasMoreOlder && displayMessages.length > 0 && (
           <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
-            Showing latest {MAX_LOADED_MESSAGES} messages
+            Beginning of conversation
           </div>
         )}
-        {status === 'LoadingMore' && (
+        {isLoadingOlder && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
             <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
             Loading...
@@ -1429,97 +1423,70 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            <TaskHeader
+              message={message}
+              onTap={handleMessageDetailClick}
+              onDelete={handleDeletePendingMessage}
+              isDeleting={deletingMessageId === message._id}
+              onStartEdit={handleStartEditPendingMessage}
+              isEditing={editingMessageId === message._id}
+            />
             {/* Task Progress - inline progress updates below task header */}
             <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
               message={message}
+              chatroomId={chatroomId}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
+              onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
+              onAddToContext={handleAddToContext}
+              isAddedToContext={isAttached('message', message._id)}
+              isEditing={editingMessageId === message._id}
+              onSaveEdit={handleSaveEditPendingMessage}
+              onCancelEdit={handleCancelEditPendingMessage}
             />
           </React.Fragment>
         ))}
       </div>
       {/* Scroll to bottom floating button - appears when user scrolls up */}
-      {!isAtBottom && (
+      {!isPinned && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-none shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={16} />
           <span className="text-xs font-medium">New messages</span>
         </button>
       )}
-      {/* Queued Messages - pinned just above status bar */}
-      {/* Always rendered — animated to height 0 when empty, slides in when a message is queued */}
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          displayQueuedMessages.length > 0
-            ? 'max-h-[600px] opacity-100'
-            : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="border-t border-border">
-          {/* Section header */}
-          <div className="px-3 pt-2 pb-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-              Queued
-            </p>
-          </div>
-          {/* Inset card — sharp corners, no rounded-md */}
-          <div className="mx-3 mb-2 overflow-hidden border border-border shadow-sm">
-            {/* First queued message card — conditionally rendered to avoid undefined message */}
-            {displayQueuedMessages.length > 0 && (
-              <QueuedMessageCard
-                key={displayQueuedMessages[0]._id}
-                message={displayQueuedMessages[0]}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-                onEdit={handleQueuedEdit}
-              />
-            )}
-            {/* "+ N more" row — only shown when there are additional queued messages */}
-            {displayQueuedMessages.length > 1 && (
-              <button
-                onClick={() => setIsQueueModalOpen(true)}
-                className="w-full flex items-center justify-between px-3 py-1.5 bg-card border-t border-border text-[10px] text-orange-600 dark:text-orange-400 hover:bg-accent/50 transition-colors"
-              >
-                <span>+ {displayQueuedMessages.length - 1} more in queue</span>
-                <span className="font-bold uppercase tracking-wide">View all →</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-      {/* Queue list modal — shows all queued messages */}
-      <FixedModal isOpen={isQueueModalOpen} onClose={() => setIsQueueModalOpen(false)} maxWidth="max-w-2xl">
-        <FixedModalContent>
-          <FixedModalHeader onClose={() => setIsQueueModalOpen(false)}>
-            <FixedModalTitle>Queue ({displayQueuedMessages.length})</FixedModalTitle>
-          </FixedModalHeader>
-          <FixedModalBody>
-            {displayQueuedMessages.map((message) => (
-              <QueuedMessageCard
-                key={message._id}
-                message={message}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-                onEdit={handleQueuedEdit}
-              />
-            ))}
-          </FixedModalBody>
-        </FixedModalContent>
-      </FixedModal>
-      {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
+      {/* Event stream modal - rendered via portal at document.body level */}
+      <EventStreamModal
+        isOpen={isEventStreamOpen}
+        onClose={() => setIsEventStreamOpen(false)}
+        events={(paginatedEvents as EventStreamEvent[] | undefined) ?? []}
+        isLoading={
+          isEventStreamOpen &&
+          (paginatedEvents === undefined || eventsPaginationStatus === 'LoadingFirstPage')
+        }
+        onLoadMore={() => loadMoreEvents(20)}
+        hasMore={eventsPaginationStatus === 'CanLoadMore'}
+        machines={machines}
+      />
+      {/* Queued-messages indicator — sits directly above the status bar so users
+          on mobile (and in the desktop messages view) see queued messages without
+          having to open the WorkQueue sidebar. Returns null when no messages queued. */}
+      <QueuedMessagesIndicator chatroomId={chatroomId as Id<'chatroom_rooms'>} />
+      {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
-        {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
-        <div className="flex-shrink-0">
-          <WorkingIndicator activeTask={activeTask} compact />
-        </div>
+        {/* Left: Latest event ticker - clickable to toggle event stream modal */}
+        <LatestEventTicker
+          key={latestEvent?._id}
+          event={latestEvent}
+          onClick={() => setIsEventStreamOpen((prev) => !prev)}
+        />
         {/* Right: Message count */}
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">
-          {displayMessages.length} messages
+        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+          {displayMessages.length} MESSAGES
         </span>
       </div>
       {/* Feature Detail Modal */}
@@ -1535,6 +1502,27 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         isOpen={selectedAttachedTask !== null}
         task={selectedAttachedTask}
         onClose={handleCloseAttachedTaskModal}
+      />
+      {/* Attached Backlog Item Detail Modal — opened when clicking chatroom_backlog items in MessageFeed */}
+      <BacklogItemDetailModal
+        isOpen={selectedAttachedBacklogItem !== null}
+        item={
+          selectedAttachedBacklogItem
+            ? {
+                _id: selectedAttachedBacklogItem.id as Id<'chatroom_backlog'>,
+                chatroomId: chatroomId as Id<'chatroom_rooms'>,
+                createdBy: 'unknown',
+                content: selectedAttachedBacklogItem.content,
+                status: selectedAttachedBacklogItem.status as
+                  | 'backlog'
+                  | 'pending_user_review'
+                  | 'closed',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              }
+            : null
+        }
+        onClose={handleCloseAttachedBacklogItemModal}
       />
       {/* Message Detail Modal - for TaskHeader and message content taps */}
       <MessageDetailModal

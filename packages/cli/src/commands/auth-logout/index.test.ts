@@ -17,8 +17,8 @@ import { authLogout } from './index.js';
 function createMockDeps(overrides?: Partial<AuthLogoutDeps>): AuthLogoutDeps {
   return {
     session: {
-      isAuthenticated: vi.fn().mockReturnValue(true),
-      clearAuthData: vi.fn().mockReturnValue(true),
+      isAuthenticated: vi.fn().mockResolvedValue(true),
+      clearAuthData: vi.fn().mockResolvedValue(true),
       getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.jsonc'),
     },
     ...overrides,
@@ -60,8 +60,8 @@ describe('authLogout', () => {
     it('exits with code 1 when clearAuthData fails', async () => {
       const deps = createMockDeps({
         session: {
-          isAuthenticated: vi.fn().mockReturnValue(true),
-          clearAuthData: vi.fn().mockReturnValue(false),
+          isAuthenticated: vi.fn().mockResolvedValue(true),
+          clearAuthData: vi.fn().mockResolvedValue(false),
           getAuthFilePath: vi.fn().mockReturnValue('/home/user/.chatroom/auth.jsonc'),
         },
       });
@@ -89,7 +89,7 @@ describe('authLogout', () => {
     it('logs info and returns when not authenticated', async () => {
       const deps = createMockDeps({
         session: {
-          isAuthenticated: vi.fn().mockReturnValue(false),
+          isAuthenticated: vi.fn().mockResolvedValue(false),
           clearAuthData: vi.fn(),
           getAuthFilePath: vi.fn(),
         },

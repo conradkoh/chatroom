@@ -3,8 +3,9 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
-import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -18,7 +19,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     // Validate session
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }
 
@@ -55,7 +56,7 @@ export const listByUser = query({
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -83,7 +84,7 @@ export const listByUserWithStatus = query({
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -220,7 +221,7 @@ export const updateTeam = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     if (args.teamRoles.length === 0) {
-      throw new ConvexError('Team must have at least one role');
+      throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'Team must have at least one role' });
     }
 
     if (args.teamEntryPoint && !args.teamRoles.includes(args.teamEntryPoint)) {
@@ -359,6 +360,9 @@ export const markAsRead = mutation({
         updatedAt: now,
       });
     }
+
+    // Clear materialized unread status
+    await clearChatroomUnread(ctx, args.chatroomId, session.userId);
   },
 });
 
@@ -369,7 +373,7 @@ export const listFavoriteIds = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -389,11 +393,25 @@ export const listUnreadStatus = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
-    // Fetch all chatrooms and read cursors in parallel
+    // Try materialized unread status first (single query, no N+1)
+    const materializedStatus = await ctx.db
+      .query('chatroom_unreadStatus')
+      .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+      .collect();
+
+    if (materializedStatus.length > 0) {
+      return materializedStatus.map((s) => ({
+        chatroomId: s.chatroomId as string,
+        hasUnread: s.hasUnread,
+        hasUnreadHandoff: s.hasUnreadHandoff,
+      }));
+    }
+
+    // Fallback: compute from message scans (migration safety)
     const [chatrooms, readCursors] = await Promise.all([
       ctx.db
         .query('chatroom_rooms')
@@ -411,25 +429,34 @@ export const listUnreadStatus = query({
       chatrooms.map(async (chatroom) => {
         const lastSeenAt = readCursorMap.get(chatroom._id.toString());
         let hasUnread = false;
+        let hasUnreadHandoff = false;
+
+        const recentMessages = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .order('desc')
+          .take(10);
 
         if (lastSeenAt !== undefined) {
-          // Check if there's any message newer than the cursor
-          const newerMessage = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-            .order('desc')
-            .first();
-          hasUnread = newerMessage !== null && newerMessage._creationTime > lastSeenAt;
+          hasUnread = recentMessages.some((msg) => msg._creationTime > lastSeenAt);
+          if (hasUnread) {
+            hasUnreadHandoff = recentMessages.some(
+              (msg) =>
+                msg._creationTime > lastSeenAt &&
+                msg.type === 'handoff' &&
+                msg.targetRole?.toLowerCase() === 'user'
+            );
+          }
         } else {
-          // No cursor — check if there are any messages at all
-          const anyMessage = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-            .first();
-          hasUnread = anyMessage !== null;
+          hasUnread = recentMessages.length > 0;
+          if (hasUnread) {
+            hasUnreadHandoff = recentMessages.some(
+              (msg) => msg.type === 'handoff' && msg.targetRole?.toLowerCase() === 'user'
+            );
+          }
         }
 
-        return { chatroomId: chatroom._id as string, hasUnread };
+        return { chatroomId: chatroom._id as string, hasUnread, hasUnreadHandoff };
       })
     );
 
@@ -444,7 +471,7 @@ export const listParticipantPresence = query({
   },
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
+    if (!sessionResult.ok) {
       return [];
     }
 
@@ -472,5 +499,77 @@ export const listParticipantPresence = query({
     );
 
     return presence.flat();
+  },
+});
+
+/** Returns participant presence for a single chatroom. Per-chatroom subscription reduces blast radius. */
+export const getPresenceForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.ok) return [];
+
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    return participants.map((p) => ({
+      chatroomId: args.chatroomId as string,
+      role: p.role,
+      lastSeenAt: p.lastSeenAt ?? null,
+      lastSeenAction: p.lastSeenAction ?? null,
+      lastStatus: p.lastStatus ?? null,
+      lastDesiredState: p.lastDesiredState ?? null,
+    }));
+  },
+});
+
+export const recordChatroomObservation = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    /** When true, also updates `lastRefreshedAt` to trigger an immediate daemon sync. */
+    refresh: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.ok) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    }
+
+    const now = Date.now();
+
+    // Check if observation record exists for this chatroom
+    const existing = await ctx.db
+      .query('chatroom_observation')
+      .withIndex('by_chatroomId', (q) => q.eq('chatroomId', args.chatroomId))
+      .first();
+
+    if (existing) {
+      // Update existing observation
+      const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
+        lastObservedAt: now,
+      };
+      if (args.refresh) {
+        patch.lastRefreshedAt = now;
+      }
+      await ctx.db.patch("chatroom_observation", existing._id, patch);
+    } else {
+      // Create new observation record
+      await ctx.db.insert('chatroom_observation', {
+        chatroomId: args.chatroomId,
+        lastObservedAt: now,
+        lastRefreshedAt: args.refresh ? now : undefined,
+      });
+    }
   },
 });

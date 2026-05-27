@@ -17,11 +17,11 @@ export default function MyPresentation() {
   return (
     <PresentationContainer totalSlides={5} presentationKey={presentationKey}>
       <PresentationControls />
-      
+
       <Slide index={1} className="text-center">
         <h1 className="text-6xl font-bold">Title Slide</h1>
       </Slide>
-      
+
       <Slide index={2}>
         <h2 className="text-4xl font-semibold">Content Slide</h2>
         <p className="text-2xl">Your content here...</p>

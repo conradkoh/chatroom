@@ -1,6 +1,9 @@
 'use client';
 
 import { Rocket, Check } from 'lucide-react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
@@ -65,7 +68,7 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
     <div className="flex flex-col gap-2 p-4 border border-chatroom-border bg-chatroom-bg-surface">
       <div className="flex items-center gap-2">
         <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-chatroom-text-muted">
-          <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
+          <span className="w-1.5 h-1.5 bg-chatroom-status-warning " />
         </span>
         <span className="text-sm font-semibold text-chatroom-text-primary">{label}</span>
       </div>
@@ -104,7 +107,10 @@ export const SetupChecklist = memo(function SetupChecklist({
   } = useAgentPanelData(chatroomId);
 
   // ── Agent statuses (event stream) ─────────────────────────────────
-  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(chatroomId, teamRoles);
+  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
+    chatroomId,
+    teamRoles
+  );
 
   // Combined loading flag — wait for both machine data and agent statuses before rendering
   const isAllLoading = isLoading || isLoadingStatuses;
@@ -118,6 +124,28 @@ export const SetupChecklist = memo(function SetupChecklist({
     () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
     [agentRoleViews]
   );
+
+  // ── Restart summaries (batch query) ────────────────────────────────
+  // Batch query all restart summaries for team roles in a single subscription
+  // Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view)
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: teamRoles,
+  });
+
+  // Build a map of role -> restart summary for efficient lookup
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count3h: number; count3d: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count3h: summary.count3h,
+          count3d: summary.count3d,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
 
   // ── Prerequisites ─────────────────────────────────────────────────
   const prereqs = useMemo<Prerequisites>(() => {
@@ -208,7 +236,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                   key={role}
                   className="flex items-center gap-2 px-4 py-3 border-b border-chatroom-border last:border-b-0"
                 >
-                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse rounded-full" />
+                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse " />
                   <span className="text-xs font-medium text-chatroom-text-muted uppercase tracking-wide">
                     {role}
                   </span>
@@ -291,6 +319,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                   <InlineAgentCard
                     key={role}
                     role={role}
+                    allRoles={teamRoles}
                     online={agentStatus?.online ?? false}
                     lastSeenAt={agentStatus?.lastSeenAt ?? null}
                     latestEventType={agentStatus?.latestEventType ?? null}
@@ -304,6 +333,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                     agentRoleView={agentRoleView}
                     agentPreference={agentPreferenceMap.get(role.toLowerCase())}
                     onSavePreference={savePreference}
+                    restartSummary={restartSummaryMap.get(role.toLowerCase())}
                   />
                 );
               })}

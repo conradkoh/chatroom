@@ -13,18 +13,16 @@ This document outlines the conventions and patterns for developing CLI commands 
 ### Command Registration Pattern
 
 ```typescript
-const commandGroup = program
-  .command("group-name")
-  .description("Group description");
+const commandGroup = program.command('group-name').description('Group description');
 
 commandGroup
-  .command("subcommand <requiredArg>")
-  .description("Subcommand description")
-  .requiredOption("--role <role>", "Your role")
-  .option("--optional <value>", "Optional option")
+  .command('subcommand <requiredArg>')
+  .description('Subcommand description')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--optional <value>', 'Optional option')
   .action(async (requiredArg, options) => {
     await maybeRequireAuth();
-    const { commandFunction } = await import("./commands/command-file.js");
+    const { commandFunction } = await import('./commands/command-file.js');
     await commandFunction(requiredArg, options);
   });
 ```
@@ -94,7 +92,7 @@ import {
   formatValidationError,
   formatAuthError,
   formatChatroomIdError,
-} from "../utils/error-formatting.js";
+} from '../utils/error-formatting.js';
 ```
 
 ### Error Message Patterns
@@ -102,16 +100,13 @@ import {
 #### Basic Error
 
 ```typescript
-formatError("Error message", [
-  "Optional suggestion 1",
-  "Optional suggestion 2",
-]);
+formatError('Error message', ['Optional suggestion 1', 'Optional suggestion 2']);
 ```
 
 #### Validation Error
 
 ```typescript
-formatValidationError("field name", actualValue, expectedValue);
+formatValidationError('field name', actualValue, expectedValue);
 ```
 
 #### Authentication Error
@@ -161,7 +156,7 @@ Validate chatroom IDs consistently:
 // Validate chatroom ID format
 if (
   !chatroomId ||
-  typeof chatroomId !== "string" ||
+  typeof chatroomId !== 'string' ||
   chatroomId.length < 20 ||
   chatroomId.length > 40
 ) {
@@ -178,19 +173,15 @@ For commands that read files:
 // Read file content
 let content: string;
 try {
-  content = readFileContent(options.fromFile, "--from-file");
+  content = readFileContent(options.fromFile, '--from-file');
 } catch (err) {
-  formatFileError(
-    "read for --from-file",
-    options.fromFile,
-    (err as Error).message,
-  );
+  formatFileError('read for --from-file', options.fromFile, (err as Error).message);
   process.exit(1);
 }
 
 // Validate content is not empty
 if (!content || content.trim().length === 0) {
-  formatError("File is empty");
+  formatError('File is empty');
   process.exit(1);
 }
 ```
@@ -224,8 +215,8 @@ Show optional options in brackets or indicate they're optional:
 ### Import Types
 
 ```typescript
-import { api } from "../api.js";
-import type { Id } from "../api.js";
+import { api } from '../api.js';
+import type { Id } from '../api.js';
 ```
 
 ### Type Casting
@@ -233,8 +224,8 @@ import type { Id } from "../api.js";
 Cast IDs when needed:
 
 ```typescript
-chatroomId: chatroomId as Id<"chatroom_rooms">;
-artifactId: artifactId as Id<"chatroom_artifacts">;
+chatroomId: chatroomId as Id<'chatroom_rooms'>;
+artifactId: artifactId as Id<'chatroom_artifacts'>;
 ```
 
 ## Testing Guidelines
@@ -276,7 +267,7 @@ export async function commandName(
     role: string;
     optionalArg?: string;
     // ... other options
-  },
+  }
 ): Promise<void> {
   // Implementation
 }
@@ -304,22 +295,18 @@ When making breaking changes:
 
 ```typescript
 // packages/cli/src/commands/example.ts
-import { api } from "../api.js";
-import type { Id } from "../api.js";
-import { getSessionId } from "../infrastructure/auth/storage.js";
-import { getConvexClient } from "../infrastructure/convex/client.js";
-import {
-  formatError,
-  formatAuthError,
-  formatChatroomIdError,
-} from "../utils/error-formatting.js";
+import { api } from '../api.js';
+import type { Id } from '../api.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
+import { getConvexClient } from '../infrastructure/convex/client.js';
+import { formatError, formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
 
 export async function exampleCommand(
   chatroomId: string,
   options: {
     role: string;
     message: string;
-  },
+  }
 ) {
   // Authentication
   const sessionId = getSessionId();
@@ -331,7 +318,7 @@ export async function exampleCommand(
   // Validation
   if (
     !chatroomId ||
-    typeof chatroomId !== "string" ||
+    typeof chatroomId !== 'string' ||
     chatroomId.length < 20 ||
     chatroomId.length > 40
   ) {
@@ -344,13 +331,13 @@ export async function exampleCommand(
   try {
     const result = await client.mutation(api.some.function, {
       sessionId,
-      chatroomId: chatroomId as Id<"chatroom_rooms">,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       message: options.message,
     });
 
-    console.log("✅ Success");
+    console.log('✅ Success');
   } catch (error) {
-    formatError("Failed to execute command", [String(error)]);
+    formatError('Failed to execute command', [String(error)]);
     process.exit(1);
   }
 }

@@ -10,7 +10,7 @@
  * Presence is derived from lastSeenAt; action context from lastSeenAction.
  *
  * Note: AgentPanel derives status from lastStatus (denormalized from event stream).
- * lastSeenAction is still used by ChatroomListingContext, TaskQueue, and ChatroomDashboard.
+ * lastSeenAction is still used by ChatroomListingContext, WorkQueue, and ChatroomDashboard.
  */
 export interface ParticipantInfo {
   role: string;
@@ -19,6 +19,7 @@ export interface ParticipantInfo {
   lastSeenAction?: string | null;
   lastStatus?: string | null;
   lastDesiredState?: string | null;
+  isAlive?: boolean;
 }
 
 /**
@@ -33,5 +34,3 @@ export interface TeamLifecycle {
   /** Whether the chatroom has been used (has user messages) */
   hasHistory: boolean;
 }
-
-

@@ -1,7 +1,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 // Define the presentation state type to include activePresentation
@@ -48,8 +48,9 @@ export function usePresentationSync({
   // Always enable sync since presentationKey is mandatory
   const isSyncEnabled = true;
 
-  // Read initial slide from URL on mount
-  useEffect(() => {
+  const [prevSlideParam, setPrevSlideParam] = useState(slideParam);
+  if (prevSlideParam !== slideParam) {
+    setPrevSlideParam(slideParam);
     if (!updatingRef.current && slideParam) {
       const slideFromUrl = Number.parseInt(slideParam, 10);
       if (
@@ -59,9 +60,10 @@ export function usePresentationSync({
         slideFromUrl !== currentSlide
       ) {
         setCurrentSlideInternal(slideFromUrl);
+        setLastChangeTimestamp(Date.now());
       }
     }
-  }, [slideParam, totalSlides, currentSlide]);
+  }
 
   // Update URL when slide changes (using replaceState to avoid browser history entries)
   const updateUrlWithSlide = useCallback((slideNumber: number) => {
@@ -101,12 +103,9 @@ export function usePresentationSync({
   // User is following if there's an active presentation, they're not the presenter, and not in solo mode
   const isFollowing = isPresentationActive && !isPresenter && !isSoloMode;
 
-  // Initialize the previous presentation state ref
-  useEffect(() => {
-    if (presentationState && prevPresentationActiveRef.current === null) {
-      prevPresentationActiveRef.current = !!presentationState.activePresentation;
-    }
-  }, [presentationState]);
+  if (presentationState && prevPresentationActiveRef.current === null) {
+    prevPresentationActiveRef.current = !!presentationState.activePresentation;
+  }
 
   // Sync to backend
   const syncToBackend = useCallback(
@@ -213,59 +212,44 @@ export function usePresentationSync({
     [setCurrentSlide, isPresentationActive, isPresenter, explicitSoloMode]
   );
 
-  // Handle remote updates from backend
-  useEffect(() => {
-    // Don't process updates if:
-    // - We're updating the slide ourselves
-    // - There's no presentation state
-    // - We're in solo mode (either no active presentation or explicitly chosen)
-    if (!presentationState || updatingRef.current || isSoloMode) return;
-
-    const backendSlide = presentationState.currentSlide + 1; // Convert from 0-based to 1-based
-
-    // Check if lastUpdated exists (type guard for presentationState)
-    if (!('lastUpdated' in presentationState)) return;
-
-    const backendTimestamp = presentationState.lastUpdated;
-
-    // Only update if the backend change is newer than our last local change
-    // This is the key part: latest timestamp wins
-    if (backendSlide !== currentSlide && backendTimestamp > lastChangeTimestamp) {
-      // Only update URL and internal state, not the backend again
-      setCurrentSlide(backendSlide, {
-        fromBackend: true,
-        updateBackend: false,
-        timestamp: backendTimestamp,
-      });
+  const [prevPresentationState, setPrevPresentationState] = useState(presentationState);
+  if (prevPresentationState !== presentationState) {
+    setPrevPresentationState(presentationState);
+    if (presentationState && !updatingRef.current && !isSoloMode) {
+      const backendSlide = presentationState.currentSlide + 1;
+      if ('lastUpdated' in presentationState) {
+        const backendTimestamp = presentationState.lastUpdated;
+        if (backendSlide !== currentSlide && backendTimestamp > lastChangeTimestamp) {
+          setCurrentSlide(backendSlide, {
+            fromBackend: true,
+            updateBackend: false,
+            timestamp: backendTimestamp,
+          });
+        }
+      }
     }
-  }, [presentationState, currentSlide, setCurrentSlide, lastChangeTimestamp, isSoloMode]);
+  }
 
-  // Detect when a presentation has ended and notify viewers
-  useEffect(() => {
-    // If we have presentation state
-    if (presentationState) {
-      // Detect presentation ending and notify viewers
-      const wasActive = prevPresentationActiveRef.current;
-      const isActive = !!presentationState.activePresentation;
+  // Detect presentation state transitions during render
+  if (presentationState) {
+    const wasActive = prevPresentationActiveRef.current;
+    const isActive = !!presentationState.activePresentation;
 
-      // If presentation was active before but is now inactive
-      if (wasActive === true && !isActive) {
-        // When a presentation ends, reset explicit solo mode
-        setExplicitSoloMode(false);
-
-        // Notify viewers (but not the presenter who ended it)
-        if (!isPresenter) {
+    if (wasActive === true && !isActive) {
+      setExplicitSoloMode(false);
+      if (!isPresenter) {
+        // Schedule toast for after render
+        queueMicrotask(() => {
           toast.info('Presentation ended', {
             description: 'The presenter has ended the presentation.',
             duration: 5000,
           });
-        }
+        });
       }
-
-      // Update previous state
-      prevPresentationActiveRef.current = isActive;
     }
-  }, [presentationState, isPresenter]);
+
+    prevPresentationActiveRef.current = isActive;
+  }
 
   // Function to start presenting
   const startPresenting = useCallback(async () => {

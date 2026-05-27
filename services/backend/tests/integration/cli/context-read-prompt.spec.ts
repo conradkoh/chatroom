@@ -26,10 +26,10 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -58,19 +58,17 @@ describe('Context Read Command Output', () => {
   test('materializes complete context with task content and attached tasks', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-with-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create a backlog task
-    const backlogResult = await t.mutation(api.tasks.createTask, {
+    // Create a backlog item using the new chatroom_backlog API
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content:
         'Bug: Missing CLI command to update status of backlog task to pending user review\n\nIn the CLI, an agent reflected that they were unable to mark a task as pending_user_review. To verify if this is true or it is a regression.',
       createdBy: 'user',
-      isBacklog: true,
     });
-    const backlogTaskId = backlogResult.taskId;
 
     // User sends message with backlog attachment
     const userMessageId = await t.mutation(api.messages.sendMessage, {
@@ -80,7 +78,7 @@ describe('Context Read Command Output', () => {
       content:
         'can you help to find the code related to this issue? I want to change the way that "failures" are handled by the agent',
       type: 'message',
-      attachedTaskIds: [backlogTaskId],
+      attachedBacklogItemIds: [backlogItemId],
     });
 
     // Builder claims and starts the task
@@ -142,23 +140,23 @@ describe('Context Read Command Output', () => {
     expect(userMessage!.taskContent).toBeDefined();
     expect(userMessage!.taskContent).toContain('can you help to find the code');
 
-    // 2. Attached tasks should be enriched objects (not just IDs)
-    expect(userMessage!.attachedTasks).toBeDefined();
-    expect(Array.isArray(userMessage!.attachedTasks)).toBe(true);
-    expect(userMessage!.attachedTasks?.length).toBe(1);
+    // 2. Attached backlog items should be enriched objects (not just IDs)
+    expect(userMessage!.attachedBacklogItems).toBeDefined();
+    expect(Array.isArray(userMessage!.attachedBacklogItems)).toBe(true);
+    expect(userMessage!.attachedBacklogItems?.length).toBe(1);
 
-    const attachedTask = userMessage!.attachedTasks?.[0];
-    expect(attachedTask).toBeDefined();
-    expect(attachedTask?._id).toBe(backlogTaskId);
-    expect(attachedTask?.content).toBeDefined();
-    expect(attachedTask?.content).toContain('Bug: Missing CLI command');
-    expect(attachedTask?.status).toBeDefined();
+    const attachedItem = userMessage!.attachedBacklogItems?.[0];
+    expect(attachedItem).toBeDefined();
+    expect(attachedItem?.id).toBe(backlogItemId);
+    expect(attachedItem?.content).toBeDefined();
+    expect(attachedItem?.content).toContain('Bug: Missing CLI command');
+    expect(attachedItem?.status).toBeDefined();
   });
 
   test('shows proper formatting when task has no attachments', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-no-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends simple message without attachments
@@ -200,24 +198,22 @@ describe('Context Read Command Output', () => {
   test('handles multiple attached tasks correctly', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-multiple-attachments');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create multiple backlog tasks
-    const task1 = await t.mutation(api.tasks.createTask, {
+    // Create multiple backlog items using the new chatroom_backlog API
+    const item1Id = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content: 'Task 1: Fix login bug',
       createdBy: 'user',
-      isBacklog: true,
     });
 
-    const task2 = await t.mutation(api.tasks.createTask, {
+    const item2Id = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content: 'Task 2: Update documentation',
       createdBy: 'user',
-      isBacklog: true,
     });
 
     // User sends message with multiple attachments
@@ -227,7 +223,7 @@ describe('Context Read Command Output', () => {
       senderRole: 'user',
       content: 'Can you work on these two items?',
       type: 'message',
-      attachedTaskIds: [task1.taskId, task2.taskId],
+      attachedBacklogItemIds: [item1Id, item2Id],
     });
 
     // Builder claims and starts the task so it appears in context
@@ -253,19 +249,21 @@ describe('Context Read Command Output', () => {
     const userMessage = context.messages.find((m) => m.senderRole === 'user');
     expect(userMessage).toBeDefined();
 
-    // Should have two enriched attached tasks
-    expect(userMessage!.attachedTasks).toBeDefined();
-    expect(userMessage!.attachedTasks?.length).toBe(2);
+    // Should have two enriched attached backlog items
+    expect(userMessage!.attachedBacklogItems).toBeDefined();
+    expect(userMessage!.attachedBacklogItems?.length).toBe(2);
 
-    // Verify both tasks have content
-    expect(userMessage!.attachedTasks?.[0].content).toContain('Task 1: Fix login bug');
-    expect(userMessage!.attachedTasks?.[1].content).toContain('Task 2: Update documentation');
+    // Verify both items have content
+    expect(userMessage!.attachedBacklogItems?.[0].content).toContain('Task 1: Fix login bug');
+    expect(userMessage!.attachedBacklogItems?.[1].content).toContain(
+      'Task 2: Update documentation'
+    );
   });
 
   test('snapshot baseline: full getContextForRole return value', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-snapshot-baseline');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -370,7 +368,7 @@ describe('Context Read Command Output', () => {
   test('includes targetRole on messages showing which role the message is assigned to', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-context-targetrole');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message (will be assigned to builder = targetRole 'builder')
@@ -455,7 +453,7 @@ describe('Context Read Command Output', () => {
   test('excludes messages with pending or acknowledged tasks from context', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-excludes-pending');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message — creates a pending task for builder

@@ -44,15 +44,15 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
-    expect(output).toContain('Code changes expected?');
+    expect(output).toContain('Set a new context per user message');
     // User message should trigger classification flow
     expect(output).toContain('Classify');
     expect(output).toContain('targets: builder, user');
-    // Step 3 should be delegate to builder, not generic "hand off"
-    expect(output).toContain('3. Delegate phase 1 to builder:');
+    // Should have delegate to builder instruction
+    expect(output).toContain('Delegate phase 1 to builder:');
     expect(output).toContain('--next-role=builder');
     expect(output).not.toContain('Do the work → follow PROCESS above');
   });
@@ -73,7 +73,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Team handoff should show "handed off from" instead of classification
     expect(output).toContain('handed off from builder');

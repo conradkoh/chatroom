@@ -6,13 +6,13 @@
  * constants that multiple consumers need.
  */
 
-import type { TaskStatus } from '../../../convex/lib/taskStateMachine';
 import { getTeamEntryPoint } from './team';
+import type { TaskStatus } from '../../../convex/lib/taskStateMachine';
 
 /**
  * Task statuses that indicate an agent should be actively running.
- * Used by ensureAgentHandler, transition-task, on-agent-exited,
- * and create-task for active-task queries and guards.
+ * Used by on-agent-exited, transition-task, and create-task for
+ * active-task queries and guards.
  */
 export const ACTIVE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'pending',
@@ -24,10 +24,7 @@ export const ACTIVE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
  * Task statuses that free the queue slot and trigger auto-promotion
  * of the next queued message.
  */
-export const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
-  'completed',
-  'closed',
-]);
+export const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set(['completed']);
 
 /**
  * Resolves the responsible role for a task.

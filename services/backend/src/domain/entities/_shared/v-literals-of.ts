@@ -26,6 +26,5 @@ export type VLiteralsOf<T extends readonly (string | number | bigint | boolean)[
  *  with precise types preserved. */
 export const toLiteralValidators = <
   T extends readonly (string | number | bigint | boolean)[],
->(
-  values: T
-): VLiteralsOf<T> => values.map((v_) => v.literal(v_)) as unknown as VLiteralsOf<T>;
+>(values: T): VLiteralsOf<T> =>
+  values.map((v_) => v.literal(v_)) as unknown as VLiteralsOf<T>;

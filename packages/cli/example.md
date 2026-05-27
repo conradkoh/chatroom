@@ -13,7 +13,7 @@ Current Time: Jan 22, 2026 at 2:35 PM
 </user-message>
 
 ### Inferred Task (inferred from user directive)
-Not created yet. Run `chatroom task-started …` to specify task.
+Not created yet. Run `chatroom classify …` to specify task.
 
 -->
 
@@ -30,4 +30,4 @@ To: builder
 
 Please infer the task from the message addressed to you and acknowledge it using the command:
 
-> chatroom task-started <chatroomId> --task-id=<taskId> --role=builder --origin-message-classification=<question|new_feature|follow_up>
+> chatroom classify --chatroom-id=<chatroomId> --task-id=<taskId> --role=builder --origin-message-classification=<question|new_feature|follow_up>

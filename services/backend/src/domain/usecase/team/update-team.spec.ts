@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { updateTeam } from './update-team';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
 import {
@@ -16,7 +17,6 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
-import { updateTeam } from './update-team';
 
 function createSquadChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -100,4 +100,50 @@ describe('updateTeam use case', () => {
     expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(2);
   });
 
+  test('clears spawnedAgentPid on old-team configs during team switch', async () => {
+    const { sessionId } = await createTestSession('test-utu-pid-clear-1');
+    const machineId = 'machine-utu-pid-clear-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createSquadChatroom(sessionId);
+
+    // Set up agent config and simulate a running agent by setting spawnedAgentPid
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    // Directly patch the config to have a spawnedAgentPid (simulating daemon updateSpawnedAgent)
+    await t.run(async (ctx) => {
+      const configs = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      const builderConfig = configs.find((c) => c.role === 'builder');
+      if (builderConfig) {
+        await ctx.db.patch('chatroom_teamAgentConfigs', builderConfig._id, {
+          spawnedAgentPid: 12345,
+          spawnedAt: Date.now(),
+        });
+      }
+    });
+
+    // Switch team — should clear PID and delete the config
+    const result = await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        teamName: 'Duo Team',
+        teamRoles: ['planner', 'builder'],
+      });
+    });
+
+    // Config should be deleted (PID cleared first, then deleted)
+    expect(result.deletedTeamConfigCount).toBeGreaterThanOrEqual(1);
+
+    // No configs should remain
+    const remaining = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    expect(remaining).toHaveLength(0);
+  });
 });

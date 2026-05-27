@@ -4,24 +4,18 @@ import type { ChatroomConfig } from './schema';
  * Default configuration used when no .chatroom/chatroom.jsonc is found
  */
 export const DEFAULT_CONFIG: ChatroomConfig = {
-  defaultTeam: 'pair',
+  defaultTeam: 'duo',
   teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working together, planner as entry point',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
     },
     squad: {
       name: 'Squad',
       description: 'A planner, builder, and reviewer working as a coordinated team',
       roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working together, planner as entry point',
-      roles: ['planner', 'builder'],
       entryPoint: 'planner',
     },
   },
@@ -35,18 +29,18 @@ export const DEFAULT_CONFIG_JSONC = `{
   // This file defines agent teams and prompt customization.
   
   // The default team to use when --team flag is not specified
-  "defaultTeam": "pair",
+  "defaultTeam": "duo",
   
   // Team definitions
   // Each team specifies the roles that must be present before messages can be sent
   // entryPoint: The role that receives all user messages (defaults to first role)
   "teams": {
-    // Pair: A minimal team for simple tasks
-    "pair": {
-      "name": "Pair",
-      "description": "A builder and reviewer working together",
-      "roles": ["builder", "reviewer"],
-      "entryPoint": "builder"
+    // Duo: A planner-builder pair with planner as entry point
+    "duo": {
+      "name": "Duo",
+      "description": "A planner and builder working together, planner as entry point",
+      "roles": ["planner", "builder"],
+      "entryPoint": "planner"
     },
     
     // Squad: A coordinated team for complex tasks
@@ -54,14 +48,6 @@ export const DEFAULT_CONFIG_JSONC = `{
       "name": "Squad",
       "description": "A planner, builder, and reviewer working as a coordinated team",
       "roles": ["planner", "builder", "reviewer"],
-      "entryPoint": "planner"
-    },
-    
-    // Duo: A planner-builder pair with planner as entry point
-    "duo": {
-      "name": "Duo",
-      "description": "A planner and builder working together, planner as entry point",
-      "roles": ["planner", "builder"],
       "entryPoint": "planner"
     }
   }

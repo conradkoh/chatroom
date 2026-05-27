@@ -6,6 +6,8 @@
  * without coupling to a specific runtime.
  */
 
+import type { SpawnPrompt } from './spawn-prompt.js';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface VersionInfo {
@@ -24,10 +26,13 @@ export interface SpawnOptions {
   workingDir: string;
   /**
    * The immediate action or message to deliver to the agent.
-   * Always provided. Each service implementation decides how to deliver it
-   * (e.g. stdin, positional arg, etc.).
+   *
+   * Constructed via `createSpawnPrompt()` at the use-case layer
+   * (`agent-process-manager`) and guaranteed non-empty / non-whitespace by
+   * the type system. Adapters MUST NOT inject their own fallback — the
+   * invariant is centralised in `spawn-prompt.ts`.
    */
-  prompt: string;
+  prompt: SpawnPrompt;
   /**
    * The role/system prompt that establishes the agent's identity and context.
    * Always provided. Each service decides whether to pass it separately
@@ -68,11 +73,17 @@ export interface RemoteAgentService {
   /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'agent') */
   readonly command: string;
 
-  /** Is the agent runtime installed on this machine? */
-  isInstalled(): boolean;
+  /**
+   * Is the agent runtime installed on this machine?
+   * Performs I/O (shell command execution) and may take time.
+   */
+  isInstalled(): Promise<boolean>;
 
-  /** What version is installed? Returns null if not installed or undetectable. */
-  getVersion(): VersionInfo | null;
+  /**
+   * What version is installed? Returns null if not installed or undetectable.
+   * Performs I/O (shell command execution) and may take time.
+   */
+  getVersion(): Promise<VersionInfo | null>;
 
   /** List available AI models from the runtime. */
   listModels(): Promise<string[]>;

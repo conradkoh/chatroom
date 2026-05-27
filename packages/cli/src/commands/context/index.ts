@@ -12,6 +12,7 @@ import type { ContextDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export async function readContext(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -144,7 +145,12 @@ export async function readContext(
           const safeTaskContent = sanitizeForTerminal(message.taskContent);
           console.log(`      Content:`);
           console.log(`      <task-content>`);
-          console.log(safeTaskContent.split('\n').map((l) => `      ${l}`).join('\n'));
+          console.log(
+            safeTaskContent
+              .split('\n')
+              .map((l) => `      ${l}`)
+              .join('\n')
+          );
           console.log(`      </task-content>`);
         }
       }
@@ -169,7 +175,12 @@ export async function readContext(
       console.log(`   Content:`);
       console.log(`   <message-content>`);
       const safeMessageContent = sanitizeForTerminal(message.content);
-      console.log(safeMessageContent.split('\n').map((l) => `      ${l}`).join('\n'));
+      console.log(
+        safeMessageContent
+          .split('\n')
+          .map((l) => `      ${l}`)
+          .join('\n')
+      );
       console.log(`   </message-content>`);
       console.log(`</message>`);
     }
@@ -177,9 +188,7 @@ export async function readContext(
     console.log('\n' + '═'.repeat(60));
     console.log('</context>');
   } catch (err) {
-    console.error(
-      `❌ Failed to read context: ${sanitizeUnknownForTerminal((err as Error).message)}`
-    );
+    console.error(`❌ Failed to read context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`);
     process.exit(1);
     return;
   }
@@ -201,7 +210,7 @@ export async function newContext(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -270,7 +279,7 @@ export async function newContext(
       process.exit(1);
       return;
     }
-    console.error(`❌ Failed to create context: ${(err as Error).message}`);
+    console.error(`❌ Failed to create context: ${getErrorMessage(err)}`);
     process.exit(1);
     return;
   }
@@ -290,7 +299,7 @@ export async function listContexts(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -353,11 +362,29 @@ export async function listContexts(
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
     console.error(
-      `❌ Failed to list contexts: ${sanitizeUnknownForTerminal((err as Error).message)}`
+      `❌ Failed to list contexts: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
     );
     process.exit(1);
     return;
   }
+}
+
+/**
+ * Print the context template to stdout.
+ */
+export function viewTemplate(): string {
+  return `## Goal
+<user-centric goal: what the user wants>
+<development-centric goal: what we are building/changing>
+
+## Requirements
+- <outcome or requirement>
+
+## Structure
+- <concrete folder structure, architecture style (e.g. vertical slice + clean architecture), key shape decisions>
+
+## Avoid
+- <thing to not do / out of scope>`;
 }
 
 /**
@@ -374,7 +401,7 @@ export async function inspectContext(
   const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -421,7 +448,7 @@ export async function inspectContext(
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
     console.error(
-      `❌ Failed to inspect context: ${sanitizeUnknownForTerminal((err as Error).message)}`
+      `❌ Failed to inspect context: ${sanitizeUnknownForTerminal(getErrorMessage(err))}`
     );
     process.exit(1);
     return;

@@ -10,6 +10,15 @@ export interface ContextNewParams {
 }
 
 /**
+ * Generate a strict requirement line that all context content must conform
+ * to the template returned by the context view-template command.
+ * Emitted immediately after a contextNewCommand snippet.
+ */
+export function contextNewHint(): string {
+  return 'REQUIRED: All context content MUST conform to the template. Run `chatroom context view-template` and follow it exactly.';
+}
+
+/**
  * Generate a context new command string using heredoc format for multi-line content.
  * Includes --trigger-message-id placeholder so agents know to pass the origin message ID,
  * which anchors the context window to the correct starting message.

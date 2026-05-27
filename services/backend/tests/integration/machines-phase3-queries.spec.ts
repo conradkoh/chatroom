@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -26,7 +26,7 @@ describe('machines.getAgentStatus', () => {
     const { sessionId } = await createTestSession('test-gas-q-valid-1');
     const machineId = 'machine-gas-q-valid-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const result = await t.query(api.machines.getAgentStatus, {
       sessionId: sessionId as any,
@@ -41,12 +41,11 @@ describe('machines.getAgentStatus', () => {
       expect(agent).toHaveProperty('state');
       expect(agent).toHaveProperty('type');
     }
-    expect(result!.workspaces).toBeDefined();
   });
 
   test('returns null for invalid session', async () => {
     const { sessionId } = await createTestSession('test-gas-q-invalid-setup');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const result = await t.query(api.machines.getAgentStatus, {
       sessionId: 'bogus-session-id' as any,
@@ -60,7 +59,7 @@ describe('machines.getAgentStatus', () => {
     const { sessionId } = await createTestSession('test-gas-q-running-1');
     const machineId = 'machine-gas-q-running-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await t.mutation(api.machines.updateSpawnedAgent, {
@@ -92,7 +91,7 @@ describe('machines.getAgentStartConfig', () => {
     const { sessionId } = await createTestSession('test-gasc-q-valid-1');
     const machineId = 'machine-gasc-q-valid-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const result = await t.query(api.machines.getAgentStartConfig, {
       sessionId: sessionId as any,
@@ -110,7 +109,7 @@ describe('machines.getAgentStartConfig', () => {
 
   test('returns null for invalid session', async () => {
     const { sessionId } = await createTestSession('test-gasc-q-invalid-setup');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const result = await t.query(api.machines.getAgentStartConfig, {
       sessionId: 'bogus-session-id' as any,
@@ -125,7 +124,7 @@ describe('machines.getAgentStartConfig', () => {
     const { sessionId } = await createTestSession('test-gasc-q-defaults-1');
     const machineId = 'machine-gasc-q-defaults-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
@@ -150,7 +149,7 @@ describe('machines.getAgentStartConfig', () => {
 describe('machines.listAgentOverview', () => {
   test('returns overview for valid session', async () => {
     const { sessionId } = await createTestSession('test-lao-q-valid-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     const results = await t.query(api.machines.listAgentOverview, {
       sessionId: sessionId as any,
@@ -175,7 +174,7 @@ describe('machines.listAgentOverview', () => {
     const { sessionId } = await createTestSession('test-lao-q-running-1');
     const machineId = 'machine-lao-q-running-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await t.mutation(api.machines.updateSpawnedAgent, {
@@ -200,7 +199,7 @@ describe('machines.listAgentOverview', () => {
     const { sessionId } = await createTestSession('test-lao-q-noleak-1');
     const machineId = 'machine-lao-q-noleak-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 

@@ -2,11 +2,14 @@
  * Daemon Types — shared type definitions for the daemon command module.
  */
 
+import type {
+  AgentStartReason,
+  AgentStopReason,
+} from '@workspace/backend/src/domain/entities/agent';
+
 import type { DaemonDeps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import type { Id } from '../../../api.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
-import type { AgentStartReason, AgentStopReason } from '@workspace/backend/src/domain/entities/agent';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
@@ -21,7 +24,7 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// Re-export from canonical source (services/backend/src/domain/entities/agent.ts)
+// Re-export from canonical source (services/backend/src/domain/direct-harness/entities/agent.ts)
 export type StartAgentReason = AgentStartReason;
 export type StopAgentReason = AgentStopReason;
 
@@ -39,7 +42,7 @@ export interface StartAgentCommand {
    */
   reason: StartAgentReason;
   payload: {
-    chatroomId: Id<'chatroom_rooms'>;
+    chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
     model?: string;
@@ -59,7 +62,7 @@ export interface StopAgentCommand {
    */
   reason: StopAgentReason;
   payload: {
-    chatroomId: Id<'chatroom_rooms'>;
+    chatroomId: string;
     role: string;
   };
 }
@@ -92,4 +95,38 @@ export interface DaemonContext {
   deps: DaemonDeps;
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
+  /**
+   * Whether observed-sync feature is enabled.
+   * When true, daemon subscribes to observed chatrooms instead of periodic git/command sync.
+   * Toggle requires daemon restart.
+   */
+  observedSyncEnabled?: boolean;
+  /**
+   * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
+   * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
+   * Only push to backend when this hash changes.
+   */
+  lastPushedGitState: Map<string, string>;
+  /**
+   * Tracks the last available-models snapshot pushed to the backend.
+   * Map key is the harness name (e.g. `opencode`, `pi`); value is the list of
+   * model IDs reported for that harness on the most recent successful push.
+   *
+   * Used by `refreshModels` to diff locally each tick — the daemon is the
+   * source of truth for "what changed since last sync", so no backend query
+   * is needed. The mutation is only invoked when the snapshot differs from
+   * the freshly discovered set.
+   *
+   * `null` means no snapshot has been recorded yet (e.g. before the first
+   * push); in that case `refreshModels` always pushes.
+   */
+  lastPushedModels: Record<string, string[]> | null;
+  /**
+   * Fingerprint of harness list + versions last successfully pushed via
+   * `refreshCapabilities`. When non-null and unchanged, harness-only discovery
+   * does not require another push unless models also changed.
+   */
+  lastPushedHarnessFingerprint: string | null;
+  /** Logger for daemon output. Defaults to console if not provided. */
+  logger?: Pick<Console, 'log' | 'warn'>;
 }

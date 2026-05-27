@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
@@ -28,41 +28,44 @@ import type {
 import { MACHINE_CONFIG_VERSION } from './types.js';
 import { getConvexUrl } from '../convex/client.js';
 
-const CHATROOM_DIR = join(homedir(), '.chatroom');
 const MACHINE_FILE = 'machine.json';
+
+/** Resolves on each call so tests (and rare HOME changes) see the current directory. */
+function chatroomConfigDir(): string {
+  return join(homedir(), '.chatroom');
+}
 
 /**
  * Ensure the chatroom config directory exists
  */
-function ensureConfigDir(): void {
-  if (!existsSync(CHATROOM_DIR)) {
-    // SECURITY: 0o700 restricts directory access to owner only.
-    // Machine config contains identity credentials (machineId).
-    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
-  }
+async function ensureConfigDir(): Promise<void> {
+  const dir = chatroomConfigDir();
+  // SECURITY: 0o700 restricts directory access to owner only.
+  // Machine config contains identity credentials (machineId).
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
 }
 
 /**
  * Get the path to the machine config file
  */
 export function getMachineConfigPath(): string {
-  return join(CHATROOM_DIR, MACHINE_FILE);
+  return join(chatroomConfigDir(), MACHINE_FILE);
 }
 
 /**
  * Load the raw config file from disk.
  */
-function loadConfigFile(): MachineConfigFile | null {
+async function loadConfigFile(): Promise<MachineConfigFile | null> {
   const configPath = getMachineConfigPath();
 
-  if (!existsSync(configPath)) {
-    return null;
-  }
-
   try {
-    const content = readFileSync(configPath, 'utf-8');
+    const content = await fs.readFile(configPath, 'utf-8');
     return JSON.parse(content) as MachineConfigFile;
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+
     // Don't silently swallow errors — a corrupted config means the machine
     // will re-register with a new UUID, losing its identity and agent configs.
     console.warn(`⚠️  Failed to read machine config at ${configPath}: ${(error as Error).message}`);
@@ -78,19 +81,19 @@ function loadConfigFile(): MachineConfigFile | null {
  * Writes to a temp file first, then renames (atomic on most filesystems).
  * This prevents corruption if the process crashes mid-write.
  */
-function saveConfigFile(configFile: MachineConfigFile): void {
-  ensureConfigDir();
+async function saveConfigFile(configFile: MachineConfigFile): Promise<void> {
+  await ensureConfigDir();
   const configPath = getMachineConfigPath();
   const tempPath = `${configPath}.tmp`;
   const content = JSON.stringify(configFile, null, 2);
 
   // SECURITY: 0o600 restricts file access to owner only.
   // Machine config contains identity credentials (machineId).
-  writeFileSync(tempPath, content, { encoding: 'utf-8', mode: 0o600 });
+  await fs.writeFile(tempPath, content, { mode: 0o600 });
 
   // Atomic rename — if the process crashes before this line, the original
-  // config file remains intact. renameSync is atomic on POSIX filesystems.
-  renameSync(tempPath, configPath);
+  // config file remains intact. rename is atomic on POSIX filesystems.
+  await fs.rename(tempPath, configPath);
 }
 
 /**
@@ -98,8 +101,8 @@ function saveConfigFile(configFile: MachineConfigFile): void {
  *
  * @returns Machine config for the active endpoint, or null if not registered
  */
-export function loadMachineConfig(): MachineConfig | null {
-  const configFile = loadConfigFile();
+export async function loadMachineConfig(): Promise<MachineConfig | null> {
+  const configFile = await loadConfigFile();
   if (!configFile) return null;
 
   const convexUrl = getConvexUrl();
@@ -109,23 +112,23 @@ export function loadMachineConfig(): MachineConfig | null {
 /**
  * Save machine configuration for the current Convex URL endpoint.
  */
-export function saveMachineConfig(config: MachineConfig): void {
-  const configFile = loadConfigFile() ?? {
+export async function saveMachineConfig(config: MachineConfig): Promise<void> {
+  const configFile = (await loadConfigFile()) ?? {
     version: MACHINE_CONFIG_VERSION,
     machines: {},
   };
 
   const convexUrl = getConvexUrl();
   configFile.machines[convexUrl] = config;
-  saveConfigFile(configFile);
+  await saveConfigFile(configFile);
 }
 
 /**
  * Create a new machine endpoint configuration with generated UUID
  */
-function createNewEndpointConfig(): MachineEndpointConfig {
+async function createNewEndpointConfig(): Promise<MachineEndpointConfig> {
   const now = new Date().toISOString();
-  const availableHarnesses = detectAvailableHarnesses();
+  const availableHarnesses = await detectAvailableHarnesses();
 
   return {
     machineId: randomUUID(),
@@ -134,31 +137,49 @@ function createNewEndpointConfig(): MachineEndpointConfig {
     registeredAt: now,
     lastSyncedAt: now,
     availableHarnesses,
-    harnessVersions: detectHarnessVersions(availableHarnesses),
+    harnessVersions: await detectHarnessVersions(availableHarnesses),
   };
 }
 
+export type EnsureMachineRegisteredOptions = {
+  /**
+   * When true, creates local machine identity if missing for this Convex URL.
+   * Only `machine start` (daemon bootstrap) should pass this — other callers must
+   * require an existing registration so we never silently mint a new UUID mid-session.
+   */
+  allowCreate?: boolean;
+};
+
 /**
- * Ensure machine is registered for the current Convex URL (idempotent)
+ * Ensure machine is registered for the current Convex URL (idempotent).
  *
- * Creates a new endpoint entry if not exists, otherwise refreshes harness detection.
+ * When no local config exists: throws unless `allowCreate: true` (explicit first-time
+ * bootstrap via daemon startup).
  *
  * @returns Machine registration info for backend sync
  */
-export function ensureMachineRegistered(): MachineRegistrationInfo {
-  let config = loadMachineConfig();
+export async function ensureMachineRegistered(
+  options: EnsureMachineRegisteredOptions = {}
+): Promise<MachineRegistrationInfo> {
+  const { allowCreate = false } = options;
+  let config = await loadMachineConfig();
 
   if (!config) {
-    // First time registration for this endpoint
-    config = createNewEndpointConfig();
-    saveMachineConfig(config);
+    if (!allowCreate) {
+      const convexUrl = getConvexUrl();
+      throw new Error(
+        `Machine not registered for endpoint "${convexUrl}". Run "chatroom machine start" to create a new machine identity for this deployment.`
+      );
+    }
+    config = await createNewEndpointConfig();
+    await saveMachineConfig(config);
   } else {
     // Refresh harness detection, versions, and update lastSyncedAt
     const now = new Date().toISOString();
-    config.availableHarnesses = detectAvailableHarnesses();
-    config.harnessVersions = detectHarnessVersions(config.availableHarnesses);
+    config.availableHarnesses = await detectAvailableHarnesses();
+    config.harnessVersions = await detectHarnessVersions(config.availableHarnesses);
     config.lastSyncedAt = now;
-    saveMachineConfig(config);
+    await saveMachineConfig(config);
   }
 
   return {
@@ -171,9 +192,11 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
 }
 
 /**
- * Get the machine ID for the current endpoint (or null if not registered)
+ * Get the machine ID for the current endpoint (or null if not registered).
+ * Does not read stale disk state into a new identity — never creates or mutates config;
+ * callers that require a registration must use {@link ensureMachineRegistered} or handle `null`.
  */
-export function getMachineId(): string | null {
-  const config = loadMachineConfig();
+export async function getMachineId(): Promise<string | null> {
+  const config = await loadMachineConfig();
   return config?.machineId ?? null;
 }

@@ -79,8 +79,8 @@ The branding setup automatically updates these files:
 
 ```typescript
 return {
-  name: 'Your App Name',           // ← Updated
-  short_name: 'Your App',          // ← Updated
+  name: 'Your App Name', // ← Updated
+  short_name: 'Your App', // ← Updated
   description: 'Your description', // ← Updated
   // ... rest of manifest
 };
@@ -90,12 +90,12 @@ return {
 
 ```typescript
 export const metadata: Metadata = {
-  title: 'Your App Name',              // ← Updated
-  description: 'Your description',     // ← Updated
+  title: 'Your App Name', // ← Updated
+  description: 'Your description', // ← Updated
   appleWebApp: {
-    title: 'Your App Name',            // ← Updated
+    title: 'Your App Name', // ← Updated
   },
-  applicationName: 'Your App Name',    // ← Updated
+  applicationName: 'Your App Name', // ← Updated
 };
 ```
 
@@ -109,7 +109,7 @@ export const metadata: Metadata = {
 
 ```tsx
 <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-  Your Landing Page Title  {/* ← Updated */}
+  Your Landing Page Title {/* ← Updated */}
 </main>
 ```
 
@@ -117,7 +117,7 @@ export const metadata: Metadata = {
 
 ```json
 {
-  "name": "your-app-name"  // ← Updated
+  "name": "your-app-name" // ← Updated
 }
 ```
 
@@ -189,9 +189,9 @@ Let's customize your app branding. Press Enter to keep the suggested values.
 
 Full application name (for PWA & metadata) [My Awesome App]: Task Manager Pro
 Short application name (for navigation & PWA) [Task Manager P]: TaskPro
-Application description [Task Manager Pro - Built with Next.js and Convex]: 
+Application description [Task Manager Pro - Built with Next.js and Convex]:
 Landing page title [Task Manager Pro]: Welcome to TaskPro
-Package name (lowercase, hyphens only) [task-manager-pro]: 
+Package name (lowercase, hyphens only) [task-manager-pro]:
 
 📝 Updating branding across all files...
 ✅ Updated PWA manifest
@@ -299,10 +299,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       - name: Setup project with branding
         run: |
           node scripts/setup.js --non-interactive \
@@ -352,4 +352,3 @@ Simply replace your customized values with the template values and run the scrip
 ### Need to update just one file
 
 You can manually edit individual files. The script will still show the overall status correctly on the next run.
-

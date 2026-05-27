@@ -7,9 +7,9 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,7 +24,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -34,7 +34,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 /** Creates a queue record (no task — task is created at promotion time) */
 async function createQueueRecord(
   chatroomId: Id<'chatroom_rooms'>,
-  content: string = 'queued message'
+  content = 'queued message'
 ): Promise<Id<'chatroom_messageQueue'>> {
   return await t.run(async (ctx) => {
     return await ctx.db.insert('chatroom_messageQueue', {
@@ -69,7 +69,9 @@ describe('promoteSpecificTask', () => {
     expect(result.reason).toBe('success');
 
     // Verify queue record was deleted
-    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    const queueRecord = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messageQueue', queuedMessageId)
+    );
     expect(queueRecord).toBeNull();
 
     // Verify message was promoted to chatroom_messages
@@ -108,7 +110,6 @@ describe('promoteSpecificTask', () => {
         createdBy: 'user',
         content: 'pending task',
         status: 'pending',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,
@@ -127,7 +128,9 @@ describe('promoteSpecificTask', () => {
     expect(result.reason).toBe('active_task_exists');
 
     // Verify queue record is still there
-    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    const queueRecord = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messageQueue', queuedMessageId)
+    );
     expect(queueRecord).toBeDefined();
   });
 
@@ -143,7 +146,6 @@ describe('promoteSpecificTask', () => {
         createdBy: 'user',
         content: 'in progress task',
         status: 'in_progress',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,
@@ -162,7 +164,9 @@ describe('promoteSpecificTask', () => {
     expect(result.reason).toBe('active_task_exists');
 
     // Verify queue record still exists
-    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    const queueRecord = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messageQueue', queuedMessageId)
+    );
     expect(queueRecord).toBeDefined();
   });
 
@@ -200,7 +204,10 @@ describe('promoteSpecificTask', () => {
 
     // Verify only queue record exists, no tasks yet
     const tasksBefore = await t.run(async (ctx) =>
-      ctx.db.query('chatroom_tasks').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
     );
     expect(tasksBefore.length).toBe(0);
 
@@ -212,14 +219,20 @@ describe('promoteSpecificTask', () => {
 
     // Verify task and message were created
     const tasksAfter = await t.run(async (ctx) =>
-      ctx.db.query('chatroom_tasks').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
     );
     expect(tasksAfter.length).toBe(1);
     expect(tasksAfter[0]?.status).toBe('pending');
     expect(tasksAfter[0]?.content).toBe('test message content');
 
     const messages = await t.run(async (ctx) =>
-      ctx.db.query('chatroom_messages').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
     );
     expect(messages.length).toBe(1);
     expect(messages[0]?.content).toBe('test message content');

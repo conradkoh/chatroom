@@ -11,8 +11,8 @@
  * 6. Promotes the next queued task to pending
  */
 
-import { getNextTaskCommand } from '@workspace/backend/prompts/cli/get-next-task/command.js';
 import { handoffCommand } from '@workspace/backend/prompts/cli/handoff/command.js';
+import { generateHandoffOutput } from '@workspace/backend/prompts/generator.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
@@ -38,6 +38,7 @@ export interface HandoffOptions {
   message: string;
   nextRole: string;
   attachedArtifactIds?: string[];
+  attachedWorkflowKeys?: string[];
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -65,12 +66,12 @@ export async function handoff(
   deps?: HandoffDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, message, nextRole, attachedArtifactIds = [] } = options;
+  const { role, message, nextRole, attachedArtifactIds = [], attachedWorkflowKeys = [] } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
     const currentUrl = d.session.getConvexUrl();
     formatAuthError(currentUrl, otherUrls);
     process.exit(1);
@@ -108,9 +109,27 @@ export async function handoff(
     }
   }
 
+  // Resolve workflow keys to IDs
+  const resolvedWorkflowIds: string[] = [];
+  if (attachedWorkflowKeys.length > 0) {
+    for (const key of attachedWorkflowKeys) {
+      try {
+        const result = await d.backend.query(api.workflows.resolveWorkflowId, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowKey: key,
+        });
+        resolvedWorkflowIds.push(result.workflowId);
+      } catch {
+        formatError(`Workflow "${key}" not found`, ['Check the workflow key and try again']);
+        process.exit(1);
+      }
+    }
+  }
+
   let result;
   try {
-    result = await d.backend.mutation(api.messages.sendHandoff, {
+    result = await d.backend.mutation(api.messages.handoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
@@ -118,6 +137,9 @@ export async function handoff(
       targetRole: nextRole,
       ...(attachedArtifactIds.length > 0 && {
         attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
+      }),
+      ...(resolvedWorkflowIds.length > 0 && {
+        attachedWorkflowIds: resolvedWorkflowIds as Id<'chatroom_workflows'>[],
       }),
     });
   } catch (error) {
@@ -166,7 +188,24 @@ export async function handoff(
       for (const target of result.error.suggestedTargets) {
         console.error(`   • ${target}`);
       }
-      console.error(`\n💡 Check your team's workflow in the system prompt for valid handoff paths.`);
+      console.error(
+        `\n💡 Check your team's workflow in the system prompt for valid handoff paths.`
+      );
+    } else if (result.error.code === 'WORKFLOW_REQUIRED') {
+      console.error('');
+      console.error('All tasks delegated to builder must use a workflow.');
+      console.error('Create one before handing off:');
+      console.error('');
+      console.error('  1. Activate the workflow skill:');
+      console.error(
+        `     ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomId} --role=${role}`
+      );
+      console.error('');
+      console.error('  2. Create a workflow:');
+      console.error(
+        `     ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomId} --role=${role} ...`
+      );
+      console.error('');
     } else if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
       console.error('```');
@@ -183,8 +222,10 @@ export async function handoff(
     process.exit(1);
   }
 
-  console.log(`✅ Task completed and handed off to ${nextRole}`);
-  console.log(`📋 Summary: ${message}`);
+  const convexUrl = d.session.getConvexUrl();
+
+  console.log(generateHandoffOutput({ role, nextRole, chatroomId, convexUrl }));
+
   if (attachedArtifactIds.length > 0) {
     console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);
     attachedArtifactIds.forEach((id) => {
@@ -192,7 +233,51 @@ export async function handoff(
     });
   }
 
-  const convexUrl = d.session.getConvexUrl();
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  console.log(`\n⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+  // Show attached workflow summaries
+  if (resolvedWorkflowIds.length > 0) {
+    for (const wfId of resolvedWorkflowIds) {
+      try {
+        const detail = await d.backend.query(api.workflows.getWorkflowDetail, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workflowId: wfId as Id<'chatroom_workflows'>,
+        });
+
+        const wf = detail.workflow;
+        console.log('');
+        console.log(
+          `📊 Attached Workflow: ${wf.workflowKey} (${wf.status}, ${detail.steps.length} steps)`
+        );
+
+        for (let i = 0; i < detail.steps.length; i++) {
+          const step = detail.steps[i];
+          const isLast = i === detail.steps.length - 1;
+          const prefix = isLast ? '└─' : '├─';
+          const statusEmoji =
+            step.status === 'completed'
+              ? '✅'
+              : step.status === 'in_progress'
+                ? '🔄'
+                : step.status === 'cancelled'
+                  ? '❌'
+                  : '⏳';
+          const roleLabel = step.assigneeRole ? ` [${step.assigneeRole}]` : '';
+          const deps = step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
+          console.log(
+            `   ${prefix} ${step.stepKey}${roleLabel} ${statusEmoji} ${step.status}${deps}`
+          );
+        }
+
+        console.log('');
+        console.log(
+          `   Inspect: chatroom workflow status --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey}`
+        );
+        console.log(
+          `   View step: chatroom workflow step-view --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey} --step-key=<key>`
+        );
+      } catch {
+        // Non-fatal: just skip rendering if query fails
+      }
+    }
+  }
 }

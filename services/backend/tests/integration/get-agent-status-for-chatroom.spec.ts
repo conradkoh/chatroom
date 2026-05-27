@@ -13,7 +13,7 @@ import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentStatusForChatroom } from '../../src/domain/usecase/chatroom/get-agent-statuses';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -58,7 +58,6 @@ describe('getAgentStatusForChatroom — fresh team', () => {
     for (const agent of result!.agents) {
       expect(agent.state).toBe('stopped');
     }
-    expect(result!.workspaces).toHaveLength(0);
   });
 });
 
@@ -69,7 +68,7 @@ describe('getAgentStatusForChatroom — running agents', () => {
     const { sessionId } = await createTestSession('test-gas-running-1');
     const machineId = 'machine-gas-running-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
@@ -97,7 +96,7 @@ describe('getAgentStatusForChatroom — running agents', () => {
     const { sessionId } = await createTestSession('test-gas-starting-1');
     const machineId = 'machine-gas-starting-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
@@ -112,7 +111,7 @@ describe('getAgentStatusForChatroom — running agents', () => {
     const { sessionId } = await createTestSession('test-gas-stopped-1');
     const machineId = 'machine-gas-stopped-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await t.mutation(api.machines.sendCommand, {
@@ -137,7 +136,7 @@ describe('getAgentStatusForChatroom — circuit breaker', () => {
     const { sessionId } = await createTestSession('test-gas-circuit-1');
     const machineId = 'machine-gas-circuit-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
@@ -145,7 +144,7 @@ describe('getAgentStatusForChatroom — circuit breaker', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) {
@@ -196,33 +195,12 @@ describe('getAgentStatusForChatroom — stale role exclusion', () => {
   });
 });
 
-// ─── Workspace derivation ─────────────────────────────────────────────────────
-
-describe('getAgentStatusForChatroom — workspaces', () => {
-  test('derives workspaces from team configs with machine+workingDir', async () => {
-    const { sessionId } = await createTestSession('test-gas-ws-1');
-    const machineId = 'machine-gas-ws-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
-
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'reviewer');
-
-    const result = await runStatusQuery(chatroomId);
-
-    expect(result!.workspaces).toHaveLength(1);
-    expect(result!.workspaces[0].hostname).toBe('test-host');
-    expect(result!.workspaces[0].workingDir).toBe('/test/workspace');
-    expect(result!.workspaces[0].agentRoles.sort()).toEqual(['builder', 'reviewer']);
-  });
-});
-
 // ─── Access control ───────────────────────────────────────────────────────────
 
 describe('getAgentStatusForChatroom — access control', () => {
   test('returns null for non-owner user', async () => {
     const { sessionId: ownerSession } = await createTestSession('test-gas-access-owner');
-    const chatroomId = await createPairTeamChatroom(ownerSession as any);
+    const chatroomId = await createDuoTeamChatroom(ownerSession as any);
 
     await createTestSession('test-gas-access-other');
 

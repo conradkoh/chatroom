@@ -1,61 +1,50 @@
 /**
  * state-recovery handler Unit Tests
  *
- * Tests recoverAgentState using injected dependencies.
- * Covers: no entries, alive agents, stale PIDs, mixed state.
+ * Tests recoverAgentState — delegates to AgentProcessManager.recover(),
+ * registers workspaces via backend mutations, and marks orphan turns as failed.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { recoverAgentState } from './state-recovery.js';
+import { createMockDaemonDeps } from '../testing/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockContext(
-  entries: { chatroomId: string; role: string; entry: { pid: number; harness: 'opencode' } }[],
-  aliveCheck?: (pid: number) => boolean
-): DaemonContext {
-  const deps: DaemonDeps = {
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue(undefined),
-    },
-    processes: {
-      kill: vi.fn(),
-    },
-    fs: {
-      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn().mockReturnValue(false),
-      clear: vi.fn(),
-    },
-    machine: {
-      clearAgentPid: vi.fn(),
-      persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue(entries),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
-    },
-    clock: {
-      now: vi.fn().mockReturnValue(Date.now()),
-      delay: vi.fn().mockResolvedValue(undefined),
-    },
-  };
+function createMockContext(overrides?: {
+  activeSlots?: { chatroomId: string; role: string; slot: any }[];
+  configs?: { machineId: string; workingDir?: string; role?: string }[];
+  managedSessions?: {
+    harnessSessionId: string;
+    chatroomId: string;
+    workspaceId: string;
+    status: string;
+  }[];
+}): DaemonContext {
+  const deps: DaemonDeps = createMockDaemonDeps();
 
-  // agentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
-  const killMock = vi.fn().mockImplementation((pid: number, _signal: number | string) => {
-    if (aliveCheck && !aliveCheck(pid)) {
-      throw new Error('ESRCH');
+  // Configure agentProcessManager mock
+  vi.mocked(deps.agentProcessManager.listActive).mockReturnValue(overrides?.activeSlots ?? []);
+
+  // Configure backend query to handle both getMachineAgentConfigs and getMachineHarnessSessions
+  vi.mocked(deps.backend.query).mockImplementation((_api: any, args: any) => {
+    // If it's a harness sessions query (has machineId but not chatroomId)
+    if (args && 'machineId' in args && !('chatroomId' in args)) {
+      return Promise.resolve(overrides?.managedSessions ?? []);
     }
+    // Otherwise it's getMachineAgentConfigs
+    return Promise.resolve({ configs: overrides?.configs ?? [] });
   });
+
+  // Configure mutation to return { failedTurns: 0 } by default (for markOrphanTurnsFailed)
+  vi.mocked(deps.backend.mutation).mockResolvedValue({ failedTurns: 0 });
 
   return {
     client: {},
@@ -70,10 +59,13 @@ function createMockContext(
         new OpenCodeAgentService({
           execSync: vi.fn(),
           spawn: vi.fn() as any,
-          kill: killMock,
+          kill: vi.fn(),
         }),
       ],
     ]),
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
   };
 }
 
@@ -83,82 +75,202 @@ function createMockContext(
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function getAllLogOutput(): string {
-  return (console.log as any).mock.calls
-    .map((c: unknown[]) => (c as string[]).join(' '))
-    .join('\n');
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('recoverAgentState', () => {
-  it('logs nothing to recover when no entries exist', async () => {
-    const ctx = createMockContext([]);
+  it('delegates to agentProcessManager.recover()', async () => {
+    const ctx = createMockContext();
 
     await recoverAgentState(ctx);
 
-    expect(getAllLogOutput()).toContain('nothing to recover');
-    expect(ctx.deps.machine.clearAgentPid).not.toHaveBeenCalled();
+    expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
   });
 
-  it('recovers alive agents without clearing PIDs', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'builder', entry: { pid: 1234, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, () => true);
+  it('registers workspaces for active agents via backend mutation', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/workspace', role: 'builder' }],
+    });
 
     await recoverAgentState(ctx);
 
-    const output = getAllLogOutput();
-    expect(output).toContain('Recovered: builder');
-    expect(output).toContain('PID 1234');
-    expect(output).toContain('1 alive, 0 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).not.toHaveBeenCalled();
-  });
-
-  it('clears stale PIDs for dead agents', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'planner', entry: { pid: 5678, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, () => false);
-
-    await recoverAgentState(ctx);
-
-    const output = getAllLogOutput();
-    expect(output).toContain('Stale PID 5678');
-    expect(output).toContain('0 alive, 1 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledWith(
-      'test-machine-id',
-      'room-1',
-      'planner'
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(), // api.workspaces.registerWorkspace
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        chatroomId: 'room-1',
+        machineId: 'test-machine-id',
+        workingDir: '/tmp/workspace',
+        registeredBy: 'builder',
+      })
     );
   });
 
-  it('handles mixed alive and dead agents', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'builder', entry: { pid: 100, harness: 'opencode' as const } },
-      { chatroomId: 'room-1', role: 'reviewer', entry: { pid: 200, harness: 'opencode' as const } },
-      { chatroomId: 'room-2', role: 'planner', entry: { pid: 300, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, (pid: number) => pid === 100 || pid === 300);
+  it('skips working dirs from other machines (no registerWorkspace called)', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [{ machineId: 'other-machine', workingDir: '/tmp/other' }],
+    });
 
     await recoverAgentState(ctx);
 
-    const output = getAllLogOutput();
-    expect(output).toContain('2 alive, 1 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledTimes(1);
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledWith(
-      'test-machine-id',
-      'room-1',
-      'reviewer'
+    // mutation should not have been called for workspace registration
+    // (orphan cleanup mutations may still be called for orphaned sessions)
+    const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
+    const registerCalls = mutationCalls.filter((call) =>
+      JSON.stringify(call[1]).includes('/tmp/other')
     );
+    expect(registerCalls).toHaveLength(0);
+  });
+
+  it('handles no active agents after recovery', async () => {
+    const ctx = createMockContext({ activeSlots: [] });
+
+    await recoverAgentState(ctx);
+
+    expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
+    // Orphan cleanup still runs — no registerWorkspace mutations
+    const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
+    const registerCalls = mutationCalls.filter((call) =>
+      JSON.stringify(call[1] ?? {}).includes('workingDir')
+    );
+    expect(registerCalls).toHaveLength(0);
+  });
+
+  // ── Orphan turn cleanup ─────────────────────────────────────────────────────
+
+  it('marks orphan turns as failed for sessions not in active slots', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [],
+      managedSessions: [
+        // room-1 is active — not an orphan
+        {
+          harnessSessionId: 'session-1',
+          chatroomId: 'room-1',
+          workspaceId: 'ws-1',
+          status: 'active',
+        },
+        // room-2 is not in active slots — orphan
+        {
+          harnessSessionId: 'session-2',
+          chatroomId: 'room-2',
+          workspaceId: 'ws-2',
+          status: 'idle',
+        },
+      ],
+    });
+
+    await recoverAgentState(ctx);
+
+    // markOrphanTurnsFailed should be called for session-2 only
+    const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
+    const orphanCalls = mutationCalls.filter((call) =>
+      JSON.stringify(call[1]).includes('session-2')
+    );
+    expect(orphanCalls).toHaveLength(1);
+
+    const notOrphanCalls = mutationCalls.filter((call) =>
+      JSON.stringify(call[1]).includes('session-1')
+    );
+    expect(notOrphanCalls).toHaveLength(0);
+  });
+
+  it('treats all sessions as orphans when activeSlots is empty', async () => {
+    const ctx = createMockContext({
+      activeSlots: [],
+      managedSessions: [
+        {
+          harnessSessionId: 'session-A',
+          chatroomId: 'room-A',
+          workspaceId: 'ws-A',
+          status: 'idle',
+        },
+        {
+          harnessSessionId: 'session-B',
+          chatroomId: 'room-B',
+          workspaceId: 'ws-B',
+          status: 'active',
+        },
+      ],
+    });
+
+    await recoverAgentState(ctx);
+
+    const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
+    const orphanCallArgs = mutationCalls.map((call) => JSON.stringify(call[1]));
+    expect(orphanCallArgs.some((a) => a.includes('session-A'))).toBe(true);
+    expect(orphanCallArgs.some((a) => a.includes('session-B'))).toBe(true);
+  });
+
+  it('continues processing remaining sessions when markOrphanTurnsFailed throws for one', async () => {
+    let callCount = 0;
+    const ctx = createMockContext({
+      activeSlots: [],
+      managedSessions: [
+        {
+          harnessSessionId: 'session-fail',
+          chatroomId: 'room-X',
+          workspaceId: 'ws-X',
+          status: 'idle',
+        },
+        {
+          harnessSessionId: 'session-ok',
+          chatroomId: 'room-Y',
+          workspaceId: 'ws-Y',
+          status: 'idle',
+        },
+      ],
+    });
+
+    vi.mocked(ctx.deps.backend.mutation).mockImplementation((_api: any, args: any) => {
+      callCount++;
+      if (JSON.stringify(args).includes('session-fail')) {
+        return Promise.reject(new Error('simulated failure'));
+      }
+      return Promise.resolve({ failedTurns: 0 });
+    });
+
+    // Should not throw — errors are caught per-session
+    await expect(recoverAgentState(ctx)).resolves.not.toThrow();
+
+    // Both sessions should have been attempted
+    expect(callCount).toBe(2);
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it('logs a summary when orphan turns are marked as failed', async () => {
+    const ctx = createMockContext({
+      activeSlots: [],
+      managedSessions: [
+        {
+          harnessSessionId: 'session-orphan',
+          chatroomId: 'room-Z',
+          workspaceId: 'ws-Z',
+          status: 'idle',
+        },
+      ],
+    });
+
+    vi.mocked(ctx.deps.backend.mutation).mockResolvedValue({ failedTurns: 3 });
+
+    await recoverAgentState(ctx);
+
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹'));
   });
 });

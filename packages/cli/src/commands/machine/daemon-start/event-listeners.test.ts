@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -36,28 +36,40 @@ function createTestContext(): DaemonContext {
       fs: {
         stat: vi.fn(),
       },
-      stops: {
-        mark: vi.fn(),
-        consume: vi.fn().mockReturnValue(false),
-        clear: vi.fn(),
-      },
       machine: {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
-        listAgentEntries: vi.fn().mockReturnValue([]),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+        listAgentEntries: vi.fn().mockResolvedValue([]),
+        persistEventCursor: vi.fn(),
+        loadEventCursor: vi.fn().mockResolvedValue(null),
       },
       clock: {
         now: () => Date.now(),
         delay: vi.fn().mockResolvedValue(undefined),
       },
+      spawning: {
+        shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+        recordSpawn: vi.fn(),
+        recordExit: vi.fn(),
+        getConcurrentCount: vi.fn().mockReturnValue(0),
+      },
+      agentProcessManager: {
+        ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
+        stop: vi.fn().mockResolvedValue({ success: true }),
+        handleExit: vi.fn(),
+        recover: vi.fn().mockResolvedValue(undefined),
+        getSlot: vi.fn().mockReturnValue(undefined),
+        listActive: vi.fn().mockReturnValue([]),
+      } as any,
     },
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
   };
 }
 
 describe('registerEventListeners', () => {
-  test('agent:exited calls recordAgentExited and clears local state', async () => {
+  test('agent:exited delegates to agentProcessManager.handleExit', () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
@@ -68,30 +80,18 @@ describe('registerEventListeners', () => {
       code: 1,
       signal: null,
       stopReason: 'agent_process.crashed',
-      intentional: false,
     });
 
-    // Allow microtasks to flush
-    await vi.waitFor(() => {
-      expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
-        expect.objectContaining({}),
-        expect.objectContaining({
-          chatroomId: CHATROOM_ID,
-          role: 'builder',
-          pid: 1234,
-          intentional: false,
-        })
-      );
+    expect(ctx.deps.agentProcessManager.handleExit).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 1234,
+      code: 1,
+      signal: null,
     });
-
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledWith(
-      'test-machine',
-      CHATROOM_ID,
-      'builder'
-    );
   });
 
-  test('agent:exited passes intentional=true for intentional stops', async () => {
+  test('agent:exited passes correct args for intentional stops', () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
@@ -102,18 +102,14 @@ describe('registerEventListeners', () => {
       code: 0,
       signal: null,
       stopReason: 'user.stop',
-      intentional: true,
     });
 
-    await vi.waitFor(() => {
-      const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      const recordCall = calls.find(
-        (c) =>
-          c[1]?.role === 'builder' &&
-          c[1]?.chatroomId === CHATROOM_ID &&
-          c[1]?.intentional === true
-      );
-      expect(recordCall).toBeDefined();
+    expect(ctx.deps.agentProcessManager.handleExit).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 1234,
+      code: 0,
+      signal: null,
     });
   });
 
@@ -130,77 +126,52 @@ describe('registerEventListeners', () => {
       code: 0,
       signal: null,
       stopReason: 'agent_process.exited_clean',
-      intentional: false,
     });
 
-    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
-    expect(ctx.deps.machine.clearAgentPid).not.toHaveBeenCalled();
+    expect(ctx.deps.agentProcessManager.handleExit).not.toHaveBeenCalled();
   });
 
-  test('agent:exited handles backend errors gracefully', async () => {
-    const ctx = createTestContext();
-    const warnSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('network error')
-    );
-
-    registerEventListeners(ctx);
-
-    ctx.events.emit('agent:exited', {
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      pid: 1234,
-      code: 1,
-      signal: null,
-      stopReason: 'agent_process.crashed',
-      intentional: false,
-    });
-
-    await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to record agent exit event')
-      );
-    });
-
-    warnSpy.mockRestore();
-  });
-
-  test('natural process exit (code 0, no explicit stop) is treated as unintentional and triggers crash recovery', async () => {
-    // DESIGN DECISION: The system does not distinguish between a natural completion
-    // and an unexpected crash. Any process exit without a prior explicit stop command
-    // (via agent.requestStop) is treated as unintentional — intentional=false.
-    //
-    // Known trade-off: if an agent finishes work and exits cleanly before the handoff
-    // mutation completes, the ensure-agent handler may fire and attempt a restart.
-    // This may result in a wasted agent start request. This is an intentional
-    // reliability choice: the system prefers restarting unnecessarily over leaving a
-    // task stuck with no agent to handle it.
+  test('agent:exited handles natural process exit (code 0)', () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
-    // Simulate a natural exit: code 0, no signal, no prior stops.mark() call
-    // stops.consume() returns false (default mock) — no explicit stop was issued
     ctx.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
       role: 'builder',
       pid: 9999,
-      code: 0,        // ← natural exit code (not a crash)
+      code: 0,
       signal: null,
       stopReason: 'agent_process.exited_clean',
-      intentional: false,  // ← no prior stops.mark() — treated as unintentional
     });
 
-    await vi.waitFor(() => {
-      expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
-        expect.objectContaining({}),
-        expect.objectContaining({
-          chatroomId: CHATROOM_ID,
-          role: 'builder',
-          pid: 9999,
-          intentional: false,  // ← crash recovery will fire on backend
-        })
-      );
+    expect(ctx.deps.agentProcessManager.handleExit).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 9999,
+      code: 0,
+      signal: null,
+    });
+  });
+
+  test('agent:exited passes signal information', () => {
+    const ctx = createTestContext();
+    registerEventListeners(ctx);
+
+    ctx.events.emit('agent:exited', {
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 5555,
+      code: null,
+      signal: 'SIGTERM',
+      stopReason: 'agent_process.signal',
+    });
+
+    expect(ctx.deps.agentProcessManager.handleExit).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 5555,
+      code: null,
+      signal: 'SIGTERM',
     });
   });
 });

@@ -1,0 +1,133 @@
+.../claude/claude-code-agent-service.ts            | 104 ++++++++++++++--
+ .../remote-agents/claude/claude-stream-reader.ts   | 136 +++++++++++++++++++++
+ 2 files changed, 230 insertions(+), 10 deletions(-)
+
+--- Changes ---
+
+packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts
+  @@ -5,7 +5,7 @@
+  - *   claude -p --model <model> --system-prompt <systemPrompt> --max-turns 200 <prompt>
+  + *   claude -p --output-format stream-json --verbose --model <model> --system-prompt <systemPrompt> --max-turns 200 <prompt>
+    *
+    * Claude Code runs in "print mode" (-p) which processes the prompt and exits.
+    * The prompt is passed as a positional argument and the system prompt via --system-prompt.
+  @@ -19,6 +19,7 @@
+  +import { ClaudeStreamReader } from './claude-stream-reader.js';
+   
+   export type ClaudeCodeAgentServiceDeps = CLIAgentServiceDeps;
+   
+  @@ -33,6 +34,16 @@
+  +/**
+  + * Default trigger message used when the caller provides no prompt.
+  + *
+  + * Claude Code requires a non-empty prompt argument in print mode (-p).
+  + * When the init prompt is empty (e.g. composeInitMessage returns ''), we send
+  + * this trigger so the agent reads its system prompt and begins working.
+  + */
+  +const DEFAULT_TRIGGER_PROMPT =
+  +  'Please read your system prompt carefully and follow the Getting Started instructions.';
+  +
+   // ─── Implementation ──────────────────────────────────────────────────────────
+   
+   export class ClaudeCodeAgentService extends BaseCLIAgentService {
+  @@ -55,17 +66,24 @@
+  +    // Full list: https://docs.anthropic.com/en/docs/about-claude/models/overview
+       return [
+  -      'claude-sonnet-4-20250514',
+  -      'claude-opus-4-20250514',
+  +      'claude-haiku-4-5',
+  +      'claude-sonnet-4-6',
+  +      'claude-opus-4-6',
+       ];
+     }
+   
+     async spawn(options: SpawnOptions): Promise<SpawnResult> {
+  -    const { systemPrompt, model, prompt } = options;
+  +    const { systemPrompt, model } = options;
+  +
+  +    // Claude Code requires a non-empty prompt in print mode — fall back to a
+  +    // default trigger when the caller passes an empty prompt (e.g. composeInitMessage returns '').
+  +    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
+   
+       // Build args for print mode (-p): non-interactive, processes prompt and exits.
+  -    const args: string[] = ['-p'];
+  +    // stream-json emits one NDJSON event per line so we can parse and log in real-time.
+  +    const args: string[] = ['-p', '--output-format', 'stream-json', '--verbose'];
+   
+       // Set max turns for agentic operation
+       args.push('--max-turns', String(DEFAULT_MAX_TURNS));
+  @@ -83,7 +101,7 @@
+  -      stdio: ['pipe', 'pipe', 'pipe'],
+  +      stdio: ['ignore', 'pipe', 'pipe'],
+         shell: false,
+         detached: true,
+         env: {
+  @@ -111,18 +129,84 @@
+  +    // Build a log prefix from spawn context for easier debugging.
+  +    // Format: [claude:role] or [claude:role@short-id] when chatroomId is available.
+  +    const roleTag = context.role ?? 'unknown';
+  +    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
+  +    const logPrefix = `[claude:${roleTag}${chatroomSuffix}]`;
+  +
+       // Output tracking callbacks (for external consumers) + internal timestamp update
+       const outputCallbacks: (() => void)[] = [];
+  +
+       if (childProcess.stdout) {
+  -      childProcess.stdout.pipe(process.stdout, { end: false });
+  -      childProcess.stdout.on('data', () => {
+  +      const reader = new ClaudeStreamReader(childProcess.stdout);
+  +
+  +      let textBuffer = '';
+  +      let thinkingBuffer = '';
+  +
+  +      const flushText = () => {
+  +        if (!textBuffer) return;
+  +        for (const line of textBuffer.split('\n')) {
+  +          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+  +        }
+  +        textBuffer = '';
+  +      };
+  +
+  +      const flushThinking = () => {
+  +        if (!thinkingBuffer) return;
+  +        for (const line of thinkingBuffer.split('\n')) {
+  +          if (line) process.stdout.write(`${logPrefix} thinking] ${line}\n`);
+  +        }
+  ... (truncated)
+  +94 -10
+
+packages/cli/src/infrastructure/services/remote-agents/claude/claude-stream-reader.ts
+  @@ -0,0 +1,136 @@
+  +/**
+  + * ClaudeStreamReader — parses the newline-delimited JSON event stream emitted by
+  + * `claude -p --output-format stream-json` on stdout and surfaces typed callbacks
+  + * for each event type.
+  + *
+  + * Claude Code stream-json protocol (stdout, one JSON object per line):
+  + *
+  + *   system init  – { type: "system", subtype: "init", session_id: "...", model: "...", ... }
+  + *   assistant    – { type: "assistant", message: { content: [...] }, session_id: "..." }
+  + *                  content blocks:
+  + *                    { type: "text", text: "..." }
+  + *                    { type: "thinking", thinking: "..." }
+  + *                    { type: "tool_use", id: "...", name: "...", input: { ... } }
+  + *   user         – { type: "user", message: { content: [...] }, session_id: "..." }
+  + *                  content blocks:
+  + *                    { type: "tool_result", tool_use_id: "...", content: [...] }
+  + *   result       – { type: "result", subtype: "success"|"error", result: "...", is_error: false, ... }
+  + *
+  + * Full event reference: https://docs.anthropic.com/en/docs/claude-code/sdk#output-formats
+  + */
+  +
+  +import { createInterface } from 'node:readline';
+  +import type { Readable } from 'node:stream';
+  +
+  +// ─── Event types ─────────────────────────────────────────────────────────────
+  +
+  +type TextCallback = (text: string) => void;
+  +type ThinkingCallback = (thinking: string) => void;
+  +type AgentEndCallback = () => void;
+  +type ToolCallCallback = (name: string, input: unknown) => void;
+  ... (truncated)
+  +136 -0
+[full diff: rtk git diff --no-compact]

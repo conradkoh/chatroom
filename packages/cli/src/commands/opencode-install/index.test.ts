@@ -33,9 +33,9 @@ function createMockDeps(overrides?: Partial<OpenCodeInstallDeps>): OpenCodeInsta
       query: vi.fn().mockResolvedValue(undefined),
     },
     session: {
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      getSessionId: vi.fn().mockResolvedValue('test-session-id'),
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-      getOtherSessionUrls: vi.fn().mockReturnValue([]),
+      getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
     fs: {
       access: vi.fn().mockRejectedValue(new Error('ENOENT')),

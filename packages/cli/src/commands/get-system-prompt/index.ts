@@ -9,6 +9,7 @@ import type { GetSystemPromptDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ export async function getSystemPrompt(
   const { role } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -84,8 +85,7 @@ export async function getSystemPrompt(
 
     console.log(prompt);
   } catch (error) {
-    const err = error as Error;
-    console.error(`❌ Error fetching system prompt: ${err.message}`);
+    console.error(`❌ Error fetching system prompt: ${getErrorMessage(error)}`);
     process.exit(1);
     return;
   }

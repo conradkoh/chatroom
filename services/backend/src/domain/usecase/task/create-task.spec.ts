@@ -7,10 +7,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { shouldEnqueueMessage } from './create-task';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { shouldEnqueueMessage } from './create-task';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -25,7 +25,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -43,7 +43,6 @@ async function seedTask(
       createdBy: 'user',
       content: 'test task',
       status,
-      origin: 'chat',
       createdAt: now,
       updatedAt: now,
       queuePosition: 0,
@@ -133,7 +132,6 @@ describe('shouldEnqueueMessage', () => {
         createdBy: 'user',
         content: 'test task',
         status: 'acknowledged',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,

@@ -8,11 +8,11 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { ensureOnlyAgentForRole } from './ensure-only-agent-for-role';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { ensureOnlyAgentForRole } from './ensure-only-agent-for-role';
-import { t } from '../../../../test.setup';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,7 +27,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -44,7 +44,7 @@ async function insertTeamConfig(
   const now = Date.now();
   await t.run(async (ctx) => {
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: keyOverride ?? buildTeamRoleKey(chatroomId, 'pair', `${role}_${machineId}`),
+      teamRoleKey: keyOverride ?? buildTeamRoleKey(chatroomId, 'duo', `${role}_${machineId}`),
       chatroomId,
       role,
       type,

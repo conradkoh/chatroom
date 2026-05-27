@@ -31,11 +31,11 @@ export async function createTestSession(sessionId: string): Promise<{ sessionId:
 /**
  * Create a pair-team chatroom (builder + reviewer, entry point = builder).
  */
-export async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
+    teamId: 'duo',
+    teamName: 'Duo Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
   });
@@ -128,4 +128,24 @@ export async function getCommandEvents(sessionId: SessionId, machineId: string) 
     machineId,
   });
   return result.events;
+}
+
+/**
+ * Create a minimal active workflow in a chatroom.
+ * Used by tests that need planner→builder handoffs.
+ */
+export async function createTestWorkflow(
+  chatroomId: Id<'chatroom_rooms'>,
+  workflowKey = 'test-workflow'
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workflows', {
+      chatroomId,
+      workflowKey,
+      status: 'active',
+      createdBy: 'planner',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
 }

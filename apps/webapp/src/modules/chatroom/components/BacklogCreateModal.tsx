@@ -3,8 +3,8 @@
 import { Eye, EyeOff, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents } from './markdown-utils';
 
@@ -148,7 +148,10 @@ When users try to login on mobile devices, the form submits but nothing happens.
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 prose dark:prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:text-xs prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-pre:bg-chatroom-bg-tertiary prose-pre:text-chatroom-text-primary">
                   {content.trim() ? (
-                    <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+                    <Markdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      components={baseMarkdownComponents}
+                    >
                       {content}
                     </Markdown>
                   ) : (

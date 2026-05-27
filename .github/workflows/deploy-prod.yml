@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - 'services/backend/**'
+      - 'scripts/**'
+  workflow_dispatch:
 
 jobs:
   deploy:

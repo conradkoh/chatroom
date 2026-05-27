@@ -15,7 +15,10 @@ import { recoverAgentState } from './handlers/state-recovery.js';
 import { initDaemon, discoverModels } from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
-import { ensureMachineRegistered, loadMachineConfig } from '../../../infrastructure/machine/index.js';
+import {
+  ensureMachineRegistered,
+  loadMachineConfig,
+} from '../../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLock, releaseLock } from '../pid.js';
 
@@ -29,8 +32,8 @@ vi.mock('../pid.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/auth/storage.js', () => ({
-  getSessionId: vi.fn().mockReturnValue('session-123'),
-  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+  getSessionId: vi.fn().mockResolvedValue('session-123'),
+  getOtherSessionUrls: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../../infrastructure/convex/client.js', () => ({
@@ -42,14 +45,14 @@ vi.mock('../../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/machine/index.js', () => ({
-  ensureMachineRegistered: vi.fn().mockReturnValue({
+  ensureMachineRegistered: vi.fn().mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   }),
-  loadMachineConfig: vi.fn().mockReturnValue({
+  loadMachineConfig: vi.fn().mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
@@ -60,15 +63,9 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
   }),
   clearAgentPid: vi.fn(),
   persistAgentPid: vi.fn(),
-  listAgentEntries: vi.fn().mockReturnValue([]),
+  listAgentEntries: vi.fn().mockResolvedValue([]),
   persistEventCursor: vi.fn(),
-  loadEventCursor: vi.fn().mockReturnValue(null),
-}));
-
-vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({
-  markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn().mockReturnValue(false),
-  clearIntentionalStop: vi.fn(),
+  loadEventCursor: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../../utils/error-formatting.js', () => ({
@@ -87,8 +84,23 @@ vi.mock('./handlers/state-recovery.js', () => ({
 vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
   return {
     OpenCodeAgentService: class MockOpenCodeAgentService {
-      isInstalled = vi.fn().mockReturnValue(true);
-      getVersion = vi.fn().mockReturnValue({ version: '0.1.0', major: 0 });
+      isInstalled = vi.fn().mockResolvedValue(true);
+      getVersion = vi.fn().mockResolvedValue({ version: '0.1.0', major: 0 });
+      listModels = vi.fn().mockResolvedValue([]);
+      spawn = vi.fn();
+      stop = vi.fn();
+      isAlive = vi.fn();
+      getTrackedProcesses = vi.fn().mockReturnValue([]);
+      untrack = vi.fn();
+    },
+  };
+});
+
+vi.mock('../../../infrastructure/services/remote-agents/opencode-sdk/index.js', () => {
+  return {
+    OpenCodeSdkAgentService: class MockOpenCodeSdkAgentService {
+      isInstalled = vi.fn().mockResolvedValue(false);
+      getVersion = vi.fn().mockResolvedValue(null);
       listModels = vi.fn().mockResolvedValue([]);
       spawn = vi.fn();
       stop = vi.fn();
@@ -101,6 +113,10 @@ vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () =
 
 vi.mock('./utils.js', () => ({
   formatTimestamp: vi.fn().mockReturnValue('2026-01-01 00:00:00'),
+}));
+
+vi.mock('./handlers/process/output-store.js', () => ({
+  cleanOrphanTempFiles: vi.fn().mockResolvedValue(0),
 }));
 
 // ---------------------------------------------------------------------------
@@ -123,21 +139,21 @@ beforeEach(() => {
   // vi.restoreAllMocks() clears implementations set by tests, so we
   // need to set them here to get predictable defaults.
   vi.mocked(acquireLock).mockReturnValue(true);
-  vi.mocked(getSessionId).mockReturnValue('session-123' as never);
-  vi.mocked(getOtherSessionUrls).mockReturnValue([]);
+  vi.mocked(getSessionId).mockResolvedValue('session-123' as never);
+  vi.mocked(getOtherSessionUrls).mockResolvedValue([]);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   vi.mocked(getConvexClient).mockResolvedValue({
     mutation: vi.fn().mockResolvedValue(undefined),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   } as never);
-  vi.mocked(ensureMachineRegistered).mockReturnValue({
+  vi.mocked(ensureMachineRegistered).mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   } as never);
-  vi.mocked(loadMachineConfig).mockReturnValue({
+  vi.mocked(loadMachineConfig).mockResolvedValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
@@ -174,9 +190,17 @@ async function getMockClient() {
 // ---------------------------------------------------------------------------
 
 describe('discoverModels', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns models from the remote agent service', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['gpt-4', 'claude-3']),
     } as any;
 
@@ -188,7 +212,7 @@ describe('discoverModels', () => {
 
   it('returns empty record entry when service throws (non-critical)', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockRejectedValue(new Error('Service broken')),
     } as any;
 
@@ -199,7 +223,7 @@ describe('discoverModels', () => {
 
   it('returns empty record when service is not installed', async () => {
     const mockService = {
-      isInstalled: vi.fn().mockReturnValue(false),
+      isInstalled: vi.fn().mockResolvedValue(false),
       listModels: vi.fn().mockResolvedValue([]),
     } as any;
 
@@ -210,12 +234,14 @@ describe('discoverModels', () => {
 
   it('discovers models from multiple harnesses independently', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(true),
-      listModels: vi.fn().mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi
+        .fn()
+        .mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
     } as any;
 
     const agentServices = new Map([
@@ -232,11 +258,11 @@ describe('discoverModels', () => {
 
   it('excludes pi harness when pi is not installed, keeps opencode', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(false),
+      isInstalled: vi.fn().mockResolvedValue(false),
       listModels: vi.fn(),
     } as any;
 
@@ -253,11 +279,11 @@ describe('discoverModels', () => {
 
   it('keeps successful harness when other harness listModels throws', async () => {
     const opencodeService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockRejectedValue(new Error('opencode broke')),
     } as any;
     const piService = {
-      isInstalled: vi.fn().mockReturnValue(true),
+      isInstalled: vi.fn().mockResolvedValue(true),
       listModels: vi.fn().mockResolvedValue(['github-copilot/gpt-4o']),
     } as any;
 
@@ -268,8 +294,107 @@ describe('discoverModels', () => {
     const models = await discoverModels(agentServices);
 
     expect(models).toEqual({
-      opencode: [],   // failed → empty array fallback
+      opencode: [], // failed → empty array fallback
       pi: ['github-copilot/gpt-4o'],
+    });
+  });
+
+  it('runs harnesses in parallel', async () => {
+    const startedAt: Array<[string, number]> = [];
+
+    const createService = (name: string, delayMs: number) => ({
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockImplementation(
+        () =>
+          new Promise<string[]>((resolve) => {
+            startedAt.push([name, Date.now()]);
+            setTimeout(() => resolve([`${name}/model`]), delayMs);
+          })
+      ),
+    });
+
+    const agentServices = new Map([
+      ['alpha', createService('alpha', 300)],
+      ['beta', createService('beta', 200)],
+      ['gamma', createService('gamma', 100)],
+    ]) as any;
+
+    const discovery = discoverModels(agentServices);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(startedAt).toHaveLength(3);
+    expect(startedAt.map(([name]) => name)).toEqual(['alpha', 'beta', 'gamma']);
+    expect(new Set(startedAt.map(([, time]) => time)).size).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(300);
+    await expect(discovery).resolves.toEqual({
+      alpha: ['alpha/model'],
+      beta: ['beta/model'],
+      gamma: ['gamma/model'],
+    });
+  });
+
+  it('skips not-installed harnesses', async () => {
+    const installedService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockResolvedValue(['installed/model']),
+    } as any;
+    const missingService = {
+      isInstalled: vi.fn().mockResolvedValue(false),
+      listModels: vi.fn(),
+    } as any;
+
+    const agentServices = new Map([
+      ['installed', installedService],
+      ['missing', missingService],
+    ]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({
+      installed: ['installed/model'],
+    });
+    expect(missingService.listModels).not.toHaveBeenCalled();
+  });
+
+  it('returns [] for harness whose listModels throws and warns with structured JSON', async () => {
+    const brokenService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockImplementation(() => {
+        throw new Error('broken harness');
+      }),
+    } as any;
+
+    const agentServices = new Map([['broken', brokenService]]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({ broken: [] });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    const [warning] = warnSpy.mock.calls[0] ?? [];
+    expect(typeof warning).toBe('string');
+    expect(JSON.parse(warning)).toEqual({
+      event: 'discover-models-error',
+      harness: 'broken',
+      reason: 'broken harness',
+    });
+  });
+
+  it('resolves when all harnesses fail', async () => {
+    const firstService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockRejectedValue(new Error('first failed')),
+    } as any;
+    const secondService = {
+      isInstalled: vi.fn().mockResolvedValue(true),
+      listModels: vi.fn().mockRejectedValue(new Error('second failed')),
+    } as any;
+
+    const agentServices = new Map([
+      ['first', firstService],
+      ['second', secondService],
+    ]);
+
+    await expect(discoverModels(agentServices)).resolves.toEqual({
+      first: [],
+      second: [],
     });
   });
 });
@@ -287,38 +412,54 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('exits when session ID is missing', async () => {
-    vi.mocked(getSessionId).mockReturnValue(null);
+  it('waits for auth and resumes when session ID is initially missing', async () => {
+    // First call returns null (unauthenticated), subsequent calls return valid session
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
 
-    await initDaemon();
+    const ctx = await initDaemon();
 
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
-    expect(releaseLock).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(ctx).toBeDefined();
+    expect(ctx.sessionId).toBe('session-123');
+    expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('shows other session URLs when not authenticated', async () => {
-    vi.mocked(getSessionId).mockReturnValue(null);
-    vi.mocked(getOtherSessionUrls).mockReturnValue(['http://other:3210']);
+  it('shows other session URLs when waiting for auth', async () => {
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
+    vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
 
-    await initDaemon();
+    const ctx = await initDaemon();
 
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
+    expect(ctx).toBeDefined();
   });
 
-  it('exits when backend session validation fails (invalid session)', async () => {
+  it('waits for re-auth when backend session validation fails', async () => {
     const mockClient = await getMockClient();
-    mockClient.query.mockResolvedValueOnce({ valid: false, reason: 'Session expired' });
+    // First validation fails, then succeeds after re-auth
+    mockClient.query
+      .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
+      .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
 
-    await initDaemon();
+    // getSessionId returns valid on initial check, then new session after re-auth poll
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce('session-123' as never)
+      .mockResolvedValue('session-456' as never);
+
+    const ctx = await initDaemon();
 
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('Session invalid: Session expired')
     );
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
-    expect(releaseLock).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(ctx).toBeDefined();
+    expect(ctx.sessionId).toBe('session-456');
+    expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('continues when backend session validation succeeds (valid session)', async () => {
@@ -353,16 +494,35 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('calls formatConnectivityError on network failure for updateDaemonStatus', async () => {
+  it('retries with delay on network failure for updateDaemonStatus', async () => {
+    vi.useFakeTimers();
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
-    mockClient.mutation.mockResolvedValueOnce(undefined).mockRejectedValueOnce(networkError);
+    // 1st mutation: registerCapabilities succeeds
+    // 2nd mutation: connectDaemon fails with network error
+    // 3rd mutation: registerCapabilities succeeds (retry)
+    // 4th mutation: connectDaemon succeeds (retry)
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // registerCapabilities
+      .mockRejectedValueOnce(networkError) // connectDaemon (fail)
+      .mockResolvedValueOnce(undefined) // registerCapabilities (retry)
+      .mockResolvedValueOnce(undefined); // connectDaemon (retry success)
     vi.mocked(isNetworkError).mockReturnValue(true);
 
-    await initDaemon();
+    const initPromise = initDaemon();
+
+    // Advance past the 10s retry delay
+    await vi.advanceTimersByTimeAsync(11_000);
+
+    const ctx = await initPromise;
 
     expect(formatConnectivityError).toHaveBeenCalledWith(networkError, 'http://localhost:3210');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    // Should NOT exit — should retry and succeed
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(ctx).toBeDefined();
+    expect(ctx.machineId).toBe('machine-abc');
+
+    vi.useRealTimers();
   });
 
   it('warns but continues when machine registration fails', async () => {
@@ -437,8 +597,183 @@ describe('initDaemon', () => {
 
     await initDaemon();
 
+    expect(ensureMachineRegistered).toHaveBeenCalledWith({ allowCreate: true });
     // In the new flow, machines.register is always called (no null-config guard)
-    // First mutation = machines.register, second = updateDaemonStatus
-    expect(mockClient.mutation).toHaveBeenCalledTimes(2);
+    // First mutation = machines.register, second = updateDaemonStatus, third = clearAllSpawnedPids, fourth = reapOrphansForDaemonRestart
+    expect(mockClient.mutation).toHaveBeenCalledTimes(4);
+  });
+
+  it('calls reapOrphansForDaemonRestart on startup with the correct machineId', async () => {
+    // The 4th mutation call is reapOrphansForDaemonRestart (register, updateDaemonStatus,
+    // clearAllSpawnedPids, reapOrphansForDaemonRestart). It takes { sessionId, machineId } only.
+    const mockClient = await getMockClient();
+
+    await initDaemon();
+
+    // All 4 mutation calls must have been made
+    expect(mockClient.mutation).toHaveBeenCalledTimes(4);
+    // The 4th call is reapOrphansForDaemonRestart — verify it passes the correct machineId
+    const fourthCallArgs = mockClient.mutation.mock.calls[3][1] as any;
+    expect(fourthCallArgs).toMatchObject({ machineId: 'machine-abc' });
+  });
+
+  it('logs the reaped count when > 0', async () => {
+    const mockClient = await getMockClient();
+
+    // The 4th mutation call is reapOrphansForDaemonRestart — return { reapedCount: 3 }
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: machines.register / registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 3 }); // 4th: reapOrphansForDaemonRestart
+
+    await initDaemon();
+
+    const allLogs = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allLogs).toContain(
+      'Reaped 3 command run(s) from previous daemon run (marked as daemon-restart)'
+    );
+  });
+
+  it('does not log when reapedCount is 0', async () => {
+    const mockClient = await getMockClient();
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 0 }); // 4th: reapOrphansForDaemonRestart
+
+    await initDaemon();
+
+    const allLogs = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allLogs).not.toContain('daemon-restart');
+  });
+
+  it('does not block startup when reapOrphansForDaemonRestart fails', async () => {
+    const mockClient = await getMockClient();
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
+      .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
+      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockRejectedValueOnce(new Error('network error during reap')); // 4th: reapOrphansForDaemonRestart
+
+    // Should not throw — daemon startup continues despite reap failure
+    const ctx = await initDaemon();
+    expect(ctx).toBeDefined();
+
+    const allWarns = warnSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    expect(allWarns).toContain('Failed to reap orphan command runs');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Daemon retry backoff (Bug A fix)
+// ---------------------------------------------------------------------------
+
+describe('initDaemon — backend-availability retry backoff', () => {
+  it('logs verbose error block exactly once across N consecutive failures', async () => {
+    vi.useFakeTimers();
+    const mockClient = await getMockClient();
+    const networkError = new Error('fetch failed');
+    vi.mocked(isNetworkError).mockReturnValue(true);
+
+    // registerCapabilities (attempt 1) → connectDaemon fails
+    // registerCapabilities (attempt 2) → connectDaemon fails
+    // registerCapabilities (attempt 3) → connectDaemon fails
+    // registerCapabilities (attempt 4) → connectDaemon succeeds
+    // + 3 clearAllSpawnedPids calls removed but only 1 clearAllSpawnedPids on final success
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 1
+      .mockRejectedValueOnce(networkError) // connectDaemon fail 1
+      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 2
+      .mockRejectedValueOnce(networkError) // connectDaemon fail 2
+      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 3
+      .mockRejectedValueOnce(networkError) // connectDaemon fail 3
+      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 4
+      .mockResolvedValueOnce(undefined) // connectDaemon success
+      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+
+    const initPromise = initDaemon();
+
+    // Advance past 3 retry delays (3 × 10s)
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    await initPromise;
+
+    // The full verbose guidance block must appear exactly once (first failure only)
+    expect(formatConnectivityError).toHaveBeenCalledTimes(1);
+    expect(formatConnectivityError).toHaveBeenCalledWith(networkError, 'http://localhost:3210');
+
+    // Subsequent failures produce single-line messages (not the verbose block)
+    const logLines = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    // Should have 2 “still unreachable” lines (failure 2 and 3)
+    const stillUnreachableCount = (logLines.match(/Backend still unreachable/g) ?? []).length;
+    expect(stillUnreachableCount).toBe(2);
+
+    vi.useRealTimers();
+  });
+
+  it('uses a 10-second retry interval between connection attempts', async () => {
+    vi.useFakeTimers();
+    const mockClient = await getMockClient();
+    const networkError = new Error('fetch failed');
+    vi.mocked(isNetworkError).mockReturnValue(true);
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // registerCapabilities (fail attempt)
+      .mockRejectedValueOnce(networkError) // connectDaemon fail
+      .mockResolvedValueOnce(undefined) // registerCapabilities (success attempt)
+      .mockResolvedValueOnce(undefined) // connectDaemon success
+      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+
+    const initPromise = initDaemon();
+
+    // Just under 10s — retry should NOT have fired yet
+    await vi.advanceTimersByTimeAsync(9_999);
+    // Still resolving (waiting for retry delay)
+    let resolved = false;
+    void initPromise.then(() => {
+      resolved = true;
+    });
+    // Flush microtasks
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    // Advance the remaining 1ms to cross the 10s threshold
+    await vi.advanceTimersByTimeAsync(1);
+    const ctx = await initPromise;
+
+    expect(ctx).toBeDefined();
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('logs a single recovery line when backend becomes reachable again', async () => {
+    vi.useFakeTimers();
+    const mockClient = await getMockClient();
+    const networkError = new Error('fetch failed');
+    vi.mocked(isNetworkError).mockReturnValue(true);
+
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // registerCapabilities (fail attempt)
+      .mockRejectedValueOnce(networkError) // connectDaemon fail
+      .mockResolvedValueOnce(undefined) // registerCapabilities (success attempt)
+      .mockResolvedValueOnce(undefined) // connectDaemon success
+      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+
+    const initPromise = initDaemon();
+    await vi.advanceTimersByTimeAsync(11_000);
+    await initPromise;
+
+    const logLines = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
+    // Exactly one recovery line mentioning the backend URL
+    const recoveryCount = (logLines.match(/Backend reachable again/g) ?? []).length;
+    expect(recoveryCount).toBe(1);
+    expect(logLines).toContain('http://localhost:3210');
+
+    vi.useRealTimers();
   });
 });

@@ -1,21 +1,13 @@
 'use client';
 
-import { ChevronRight, MoreHorizontal, Settings } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
-import type { TeamLifecycle } from '../types/readiness';
-import { usePresenceTick } from '../hooks/usePresenceTick';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
+import { useRelativeTime } from '../hooks/useRelativeTime';
+import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
-import { formatLastSeen } from './AgentPanel/AgentStatusRow';
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -23,6 +15,8 @@ interface AgentPanelProps {
   lifecycle: TeamLifecycle | null | undefined;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
+  /** Called when user clicks an agent row — opens settings to agents tab */
+  onOpenAgents?: () => void;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -48,32 +42,45 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
   const statusVariant = agentStatus?.statusVariant;
+  const lastSeenLabel = useRelativeTime(lastSeenAt);
 
   // Map statusVariant to indicator dot color
   const indicatorClass = (() => {
     switch (statusVariant) {
-      case 'offline': return 'bg-chatroom-text-muted';
-      case 'error': return 'bg-red-500 dark:bg-red-400';
-      case 'transitioning': return 'bg-yellow-500 dark:bg-yellow-400';
-      case 'ready': return 'bg-chatroom-status-success';
-      case 'working': return 'bg-chatroom-status-info animate-pulse';
-      default: return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+      case 'offline':
+        return 'bg-chatroom-text-muted';
+      case 'error':
+        return 'bg-red-500 dark:bg-red-400';
+      case 'transitioning':
+        return 'bg-yellow-500 dark:bg-yellow-400';
+      case 'ready':
+        return 'bg-chatroom-status-success';
+      case 'working':
+        return 'bg-chatroom-status-info animate-pulse';
+      default:
+        return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
     }
   })();
 
   // Map statusVariant to label text color
   const labelColorClass = (() => {
     switch (statusVariant) {
-      case 'offline': return 'text-chatroom-text-muted';
-      case 'error': return 'text-red-600 dark:text-red-400';
-      case 'transitioning': return 'text-yellow-600 dark:text-yellow-400';
-      case 'ready': return 'text-chatroom-status-success';
-      case 'working': return 'text-chatroom-status-info animate-pulse';
-      default: return working_
-        ? 'text-chatroom-status-info animate-pulse'
-        : online_
-          ? 'text-chatroom-status-success'
-          : 'text-chatroom-text-muted';
+      case 'offline':
+        return 'text-chatroom-text-muted';
+      case 'error':
+        return 'text-red-600 dark:text-red-400';
+      case 'transitioning':
+        return 'text-yellow-600 dark:text-yellow-400';
+      case 'ready':
+        return 'text-chatroom-status-success';
+      case 'working':
+        return 'text-chatroom-status-info animate-pulse';
+      default:
+        return working_
+          ? 'text-chatroom-status-info animate-pulse'
+          : online_
+            ? 'text-chatroom-status-success'
+            : 'text-chatroom-text-muted';
     }
   })();
 
@@ -105,15 +112,13 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           </div>
           <div
             className={`text-[10px] font-bold uppercase tracking-wide ${
-              isLoadingStatuses
-                ? 'text-chatroom-text-muted animate-pulse'
-                : labelColorClass
+              isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass
             }`}
           >
             {isLoadingStatuses ? '...' : statusLabel}
           </div>
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-            {formatLastSeen(lastSeenAt)}
+            {lastSeenLabel}
           </div>
         </div>
         {/* View Indicator */}
@@ -132,12 +137,9 @@ export const AgentPanel = memo(function AgentPanel({
   teamRoles = [],
   lifecycle,
   onConfigure,
+  onOpenAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
-
-  // Tick every 30s so presence checks (isOnline, formatLastSeen) stay current
-  // without needing a DB write to trigger a Convex query re-run.
-  usePresenceTick();
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
@@ -151,10 +153,15 @@ export const AgentPanel = memo(function AgentPanel({
     rolesToShow
   );
 
-  // Open unified agent list modal
+  // Open agent list — if onOpenAgents is provided, open settings to agents tab;
+  // otherwise fall back to the standalone UnifiedAgentListModal
   const openAgentListModal = useCallback(() => {
-    setIsAgentListModalOpen(true);
-  }, []);
+    if (onOpenAgents) {
+      onOpenAgents();
+    } else {
+      setIsAgentListModalOpen(true);
+    }
+  }, [onOpenAgents]);
 
   // Close unified agent list modal
   const closeAgentListModal = useCallback(() => {
@@ -164,7 +171,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Loading state
   if (lifecycle === undefined) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
@@ -178,7 +185,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Legacy chatroom without team
   if (lifecycle === null) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
@@ -189,28 +196,21 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with settings menu */}
+      {/* Header with settings button */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        {/* Settings Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
-              <MoreHorizontal size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="chatroom-root">
-            <DropdownMenuItem
-              onClick={onConfigure}
-              className="flex items-center gap-2 text-xs cursor-pointer"
-            >
-              <Settings size={12} />
-              Configure
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Settings button — opens settings panel directly */}
+        <button
+          type="button"
+          onClick={onConfigure}
+          className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          title="Configure agents"
+          aria-label="Configure agents"
+        >
+          <Settings size={14} />
+        </button>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
@@ -235,4 +235,3 @@ export const AgentPanel = memo(function AgentPanel({
     </div>
   );
 });
-

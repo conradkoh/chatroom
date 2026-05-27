@@ -2,11 +2,12 @@
  * Main CLI prompt for the task-started command.
  */
 
-import { taskStartedCommand } from './command';
-import { contextNewCommand } from '../context/new';
+import { classifyCommand } from '../classify/command';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
+ * Uses the new `classify` command for entry-point classification.
  */
 export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
@@ -15,8 +16,8 @@ export function getTaskStartedPrompt(ctx: {
 }): string {
   const cliEnvPrefix = ctx.cliEnvPrefix;
 
-  // Generate commands for each classification type
-  const questionCmd = taskStartedCommand({
+  // Generate commands for each classification type using the new classify command
+  const questionCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -24,7 +25,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const followUpCmd = taskStartedCommand({
+  const followUpCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -32,7 +33,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const newFeatureCmd = taskStartedCommand({
+  const newFeatureCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -46,8 +47,11 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  return `### Classify Task
-Acknowledge and classify user messages before starting work.
+  return `### Classify message
+
+Acknowledge and classify user messages after reading the chatroom task.
+
+Run this after \`task read\` to classify the message type.
 
 #### Question
 User is asking for information or clarification.
@@ -70,32 +74,23 @@ User wants new functionality. Requires title, description, and tech specs.
 ${newFeatureCmd}
 \`\`\`
 
-**Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
+**Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
 \`\`\`bash
 ${contextNewCmd}
-\`\`\``;
+\`\`\`
+${contextNewHint()}`;
 }
 
 /**
  * Generate task-started prompt for non-entry point roles (handoff recipients)
- * These roles don't classify messages - they just acknowledge state transition
+ * These roles don't classify messages - they just run task read to acknowledge
  */
-export function getTaskStartedPromptForHandoffRecipient(ctx: {
+export function getTaskStartedPromptForHandoffRecipient(_ctx: {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
 }): string {
-  const cliEnvPrefix = ctx.cliEnvPrefix;
-
-  // Non-entry roles use --no-classify since classification was already done
-  const taskStartedCmd = `${cliEnvPrefix}chatroom task-started --chatroom-id="${ctx.chatroomId}" --role="${ctx.role}" --task-id=<task-id> --no-classify`;
-
   return `### Start Working
-Before starting work on a received message, acknowledge it:
 
-\`\`\`bash
-${taskStartedCmd}
-\`\`\`
-
-This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.`;
+After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.`;
 }

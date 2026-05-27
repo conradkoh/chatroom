@@ -18,15 +18,16 @@
  *   agent.exited       | stopped         | OFFLINE         | Grey
  *   agent.exited       | running/undef   | OFFLINE (ERROR) | Red
  *   agent.circuitOpen  | any             | OFFLINE (ERROR) | Red
+ *   agent.startFailed  | any             | OFFLINE (ERROR) | Red
  */
 
 /** Semantic status variant used to select indicator color in the UI. */
 export type StatusVariant =
-  | 'offline'     // Grey — not started or cleanly stopped
-  | 'error'       // Red — crash or circuit breaker
+  | 'offline' // Grey — not started or cleanly stopped
+  | 'error' // Red — crash or circuit breaker
   | 'transitioning' // Yellow — starting, stopping, registered
-  | 'ready'       // Green — waiting or task received
-  | 'working';    // Blue pulse — actively processing
+  | 'ready' // Green — waiting or task received
+  | 'working'; // Blue pulse — actively processing
 
 /**
  * Resolved status: the label string plus the semantic color variant.
@@ -42,7 +43,7 @@ export interface ResolvedAgentStatus {
  *
  * @param eventType    Latest event type from `chatroom_eventStream` (null if no events)
  * @param desiredState From `chatroom_teamAgentConfigs.desiredState` (null if not set)
- * @param online       Whether the agent is considered online (derived from OFFLINE_EVENT_TYPES)
+ * @param online       Whether the agent is considered online (derived from isAlive / spawnedAgentPid)
  */
 export function resolveAgentStatus(
   eventType: string | null | undefined,
@@ -65,6 +66,10 @@ export function resolveAgentStatus(
   }
 
   if (eventType === 'agent.circuitOpen') {
+    return { label: 'OFFLINE (ERROR)', variant: 'error' };
+  }
+
+  if (eventType === 'agent.startFailed') {
     return { label: 'OFFLINE (ERROR)', variant: 'error' };
   }
 

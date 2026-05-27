@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2, ExternalLink } from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -147,6 +147,15 @@ function ArtifactContent({ artifactId, mimeType }: ArtifactContentProps) {
     artifactId: artifactId as Id<'chatroom_artifacts'>,
   }) as ArtifactFull | null | undefined;
 
+  const openInNewWindow = useCallback(() => {
+    if (!artifact) return;
+    const blob = new Blob([artifact.content], { type: mimeType || 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    // Clean up the blob URL after a delay to allow the new window to load
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, [artifact, mimeType]);
+
   if (artifact === undefined) {
     return (
       <div className="flex items-center justify-center gap-2 text-chatroom-text-muted py-8">
@@ -163,7 +172,21 @@ function ArtifactContent({ artifactId, mimeType }: ArtifactContentProps) {
   }
 
   const Renderer = getRenderer(mimeType);
-  return <Renderer artifact={artifact} />;
+  return (
+    <div>
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={openInNewWindow}
+          title="Open in new window"
+          className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium text-chatroom-text-muted hover:text-chatroom-text-primary border border-chatroom-border hover:bg-chatroom-bg-hover transition-colors"
+        >
+          <ExternalLink size={12} />
+          Open in new window
+        </button>
+      </div>
+      <Renderer artifact={artifact} />
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -10,9 +10,9 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,7 +27,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -63,17 +63,16 @@ async function insertCommandEvent(
         deadline: Date.now() + 120_000,
         timestamp: Date.now(),
       });
-    } else {
-      return await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStop',
-        chatroomId,
-        machineId,
-        role: 'builder',
-        reason: 'test',
-        deadline: Date.now() + 120_000,
-        timestamp: Date.now(),
-      });
     }
+    return await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStop',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      reason: 'test',
+      deadline: Date.now() + 120_000,
+      timestamp: Date.now(),
+    });
   });
 }
 

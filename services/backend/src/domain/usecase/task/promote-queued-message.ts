@@ -1,6 +1,7 @@
-import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { Id } from '../../../../convex/_generated/dataModel';
 import { createTask } from './create-task';
+import { adjustTaskCount } from './task-counts';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/auth/cliSessionAuth';
 
 /**
@@ -37,8 +38,17 @@ export async function promoteQueuedMessage(
     content: queueRecord.content,
     type: queueRecord.type,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
+    ...(queueRecord.attachedBacklogItemIds?.length && {
+      attachedBacklogItemIds: queueRecord.attachedBacklogItemIds,
+    }),
     ...(queueRecord.attachedArtifactIds?.length && {
       attachedArtifactIds: queueRecord.attachedArtifactIds,
+    }),
+    ...(queueRecord.attachedMessageIds?.length && {
+      attachedMessageIds: queueRecord.attachedMessageIds,
+    }),
+    ...(queueRecord.attachedWorkflowIds?.length && {
+      attachedWorkflowIds: queueRecord.attachedWorkflowIds,
     }),
   });
 
@@ -56,31 +66,17 @@ export async function promoteQueuedMessage(
     forceStatus: 'pending',
     sourceMessageId: messageId,
     queuePosition,
-    origin: 'chat',
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
   });
 
   // Patch message with taskId (bidirectional link)
   await ctx.db.patch('chatroom_messages', messageId, { taskId });
 
-  // Handle attached backlog tasks — bidirectional tracking
-  if (queueRecord.attachedTaskIds && queueRecord.attachedTaskIds.length > 0) {
-    const now = Date.now();
-    for (const attachedTaskId of queueRecord.attachedTaskIds) {
-      const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-      if (!attachedTask) continue;
-      const existingParents = attachedTask.parentTaskIds || [];
-      if (!existingParents.includes(taskId)) {
-        await ctx.db.patch('chatroom_tasks', attachedTaskId, {
-          parentTaskIds: [...existingParents, taskId],
-          updatedAt: now,
-        });
-      }
-    }
-  }
-
   // Delete the queue record (no longer needed after promotion)
   await ctx.db.delete('chatroom_messageQueue', queuedMessageId);
+
+  // Decrement the queue size counter
+  await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
 
   return { messageId, taskId };
 }

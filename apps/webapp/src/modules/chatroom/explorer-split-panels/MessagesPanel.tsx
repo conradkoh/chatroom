@@ -1,0 +1,80 @@
+'use client';
+
+/**
+ * MessagesPanel — thin wrapper that renders the MessageFeed + SendForm block
+ * that appears in the explorer-split right panel.
+ *
+ * Props mirror the exact props passed to MessageFeed + SendForm in
+ * ChatroomDashboard.tsx's explorer-split branch, grouped into a single typed
+ * interface so they can be threaded cleanly through RightSplitPanel.
+ */
+
+import type React from 'react';
+
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { FileEntry } from '../components/FileSelector/useFileSelector';
+
+import { MessageFeed } from '../components/MessageFeed';
+import { MessageInput } from '../components/MessageInput';
+import type { ScrollController } from '../hooks/useScrollController';
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+export interface MessagesPanelProps {
+  chatroomId: string;
+  activeTask?: { status: string; assignedTo?: string } | null;
+  controller: React.MutableRefObject<ScrollController>;
+  isPinned: boolean;
+  scrollToBottom: () => void;
+  onRegisterOpenEventStream?: (openFn: () => void) => void;
+  machines?: Map<string, { hostname: string; alias?: string }>;
+  // SendForm props
+  onBeforeResize?: () => void;
+  onAfterResize?: () => void;
+  onRegisterSendFormFocus?: (focusFn: () => void) => void;
+  autocompleteFiles?: FileEntry[];
+  refreshAutocompleteFiles?: () => void;
+
+  workspaceId?: Id<'chatroom_workspaces'> | null;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function MessagesPanel({
+  chatroomId,
+  activeTask,
+  controller,
+  isPinned,
+  scrollToBottom,
+  onRegisterOpenEventStream,
+  machines,
+  onBeforeResize,
+  onAfterResize,
+  onRegisterSendFormFocus,
+  autocompleteFiles,
+  refreshAutocompleteFiles,
+}: MessagesPanelProps) {
+  return (
+    <>
+      <MessageFeed
+        chatroomId={chatroomId}
+        activeTask={activeTask}
+        controller={controller}
+        isPinned={isPinned}
+        scrollToBottom={scrollToBottom}
+        onRegisterOpenEventStream={onRegisterOpenEventStream}
+        machines={machines}
+      />
+      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+        <MessageInput
+          chatroomId={chatroomId}
+          onBeforeResize={onBeforeResize}
+          onAfterResize={onAfterResize}
+          onRegisterFocus={onRegisterSendFormFocus}
+          files={autocompleteFiles}
+          onAtTriggerActivate={refreshAutocompleteFiles}
+        />
+      </div>
+    </>
+  );
+}

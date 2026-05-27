@@ -5,15 +5,15 @@
  * across all three scope modes: machine-wide, per-chatroom, and per-workspace.
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
 } from '../helpers/integration';
@@ -71,7 +71,7 @@ async function setupAgentAndSeedMetrics(opts: {
 
 test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', async () => {
   const { sessionId } = await createTestSession('metrics-q-machine-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-mq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -101,10 +101,10 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
 
 // ─── Test 2: per-chatroom scope filters correctly ─────────────────────────────
 
-test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data', async () => {
+test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data", async () => {
   const { sessionId } = await createTestSession('metrics-q-chatroom-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
-  const chatroomId2 = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId2 = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-cq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -186,7 +186,7 @@ test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data
 
 test('getAgentRestartMetrics workingDir scope filters to that workspace', async () => {
   const { sessionId } = await createTestSession('metrics-q-workspace-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-wq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -231,7 +231,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
 
 test('getAgentRestartMetrics groups multiple models within the same hour', async () => {
   const { sessionId } = await createTestSession('metrics-q-multimodel-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-mm-1';
   await registerMachineWithDaemon(sessionId, machineId);
 

@@ -15,9 +15,13 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
-import { CopyButton } from './CopyButton';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
+import { CopyButton } from './CopyButton';
+import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -25,7 +29,12 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { getHarnessDisplayName, getModelDisplayLabel } from '../types/machine';
+import {
+  getHarnessDisplayName,
+  getModelDisplayLabel,
+  getMachineDisplayName,
+} from '../types/machine';
+import type { Workspace } from '../types/workspace';
 
 import {
   Command,
@@ -35,6 +44,16 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
@@ -90,23 +109,24 @@ function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): stri
 
 // ─── Pure helpers for initialization ────────────────────────────────
 
-function deriveInitialMachine(
+/** Exported for unit tests — deterministic machine pick; never falls back to arbitrary first online machine. */
+export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
   runningAgentConfig: AgentConfig | undefined,
   preference: AgentPreference | undefined
 ): string | null {
   if (connectedMachines.length === 0) return null;
-  // Priority: running agent > existing config machine > saved preference > first available
+  // Priority: running agent > saved preference > existing config machine
   if (runningAgentConfig) return runningAgentConfig.machineId;
+  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
+    return preference.machineId;
+  }
   const configMachine = connectedMachines.find((m) =>
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
   if (configMachine) return configMachine.machineId;
-  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
-    return preference.machineId;
-  }
-  return connectedMachines[0]?.machineId ?? null;
+  return null;
 }
 
 function deriveInitialHarness(
@@ -119,10 +139,7 @@ function deriveInitialHarness(
   if (!machineId) return null;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
   const available = machine?.availableHarnesses ?? [];
-  // Priority: existing config harness > team config harness > saved preference > only option
-  const config = roleConfigs.find((c) => c.machineId === machineId);
-  if (config && available.includes(config.agentType)) return config.agentType;
-  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
+  // Priority: saved preference > existing config harness > team config harness > only option
   if (
     preference &&
     preference.machineId === machineId &&
@@ -130,14 +147,18 @@ function deriveInitialHarness(
   ) {
     return preference.agentHarness;
   }
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  if (config && available.includes(config.agentType)) return config.agentType;
+  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
   if (available.length === 1) return available[0];
   return null;
 }
 
-function deriveInitialWorkingDir(
+export function deriveInitialWorkingDir(
   machineId: string | null,
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined
+  preference: AgentPreference | undefined,
+  chatroomWorkspaces?: Workspace[]
 ): string {
   if (machineId) {
     const config = roleConfigs.find((c) => c.machineId === machineId);
@@ -145,12 +166,35 @@ function deriveInitialWorkingDir(
     if (preference && preference.machineId === machineId && preference.workingDir) {
       return preference.workingDir;
     }
+    if (chatroomWorkspaces) {
+      const ws = chatroomWorkspaces.find((w) => w.machineId === machineId);
+      if (ws?.workingDir) return ws.workingDir;
+    }
   }
   if (roleConfigs.length > 0) {
     const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
     if (latest.workingDir) return latest.workingDir;
   }
   return preference?.workingDir ?? '';
+}
+
+/** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
+export function shouldDeferInitUntilWorkspacesLoad(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): boolean {
+  if (machineId) {
+    const config = roleConfigs.find((c) => c.machineId === machineId);
+    if (config?.workingDir) return false;
+    if (preference && preference.machineId === machineId && preference.workingDir) {
+      return false;
+    }
+    return true;
+  }
+  if (roleConfigs.some((c) => c.workingDir)) return false;
+  if (preference?.workingDir) return false;
+  return false;
 }
 
 export function useAgentControls({
@@ -163,6 +207,9 @@ export function useAgentControls({
   teamConfigHarness,
   agentPreference,
   onSavePreference,
+  teamConfigMachineId,
+  chatroomWorkspaces,
+  chatroomWorkspacesLoading,
 }: {
   role: string;
   chatroomId: string;
@@ -178,6 +225,12 @@ export function useAgentControls({
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — saves preference for future sessions */
   onSavePreference?: (pref: AgentPreference) => void;
+  /** Team-config machine binding for this role (from team agent config / agent status view). */
+  teamConfigMachineId?: string | null;
+  /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
+  chatroomWorkspaces?: Workspace[];
+  /** When true, init defers until workspaces load if working dir may come from the registry */
+  chatroomWorkspacesLoading?: boolean;
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
@@ -195,6 +248,7 @@ export function useAgentControls({
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -214,10 +268,12 @@ export function useAgentControls({
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
   }, [agentConfigs, role]);
 
-  // Check if there's a running agent
+  // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
-  }, [roleConfigs]);
+    return roleConfigs.find(
+      (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
+    );
+  }, [roleConfigs, connectedMachines]);
 
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {
@@ -241,7 +297,18 @@ export function useAgentControls({
     if (isInitialized || connectedMachines.length === 0) return;
 
     const pref = initialPreferenceRef.current;
-    const machine = deriveInitialMachine(connectedMachines, roleConfigs, runningAgentConfig, pref);
+    const machine = deriveInitialMachineId(
+      connectedMachines,
+      roleConfigs,
+      runningAgentConfig,
+      pref
+    );
+    if (
+      chatroomWorkspacesLoading &&
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, pref)
+    ) {
+      return;
+    }
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
@@ -249,73 +316,91 @@ export function useAgentControls({
       pref,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
     setIsInitialized(true);
-  }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
+  }, [
+    isInitialized,
+    connectedMachines,
+    roleConfigs,
+    runningAgentConfig,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
+  ]);
 
   // Available models from the selected machine filtered by selected harness
-  const availableModelsForHarness = useMemo(() => {
-    if (!selectedMachineId || !selectedHarness) return [];
-    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableModels[selectedHarness] ?? [];
-  }, [selectedMachineId, selectedHarness, connectedMachines]);
+  const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
+    selectedMachineId ?? undefined
+  );
+  const availableModelsForHarness = useMemo(
+    () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
+    [machineModels, selectedMachineId, selectedHarness]
+  );
+
+  // Machine-level model filter — used to exclude blacklisted models from
+  // automatic selection and the model combobox.
+  const machineModelFilterResult = useSessionQuery(
+    api.machines.getMachineModelFilters,
+    selectedMachineId && selectedHarness
+      ? { machineId: selectedMachineId, agentHarness: selectedHarness }
+      : 'skip'
+  );
+  const machineModelFilter = machineModelFilterResult ?? null;
+  const machineModelFilterLoading =
+    !!selectedMachineId && !!selectedHarness && machineModelFilterResult === undefined;
+
+  // Wait for async machine models + filter before deriving selection — avoids flashing
+  // a stale model label when switching machines or harnesses.
+  const modelSelectionReady =
+    !!selectedMachineId &&
+    !!selectedHarness &&
+    !machineModelsLoading &&
+    !machineModelFilterLoading;
+
+  // Visible models = available models minus those hidden by the filter.
+  // The combobox and automatic model selection use this list.
+  const visibleModels = useMemo(
+    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
+    [availableModelsForHarness, machineModelFilter]
+  );
 
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
-  // Because it's computed synchronously in useMemo, switching harness
-  // is guaranteed to show a model from the NEW harness in the same render.
-  //
-  // Priority within a harness:
-  //   1. User's explicit per-harness choice (userModelByHarness), if still valid
-  //   2. Saved machine config model for the same harness (agentType must match)
-  //   3. Team config model
-  //   4. Saved user preference model (from mount-time snapshot)
-  //   5. First available model for this harness
+  // Uses the extracted selectModel utility for testability.
   const selectedModel = useMemo((): string | null => {
-    if (!selectedHarness || availableModelsForHarness.length === 0) {
-      return null;
-    }
-
-    // 1. Per-harness user choice (if still valid in current model list)
-    const userChoice = userModelByHarness[selectedHarness];
-    if (userChoice && availableModelsForHarness.includes(userChoice)) {
-      return userChoice;
-    }
-
-    // 2. Machine config model — only if it's saved under the same harness type
+    if (!modelSelectionReady) return null;
+    // Machine config model — only if it's saved under the same harness type
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
-    if (config?.model && availableModelsForHarness.includes(config.model)) {
-      return config.model;
-    }
 
-    // 3. Team config model
-    if (teamConfigModel && availableModelsForHarness.includes(teamConfigModel)) {
-      return teamConfigModel;
-    }
-
-    // 4. Saved user preference model (from mount-time snapshot — not reactive)
+    // Saved user preference model (from mount-time snapshot — not reactive)
     const pref = initialPreferenceRef.current;
-    if (
+    const prefModel =
       pref &&
       pref.machineId === selectedMachineId &&
       pref.agentHarness === selectedHarness &&
-      pref.model &&
-      availableModelsForHarness.includes(pref.model)
-    ) {
-      return pref.model;
-    }
+      pref.model
+        ? pref.model
+        : undefined;
 
-    // 5. First available for this harness
-    return availableModelsForHarness[0];
+    return selectModel({
+      selectedHarness,
+      availableModels: availableModelsForHarness,
+      visibleModels,
+      userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
+      machineConfigModel: config?.model ?? undefined,
+      teamConfigModel,
+      preferenceModel: prefModel,
+    });
   }, [
+    modelSelectionReady,
     selectedHarness,
     availableModelsForHarness,
+    visibleModels,
     userModelByHarness,
     roleConfigs,
     selectedMachineId,
@@ -326,57 +411,90 @@ export function useAgentControls({
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
-    selectedMachineId &&
-    selectedHarness &&
+    !!selectedMachineId &&
+    !!selectedHarness &&
     (!hasModels || selectedModel) &&
     workingDir.trim() &&
     !isStarting &&
     !isAgentRunning &&
     !success;
+
+  const rehomeDialogLabels = useMemo(() => {
+    if (!teamConfigMachineId || !selectedMachineId) return null;
+    const prevM = connectedMachines.find((m) => m.machineId === teamConfigMachineId);
+    const nextM = connectedMachines.find((m) => m.machineId === selectedMachineId);
+    return {
+      previous: prevM ? getMachineDisplayName(prevM) : teamConfigMachineId,
+      next: nextM ? getMachineDisplayName(nextM) : selectedMachineId,
+    };
+  }, [teamConfigMachineId, selectedMachineId, connectedMachines]);
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
-  const handleStartAgent = useCallback(async () => {
-    if (!selectedMachineId || !selectedHarness) return;
-    setIsStarting(true);
-    setError(null);
-    try {
-      await sendCommand({
-        machineId: selectedMachineId,
-        type: 'start-agent',
-        payload: {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  const executeStartAgent = useCallback(
+    async (allowNewMachine?: boolean) => {
+      if (!selectedMachineId || !selectedHarness) return;
+      setIsStarting(true);
+      setError(null);
+      try {
+        await sendCommand({
+          machineId: selectedMachineId,
+          type: 'start-agent',
+          payload: {
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            model: selectedModel || undefined,
+            agentHarness: selectedHarness,
+            workingDir: workingDir.trim() || undefined,
+            ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
+          },
+        });
+        // Save user preference so the Remote tab pre-populates these values next time
+        onSavePreference?.({
           role,
-          model: selectedModel || undefined,
+          machineId: selectedMachineId,
           agentHarness: selectedHarness,
+          model: selectedModel || undefined,
           workingDir: workingDir.trim() || undefined,
-        },
-      });
-      // Save user preference so the Remote tab pre-populates these values next time
-      onSavePreference?.({
-        role,
-        machineId: selectedMachineId,
-        agentHarness: selectedHarness,
-        model: selectedModel || undefined,
-        workingDir: workingDir.trim() || undefined,
-      });
-      setSuccess('Start command sent!');
-      setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start agent');
-    } finally {
-      setIsStarting(false);
+        });
+        setSuccess('Start command sent!');
+        setTimeout(() => setSuccess(null), 2000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to start agent');
+      } finally {
+        setIsStarting(false);
+      }
+    },
+    [
+      selectedMachineId,
+      selectedHarness,
+      selectedModel,
+      workingDir,
+      sendCommand,
+      chatroomId,
+      role,
+      onSavePreference,
+    ]
+  );
+
+  const handleStartAgent = useCallback(() => {
+    if (!selectedMachineId || !selectedHarness) return;
+    const isRehome = teamConfigMachineId != null && selectedMachineId !== teamConfigMachineId;
+    if (isRehome) {
+      setRehomeConfirmOpen(true);
+      return;
     }
-  }, [
-    selectedMachineId,
-    selectedHarness,
-    selectedModel,
-    workingDir,
-    sendCommand,
-    chatroomId,
-    role,
-    onSavePreference,
-  ]);
+    void executeStartAgent();
+  }, [selectedMachineId, selectedHarness, teamConfigMachineId, executeStartAgent]);
+
+  const handleConfirmRehomeStart = useCallback(() => {
+    setRehomeConfirmOpen(false);
+    void executeStartAgent(true);
+  }, [executeStartAgent]);
+
+  const handleCancelRehomeStart = useCallback(() => {
+    setRehomeConfirmOpen(false);
+  }, []);
 
   const handleStopAgent = useCallback(async () => {
     if (!runningAgentConfig) return;
@@ -439,10 +557,10 @@ export function useAgentControls({
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
       const pref = initialPreferenceRef.current;
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref, chatroomWorkspaces);
       setWorkingDir(wd);
     },
-    [roleConfigs]
+    [roleConfigs, chatroomWorkspaces]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
@@ -486,6 +604,8 @@ export function useAgentControls({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    visibleModels,
+    machineModelFilter,
     isAgentRunning,
     isBusy,
     hasModels,
@@ -499,30 +619,11 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    rehomeConfirmOpen,
+    rehomeDialogLabels,
+    handleConfirmRehomeStart,
+    handleCancelRehomeStart,
   };
-}
-
-// ─── Model Filter Helper ─────────────────────────────────────────────
-
-/**
- * Returns true if the given model should be hidden based on the machine-level filter.
- * Checks both exact model IDs and provider prefixes (the part before the first '/').
- */
-function isModelHidden(
-  modelId: string,
-  filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
-): boolean {
-  if (!filter) return false;
-  const provider = modelId.split('/')[0];
-  const providerHidden = filter.hiddenProviders.includes(provider);
-  const hasExplicitOverride = filter.hiddenModels.includes(modelId);
-
-  if (providerHidden) {
-    // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
-    return !hasExplicitOverride;
-  }
-  // Provider is visible; hiddenModels contains models to hide
-  return hasExplicitOverride;
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
@@ -534,6 +635,9 @@ interface RemoteTabContentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
+  chatroomId: string;
+  /** When provided, skips a duplicate workspace registry subscription in this tab. */
+  linkedMachineIds?: ReadonlySet<string>;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -541,6 +645,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
+  chatroomId,
+  linkedMachineIds: linkedMachineIdsProp,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -566,6 +672,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    rehomeConfirmOpen,
+    rehomeDialogLabels,
+    handleConfirmRehomeStart,
+    handleCancelRehomeStart,
   } = controls;
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
@@ -587,6 +697,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   }, [displayMachineId, connectedMachines]);
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
+
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId, {
+    skip: linkedMachineIdsProp !== undefined,
+  });
+  const linkedMachineIds = useMemo(() => {
+    if (linkedMachineIdsProp !== undefined) return linkedMachineIdsProp;
+    const s = new Set<string>();
+    for (const ws of chatroomWorkspaces) {
+      if (ws.machineId) s.add(ws.machineId);
+    }
+    return s;
+  }, [linkedMachineIdsProp, chatroomWorkspaces]);
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -663,13 +785,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
       ) : (
         <>
           {/* Row 1: Machine + Harness */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
               {isAgentRunning ? (
                 <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
                   {displayMachineId
-                    ? (connectedMachines.find((m) => m.machineId === displayMachineId)?.hostname ??
-                      displayMachineId)
+                    ? (() => {
+                        const m = connectedMachines.find((m) => m.machineId === displayMachineId);
+                        return m ? getMachineDisplayName(m) : displayMachineId;
+                      })()
                     : 'Machine...'}
                 </div>
               ) : (
@@ -682,8 +806,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     >
                       <span className="truncate">
                         {displayMachineId
-                          ? (connectedMachines.find((m) => m.machineId === displayMachineId)
-                              ?.hostname ?? displayMachineId)
+                          ? (() => {
+                              const m = connectedMachines.find(
+                                (m) => m.machineId === displayMachineId
+                              );
+                              return m ? getMachineDisplayName(m) : displayMachineId;
+                            })()
                           : 'Machine...'}
                       </span>
                       <ChevronDown
@@ -702,14 +830,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           {connectedMachines.map((machine) => (
                             <CommandItem
                               key={machine.machineId}
-                              value={machine.hostname}
+                              value={getMachineDisplayName(machine)}
                               onSelect={() => {
                                 handleMachineChange(machine.machineId);
                                 setMachinePopoverOpen(false);
                               }}
                               className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                             >
-                              <span className="truncate">{machine.hostname}</span>
+                              <span className="truncate">{getMachineDisplayName(machine)}</span>
                               {displayMachineId === machine.machineId && (
                                 <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
                               )}
@@ -722,75 +850,87 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 </Popover>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              {isAgentRunning ? (
-                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                  {displayHarness
-                    ? formatHarnessLabel(
-                        displayHarness,
-                        displayHarnessVersionsForMachine[displayHarness]
-                      )
-                    : 'Harness...'}
-                </div>
-              ) : (
-                <Popover open={harnessPopoverOpen} onOpenChange={setHarnessPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      disabled={
-                        isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
-                      }
-                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                      title="Select Harness"
+            <div className="flex-1 min-w-0 flex items-stretch gap-1">
+              <div className="min-w-0 flex-1">
+                {isAgentRunning ? (
+                  <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                    {displayHarness
+                      ? formatHarnessLabel(
+                          displayHarness,
+                          displayHarnessVersionsForMachine[displayHarness]
+                        )
+                      : 'Harness...'}
+                  </div>
+                ) : (
+                  <Popover open={harnessPopoverOpen} onOpenChange={setHarnessPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        disabled={
+                          isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
+                        }
+                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                        title="Select Harness"
+                      >
+                        <span className="truncate">
+                          {displayHarness
+                            ? formatHarnessLabel(
+                                displayHarness,
+                                displayHarnessVersionsForMachine[displayHarness]
+                              )
+                            : 'Harness...'}
+                        </span>
+                        <ChevronDown
+                          size={10}
+                          className="ml-1 flex-shrink-0 text-chatroom-text-muted"
+                        />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                      style={{ width: 'var(--radix-popover-trigger-width)' }}
                     >
-                      <span className="truncate">
-                        {displayHarness
-                          ? formatHarnessLabel(
-                              displayHarness,
-                              displayHarnessVersionsForMachine[displayHarness]
-                            )
-                          : 'Harness...'}
-                      </span>
-                      <ChevronDown
-                        size={10}
-                        className="ml-1 flex-shrink-0 text-chatroom-text-muted"
-                      />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                  >
-                    <Command className="bg-chatroom-bg-tertiary rounded-none">
-                      <CommandList>
-                        <CommandGroup>
-                          {availableHarnessesForMachine.map((harness) => {
-                            const label = formatHarnessLabel(
-                              harness,
-                              harnessVersionsForMachine[harness]
-                            );
-                            return (
-                              <CommandItem
-                                key={harness}
-                                value={label}
-                                onSelect={() => {
-                                  handleHarnessChange(harness);
-                                  setHarnessPopoverOpen(false);
-                                }}
-                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                              >
-                                <span className="truncate">{label}</span>
-                                {displayHarness === harness && (
-                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                                )}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
+                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                        <CommandList>
+                          <CommandGroup>
+                            {availableHarnessesForMachine.map((harness) => {
+                              const label = formatHarnessLabel(
+                                harness,
+                                harnessVersionsForMachine[harness]
+                              );
+                              return (
+                                <CommandItem
+                                  key={harness}
+                                  value={label}
+                                  onSelect={() => {
+                                    handleHarnessChange(harness);
+                                    setHarnessPopoverOpen(false);
+                                  }}
+                                  className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                                >
+                                  <span className="truncate">{label}</span>
+                                  {displayHarness === harness && (
+                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">
+                                      ✓
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+              {displayMachineId ? (
+                <MachineCapabilitiesRefreshButton
+                  chatroomId={chatroomId}
+                  machineId={displayMachineId}
+                  daemonConnected={connectedMachines.some((m) => m.machineId === displayMachineId)}
+                  linkedToChatroom={linkedMachineIds.has(displayMachineId)}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -817,119 +957,150 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
           </div>
 
+          {!isAgentRunning &&
+            !selectedMachineId &&
+            connectedMachines.length > 0 &&
+            !isLoadingMachines && (
+              <p className="text-[10px] text-muted-foreground">
+                Select a machine to start this agent.
+              </p>
+            )}
+
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
             {hasModels ? (
               <div className="flex items-center gap-1 flex-1 min-w-0">
                 {isAgentRunning ? (
                   <div className="flex-1 min-w-0">
-                    <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                      {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                    <div
+                      className={cn(
+                        'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
+                        isSelectedModelHidden && 'text-chatroom-status-warning'
+                      )}
+                    >
+                      <span className="truncate">
+                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                      </span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {isSelectedModelHidden && (
+                          <AlertCircle
+                            size={10}
+                            className="text-chatroom-status-warning flex-shrink-0"
+                            aria-label="Selected model is hidden by filter — choose a new model"
+                          />
+                        )}
+                        {machineModelFilter &&
+                          (machineModelFilter.hiddenModels.length > 0 ||
+                            machineModelFilter.hiddenProviders.length > 0) && (
+                            <div
+                              className="w-1.5 h-1.5 bg-chatroom-accent"
+                              title="Some models are hidden"
+                            />
+                          )}
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex-1 min-w-0">
-                      <Popover
-                        open={modelPopoverOpen}
-                        onOpenChange={setModelPopoverOpen}
-                        modal={false}
-                      >
-                        <PopoverTrigger asChild>
-                          <button
-                            disabled={isBusy || !displayHarness}
-                            className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                            title="Select Model"
+                  <div className="flex-1 min-w-0">
+                    <Popover
+                      open={modelPopoverOpen}
+                      onOpenChange={setModelPopoverOpen}
+                      modal={false}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          disabled={isBusy || !displayHarness}
+                          className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                          title="Select Model"
+                        >
+                          <span
+                            className={cn(
+                              'truncate',
+                              isSelectedModelHidden && 'text-chatroom-status-warning'
+                            )}
                           >
-                            <span
-                              className={cn(
-                                'truncate',
-                                isSelectedModelHidden && 'text-chatroom-status-warning'
-                              )}
-                            >
-                              {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                            </span>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {isSelectedModelHidden && (
-                                <AlertCircle
-                                  size={10}
-                                  className="text-chatroom-status-warning flex-shrink-0"
-                                  aria-label="Selected model is hidden by filter — choose a new model"
+                            {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                          </span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isSelectedModelHidden && (
+                              <AlertCircle
+                                size={10}
+                                className="text-chatroom-status-warning flex-shrink-0"
+                                aria-label="Selected model is hidden by filter — choose a new model"
+                              />
+                            )}
+                            {machineModelFilter &&
+                              (machineModelFilter.hiddenModels.length > 0 ||
+                                machineModelFilter.hiddenProviders.length > 0) && (
+                                <div
+                                  className="w-1.5 h-1.5 bg-chatroom-accent"
+                                  title="Some models are hidden"
                                 />
                               )}
-                              {machineModelFilter &&
-                                (machineModelFilter.hiddenModels.length > 0 ||
-                                  machineModelFilter.hiddenProviders.length > 0) && (
-                                  <div
-                                    className="w-1.5 h-1.5 bg-chatroom-accent"
-                                    title="Some models are hidden"
-                                  />
-                                )}
-                              <ChevronDown size={10} className="text-chatroom-text-muted" />
-                            </div>
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
-                          <Command className="bg-chatroom-bg-tertiary rounded-none">
-                            <CommandInput
-                              placeholder="Search..."
-                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
-                            />
-                            <CommandList className="max-h-60 overflow-y-auto">
-                              <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2">
-                                No models found.
-                              </CommandEmpty>
-                              <CommandGroup>
-                                {visibleModels.map((model) => (
-                                  <CommandItem
-                                    key={model}
-                                    value={getModelDisplayLabel(model)}
-                                    onSelect={() => {
-                                      handleModelChange(model);
-                                      setModelPopoverOpen(false);
-                                    }}
-                                    className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                                  >
-                                    <span className="truncate">{getModelDisplayLabel(model)}</span>
-                                    {displayModel === model && (
-                                      <span className="ml-2 flex-shrink-0 text-chatroom-accent">
-                                        ✓
-                                      </span>
-                                    )}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    {displayMachineId && displayHarness && (
-                      <ModelFilterPanel
-                        open={filterPanelOpen}
-                        onOpenChange={setFilterPanelOpen}
-                        trigger={
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                            title="Filter models"
-                          >
-                            <SlidersHorizontal size={10} />
-                          </button>
-                        }
-                        availableModels={availableModelsForHarness}
-                        filter={machineModelFilter}
-                        onFilterChange={handleFilterChange}
-                        disabled={isBusy}
-                      />
-                    )}
-                  </>
+                            <ChevronDown size={10} className="text-chatroom-text-muted" />
+                          </div>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
+                        <Command className="bg-chatroom-bg-tertiary rounded-none">
+                          <CommandInput
+                            placeholder="Search..."
+                            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
+                          />
+                          <CommandList className="max-h-60 overflow-y-auto">
+                            <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2">
+                              No models found.
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {visibleModels.map((model) => (
+                                <CommandItem
+                                  key={model}
+                                  value={getModelDisplayLabel(model)}
+                                  onSelect={() => {
+                                    handleModelChange(model);
+                                    setModelPopoverOpen(false);
+                                  }}
+                                  className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                                >
+                                  <span className="truncate">{getModelDisplayLabel(model)}</span>
+                                  {displayModel === model && (
+                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">
+                                      ✓
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 )}
               </div>
             ) : (
               <div className="flex-1" />
+            )}
+
+            {displayMachineId && displayHarness && (
+              <ModelFilterPanel
+                open={filterPanelOpen}
+                onOpenChange={setFilterPanelOpen}
+                trigger={
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    title="Filter models"
+                  >
+                    <SlidersHorizontal size={10} />
+                  </button>
+                }
+                availableModels={availableModelsForHarness}
+                filter={machineModelFilter}
+                onFilterChange={handleFilterChange}
+                disabled={isBusy}
+              />
             )}
 
             {/* Action Buttons */}
@@ -994,6 +1165,42 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               )}
             </div>
           </div>
+
+          <AlertDialog
+            open={rehomeConfirmOpen}
+            onOpenChange={(open) => {
+              if (!open) handleCancelRehomeStart();
+            }}
+          >
+            <AlertDialogContent className="bg-card border-border">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-foreground">
+                  Move agent to another machine?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-muted-foreground">
+                  {rehomeDialogLabels ? (
+                    <>
+                      Starting this agent will move the role from{' '}
+                      <span className="font-semibold text-foreground">
+                        {rehomeDialogLabels.previous}
+                      </span>{' '}
+                      to{' '}
+                      <span className="font-semibold text-foreground">
+                        {rehomeDialogLabels.next}
+                      </span>
+                      . Existing work on the old machine will continue until it exits. Continue?
+                    </>
+                  ) : (
+                    'Existing work on the old machine will continue until it exits. Continue?'
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="border-t border-border pt-4">
+                <AlertDialogCancel onClick={handleCancelRehomeStart}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmRehomeStart}>Continue</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>
@@ -1022,7 +1229,12 @@ export const CustomTabContent = memo(function CustomTabContent({
         tabIndex={0}
         className="w-full flex items-center gap-2 text-left hover:bg-chatroom-bg-hover transition-colors px-2 py-2 -mx-2 cursor-pointer"
         onClick={() => setViewerOpen(true)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(true); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setViewerOpen(true);
+          }
+        }}
       >
         <FileText size={14} className="text-chatroom-text-muted flex-shrink-0" />
         <span className="flex-1 text-[12px] font-medium text-chatroom-text-secondary">
@@ -1043,5 +1255,3 @@ export const CustomTabContent = memo(function CustomTabContent({
     </>
   );
 });
-
-

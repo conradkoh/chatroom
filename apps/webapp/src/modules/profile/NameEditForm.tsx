@@ -6,7 +6,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -77,6 +77,17 @@ export function NameEditForm() {
     isDisconnecting: false,
   });
 
+  // Refs for popup poll interval and timeout cleanup
+  const popupPollRef = useRef<NodeJS.Timeout | null>(null);
+  const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (popupPollRef.current) clearInterval(popupPollRef.current);
+      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+    };
+  }, []);
+
   // Convex mutations
   const updateUserName = useSessionMutation(api.auth.updateUserName);
   const disconnectGoogle = useSessionMutation(api.auth.google.disconnectGoogle);
@@ -90,27 +101,31 @@ export function NameEditForm() {
       : 'skip'
   );
 
-  // Effect to handle connect request status changes
-  useEffect(() => {
-    if (!connectRequest || !isConnectingGoogle) return;
-
-    if (connectRequest.status === 'completed') {
-      toast.success('Google account connected successfully!');
-      setIsConnectingGoogle(false);
-      setConnectLoginRequestId(null);
-    } else if (connectRequest.status === 'failed') {
-      toast.error(connectRequest.error || 'Failed to connect Google account');
-      setIsConnectingGoogle(false);
-      setConnectLoginRequestId(null);
+  const prevConnectRequestRef = useRef(connectRequest);
+  if (prevConnectRequestRef.current !== connectRequest) {
+    prevConnectRequestRef.current = connectRequest;
+    if (connectRequest && isConnectingGoogle) {
+      if (connectRequest.status === 'completed') {
+        queueMicrotask(() => toast.success('Google account connected successfully!'));
+        setIsConnectingGoogle(false);
+        setConnectLoginRequestId(null);
+      } else if (connectRequest.status === 'failed') {
+        queueMicrotask(() =>
+          toast.error(connectRequest.error || 'Failed to connect Google account')
+        );
+        setIsConnectingGoogle(false);
+        setConnectLoginRequestId(null);
+      }
     }
-  }, [connectRequest, isConnectingGoogle]);
+  }
 
-  // Initialize name when user data is available
-  useEffect(() => {
+  const prevUserNameRef = useRef(currentUser?.name);
+  if (prevUserNameRef.current !== currentUser?.name) {
+    prevUserNameRef.current = currentUser?.name;
     if (currentUser?.name) {
       setName(currentUser.name);
     }
-  }, [currentUser?.name]);
+  }
 
   // Handle name change
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,18 +213,26 @@ export function NameEditForm() {
         return;
       }
 
+      // Clear any previous timers
+      if (popupPollRef.current) clearInterval(popupPollRef.current);
+      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+
       // Poll for popup closure
-      const pollInterval = setInterval(() => {
+      popupPollRef.current = setInterval(() => {
         if (popup.closed) {
-          clearInterval(pollInterval);
-          // Don't reset connecting state here - let the login request status handle it
+          if (popupPollRef.current) clearInterval(popupPollRef.current);
+          popupPollRef.current = null;
         }
       }, 1000);
 
       // Cleanup on timeout
-      setTimeout(
+      popupTimeoutRef.current = setTimeout(
         () => {
-          clearInterval(pollInterval);
+          if (popupPollRef.current) {
+            clearInterval(popupPollRef.current);
+            popupPollRef.current = null;
+          }
+          popupTimeoutRef.current = null;
           if (!popup.closed) {
             popup.close();
           }
@@ -218,7 +241,7 @@ export function NameEditForm() {
           setConnectLoginRequestId(null);
         },
         15 * 60 * 1000
-      ); // 15 minutes timeout
+      );
     } catch (_error) {
       toast.error('Failed to connect Google account');
       setIsConnectingGoogle(false);

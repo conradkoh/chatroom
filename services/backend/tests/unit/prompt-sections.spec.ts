@@ -29,7 +29,6 @@ describe('getTeamContextSection', () => {
         teamName: 'Squad',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
-        availableMembers: ['planner', 'builder', 'reviewer'],
       });
 
       const section = getTeamContextSection(ctx);
@@ -37,23 +36,21 @@ describe('getTeamContextSection', () => {
       expect(section.type).toBe('knowledge');
       expect(section.content).toContain('Squad Team Context');
       expect(section.content).toContain('ONLY role that communicates directly with the user');
-      expect(section.content).toContain('Builder is available');
-      expect(section.content).toContain('Reviewer is available');
+      expect(section.content).toContain('Team members may go offline');
     });
 
-    test('planner with no builder shows unavailability', () => {
+    test('planner context is the same regardless of team composition', () => {
       const ctx = buildSelectorContext({
         role: 'planner',
         teamRoles: ['planner', 'builder', 'reviewer'],
         teamName: 'Squad',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
-        availableMembers: ['planner'],
       });
 
       const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Builder is NOT available');
-      expect(section.content).toContain('Reviewer is NOT available');
+      expect(section.content).toContain('Squad Team Context');
+      expect(section.content).toContain('Team members may go offline');
     });
 
     test('builder gets squad builder context with user restriction', () => {
@@ -85,36 +82,6 @@ describe('getTeamContextSection', () => {
       expect(section.content).toContain('do NOT communicate directly with the user');
       expect(section.content).toContain('NEVER hand off directly to');
       expect(section.content).toContain('planner');
-    });
-  });
-
-  describe('pair team', () => {
-    test('builder gets pair builder context', () => {
-      const ctx = buildSelectorContext({
-        role: 'builder',
-        teamRoles: ['builder', 'reviewer'],
-        teamName: 'Pair',
-        teamEntryPoint: 'builder',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Pair Team Context');
-      expect(section.content).toContain('reviewer who will check your code');
-    });
-
-    test('reviewer gets pair reviewer context', () => {
-      const ctx = buildSelectorContext({
-        role: 'reviewer',
-        teamRoles: ['builder', 'reviewer'],
-        teamName: 'Pair',
-        teamEntryPoint: 'builder',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Pair Team Context');
-      expect(section.content).toContain('builder who implements code');
     });
   });
 
@@ -186,7 +153,7 @@ describe('role identity sections', () => {
     const ctx = buildSelectorContext({
       role: 'builder',
       teamRoles: ['builder', 'reviewer'],
-      teamName: 'Pair',
+      teamName: 'Duo',
       teamEntryPoint: 'builder',
       convexUrl: CONVEX_URL,
     });

@@ -8,6 +8,7 @@
  */
 
 export { getCoreResponsibilitiesSection } from './core-responsibilities';
+export { getDelegationAndDecompositionSection } from './delegation-and-decomposition';
 export { getDelegationGuidelinesSection } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';

@@ -7,15 +7,17 @@
 **File:** `apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx`
 
 **Changes:**
+
 1. Add `mounted` state to track hydration
 2. Return `undefined` until mounted
 3. Update component to handle undefined state (already has loading spinner)
 
 **Before:**
+
 ```tsx
 function useIsSmallScreen() {
   const [isSmall, setIsSmall] = useState(false);
-  
+
   useEffect(() => {
     const checkSize = () => setIsSmall(window.innerWidth < 768);
     checkSize();
@@ -28,6 +30,7 @@ function useIsSmallScreen() {
 ```
 
 **After:**
+
 ```tsx
 function useIsSmallScreen() {
   const [mounted, setMounted] = useState(false);
@@ -51,9 +54,11 @@ function useIsSmallScreen() {
 **File:** `apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx`
 
 **Changes:**
+
 1. Update loading check to include `isSmallScreen === undefined`
 
 **Before:**
+
 ```tsx
 if (chatroom === undefined || participants === undefined || readiness === undefined) {
   return <LoadingSpinner />;
@@ -61,8 +66,14 @@ if (chatroom === undefined || participants === undefined || readiness === undefi
 ```
 
 **After:**
+
 ```tsx
-if (chatroom === undefined || participants === undefined || readiness === undefined || isSmallScreen === undefined) {
+if (
+  chatroom === undefined ||
+  participants === undefined ||
+  readiness === undefined ||
+  isSmallScreen === undefined
+) {
   return <LoadingSpinner />;
 }
 ```
@@ -72,6 +83,7 @@ if (chatroom === undefined || participants === undefined || readiness === undefi
 **File:** `apps/webapp/src/modules/chatroom/components/SendForm.tsx`
 
 **Changes:**
+
 1. Add `mounted` state to track hydration
 2. Return `undefined` until mounted
 3. Component handles undefined gracefully (defaults to non-touch behavior)
@@ -80,11 +92,11 @@ if (chatroom === undefined || participants === undefined || readiness === undefi
 
 ## Summary
 
-| Phase | File | Change |
-|-------|------|--------|
-| 1 | ChatroomDashboard.tsx | Add `mounted` state to `useIsSmallScreen` |
-| 2 | ChatroomDashboard.tsx | Add `isSmallScreen` to loading check |
-| 3 | SendForm.tsx | Add `mounted` state to `useIsTouchDevice` |
+| Phase | File                  | Change                                    |
+| ----- | --------------------- | ----------------------------------------- |
+| 1     | ChatroomDashboard.tsx | Add `mounted` state to `useIsSmallScreen` |
+| 2     | ChatroomDashboard.tsx | Add `isSmallScreen` to loading check      |
+| 3     | SendForm.tsx          | Add `mounted` state to `useIsTouchDevice` |
 
 ## Verification
 

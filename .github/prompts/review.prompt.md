@@ -104,6 +104,7 @@ git diff --name-only <branch-diff-spec>
 ```
 
 Replace `<branch-diff-spec>` with:
+
 - `$DEFAULT_BRANCH...HEAD` for Case 1 (feature branch)
 - `@{u}..HEAD` for Case 2 (default branch unpushed)
 
@@ -146,7 +147,7 @@ The review report MUST cover the following aspects in order:
 
 **Report Format:**
 
-```markdown
+````markdown
 ### Type Safety Review
 
 **Status:** ✅ PASS / ❌ FAIL / ⚠️ WARNING
@@ -154,11 +155,13 @@ The review report MUST cover the following aspects in order:
 **Findings:**
 
 #### Critical Issues
+
 - **File:** `path/to/file.ts`
   - **Issue:** Using `any` type for user data
   - **Location:** Line 42
   - **Recommendation:** Define a proper interface for user data structure
   - **Code:**
+
     ```typescript
     // ❌ Current
     function processUser(data: any) { ... }
@@ -173,11 +176,12 @@ The review report MUST cover the following aspects in order:
     ```
 
 #### Warnings
+
 - **File:** `path/to/file.ts`
   - **Issue:** Complex type definition could be simplified
   - **Location:** Line 87
   - **Recommendation:** Extract to a named type alias
-```
+````
 
 ### 2. Design Patterns Review
 
@@ -207,6 +211,7 @@ The review report MUST cover the following aspects in order:
 **Findings:**
 
 #### Consistency Issues
+
 - **File:** `path/to/file.ts`
   - **Issue:** Inconsistent with existing data fetching pattern
   - **Location:** Function `fetchData` (Line 23)
@@ -215,6 +220,7 @@ The review report MUST cover the following aspects in order:
   - **Context:** See `hooks/useData.ts` for reference implementation
 
 #### Architectural Concerns
+
 - **File:** `path/to/file.tsx`
   - **Issue:** Component mixing business logic with UI rendering
   - **Location:** Lines 15-45
@@ -250,6 +256,7 @@ The review report MUST cover the following aspects in order:
 **Findings:**
 
 #### Readability Issues
+
 - **File:** `path/to/file.ts`
   - **Issue:** Function too long and doing multiple things
   - **Location:** `processOrder` (Lines 50-120)
@@ -261,6 +268,7 @@ The review report MUST cover the following aspects in order:
   - **Impact:** Makes each function testable and easier to understand
 
 #### Code Duplication
+
 - **File:** `path/to/file.ts` and `path/to/other.ts`
   - **Issue:** Duplicate date formatting logic
   - **Location:** Both files contain identical `formatDate()` function
@@ -268,6 +276,7 @@ The review report MUST cover the following aspects in order:
   - **Target location:** `utils/date.ts`
 
 #### Complexity Concerns
+
 - **File:** `path/to/file.tsx`
   - **Issue:** Deeply nested ternary operators (5 levels)
   - **Location:** Lines 78-92
@@ -295,7 +304,7 @@ The review report MUST cover the following aspects in order:
 
 **Report Format:**
 
-```markdown
+`````markdown
 ### Documentation Review
 
 **Status:** ✅ PASS / ❌ FAIL / ⚠️ WARNING
@@ -303,12 +312,13 @@ The review report MUST cover the following aspects in order:
 **Findings:**
 
 #### Missing Documentation
+
 - **File:** `path/to/file.ts`
   - **Issue:** Exported function lacks JSDoc
   - **Location:** `calculateDiscount` (Line 15)
   - **Recommendation:** Add comprehensive JSDoc with parameters and return type
   - **Example:**
-    ```typescript
+    ````typescript
     /**
      * Calculates discount amount based on user tier and order value.
      * Applies tier-based percentage discount to the order total.
@@ -323,10 +333,11 @@ The review report MUST cover the following aspects in order:
      * const discount = calculateDiscount(100, 'gold'); // Returns 10
      * ```
      */
-    export function calculateDiscount(orderValue: number, userTier: string): number
-    ```
+    export function calculateDiscount(orderValue: number, userTier: string): number;
+    ````
 
 #### Missing Examples
+
 - **File:** `path/to/file.tsx`
   - **Issue:** Complex component lacks usage examples
   - **Location:** `DataGrid` component (Line 1)
@@ -334,11 +345,12 @@ The review report MUST cover the following aspects in order:
   - **Examples needed:** Pagination, sorting, and filtering scenarios
 
 #### Complex Logic Not Explained
+
 - **File:** `path/to/file.ts`
   - **Issue:** Complex regex pattern not explained
   - **Location:** Line 67
   - **Recommendation:** Add comment explaining what the regex pattern matches and why
-```
+`````
 
 ## Final Report Structure
 
@@ -365,15 +377,19 @@ Your final review report MUST follow this structure:
 ## Detailed Findings
 
 ### Type Safety Review
+
 [Findings from Type Safety Review section]
 
 ### Design Patterns Review
+
 [Findings from Design Patterns Review section]
 
 ### Maintainability Review
+
 [Findings from Maintainability Review section]
 
 ### Documentation Review
+
 [Findings from Documentation Review section]
 
 ---
@@ -381,14 +397,17 @@ Your final review report MUST follow this structure:
 ## Action Items
 
 ### Must Fix Before Merge
+
 1. [ ] Fix type safety critical issue in `path/to/file.ts:42`
 2. [ ] Add missing documentation for `export function` in `path/to/file.ts:15`
 
 ### Recommended Improvements
+
 1. [ ] Refactor large function in `path/to/file.ts` for better maintainability
 2. [ ] Extract duplicate code to shared utility
 
 ### Optional Enhancements
+
 1. [ ] Add usage examples for `DataGrid` component
 2. [ ] Simplify complex type definitions
 
@@ -396,7 +415,7 @@ Your final review report MUST follow this structure:
 
 ## Positive Highlights
 
-*Call out well-implemented features or good practices:*
+_Call out well-implemented features or good practices:_
 
 - Excellent use of TypeScript generics in `api.ts`
 - Clean component separation in `UserProfile.tsx`

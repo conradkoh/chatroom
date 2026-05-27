@@ -366,9 +366,7 @@ Tight spacing:         0.5rem (gap-2)
     <Icon className="w-3.5 h-3.5 text-muted" strokeWidth={2} />
     <span className="text-[10px] font-mono font-bold text-success">+12.3%</span>
   </div>
-  <div className="text-[10px] text-muted uppercase tracking-wider font-bold mb-0.5">
-    Throughput
-  </div>
+  <div className="text-[10px] text-muted uppercase tracking-wider font-bold mb-0.5">Throughput</div>
   <div className="flex items-baseline gap-0.5">
     <span className="text-lg font-bold tracking-tight tabular-nums">12.4K</span>
     <span className="text-[10px] text-muted font-bold">/s</span>
@@ -382,9 +380,7 @@ Tight spacing:         0.5rem (gap-2)
 <div className="flex items-center gap-2">
   <div className="w-1.5 h-1.5 bg-emerald-400"></div>
   <span className="text-xs font-bold uppercase tracking-wide">Database</span>
-  <span className="text-emerald-400 text-[10px] font-bold font-mono">
-    OPERATIONAL
-  </span>
+  <span className="text-emerald-400 text-[10px] font-bold font-mono">OPERATIONAL</span>
 </div>
 ```
 
@@ -394,12 +390,12 @@ Tight spacing:         0.5rem (gap-2)
 
 ```js
 const spacing = {
-  cardPadding: "1rem", // p-4
-  tightPadding: "0.75rem", // p-3
-  gridGap: "0.75rem", // gap-3
-  rowGap: "0.5rem", // gap-2
-  iconSize: "0.875rem", // w-3.5 h-3.5
-  indicatorSize: "0.375rem", // w-1.5 h-1.5
+  cardPadding: '1rem', // p-4
+  tightPadding: '0.75rem', // p-3
+  gridGap: '0.75rem', // gap-3
+  rowGap: '0.5rem', // gap-2
+  iconSize: '0.875rem', // w-3.5 h-3.5
+  indicatorSize: '0.375rem', // w-1.5 h-1.5
 };
 ```
 
@@ -408,21 +404,21 @@ const spacing = {
 ```js
 const typography = {
   header: {
-    fontSize: "0.875rem", // text-sm
-    fontWeight: "700", // font-bold
-    textTransform: "uppercase",
-    letterSpacing: "0.05em", // tracking-wider
+    fontSize: '0.875rem', // text-sm
+    fontWeight: '700', // font-bold
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em', // tracking-wider
   },
   label: {
-    fontSize: "10px",
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
+    fontSize: '10px',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
   },
   metric: {
-    fontSize: "1.125rem", // text-lg
-    fontWeight: "700",
-    fontVariantNumeric: "tabular-nums",
+    fontSize: '1.125rem', // text-lg
+    fontWeight: '700',
+    fontVariantNumeric: 'tabular-nums',
   },
 };
 ```

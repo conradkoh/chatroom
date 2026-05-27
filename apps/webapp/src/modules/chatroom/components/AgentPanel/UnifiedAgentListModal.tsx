@@ -1,14 +1,14 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { memo, useMemo, useCallback, useContext } from 'react';
 
-import { WorkspaceAgentList } from './WorkspaceAgentList';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
-import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { InlineAgentCard } from './InlineAgentCard';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
-import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -17,13 +17,13 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
-export interface AgentWithStatus {
+interface AgentWithStatus {
   role: string;
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
-  desiredState?: string | null;
   statusVariant?: StatusVariant;
 }
 
@@ -33,7 +33,7 @@ interface UnifiedAgentListModalProps {
   chatroomId: string;
 }
 
-/** All Agents modal with workspace sidebar + filtered agent list.
+/** All Agents modal — flat role-based agent list.
  *  Self-sufficient: fetches agents and prompt data internally.
  *  Works correctly when rendered outside PromptsProvider (prompt defaults to ''). */
 export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
@@ -41,16 +41,13 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-
   const {
     agents: agentRoleViews,
     teamRoles,
-    workspaces: backendWorkspaces,
     connectedMachines,
-    machineConfigs,
+    machineConfigs: agentConfigs,
     agentPreferenceMap,
-    isLoading,
+    isLoading: isPanelLoading,
     sendCommand,
     savePreference,
   } = useAgentPanelData(chatroomId);
@@ -58,7 +55,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   // Fetch live agent statuses from event stream
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
 
-  // Build the agents list from live statuses
+  // Build the agents list from live statuses (kept for the header count)
   const agents = useMemo(
     (): AgentWithStatus[] =>
       agentStatusList.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
@@ -72,45 +69,45 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   );
 
   // Safe prompt generation — works inside and outside PromptsProvider.
-  // useContext does not throw when context is null.
   const promptsContext = useContext(PromptsContext);
   const generatePrompt = useCallback(
     (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
     [promptsContext]
   );
 
-  const { workspaceGroups, allWorkspaces } = useWorkspaces({
-    agents,
-    backendWorkspaces,
-  });
-
-  // Auto-select first workspace whenever workspaces load or current selection is stale
-  useEffect(() => {
-    if (
-      allWorkspaces.length > 0 &&
-      (selectedWorkspaceId === null || !allWorkspaces.find((w) => w.id === selectedWorkspaceId))
-    ) {
-      setSelectedWorkspaceId(allWorkspaces[0].id);
-    }
-  }, [allWorkspaces, selectedWorkspaceId]);
-
-  // Reset selection when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedWorkspaceId(null);
-    }
-  }, [isOpen]);
-
-  const selectedWorkspace = useMemo(
-    () => allWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
-    [allWorkspaces, selectedWorkspaceId]
-  );
-
-  // Build a map from role → AgentRoleView for passing to WorkspaceAgentList
+  // Build a map from role → AgentRoleView for passing to InlineAgentCard
   const agentRoleViewMap = useMemo(
     () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
     [agentRoleViews]
   );
+
+  // Build a status lookup map
+  const statusMap = useMemo(() => {
+    const map = new Map<string, (typeof agentStatusList)[number]>();
+    for (const agent of agentStatusList) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentStatusList]);
+
+  // Batch restart summaries for all roles (uses 3h/3d time ranges for consistency with AgentRestartChart)
+  const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: allRoles,
+  });
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count3h: number; count3d: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count3h: summary.count3h,
+          count3d: summary.count3d,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
@@ -118,25 +115,43 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="flex flex-row p-0 overflow-hidden">
-          <WorkspaceSidebar
-            workspaceGroups={workspaceGroups}
-            selectedWorkspaceId={selectedWorkspaceId}
-            onSelectWorkspace={setSelectedWorkspaceId}
-          />
-          <WorkspaceAgentList
-            workspace={selectedWorkspace}
-            agents={agents}
-            generatePrompt={generatePrompt}
-            chatroomId={chatroomId}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoading}
-            agentConfigs={machineConfigs}
-            sendCommand={sendCommand}
-            agentRoleViewMap={agentRoleViewMap}
-            agentPreferenceMap={agentPreferenceMap}
-            onSavePreference={savePreference}
-          />
+        <FixedModalBody className="flex flex-col p-0 overflow-hidden">
+          {/* Agent list — scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            {agents.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p className="text-xs text-chatroom-text-muted uppercase tracking-wide">
+                  No agents configured
+                </p>
+              </div>
+            ) : (
+              agents.map((agent) => {
+                const status = statusMap.get(agent.role.toLowerCase());
+
+                return (
+                  <InlineAgentCard
+                    key={agent.role}
+                    role={agent.role}
+                    allRoles={teamRoles}
+                    online={status?.online ?? false}
+                    lastSeenAt={status?.lastSeenAt}
+                    latestEventType={status?.latestEventType}
+                    statusVariant={status?.statusVariant ?? 'offline'}
+                    prompt={generatePrompt(agent.role)}
+                    chatroomId={chatroomId}
+                    connectedMachines={connectedMachines}
+                    isLoadingMachines={isPanelLoading}
+                    agentConfigs={agentConfigs}
+                    sendCommand={sendCommand}
+                    agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
+                    agentPreference={agentPreferenceMap.get(agent.role.toLowerCase())}
+                    onSavePreference={savePreference}
+                    restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+                  />
+                );
+              })
+            )}
+          </div>
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

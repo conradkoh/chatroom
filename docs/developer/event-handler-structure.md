@@ -26,10 +26,10 @@ Separating event handlers into a dedicated `src/events/` tree provides three ben
 src/events/<namespace>/<event-name>.ts
 ```
 
-| Part         | Description                                                       | Example                |
-| ------------ | ----------------------------------------------------------------- | ---------------------- |
-| `namespace`  | Domain area the event belongs to                                  | `agent`, `task`        |
-| `event-name` | Kebab-case name, prefixed with `on-` and describing what happened | `on-agent-exited`      |
+| Part         | Description                                                       | Example           |
+| ------------ | ----------------------------------------------------------------- | ----------------- |
+| `namespace`  | Domain area the event belongs to                                  | `agent`, `task`   |
+| `event-name` | Kebab-case name, prefixed with `on-` and describing what happened | `on-agent-exited` |
 
 Each file exports a **single handler function** named `on<EventName>` in PascalCase:
 
@@ -127,9 +127,9 @@ export async function onAgentExited(ctx: MutationCtx, args: AgentExitedArgs): Pr
 
 ## What Does NOT Go in `src/events/`
 
-| What                    | Where it lives                                         | Why                                           |
-| ----------------------- | ------------------------------------------------------ | --------------------------------------------- |
-| Command handlers        | `daemon-start/handlers/start-agent.ts`                 | Processes backend-dispatched commands, not events |
-| Convex mutations/queries | `convex/`                                             | Public/internal API surface declarations      |
-| Use cases               | `src/domain/usecase/`                                  | Multi-step orchestration, not event reactions |
-| DaemonEventBus class    | `src/events/daemon/event-bus.ts`                       | Infrastructure shared by all daemon handlers  |
+| What                     | Where it lives                         | Why                                               |
+| ------------------------ | -------------------------------------- | ------------------------------------------------- |
+| Command handlers         | `daemon-start/handlers/start-agent.ts` | Processes backend-dispatched commands, not events |
+| Convex mutations/queries | `convex/`                              | Public/internal API surface declarations          |
+| Use cases                | `src/domain/usecase/`                  | Multi-step orchestration, not event reactions     |
+| DaemonEventBus class     | `src/events/daemon/event-bus.ts`       | Infrastructure shared by all daemon handlers      |

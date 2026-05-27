@@ -15,7 +15,7 @@ import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -26,7 +26,7 @@ import {
 test('startAgent use case writes agent.requestStart event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-start-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-start-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -83,7 +83,7 @@ test('startAgent use case writes agent.requestStart event', async () => {
 test('stopAgent use case writes agent.requestStop event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-stop-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-stop-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -125,7 +125,7 @@ test('stopAgent use case writes agent.requestStop event', async () => {
 test('task creation writes task.activated event for pending tasks', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-create-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
 
   // ===== ACTION =====
   await t.mutation(api.tasks.createTask, {
@@ -158,12 +158,12 @@ test('task creation writes task.activated event for pending tasks', async () => 
   }
 });
 
-// ─── Test 4: task.activated event on transition to in_progress ───────────────
+// ─── Test 4: task.inProgress event on transition to in_progress ───────────────
 
-test('transitionTask to in_progress writes task.activated event', async () => {
+test('transitionTask to in_progress writes task.inProgress event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-inprog-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
 
   // Create a pending task
   const createResult = await t.mutation(api.tasks.createTask, {
@@ -210,15 +210,14 @@ test('transitionTask to in_progress writes task.activated event', async () => {
   // There should be at least one new event
   expect(eventsAfter.length).toBeGreaterThan(countBefore);
 
-  // Find the in_progress activated event
-  const inProgressEvent = eventsAfter.find(
-    (e) => e.type === 'task.activated' && (e as { taskStatus: string }).taskStatus === 'in_progress'
-  );
+  // Find the task.inProgress event (not task.activated with taskStatus: 'in_progress')
+  // Note: transitionTask now emits task.inProgress for in_progress status to avoid
+  // double events and ensure the UI correctly shows "WORKING" status.
+  const inProgressEvent = eventsAfter.find((e) => e.type === 'task.inProgress');
   expect(inProgressEvent).toBeDefined();
-  if (inProgressEvent && inProgressEvent.type === 'task.activated') {
+  if (inProgressEvent && inProgressEvent.type === 'task.inProgress') {
     expect(inProgressEvent.chatroomId).toBe(chatroomId);
     expect(inProgressEvent.taskId).toBe(taskId);
-    expect(inProgressEvent.taskStatus).toBe('in_progress');
   }
 });
 
@@ -227,7 +226,7 @@ test('transitionTask to in_progress writes task.activated event', async () => {
 test('transitionTask to completed writes task.completed event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-done-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
 
   // Create → claim → start task
   const createResult = await t.mutation(api.tasks.createTask, {
@@ -293,7 +292,7 @@ test('transitionTask to completed writes task.completed event', async () => {
 test('recordAgentExited mutation writes agent.exited event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-exited-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-exited-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -346,7 +345,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     chatroomId,
     role: 'builder',
     pid: 9999,
-    intentional: false,
     exitCode: 1,
   });
 
@@ -367,7 +365,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     expect(exitedEvent.machineId).toBe(machineId);
     expect(exitedEvent.role).toBe('builder');
     expect(exitedEvent.pid).toBe(9999);
-    expect(exitedEvent.intentional).toBe(false);
     expect(exitedEvent.exitCode).toBe(1);
     expect(typeof exitedEvent.timestamp).toBe('number');
   }
@@ -377,21 +374,33 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     return ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
   });
   expect(agentConfig?.spawnedAgentPid).toBeUndefined();
 });
 
-// ─── Test 7: Crash triggers immediate ensure-agent ────────────────────────────
+// ─── Test 7: Crash does NOT trigger backend agent.requestStart (daemon owns restarts) ──
 
-test('recordAgentExited with intentional=false schedules ensure-agent when active task exists', async () => {
+test('recordAgentExited does NOT emit agent.requestStart — daemon owns crash recovery', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-crash-1';
   await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+  // Set desiredState=running
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+      )
+      .first();
+    if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
+  });
 
   // Create a pending task via sendMessage (assigns it to entry point 'builder')
   await t.mutation(api.messages.sendMessage, {
@@ -402,6 +411,17 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
     type: 'message',
   });
 
+  // Count events before the exit (includes the agent.requestStart from setupRemoteAgentConfig)
+  const eventsBefore = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+  });
+  const requestStartCountBefore = eventsBefore.filter(
+    (e) => e.type === 'agent.requestStart'
+  ).length;
+
   // ===== ACTION =====
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
@@ -409,30 +429,30 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
     chatroomId,
     role: 'builder', // pair team entry point
     pid: 12345,
-    intentional: false,
+    stopReason: 'agent_process.crashed',
   });
 
   // ===== VERIFY =====
-  // An ensure-agent scheduled function should exist for this chatroom
-  const scheduled = await t.run(async (ctx) => {
-    return ctx.db.system.query('_scheduled_functions').collect();
+  // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+  const eventsAfter = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
   });
 
-  // Find the crash-recovery scheduled function: snapshotUpdatedAt=0 for this chatroom
-  const ensureCheck = scheduled.find((s) => {
-    const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
-    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
-  });
-  expect(ensureCheck).toBeDefined();
+  const requestStartCountAfter = eventsAfter.filter((e) => e.type === 'agent.requestStart').length;
+
+  expect(requestStartCountAfter).toBe(requestStartCountBefore); // no new requestStart events
+  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined(); // exited event still recorded
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
 
-test('recordAgentExited with intentional=true does NOT schedule ensure-agent', async () => {
+test('recordAgentExited with stopReason=user.stop does NOT schedule ensure-agent', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-2');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-crash-2';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -440,7 +460,7 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
   await t.mutation(api.messages.sendMessage, {
     sessionId,
     chatroomId,
-    content: 'test task for intentional stop',
+    content: 'test task for user stop',
     senderRole: 'user',
     type: 'message',
   });
@@ -452,7 +472,7 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
     chatroomId,
     role: 'builder',
     pid: 12345,
-    intentional: true, // intentional stop
+    stopReason: 'user.stop', // user stop — no restart
   });
 
   // ===== VERIFY =====
@@ -464,7 +484,9 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
 
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    const checkArgs = argsArray?.[0] as
+      | { snapshotUpdatedAt?: number; chatroomId?: string }
+      | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
@@ -472,10 +494,10 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
 
 // ─── Test 9: No active task means no ensure-agent scheduled ──────────────────
 
-test('recordAgentExited with intentional=false but no active task does NOT schedule ensure-agent', async () => {
+test('recordAgentExited with crash but no active task does NOT schedule ensure-agent', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-3');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-crash-3';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -488,7 +510,7 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
     chatroomId,
     role: 'builder',
     pid: 12345,
-    intentional: false, // unintentional crash, but no task
+    stopReason: 'agent_process.crashed', // crash, but no task
   });
 
   // ===== VERIFY =====
@@ -499,7 +521,9 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
 
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    const checkArgs = argsArray?.[0] as
+      | { snapshotUpdatedAt?: number; chatroomId?: string }
+      | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
@@ -510,7 +534,7 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
 test('updateSpawnedAgent writes agent.started event to event stream', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-started-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-es-started-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -583,7 +607,7 @@ test('updateSpawnedAgent writes agent.started event to event stream', async () =
 test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-metrics-1');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-metrics-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -655,7 +679,7 @@ test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on 
 test('updateSpawnedAgent with null pid does NOT write agent.started or update metrics', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-metrics-2');
-  const chatroomId = await createPairTeamChatroom(sessionId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-metrics-2';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -704,7 +728,9 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect()
   );
-  const startedEvents = eventsAfter.filter((e) => (e as { type?: string }).type === 'agent.started');
+  const startedEvents = eventsAfter.filter(
+    (e) => (e as { type?: string }).type === 'agent.started'
+  );
   expect(startedEvents.length).toBe(0);
   expect(eventsAfter.length).toBe(eventsBefore.length); // no new events
 
@@ -712,15 +738,17 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
   const metrics = await t.run(async (ctx) =>
     ctx.db.query('chatroom_agentRestartMetrics').collect()
   );
-  expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(0);
+  expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(
+    0
+  );
 });
 
 // ─── Eager crash recovery (idle agent restart) ──────────────────────────────
 
 describe('Eager crash recovery (idle agent restart)', () => {
-  test('crash with no task + desiredState=running emits agent.requestStart with reason platform.crash_recovery', async () => {
+  test('crash with no task + desiredState=running does NOT emit agent.requestStart (daemon owns restarts)', async () => {
     const { sessionId } = await createTestSession('test-eager-1');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-eager-1';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -729,7 +757,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
@@ -743,44 +771,46 @@ describe('Eager crash recovery (idle agent restart)', () => {
       pid: 12345,
     });
 
+    // Count requestStart events before the exit
+    const eventsBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const requestStartCountBefore = eventsBefore.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+
     await t.mutation(api.machines.recordAgentExited, {
       sessionId,
       machineId,
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
-    const events = await t.run(async (ctx) => {
+    const eventsAfter = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_eventStream')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const crashRecoveryEvents = events.filter(
-      (e) =>
-        e.type === 'agent.requestStart' &&
-        (e as { reason?: string }).reason === 'platform.crash_recovery'
-    );
-    expect(crashRecoveryEvents.length).toBe(1);
 
-    const evt = crashRecoveryEvents[0] as {
-      machineId: string;
-      agentHarness: string;
-      model: string;
-      workingDir: string;
-    };
-    expect(evt.machineId).toBe(machineId);
-    expect(typeof evt.agentHarness).toBe('string');
-    expect(typeof evt.model).toBe('string');
-    expect(typeof evt.workingDir).toBe('string');
+    // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+    const requestStartCountAfter = eventsAfter.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+    expect(requestStartCountAfter).toBe(requestStartCountBefore);
+
+    // agent.exited should still be recorded
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
   });
 
   test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
     const { sessionId } = await createTestSession('test-eager-2');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-eager-2';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -789,7 +819,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
@@ -801,7 +831,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -821,7 +850,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
 
   test('crash with no task + circuitState=open does NOT emit agent.requestStart', async () => {
     const { sessionId } = await createTestSession('test-eager-3');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-eager-3';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -830,7 +859,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'running', circuitState: 'open' });
@@ -842,7 +871,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -862,7 +890,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
 
   test('crash with no task + missing model field does NOT emit agent.requestStart', async () => {
     const { sessionId } = await createTestSession('test-eager-4');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-eager-4';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -871,7 +899,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'running', model: undefined });
@@ -883,7 +911,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -901,9 +928,9 @@ describe('Eager crash recovery (idle agent restart)', () => {
     expect(crashRecoveryEvents.length).toBe(0);
   });
 
-  test('crash with active task prefers ensureAgentHandler over agent.requestStart', async () => {
+  test('crash with active task does NOT emit agent.requestStart (daemon owns restarts)', async () => {
     const { sessionId } = await createTestSession('test-eager-5');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-eager-5';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -912,7 +939,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
@@ -934,39 +961,163 @@ describe('Eager crash recovery (idle agent restart)', () => {
       pid: 12345,
     });
 
+    // Count requestStart events before the exit
+    const eventsBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const requestStartCountBefore = eventsBefore.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+
     await t.mutation(api.machines.recordAgentExited, {
       sessionId,
       machineId,
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
-    const scheduled = await t.run(async (ctx) => {
-      return ctx.db.system.query('_scheduled_functions').collect();
-    });
-    const ensureCheck = scheduled.find((s) => {
-      const argsArray = (s as { args?: unknown[] }).args;
-      const checkArgs = argsArray?.[0] as
-        | { snapshotUpdatedAt?: number; chatroomId?: string }
-        | undefined;
-      return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
-    });
-    expect(ensureCheck).toBeDefined();
-
-    const events = await t.run(async (ctx) => {
+    const eventsAfter = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_eventStream')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const crashRecoveryEvents = events.filter(
-      (e) =>
-        e.type === 'agent.requestStart' &&
-        (e as { reason?: string }).reason === 'platform.crash_recovery'
-    );
-    expect(crashRecoveryEvents.length).toBe(0);
+
+    // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+    const requestStartCountAfter = eventsAfter.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+    expect(requestStartCountAfter).toBe(requestStartCountBefore);
+
+    // agent.exited should still be recorded
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
+  });
+});
+
+// ─── Test: Deferred config removal via recordAgentExited ─────────────────────
+
+describe('Deferred config removal', () => {
+  test('recordAgentExited deletes agent config when config.requestRemoval event exists', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-config-removal-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-config-removal-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Set a PID on the agent config (marks agent as running)
+    const pid = 55555;
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+    });
+
+    // Verify config exists and has PID set
+    const configBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+    });
+    expect(configBefore).toBeDefined();
+    expect(configBefore!.spawnedAgentPid).toBe(pid);
+
+    // Emit a config.requestRemoval event (simulates a deferred removal request)
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'config.requestRemoval',
+        chatroomId,
+        role: 'builder',
+        machineId,
+        reason: 'team_switch',
+        timestamp: Date.now(),
+      });
+    });
+
+    // Verify the config is NOT yet deleted (PID guard prevents deletion)
+    const configMidway = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+    });
+    expect(configMidway).toBeDefined(); // still exists
+
+    // ===== ACTION =====
+    // Agent exits — this clears the PID and then processes the removal request
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+      stopReason: 'user.stop', // agent stopped by user
+    });
+
+    // ===== VERIFY =====
+    // Config should be deleted now (PID was cleared, then removal processed)
+    const configAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+    });
+    expect(configAfter).toBeNull();
+  });
+
+  test('recordAgentExited does NOT delete config when no config.requestRemoval event exists', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-config-removal-2');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-config-removal-2';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    const pid = 12345;
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+    });
+
+    // ===== ACTION =====
+    // Agent exits — no config.requestRemoval event pending
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+      stopReason: 'agent_process.crashed', // crash
+    });
+
+    // ===== VERIFY =====
+    // Config should still exist (no removal event, so no deletion)
+    const configAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+    });
+    expect(configAfter).toBeDefined();
+    expect(configAfter!.spawnedAgentPid).toBeUndefined(); // PID was cleared
   });
 });

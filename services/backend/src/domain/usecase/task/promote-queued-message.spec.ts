@@ -9,10 +9,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { promoteQueuedMessage } from './promote-queued-message';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { promoteQueuedMessage } from './promote-queued-message';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,7 +27,7 @@ async function createTestSession(id: string) {
 async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
+    teamId: 'duo',
     teamName: 'Pair Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
@@ -98,7 +98,6 @@ describe('promoteQueuedMessage', () => {
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
     expect(task?.content).toBe('queued message content');
-    expect(task?.origin).toBe('chat');
   });
 
   test('links message and task bidirectionally', async () => {

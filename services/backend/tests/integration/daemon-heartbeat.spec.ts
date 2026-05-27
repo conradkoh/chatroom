@@ -3,124 +3,90 @@
  *
  * Tests for daemon heartbeat liveness detection:
  * 1. daemonHeartbeat mutation updates lastSeenAt
- * 2. Stale daemon is marked disconnected by cleanupStaleMachines
- * 3. daemonHeartbeat recovers disconnected daemon
- * 4. Fresh daemon is NOT marked disconnected
+ * 2. daemonHeartbeat recovers a disconnected daemon (self-healing)
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { DAEMON_HEARTBEAT_TTL_MS } from '../../config/reliability';
-import { api, internal } from '../../convex/_generated/api';
+import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, joinParticipant, registerMachineWithDaemon } from '../helpers/integration';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
+import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
 
 describe('Daemon Heartbeat', () => {
-  test('daemonHeartbeat mutation updates lastSeenAt', async () => {
+  test('daemonHeartbeat mutation updates lastSeenAt in liveness table', async () => {
     const { sessionId } = await createTestSession('test-hb-1');
     const machineId = 'machine-hb-1';
 
     // Register machine (sets initial lastSeenAt)
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // Read initial lastSeenAt
-    const before = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      return machine!.lastSeenAt;
-    });
-
-    // Small delay to ensure Date.now() advances
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Send heartbeat
+    // Send first heartbeat to create liveness record
     await t.mutation(api.machines.daemonHeartbeat, {
       sessionId,
       machineId,
     });
 
-    // Read updated lastSeenAt
-    const after = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
+    // Read initial lastSeenAt from liveness table
+    const before = await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return machine!.lastSeenAt;
+      return liveness!.lastSeenAt;
+    });
+
+    // Small delay to ensure Date.now() advances
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Send another heartbeat
+    await t.mutation(api.machines.daemonHeartbeat, {
+      sessionId,
+      machineId,
+    });
+
+    // Read updated lastSeenAt from liveness table
+    const after = await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return liveness!.lastSeenAt;
     });
 
     expect(after).toBeGreaterThan(before);
   });
 
-  test('stale daemon is marked disconnected by cleanupStaleMachines', async () => {
-    const { sessionId } = await createTestSession('test-hb-2');
-    const machineId = 'machine-hb-2';
-
-    // Register machine with daemon connected
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    // Manually set lastSeenAt to be older than TTL (simulate stale daemon)
-    await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      await ctx.db.patch(machine!._id, {
-        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
-      });
-    });
-
-    // Verify daemon is still marked as connected before cleanup
-    const beforeCleanup = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      return machine!.daemonConnected;
-    });
-    expect(beforeCleanup).toBe(true);
-
-    // Run cleanup
-    await t.mutation(internal.tasks.cleanupStaleMachines, {});
-
-    // Verify daemon is now marked as disconnected
-    const afterCleanup = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      return machine!.daemonConnected;
-    });
-    expect(afterCleanup).toBe(false);
-  });
-
-  test('daemonHeartbeat recovers disconnected daemon (Plan 026)', async () => {
+  test('daemonHeartbeat recovers disconnected daemon in liveness table (self-healing)', async () => {
     const { sessionId } = await createTestSession('test-hb-recovery');
     const machineId = 'machine-hb-recovery';
 
     // Register machine with daemon connected
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // Manually mark daemon as disconnected (simulating cleanup after transient issue)
-    await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      await ctx.db.patch(machine!._id, {
-        daemonConnected: false,
-      });
+    // Send first heartbeat to create liveness record
+    await t.mutation(api.machines.daemonHeartbeat, {
+      sessionId,
+      machineId,
     });
 
-    // Verify daemon is disconnected
-    const beforeHeartbeat = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
+    // Manually mark daemon as disconnected in liveness table
+    await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return machine!.daemonConnected;
+      if (liveness) {
+        await ctx.db.patch(liveness._id, { daemonConnected: false });
+      }
+    });
+
+    // Verify daemon is disconnected in liveness table
+    const beforeHeartbeat = await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return liveness!.daemonConnected;
     });
     expect(beforeHeartbeat).toBe(false);
 
@@ -130,243 +96,47 @@ describe('Daemon Heartbeat', () => {
       machineId,
     });
 
-    // Verify daemon is now connected again
+    // Verify daemon is now connected again in liveness table
     const afterHeartbeat = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return machine!.daemonConnected;
+      return liveness!.daemonConnected;
     });
     expect(afterHeartbeat).toBe(true);
   });
 
-  test('fresh daemon is NOT marked disconnected by cleanupStaleMachines', async () => {
-    const { sessionId } = await createTestSession('test-hb-4');
-    const machineId = 'machine-hb-4';
+  test('daemonHeartbeat does NOT update chatroom_machines doc', async () => {
+    const { sessionId } = await createTestSession('test-hb-noupdate');
+    const machineId = 'machine-hb-noupdate';
 
-    // Register machine with daemon connected (lastSeenAt = now)
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // Run cleanup
-    await t.mutation(internal.tasks.cleanupStaleMachines, {});
-
-    // Verify daemon is still marked as connected
-    const afterCleanup = await t.run(async (ctx) => {
+    // Read machine doc state before heartbeat
+    const beforeMachine = await t.run(async (ctx) => {
       const machine = await ctx.db
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return machine!.daemonConnected;
-    });
-    expect(afterCleanup).toBe(true);
-  });
-
-  test('stale daemon cleanup removes participant records and clears agent PIDs', async () => {
-    const { sessionId } = await createTestSession('test-hb-stale-cleanup');
-    const machineId = 'machine-hb-stale-cleanup';
-
-    // Register machine with daemon connected
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    // Create a chatroom and set up an agent config with a PID and participant record
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'pair',
-      teamName: 'Pair Team',
-      teamRoles: ['builder', 'reviewer'],
-      teamEntryPoint: 'builder',
+      return { lastSeenAt: machine!.lastSeenAt };
     });
 
-    // Insert team agent config with a spawned PID
-    await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        machineId,
-        chatroomId,
-        role: 'builder',
-        type: 'remote',
-        agentHarness: 'opencode',
-        workingDir: '/test',
-        spawnedAgentPid: 99999,
-        spawnedAt: Date.now() - 60_000,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    });
+    await new Promise((r) => setTimeout(r, 10));
 
-    // Insert a participant record for the agent (simulating online state)
-    await joinParticipant(sessionId, chatroomId, 'builder');
+    // Send heartbeat
+    await t.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
 
-    // Manually set lastSeenAt to be older than TTL (simulate stale daemon)
-    await t.run(async (ctx) => {
+    // Verify machine doc lastSeenAt is NOT updated
+    const afterMachine = await t.run(async (ctx) => {
       const machine = await ctx.db
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      await ctx.db.patch(machine!._id, {
-        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
-      });
+      return { lastSeenAt: machine!.lastSeenAt };
     });
 
-    // Run cleanup
-    await t.mutation(internal.tasks.cleanupStaleMachines, {});
-
-    // Verify: daemonConnected is now false
-    const daemonConnected = await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      return machine!.daemonConnected;
-    });
-    expect(daemonConnected).toBe(false);
-
-    // Verify: participant record is preserved but marked as exited
-    const participant = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .unique();
-    });
-    expect(participant).not.toBeNull();
-    expect(participant!.lastSeenAction).toBe('exited');
-    expect(participant!.connectionId).toBeUndefined();
-
-    // Verify: spawnedAgentPid is cleared
-    const agentConfig = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
-        )
-        .first();
-    });
-    expect(agentConfig?.spawnedAgentPid).toBeUndefined();
-    expect(agentConfig?.spawnedAt).toBeUndefined();
-  });
-
-  test('cleanupStaleMachines preserves lastSeenAt on participant record', async () => {
-    const { sessionId } = await createTestSession('test-hb-stale-lsa');
-    const machineId = 'machine-hb-stale-lsa';
-
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'pair',
-      teamName: 'Pair Team',
-      teamRoles: ['builder', 'reviewer'],
-      teamEntryPoint: 'builder',
-    });
-
-    await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        machineId,
-        chatroomId,
-        role: 'builder',
-        type: 'remote',
-        agentHarness: 'opencode',
-        workingDir: '/test',
-        spawnedAgentPid: 88888,
-        spawnedAt: Date.now() - 60_000,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    });
-
-    await joinParticipant(sessionId, chatroomId, 'builder');
-
-    await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      await ctx.db.patch(machine!._id, {
-        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
-      });
-    });
-
-    await t.mutation(internal.tasks.cleanupStaleMachines, {});
-
-    const participant = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .unique();
-    });
-    expect(participant).not.toBeNull();
-    expect(participant!.lastSeenAt).toBeTypeOf('number');
-  });
-});
-
-describe('Daemon Shutdown — participant persistence', () => {
-  async function setupDaemonShutdown(sessionPrefix: string) {
-    const { sessionId } = await createTestSession(sessionPrefix);
-    const machineId = `machine-${sessionPrefix}`;
-
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'pair',
-      teamName: 'Pair Team',
-      teamRoles: ['builder', 'reviewer'],
-      teamEntryPoint: 'builder',
-    });
-
-    await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        machineId,
-        chatroomId,
-        role: 'builder',
-        type: 'remote',
-        agentHarness: 'opencode',
-        workingDir: '/test',
-        spawnedAgentPid: 77777,
-        spawnedAt: Date.now() - 30_000,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    });
-
-    await joinParticipant(sessionId, chatroomId, 'builder');
-
-    await t.mutation(api.machines.daemonShutdown, {
-      sessionId,
-      machineId,
-    });
-
-    const participant = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .unique();
-    });
-
-    return { participant };
-  }
-
-  test('daemonShutdown marks participant as exited instead of deleting', async () => {
-    const { participant } = await setupDaemonShutdown('ds-pp-1');
-    expect(participant).not.toBeNull();
-    expect(participant!.lastSeenAction).toBe('exited');
-    expect(participant!.connectionId).toBeUndefined();
-  });
-
-  test('daemonShutdown preserves lastSeenAt on participant', async () => {
-    const { participant } = await setupDaemonShutdown('ds-pp-2');
-    expect(participant!.lastSeenAt).toBeTypeOf('number');
+    // Machine doc should NOT have been updated by heartbeat
+    expect(afterMachine.lastSeenAt).toBe(beforeMachine.lastSeenAt);
   });
 });

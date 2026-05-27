@@ -13,8 +13,8 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
-import { contextNewCommand } from '../context/new';
-import { taskStartedCommand } from '../task-started/command';
+import { classifyCommand } from '../classify/command';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,9 +48,10 @@ export interface FullCliOutputParams {
     senderRole: string;
     content: string;
     classification?: string | null;
-    attachedTasks?: {
-      status: string;
+    attachedMessages?: {
+      _id: string;
       content: string;
+      senderRole: string;
     }[];
   } | null;
 
@@ -65,6 +66,21 @@ export interface FullCliOutputParams {
 
   /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
   availableHandoffTargets: string[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * If `user` is among the available handoff targets, add a verification
+ * reminder before the handoff command so the planner/coordinator verifies
+ * the codebase before delivering to the user.
+ */
+function maybeAddVerificationReminder(lines: string[], availableHandoffTargets: string[]): void {
+  if (availableHandoffTargets.includes('user')) {
+    lines.push('');
+    lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');
+    lines.push('   Run: pnpm typecheck && pnpm test');
+  }
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -99,7 +115,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('<task>');
   lines.push(SEP_EQUAL);
-  lines.push('📋 TASK');
+  lines.push('📋 CHATROOM TASK');
   lines.push(SEP_EQUAL);
   lines.push(`Task ID: ${task._id}`);
   if (message) {
@@ -123,8 +139,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -137,8 +151,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
   }
@@ -158,8 +170,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -175,24 +185,33 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
           lines.push(
             `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
           );
-        } else {
-          lines.push('   Entry point role will update when needed.');
         }
       }
     }
   }
 
-  // Task content
+  // Task content — hidden; agent must call task read to get content (marks in_progress)
   lines.push('');
-  lines.push('## Task');
-  lines.push(task.content);
+  lines.push('## Chatroom task');
+  lines.push(`To read this chatroom task and mark it as in_progress, run:`);
+  lines.push('```');
+  lines.push(
+    `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
+  );
+  lines.push('```');
 
-  // Attached backlog tasks from origin message
-  if (originMessage?.attachedTasks && originMessage.attachedTasks.length > 0) {
+  // Attached messages from origin message (user-pinned messages as context)
+  const attachedMessages = originMessage?.attachedMessages ?? [];
+  if (attachedMessages.length > 0) {
     lines.push('');
-    lines.push(`## Attached Backlog (${originMessage.attachedTasks.length})`);
-    for (const attachedTask of originMessage.attachedTasks) {
-      lines.push(`- [${attachedTask.status.toUpperCase()}] ${attachedTask.content}`);
+    lines.push(`## Attached Messages (${attachedMessages.length})`);
+    for (const attached of attachedMessages) {
+      lines.push('<attached-message>');
+      lines.push(`From: ${attached.senderRole}`);
+      lines.push(`ID: ${attached._id}`);
+      lines.push('---');
+      lines.push(attached.content);
+      lines.push('</attached-message>');
     }
   }
 
@@ -209,10 +228,23 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push('<next-steps>');
+  lines.push(
+    'This blocking `get-next-task` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.'
+  );
+  lines.push('');
 
   if (isUserMessage) {
-    // Classification command with placeholder
-    const baseCmd = taskStartedCommand({
+    // User message case: read task first, then classify
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
+    lines.push('');
+
+    // Step 1: Read task
+    lines.push(
+      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+    );
+
+    // Step 2: Classify
+    const baseCmd = classifyCommand({
       chatroomId,
       role,
       taskId: task._id,
@@ -222,15 +254,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       '--origin-message-classification=question',
       '--origin-message-classification=<type>'
     );
-
-    lines.push('');
-    lines.push(`Classify → \`${baseCmd}\``);
+    lines.push(`2. Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
-    lines.push('new_feature example:');
+    lines.push('   new_feature example:');
     lines.push(
-      taskStartedCommand({
+      `   ${classifyCommand({
         chatroomId,
         role,
         taskId: task._id,
@@ -239,16 +269,18 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         description: '<description>',
         techSpecs: '<tech-specs>',
         cliEnvPrefix,
-      })
+      })}`
     );
 
     if (role === 'planner') {
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
-        `2. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
-      lines.push('3. Delegate phase 1 to builder:');
+      lines.push(contextNewHint());
+      lines.push('4. Delegate phase 1 to builder:');
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -262,15 +294,17 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     } else {
       // Non-coordinator role receiving a user message
-      let nextStepNum = 2;
+      let nextStepNum = 3;
       if (isEntryPoint) {
         lines.push('');
         lines.push(
-          `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+          `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
         );
+        lines.push(contextNewHint());
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -284,18 +318,27 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     }
   } else if (message) {
+    // Handoff case: read task first (marks in_progress), then work
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
+    lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
     lines.push('');
-    lines.push(`handed off from ${message.senderRole} — start work immediately.`);
 
-    let nextStepNum = 1;
+    // Step 1: Read task
+    lines.push(
+      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+    );
+
+    let nextStepNum = 2;
     if (isEntryPoint) {
       lines.push(
-        `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
+      lines.push(contextNewHint());
       nextStepNum++;
     }
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
+    maybeAddVerificationReminder(lines, availableHandoffTargets);
     lines.push('```');
     lines.push(
       `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -308,7 +351,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
     }
   } else {
-    lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);
   }
 

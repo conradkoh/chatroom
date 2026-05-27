@@ -2,6 +2,7 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import {
   CursorAgentService,
   resolveCursorCliModel,
@@ -19,67 +20,73 @@ function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgen
 
 describe('CursorAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when agent command exists', () => {
+    it('returns true when agent command exists', async () => {
       const deps = createMockDeps({ execSync: vi.fn() });
       const service = new CursorAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when agent command is missing', () => {
+    it('returns false when agent command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which agent') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new CursorAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses semantic version from agent --version output', () => {
+    it('parses semantic version from agent --version output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v0.48.7')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.48.7', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.48.7', major: 0 });
     });
 
-    it('parses version without v prefix', () => {
+    it('parses version without v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('1.0.0')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.0.0', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.0.0', major: 1 });
     });
 
-    it('returns null when version cannot be parsed', () => {
+    it('returns null when version cannot be parsed', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('unknown')),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
 
-    it('returns null when command fails', () => {
+    it('returns null when command fails', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('command not found');
         }),
       });
       const service = new CursorAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 
   describe('listModels', () => {
-    it('returns cursor-prefixed model IDs with cursor/opus-4.6 first (default)', async () => {
+    it('returns cursor-prefixed model IDs with cursor/claude-4.6-opus-high first (default)', async () => {
       const service = new CursorAgentService(createMockDeps());
       const models = await service.listModels();
-      expect(models[0]).toBe('cursor/opus-4.6');
+      expect(models[0]).toBe('cursor/claude-4.6-opus-high');
       expect(models.length).toBeGreaterThan(2);
       expect(models).toContain('cursor/gpt-5.4-high');
-      expect(models).toContain('cursor/sonnet-4.6');
+      expect(models).toContain('cursor/claude-4.6-sonnet-medium');
       expect(models).toContain('cursor/gemini-3.1-pro');
       expect(models.every((m) => m.startsWith('cursor/'))).toBe(true);
     });
@@ -168,7 +175,7 @@ describe('CursorAgentService', () => {
 
       const result = await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello agent',
+        prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
         model: 'claude-4-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
@@ -216,7 +223,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello',
+        prompt: createSpawnPrompt('Hello'),
         systemPrompt: 'System',
         model: 'cursor/gpt-5.4-high',
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
@@ -252,7 +259,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello',
+        prompt: createSpawnPrompt('Hello'),
         systemPrompt: 'System',
         model: 'gpt-5.4-high',
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
@@ -288,7 +295,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'test',
+        prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
@@ -319,7 +326,7 @@ describe('CursorAgentService', () => {
       await expect(
         service.spawn({
           workingDir: '/tmp',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         })
@@ -349,7 +356,7 @@ describe('CursorAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'just the prompt',
+        prompt: createSpawnPrompt('just the prompt'),
         systemPrompt: '',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });

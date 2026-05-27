@@ -43,6 +43,17 @@ async function createSquadTeamChatroom(sessionId: SessionId): Promise<Id<'chatro
     teamRoles: ['planner', 'builder', 'reviewer'],
     teamEntryPoint: 'planner',
   });
+  // Create workflow for planner→builder handoffs
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workflows', {
+      chatroomId,
+      workflowKey: 'test-workflow',
+      status: 'active' as const,
+      createdBy: 'planner',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
   return chatroomId;
 }
 
@@ -294,7 +305,7 @@ Use Convex subscriptions for real-time updates`,
       // Planner is the entry point — should have classification instructions
       expect(plannerPrompt.currentClassification).toBeNull();
       expect(plannerPrompt.prompt).toContain('Classification (Entry Point Role)');
-      expect(plannerPrompt.prompt).toContain('task-started');
+      expect(plannerPrompt.prompt).toContain('classify');
     });
 
     test('builder prompt does NOT show classification instructions (non-entry point)', async () => {
@@ -871,7 +882,7 @@ Standard implementation`,
   // =========================================================================
   // TASK-STARTED REMINDERS
   // =========================================================================
-  describe('task-started reminders', () => {
+  describe('classify reminders', () => {
     test('planner + new_feature: reminder mentions delegating to builder', async () => {
       const { sessionId } = await createTestSession('test-squad-reminder-planner-nf');
       const chatroomId = await createSquadTeamChatroom(sessionId);
@@ -1076,9 +1087,9 @@ Standard`,
   });
 
   // =========================================================================
-  // DYNAMIC TEAM AVAILABILITY
+  // TEAM AVAILABILITY (ALWAYS ASSUMES FULL TEAM)
   // =========================================================================
-  describe('dynamic team availability', () => {
+  describe('team availability always assumes full team', () => {
     test('planner with full team shows Full Team workflow', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-full');
       const chatroomId = await createSquadTeamChatroom(sessionId);
@@ -1096,10 +1107,10 @@ Standard`,
       expect(initPrompt!.prompt).toContain('builder, reviewer available');
     });
 
-    test('planner with only builder shows Planner + Builder workflow', async () => {
+    test('prompt always shows full team workflow even when only builder has joined', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-builder-only');
       const chatroomId = await createSquadTeamChatroom(sessionId);
-      // Only planner and builder join
+      // Only planner and builder join, but prompt should still show full team
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       const initPrompt = await t.query(api.messages.getInitPrompt, {
@@ -1110,13 +1121,14 @@ Standard`,
       });
 
       expect(initPrompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('Planner + Builder');
+      // Should show full team workflow since prompts always assume all members are available
+      expect(initPrompt!.prompt).toContain('Full Team');
     });
 
-    test('planner solo shows Planner Solo workflow', async () => {
+    test('prompt always shows full team workflow even when planner is solo', async () => {
       const { sessionId } = await createTestSession('test-squad-avail-solo');
       const chatroomId = await createSquadTeamChatroom(sessionId);
-      // Only planner joins
+      // Only planner joins, but prompt should still show full team
       await joinParticipants(sessionId, chatroomId, ['planner']);
 
       const initPrompt = await t.query(api.messages.getInitPrompt, {
@@ -1127,8 +1139,9 @@ Standard`,
       });
 
       expect(initPrompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('Planner Solo');
-      expect(initPrompt!.prompt).toContain('working solo');
+      // Should show full team workflow since prompts always assume all members are available
+      expect(initPrompt!.prompt).toContain('Full Team');
+      expect(initPrompt!.prompt).toContain('builder, reviewer available');
     });
   });
 
@@ -1364,8 +1377,8 @@ OAuth2`,
       expect(initPrompt!.prompt).toContain('get-next-task');
       expect(initPrompt!.prompt).toContain('foreground');
       expect(initPrompt!.prompt).toContain('Message availability');
-      expect(initPrompt!.prompt).toContain('stay connected');
-      expect(initPrompt!.prompt).toContain('team cannot reach you');
+      expect(initPrompt!.prompt).toContain('blocking tool call');
+      expect(initPrompt!.prompt).toContain('grace-period');
     });
 
     test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
@@ -1406,10 +1419,9 @@ OAuth2`,
       expect(taskPrompt.fullCliOutput).toContain('get-next-task');
 
       const hasGetNextTaskReminder =
-        taskPrompt.fullCliOutput.includes('Message availability') ||
-        taskPrompt.fullCliOutput.includes('stay connected') ||
+        taskPrompt.fullCliOutput.includes('blocking tool call') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
-        taskPrompt.fullCliOutput.includes('background');
+        taskPrompt.fullCliOutput.includes('grace-period');
 
       expect(hasGetNextTaskReminder).toBe(true);
     });

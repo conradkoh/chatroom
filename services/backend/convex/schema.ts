@@ -1,7 +1,10 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { agentHarnessValidator } from '../src/domain/entities/agent';
+import {
+  agentHarnessValidator,
+  agentTypeValidator,
+} from '../src/domain/entities/agent';
 
 // agentHarnessValidator re-exported for backward compatibility.
 // Canonical source is entities/agent.ts — add new harnesses to AGENT_HARNESSES there.
@@ -178,7 +181,19 @@ export default defineSchema({
     ), // How the user authenticated for this session
     expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
-  }).index('by_sessionId', ['sessionId']),
+    // Device and activity tracking for session management
+    lastActivityAt: v.optional(v.number()), // Timestamp of last activity
+    deviceInfo: v.optional(
+      v.object({
+        userAgent: v.optional(v.string()), // Raw user agent string
+        browser: v.optional(v.string()), // Browser name (e.g., "Chrome", "Firefox")
+        os: v.optional(v.string()), // Operating system (e.g., "Windows", "macOS", "iOS")
+        device: v.optional(v.string()), // Device type (e.g., "Desktop", "Mobile", "Tablet")
+      })
+    ),
+  })
+    .index('by_sessionId', ['sessionId'])
+    .index('by_userId', ['userId']),
 
   /**
    * Temporary login codes for cross-device authentication.
@@ -190,6 +205,17 @@ export default defineSchema({
     createdAt: v.number(), // When the code was created
     expiresAt: v.number(), // When the code expires (1 minute after creation)
   }).index('by_code', ['code']),
+
+  /**
+   * Rate limiting for login attempts to prevent brute force attacks.
+   * Tracks failed login attempts per session with automatic lockout.
+   */
+  loginAttempts: defineTable({
+    sessionId: v.string(), // The session making the attempt
+    attemptCount: v.number(), // Number of failed attempts in the window
+    lastAttemptAt: v.number(), // Timestamp of the last attempt
+    lockedUntil: v.optional(v.number()), // If locked out, when the lockout expires
+  }).index('by_sessionId', ['sessionId']),
 
   /**
    * Authentication provider configuration for dynamic auth provider setup.
@@ -267,6 +293,8 @@ export default defineSchema({
     nextQueuePosition: v.optional(v.number()),
     // Current active context for this chatroom (explicit context management)
     currentContextId: v.optional(v.id('chatroom_contexts')),
+    // @deprecated - legacy field kept for backward compatibility with existing documents
+    messageCount: v.optional(v.number()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
@@ -305,26 +333,29 @@ export default defineSchema({
     // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
-    // Agent type — 'custom' or 'remote'
-    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // Agent type - 'custom' or 'remote'
+    agentType: v.optional(agentTypeValidator),
     // Timestamp of the last check-in received from this participant.
     // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
     // The name of the CLI command last run by this participant.
     // For get-next-task (persistent connection), two distinct action names are used:
-    //   "get-next-task:started" — written when the loop begins
-    //   "get-next-task:stopped" — written just before the loop exits
+    //   "get-next-task:started" - written when the loop begins
+    //   "get-next-task:stopped" - written just before the loop exits
     lastSeenAction: v.optional(v.string()),
-    // Timestamp of the last token output observed from the agent.
-    // Written by the CLI whenever the agent produces output (throttled to once per 30s).
-    // Used to detect stuck agents that have stopped producing output mid-task.
+    // @deprecated No longer used for stuck detection. The daemon's task monitor now uses
+    // spawnedAgentPid to determine if an agent is running, not token timestamps.
+    // Kept for backward compatibility with existing documents.
     lastSeenTokenAt: v.optional(v.number()),
-    // Denormalized mirror of the latest event stream event type for this participant.
+    // @deprecated Denormalized mirror of the latest event stream event type for this participant.
     // Written alongside every event stream insert so the frontend can derive agent status
     // from the participant record alone (without querying the event stream).
+    // Prefer reading agent status from chatroom_teamAgentConfigs (via AgentRoleView.state)
+    // which is the authoritative source for agent lifecycle state.
     lastStatus: v.optional(v.string()),
-    // Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
+    // @deprecated Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
     // Written when start-agent or stop-agent use cases change desiredState.
+    // Prefer reading desiredState directly from chatroom_teamAgentConfigs.
     lastDesiredState: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
@@ -341,6 +372,9 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // For broadcast messages, this gets set when the message is claimed
     claimedByRole: v.optional(v.string()),
+    // Source platform for messages from external integrations (e.g. "telegram")
+    // Used for loop prevention - messages with a sourcePlatform are not re-forwarded.
+    sourcePlatform: v.optional(v.string()),
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
@@ -348,7 +382,7 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context') // Displayed when a new context is created
     ),
-    // Classification of user messages (set via task-started command)
+    // Classification of user messages (set via task read / classify)
     // Used to determine allowed handoff paths and context window
     classification: v.optional(
       v.union(
@@ -362,7 +396,7 @@ export default defineSchema({
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
-    // Set when an agent runs task-started, links all related messages
+    // Set when an agent runs task read / classify, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
@@ -373,10 +407,19 @@ export default defineSchema({
     // Attached tasks remain in 'backlog' status until agent hands off to user,
     // at which point they transition to 'pending_user_review'
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
 
     // Attached artifacts for context
     // Agents can attach multiple artifacts to handoffs for reference
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+
+    // Attached chatroom messages for context
+    // User can attach existing messages as context for a new message
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+
+    // Attached workflows for context
+    // Agents can attach workflow IDs to messages for visualizer display
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
@@ -386,6 +429,8 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_taskId', ['taskId'])
+    // Note: _creationTime is automatically appended to all indexes by Convex,
+    // so 'by_chatroom' on ['chatroomId'] enables efficient time-range queries.
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
@@ -396,6 +441,22 @@ export default defineSchema({
    * On promotion, the message is copied to chatroom_messages and a task is created.
    * This ensures messages appear in chat history in task processing order.
    */
+  /**
+   * Materialized task counts per chatroom.
+   * Updated atomically by task/backlog/queue mutations to avoid expensive full-table scans.
+   * Falls back to computed counts if no record exists (migration safety).
+   */
+  chatroom_taskCounts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    pending: v.number(),
+    acknowledged: v.number(),
+    inProgress: v.number(),
+    completed: v.number(),
+    queueSize: v.number(),
+    backlogCount: v.number(),
+    pendingReviewCount: v.number(),
+  }).index('by_chatroom', ['chatroomId']),
+
   chatroom_messageQueue: defineTable({
     // Which chatroom this queued message belongs to
     chatroomId: v.id('chatroom_rooms'),
@@ -405,12 +466,18 @@ export default defineSchema({
     targetRole: v.optional(v.string()),
     // Message content
     content: v.string(),
-    // Always 'message' — only user messages get staged
+    // Always 'message' - only user messages get staged
     type: v.literal('message'),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    // Attached backlog items for context
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    // Attached chatroom messages for context
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    // Attached workflows for context
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
   })
@@ -418,13 +485,11 @@ export default defineSchema({
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**
-   * Tasks in chatrooms for queue and backlog management.
+   * Tasks in chatrooms for queue management.
    * Tracks task lifecycle from creation through completion.
    * Only one task can be pending or in_progress at a time per chatroom.
    *
-   * Task workflows are determined by origin:
-   * - backlog: backlog → pending → in_progress → pending_user_review → completed/closed
-   * - chat: pending → in_progress → completed
+   * Task workflow: pending → acknowledged → in_progress → completed
    */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -433,29 +498,18 @@ export default defineSchema({
     // Content (plain text only)
     content: v.string(),
 
-    // Origin - where this task came from (immutable after creation)
-    // Determines which workflow/state machine applies to this task
-    origin: v.optional(
-      v.union(
-        v.literal('backlog'), // Created in backlog tab
-        v.literal('chat') // Created from chat message
-      )
-    ),
-
     // Status tracking
-    // Note: available statuses depend on origin (see workflows above)
     status: v.union(
-      v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
-      v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
-      v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
-      v.literal('closed'), // Backlog only: user closed without completing
-      // MIGRATION ONLY: "queued" was removed in PR #23 but may still exist in the DB.
-      // Kept temporarily so deployment succeeds; remove after running migrateQueuedTasks.
-      v.literal('queued')
+
+      // @deprecated - legacy backlog-origin statuses; exist in old records, remove after cleanup migration
+      v.literal('closed'), // @deprecated - was terminal status for backlog tasks; now handled by chatroom_backlog
+      v.literal('backlog'), // @deprecated - was initial status for backlog items; now handled by chatroom_backlog
+      v.literal('pending_user_review'), // @deprecated - was intermediate backlog status; now handled by chatroom_backlog
+      v.literal('backlog_acknowledged') // @deprecated - transitional status, migrated via migrateBacklogAcknowledgedToBacklog
     ),
 
     // Assignment
@@ -464,32 +518,92 @@ export default defineSchema({
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
-    // Backlog attachment tracking (bidirectional)
+    // Backlog attachment tracking
+    // @deprecated - backlog-specific field; use chatroom_backlog references instead
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
-    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Tasks this backlog item is attached to
+
+    // @deprecated - origin was used to distinguish backlog vs chat tasks; all backlog items
+    // are now in chatroom_backlog. Remove after running the reference cleanup migration.
+    origin: v.optional(
+      v.union(
+        v.literal('backlog'), // @deprecated - all backlog items are now in chatroom_backlog table
+        v.literal('chat') // Created from chat message
+      )
+    ),
+
+    // @deprecated - backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    priority: v.optional(v.number()),
+
+    // @deprecated - bidirectional link to parent backlog task. Remove after reference cleanup migration.
+    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
     acknowledgedAt: v.optional(v.number()), // When agent claimed task via get-next-task
-    startedAt: v.optional(v.number()), // When task-started was called
+    startedAt: v.optional(v.number()), // When task read was called
     completedAt: v.optional(v.number()), // When task-complete was called
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
-    // Scoring fields for backlog prioritization (set by agents or users)
+  /**
+   * Backlog items for chatroom planning.
+   * Long-lived planning items managed by the user, separate from active task queue.
+   *
+   * Lifecycle: backlog → pending_user_review → closed (or deleted)
+   *
+   * Items are promoted to chatroom_tasks when the user decides to execute them.
+   */
+  chatroom_backlog: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    createdBy: v.string(), // 'user' or role name that created the item
+
+    // Content (plain text only)
+    content: v.string(),
+
+    // Status lifecycle
+    status: v.union(
+      v.literal('backlog'), // Sitting in the backlog, awaiting pickup
+      v.literal('pending_user_review'), // Agent completed work, awaiting user confirmation
+      v.literal('closed') // User closed without completing
+    ),
+
+    // Assignment (when an agent is working on this item)
+    assignedTo: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+
+    // Scoring fields for prioritization
     // Complexity: low = easy to implement, high = complex/risky
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     // Value: low = nice-to-have, high = critical/high-impact
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     // Priority: numeric priority for flexible ordering (higher = more important)
-    // Used as primary sort key for backlog tasks
     priority: v.optional(v.number()),
+
+    // Close reason - mandatory when closing via CLI, for audit trail
+    closeReason: v.optional(v.string()),
+
+    // Legacy reference - set during migration from chatroom_tasks
+    // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
+    // @deprecated - migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
+    legacyTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
-    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+    .index('by_chatroom_priority', ['chatroomId', 'priority'])
+    .index('by_legacy_task_id', ['legacyTaskId']),
 
   // ============================================================================
   // CLI AUTHENTICATION TABLES
@@ -572,6 +686,20 @@ export default defineSchema({
    * Used to compute unread indicators efficiently without subscribing to full message history.
    * One record per user per chatroom.
    */
+  /**
+   * Materialized per-user per-chatroom unread status.
+   * Updated on message insert (set unread) and markAsRead (clear unread).
+   * Replaces the expensive N+1 computation in listUnreadStatus.
+   */
+  chatroom_unreadStatus: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.string(),
+    hasUnread: v.boolean(),
+    hasUnreadHandoff: v.boolean(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_chatroomId', ['userId', 'chatroomId']),
+
   chatroom_read_cursors: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
@@ -627,7 +755,7 @@ export default defineSchema({
    *
    * This is separate from chatroom_teamAgentConfigs, which is the authoritative
    * active config used by auto-restart logic. agentPreferences are purely
-   * informational/UI hints — they do not drive any backend behavior.
+   * informational/UI hints - they do not drive any backend behavior.
    *
    * Written by: the UI's "Start Agent" action (via saveAgentPreference mutation).
    * Read by: the Remote tab UI to pre-populate fields as defaults.
@@ -684,6 +812,8 @@ export default defineSchema({
     userId: v.id('users'),
     // Machine hostname
     hostname: v.string(),
+    // Optional user-defined display name for this machine
+    alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
@@ -700,8 +830,14 @@ export default defineSchema({
     ),
     // Available AI models discovered per harness (dynamic, per-machine)
     // Shape: { opencode: [...], pi: [...] }
-    // DEPRECATED SHAPE: v.array(v.string()) — kept to pass validation until
+    // DEPRECATED SHAPE: v.array(v.string()) - kept to pass validation until
     // migration.migrateAvailableModelsToPerHarness has run. Remove after migration.
+    /**
+     * @deprecated v1.38.4 — superseded by chatroom_machineModels (own table to keep heavy model
+     * payload out of the parent row). Kept as optional for backwards compatibility with old daemons
+     * + read-tolerance until dropEmbeddedAvailableModels migration has been run on all environments.
+     * Remove after migration.
+     */
     availableModels: v.optional(
       v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
     ),
@@ -711,6 +847,8 @@ export default defineSchema({
     lastSeenAt: v.number(),
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
+    // Last time the user requested a capabilities refresh for this machine (cooldown)
+    lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
     // machineId is client-generated (UUID). Convex doesn't support unique indexes,
     // so uniqueness is enforced at the application layer in register() mutation.
@@ -719,8 +857,54 @@ export default defineSchema({
     .index('by_userId', ['userId']),
 
   /**
+   * Machine liveness data - volatile fields separated from the main machine record
+   * to prevent heartbeat-triggered cascading re-evaluations.
+   *
+   * Updated by daemonHeartbeat on every heartbeat. Queries that only need static
+   * machine info (hostname, harnesses, etc.) read from chatroom_machines and
+   * won't re-trigger when liveness data changes.
+   */
+  chatroom_machineLiveness: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    daemonConnected: v.boolean(),
+  }).index('by_machineId', ['machineId']),
+
+  /**
+   * Materialized machine online/offline status.
+   * Written only on actual state transitions to avoid subscription invalidation.
+   * The cron job transitions online→offline; daemonHeartbeat transitions offline→online.
+   */
+  chatroom_machineStatus: defineTable({
+    machineId: v.string(),
+    status: v.union(v.literal('online'), v.literal('offline')),
+    lastTransitionAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_status', ['status']),
+
+  /**
+   * Per-machine available model lists, extracted from chatroom_machines.availableModels in v1.38.4.
+   *
+   * Rationale: the availableModels payload is ~50KB per machine. When it lived on the parent
+   * chatroom_machines row it was re-pushed to every listMachines subscriber on every machine-row
+   * write (heartbeat, status change, etc.). Separating it into its own table — mirroring the
+   * same design intent as chatroom_machineLiveness — means model-list updates no longer
+   * invalidate the lightweight listMachines subscription.
+   *
+   * One row per machine. The whole Record<harness, models[]> lives in a single row.
+   */
+  chatroom_machineModels: defineTable({
+    machineId: v.string(),
+    // Per-harness model lists. Shape: { opencode: ['provider/model', ...], pi: [...] }
+    // Single row per machine (one record holding all harnesses).
+    availableModels: v.record(v.string(), v.array(v.string())),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
+
+  /**
    * Model visibility filters for a machine's harness.
-   * Machine-level — shared across all users and chatrooms.
+   * Machine-level - shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.
    */
   chatroom_machineModelFilters: defineTable({
@@ -756,7 +940,7 @@ export default defineSchema({
     role: v.string(),
 
     // Config type discriminator
-    type: v.union(v.literal('remote'), v.literal('custom')),
+    type: agentTypeValidator,
 
     // Remote agent config (only present when type === 'remote')
     machineId: v.optional(v.string()),
@@ -783,6 +967,44 @@ export default defineSchema({
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
     .index('by_machineId', ['machineId']),
+
+  /**
+   * One row per user-initiated "refresh capabilities" wave from the webapp.
+   * Per-machine outcomes live in `chatroom_capabilities_refresh_machine_results`.
+   */
+  chatroom_capabilities_refresh_batches: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    createdAt: v.number(),
+    expectedMachineCount: v.number(),
+    /** Machine result rows no longer in `pending` (completed / skipped_no_changes / failed). */
+    finishedMachineCount: v.number(),
+    aggregateStatus: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('partial'),
+      v.literal('failed')
+    ),
+  })
+    .index('by_chatroom_created', ['chatroomId', 'createdAt'])
+    .index('by_aggregateStatus_created', ['aggregateStatus', 'createdAt']),
+
+  chatroom_capabilities_refresh_machine_results: defineTable({
+    batchId: v.id('chatroom_capabilities_refresh_batches'),
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('skipped_no_changes'),
+      v.literal('failed')
+    ),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_batchId', ['batchId'])
+    .index('by_batchId_machineId', ['batchId', 'machineId']),
 
   // ============================================================================
   // EVENT STREAM TABLE
@@ -817,11 +1039,12 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         pid: v.number(),
-        intentional: v.boolean(),
         stopReason: v.optional(v.string()),
         stopSignal: v.optional(v.string()),
         exitCode: v.optional(v.number()),
         signal: v.optional(v.string()),
+        /** @deprecated Legacy field from before StopReason migration. Retained for schema compatibility with old documents. */
+        intentional: v.optional(v.boolean()),
         timestamp: v.number(),
       }),
       // Agent circuit breaker tripped
@@ -853,6 +1076,9 @@ export default defineSchema({
         machineId: v.optional(v.string()),
         finalStatus: v.string(),
         timestamp: v.number(),
+        // When true, consumers should skip using this event to update agent status.
+        // Set for externally force-completed tasks where the agent process may still be running.
+        skipAgentStatusUpdate: v.optional(v.boolean()),
       }),
       // An agent start was requested (replaces command.startAgent; includes deadline)
       v.object({
@@ -876,14 +1102,25 @@ export default defineSchema({
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),
+        pid: v.optional(v.number()),
       }),
       // Agent declared its type for a chatroom role (custom or remote)
       v.object({
         type: v.literal('agent.registered'),
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
-        agentType: v.union(v.literal('custom'), v.literal('remote')),
+        agentType: agentTypeValidator,
         machineId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Team agent config machine binding changed (e.g. start on a different machine)
+      v.object({
+        type: v.literal('machine.switched'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        previousMachineId: v.string(),
+        newMachineId: v.string(),
+        reason: v.string(),
         timestamp: v.number(),
       }),
       // Agent entered the get-next-task loop (standing by for tasks)
@@ -902,7 +1139,7 @@ export default defineSchema({
         taskId: v.id('chatroom_tasks'),
         timestamp: v.number(),
       }),
-      // Agent began active work via task-started command (acknowledged → in_progress)
+      // Agent began active work via task read / classify (acknowledged → in_progress)
       v.object({
         type: v.literal('task.inProgress'),
         chatroomId: v.id('chatroom_rooms'),
@@ -915,6 +1152,21 @@ export default defineSchema({
         type: v.literal('daemon.ping'),
         machineId: v.string(),
         timestamp: v.number(),
+      }),
+      // UI-initiated git state refresh request
+      v.object({
+        type: v.literal('daemon.gitRefresh'),
+        machineId: v.string(),
+        workingDir: v.string(),
+        timestamp: v.number(),
+      }),
+      // UI-initiated capabilities refresh request (model/harness discovery)
+      v.object({
+        type: v.literal('daemon.refreshCapabilities'),
+        machineId: v.string(),
+        timestamp: v.number(),
+        /** Present for new requests - daemons report outcomes against this batch. */
+        batchId: v.optional(v.id('chatroom_capabilities_refresh_batches')),
       }),
       // Daemon response to a daemon.ping event
       v.object({
@@ -930,6 +1182,166 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         reason: v.string(),
+        timestamp: v.number(),
+      }),
+      // A skill was activated for a role in this chatroom
+      v.object({
+        type: v.literal('skill.activated'),
+        chatroomId: v.id('chatroom_rooms'),
+        skillId: v.string(),
+        skillName: v.string(),
+        role: v.string(),
+        prompt: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon failed to start an agent process
+      v.object({
+        type: v.literal('agent.startFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon hit crash loop limit and stopped restarting
+      v.object({
+        type: v.literal('agent.restartLimitReached'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        restartCount: v.number(),
+        windowMs: v.number(),
+        timestamp: v.number(),
+      }),
+      // Workflow started (draft → active)
+      v.object({
+        type: v.literal('workflow.started'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        createdBy: v.string(),
+        stepCount: v.number(),
+        // Optional for backward compatibility - existing events in the DB may not have this field.
+        // New events always include steps.
+        steps: v.optional(
+          v.array(
+            v.object({
+              stepKey: v.string(),
+              description: v.string(),
+              assigneeRole: v.optional(v.string()),
+              dependsOn: v.array(v.string()),
+              order: v.number(),
+            })
+          )
+        ),
+        timestamp: v.number(),
+      }),
+      // Workflow step completed
+      v.object({
+        type: v.literal('workflow.stepCompleted'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
+        completedBy: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Workflow step cancelled
+      v.object({
+        type: v.literal('workflow.stepCancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
+        cancelledBy: v.optional(v.string()),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
+      // Workflow completed (all steps terminal)
+      v.object({
+        type: v.literal('workflow.completed'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        finalStatus: v.union(v.literal('completed'), v.literal('cancelled')),
+        timestamp: v.number(),
+      }),
+      // Workflow created (new draft workflow)
+      v.object({
+        type: v.literal('workflow.created'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        createdBy: v.string(),
+        stepCount: v.number(),
+        steps: v.optional(
+          v.array(
+            v.object({
+              stepKey: v.string(),
+              description: v.string(),
+              assigneeRole: v.optional(v.string()),
+              dependsOn: v.array(v.string()),
+              order: v.number(),
+            })
+          )
+        ),
+        timestamp: v.number(),
+      }),
+      // Workflow step specified
+      v.object({
+        type: v.literal('workflow.specified'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        timestamp: v.number(),
+      }),
+      // Workflow step started (transitioned to in_progress)
+      v.object({
+        type: v.literal('workflow.stepStarted'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        stepDescription: v.optional(v.string()),
+        assigneeRole: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Daemon local action request (open-vscode, open-finder, etc.) sent via Convex
+      // instead of direct localhost HTTP to work around Safari mixed-content blocking.
+      // NOTE: When adding new action types, also update the canonical TypeScript type
+      // in config/localActions.ts (LocalActionType).
+      v.object({
+        type: v.literal('daemon.localAction'),
+        machineId: v.string(),
+        action: v.union(
+          v.literal('open-vscode'),
+          v.literal('open-finder'),
+          v.literal('open-github-desktop'),
+          v.literal('git-discard-file'),
+          v.literal('git-discard-all'),
+          v.literal('git-pull')
+        ),
+        workingDir: v.string(),
+        timestamp: v.number(),
+      }),
+      // Request to run a command on a machine (dispatched from web UI)
+      v.object({
+        type: v.literal('command.run'),
+        machineId: v.string(),
+        workingDir: v.string(),
+        commandName: v.string(),
+        script: v.string(),
+        runId: v.id('chatroom_commandRuns'),
+        timestamp: v.number(),
+      }),
+      // Request to stop a running command on a machine
+      v.object({
+        type: v.literal('command.stop'),
+        machineId: v.string(),
+        runId: v.id('chatroom_commandRuns'),
         timestamp: v.number(),
       })
     )
@@ -956,7 +1368,7 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     workingDir: v.string(),
     model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
-    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" — optional for backward compat
+    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" - optional for backward compat
 
     // Time bucket (start of the hour in ms UTC)
     hourBucket: v.number(),
@@ -972,4 +1384,1036 @@ export default defineSchema({
 
     // Query: workspace (machineId+workingDir) + role, time range (for workspace breakdown)
     .index('by_workspace_role_hour', ['machineId', 'workingDir', 'role', 'hourBucket']),
+
+  /**
+   * Workspace git state pushed by the daemon on heartbeat.
+   * Stores branch, dirty status, diff stats, and recent commits.
+   * Keyed by machineId + workingDir (workspace-level, not chatroom-level).
+   */
+  chatroom_workspaceGitState: defineTable({
+    // Identity: unique workspace
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // Discriminated union status
+    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
+
+    // Branch info (only when status === 'available')
+    branch: v.optional(v.string()),
+    isDirty: v.optional(v.boolean()),
+
+    // Diff summary: git diff HEAD --stat (only when status === 'available')
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
+
+    /**
+     * @deprecated Use chatroom_workspaceRecentCommits instead.
+     * Kept as optional so legacy rows continue to validate until the
+     * `dropEmbeddedRecentCommits` migration runs against the deployment.
+     * After the migration has run on all environments, this field can be removed.
+     */
+    recentCommits: v.optional(
+      v.array(
+        v.object({
+          sha: v.string(),
+          shortSha: v.string(),
+          message: v.string(),
+          author: v.string(),
+          date: v.string(),
+        })
+      )
+    ),
+    /**
+     * @deprecated See `recentCommits` above.
+     */
+    hasMoreCommits: v.optional(v.boolean()),
+
+    // Open pull requests for the current branch (only when status === 'available')
+    openPullRequests: v.optional(
+      v.array(
+        v.object({
+          prNumber: v.optional(v.number()), // may be missing in old documents; use number field instead
+          number: v.optional(v.number()), // GitHub API field name (aliased to prNumber)
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          state: v.string(),
+        })
+      )
+    ),
+
+    // All pull requests (open, closed, merged) for the repository
+    allPullRequests: v.optional(
+      v.array(
+        v.object({
+          prNumber: v.optional(v.number()),
+          number: v.optional(v.number()), // GitHub API field name (aliased to prNumber)
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          baseRefName: v.optional(v.string()),
+          state: v.string(),
+          author: v.optional(v.string()),
+          createdAt: v.optional(v.string()),
+          updatedAt: v.optional(v.string()),
+          mergedAt: v.optional(v.union(v.string(), v.null())),
+          closedAt: v.optional(v.union(v.string(), v.null())),
+          isDraft: v.optional(v.boolean()),
+        })
+      )
+    ),
+
+    // Git remotes (only when status === 'available')
+    remotes: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          url: v.string(),
+        })
+      )
+    ),
+
+    // Commits ahead of upstream tracking branch (unpushed)
+    commitsAhead: v.optional(v.number()),
+
+    // Default branch name (e.g. 'main', 'master')
+    defaultBranch: v.optional(v.union(v.string(), v.null())),
+
+    // CI/CD status checks for the current branch head commit
+    headCommitStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
+
+    // CI/CD status checks for the latest default branch commit
+    defaultBranchStatus: v.optional(
+      v.union(
+        v.object({
+          state: v.string(),
+          checkRuns: v.array(
+            v.object({
+              name: v.string(),
+              status: v.string(),
+              conclusion: v.union(v.string(), v.null()),
+            })
+          ),
+          totalCount: v.number(),
+        }),
+        v.null()
+      )
+    ),
+
+    // Error message (only when status === 'error')
+    errorMessage: v.optional(v.string()),
+
+    // Pipeline mode - 'full' (heartbeat) or 'slim' (observed sync)
+    pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
+
+    // Timestamp
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * On-demand full diff content for a workspace.
+   * Stores the output of `git diff HEAD` (up to 500KB cap).
+   * Refreshed when the frontend requests an updated diff.
+   */
+  chatroom_workspaceFullDiff: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // git diff HEAD output (up to 500KB cap)
+    diffContent: v.string(),
+    truncated: v.boolean(),
+
+    // Stats
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Request queue for on-demand workspace operations.
+   * The daemon polls this table for pending requests and fulfills them.
+   * Supports: full diff, commit detail, load-more commits, PR diff, PR commits,
+   * all pull requests, and recent commits.
+   */
+  chatroom_workspaceDiffRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    requestType: v.union(
+      v.literal('full_diff'),
+      v.literal('commit_detail'),
+      v.literal('more_commits'),
+      v.literal('pr_diff'),
+      v.literal('pr_action'),
+      v.literal('pr_commits'),
+      v.literal('all_pull_requests'),
+      v.literal('recent_commits')
+    ),
+    // For commit_detail requests
+    sha: v.optional(v.string()),
+    // For more_commits requests
+    offset: v.optional(v.number()),
+    // For pr_diff requests
+    baseBranch: v.optional(v.string()),
+    // For pr_action requests
+    prAction: v.optional(
+      v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close'))
+    ),
+    prNumber: v.optional(v.number()),
+    // Request status
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
+    // Tight index for idempotency checks that only need (machine, workingDir, type, status).
+    // Covers requestAllPullRequests and requestRecentCommits without a filter scan.
+    .index('by_machine_workingDir_type_status', [
+      'machineId',
+      'workingDir',
+      'requestType',
+      'status',
+    ])
+    // Tight index for the requestPRDiff idempotency check: a single point-lookup
+    // for `(machineId, workingDir, requestType='pr_diff', prNumber, status='pending')`
+    // - every equality is index-covered, no scan.
+    .index('by_machine_workingDir_type_pr_status', [
+      'machineId',
+      'workingDir',
+      'requestType',
+      'prNumber',
+      'status',
+    ]),
+
+  /**
+   * Stored PR diff content (diff between base branch and HEAD).
+   * Populated by the daemon after a `pr_diff` request is fulfilled.
+   * Keyed by machineId + workingDir + prNumber so each PR has its own cache row.
+   *
+   * `prNumber` is `v.optional` for backward compatibility with documents written
+   * before the per-PR cache (PR #427) shipped - such rows are effectively orphaned
+   * (they won't match any indexed lookup) and the daemon repopulates with prNumber
+   * on the next request.
+   */
+  chatroom_workspacePRDiffs: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    baseBranch: v.string(),
+    prNumber: v.optional(v.number()),
+    diffContent: v.string(),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
+
+  /**
+   * Cached list of commits for a specific PR.
+   * Populated by the daemon after a `pr_commits` request is fulfilled.
+   * Keyed by machineId + workingDir + prNumber.
+   */
+  chatroom_workspacePRCommits: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    prNumber: v.number(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        body: v.optional(v.string()),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir_prNumber', ['machineId', 'workingDir', 'prNumber']),
+
+  /**
+   * Cached list of all pull requests for a workspace.
+   * Populated by the daemon after an `all_pull_requests` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspaceAllPullRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    pullRequests: v.array(
+      v.object({
+        prNumber: v.optional(v.number()),
+        number: v.optional(v.number()),
+        title: v.string(),
+        url: v.string(),
+        headRefName: v.string(),
+        baseRefName: v.optional(v.string()),
+        state: v.string(),
+        author: v.optional(v.string()),
+        createdAt: v.optional(v.string()),
+        updatedAt: v.optional(v.string()),
+        mergedAt: v.optional(v.union(v.string(), v.null())),
+        closedAt: v.optional(v.union(v.string(), v.null())),
+        isDraft: v.optional(v.boolean()),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Cached recent commits for a workspace.
+   * Populated by the daemon after a `recent_commits` request is fulfilled.
+   * Keyed by machineId + workingDir.
+   */
+  chatroom_workspaceRecentCommits: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    commits: v.array(
+      v.object({
+        sha: v.string(),
+        shortSha: v.string(),
+        message: v.string(),
+        body: v.optional(v.string()),
+        author: v.string(),
+        date: v.string(),
+      })
+    ),
+    hasMoreCommits: v.boolean(),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Per-commit diff content fetched on demand.
+   * Stores the output of `git show <sha>` (up to 500KB cap).
+   * Keyed by machineId + workingDir + sha.
+   */
+  chatroom_workspaceCommitDetail: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+
+    // Discriminated union status
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found')
+    ),
+
+    // Only when status === 'available'
+    diffContent: v.optional(v.string()),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
+
+    // Commit metadata (available when status === 'available' or 'too_large')
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+
+    // Only when status === 'error'
+    errorMessage: v.optional(v.string()),
+
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  // ─── Workspace Registry ──────────────────────────────────────────────────────
+  // Persistent record of workspaces (machine + working directory pairs) where
+  // agents operate. Unlike chatroom_teamAgentConfigs (transient), these persist
+  // independently of agent lifecycle.
+  chatroom_workspaces: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    workingDir: v.string(),
+    hostname: v.string(),
+    registeredAt: v.number(),
+    registeredBy: v.string(), // role that first registered this workspace
+    removedAt: v.optional(v.number()), // soft delete timestamp
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_machine', ['machineId'])
+    .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
+
+  // ─── Workspace File Tree ─────────────────────────────────────────────────────
+  // Stores file tree snapshots and on-demand file content per workspace.
+
+  /**
+   * File tree snapshot for a workspace.
+   * Stores the entire tree as a single JSON blob to avoid per-file row overhead.
+   * Keep under Convex's 1MB document limit (~10,000 entries max).
+   */
+  chatroom_workspaceFileTree: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // JSON blob of FileTree (entries array + metadata)
+    treeJson: v.string(),
+
+    // Hash of treeJson for server-side dedup (skips write if unchanged)
+    treeHash: v.optional(v.string()),
+
+    // When the tree was last scanned
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * On-demand file content cache.
+   * Stores content for individual files fetched by the frontend.
+   * Content capped at 500KB per file.
+   */
+  chatroom_workspaceFileContent: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    // File content (max 500KB)
+    content: v.string(),
+    encoding: v.string(), // 'utf8'
+    truncated: v.boolean(),
+
+    // When the content was fetched
+    fetchedAt: v.number(),
+  }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * Pending file content requests.
+   * Frontend creates requests; daemon polls and fulfills them.
+   */
+  chatroom_workspaceFileContentRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * On-demand file tree scan requests.
+   * Frontend requests a fresh tree scan; daemon fulfills by scanning and calling syncFileTree.
+   */
+  chatroom_workspaceFileTreeRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    status: v.string(), // 'pending' | 'done'
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  // ─── Structured Workflows ────────────────────────────────────────────────────
+  // DAG-based workflows that agents create and execute step-by-step.
+  // Workflows block user handoff until completed or explicitly exited.
+
+  /** Workflow definitions - one per workflowKey per chatroom. */
+  chatroom_workflows: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(), // User-provided unique key within chatroom
+    status: v.union(
+      v.literal('draft'), // Created but not yet started
+      v.literal('active'), // In progress - steps are being executed
+      v.literal('completed'), // All steps completed or cancelled
+      v.literal('cancelled') // Manually exited early
+    ),
+    createdBy: v.string(), // Role that created the workflow
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_workflowKey', ['chatroomId', 'workflowKey'])
+    .index('by_chatroom_status', ['chatroomId', 'status']),
+
+  /** Steps within a workflow - nodes of the DAG. */
+  chatroom_workflow_steps: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowId: v.id('chatroom_workflows'),
+    stepKey: v.string(), // User-provided unique key within workflow
+    description: v.string(), // Short plain text description
+    status: v.union(
+      v.literal('pending'), // Waiting for dependencies
+      v.literal('in_progress'), // Dependencies met, work in progress
+      v.literal('completed'), // Step finished successfully
+      v.literal('cancelled') // Step cancelled
+    ),
+    assigneeRole: v.optional(v.string()), // Role assigned to this step
+    dependsOn: v.array(v.string()), // stepKeys this step depends on (DAG edges)
+    order: v.number(), // Display order
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+    specification: v.optional(
+      v.object({
+        goal: v.string(),
+        requirements: v.string(),
+        warnings: v.optional(v.string()),
+        skills: v.optional(v.string()),
+      })
+    ),
+  })
+    .index('by_workflow', ['workflowId'])
+    .index('by_workflow_stepKey', ['workflowId', 'stepKey'])
+    .index('by_chatroom', ['chatroomId']),
+
+  /** Chat platform integrations (e.g. Telegram, Slack) linked to a chatroom. */
+  chatroom_integrations: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    /** Platform identifier (e.g. "telegram", "slack") */
+    platform: v.string(),
+    /** Platform-specific configuration (bot token, chat ID, etc.) */
+    config: v.object({
+      /** Bot token or API key - sensitive, stored encrypted at rest by Convex */
+      botToken: v.optional(v.string()),
+      /** Platform-specific chat/channel ID to bridge */
+      chatId: v.optional(v.string()),
+      /** Optional webhook URL */
+      webhookUrl: v.optional(v.string()),
+      /** Webhook secret for verifying inbound requests from Telegram */
+      webhookSecret: v.optional(v.string()),
+    }),
+    /** Whether the integration is currently active */
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_platform', ['chatroomId', 'platform']),
+
+  // ─── Command Runner ─────────────────────────────────────────────────────────
+  // Synced commands discovered from package.json scripts and turbo.json tasks.
+
+  /**
+   * Available commands discovered from workspace package.json/turbo.json.
+   * Synced by the daemon during heartbeat.
+   */
+  chatroom_runnableCommands: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    name: v.string(),
+    script: v.string(),
+    source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+    /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
+    workspace: v.optional(v.string()),
+    /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
+    subWorkspace: v.optional(
+      v.object({
+        /** Ecosystem type (e.g., "npm", "cargo", "go") */
+        type: v.string(),
+        /** Relative path from workspace root to the sub-package directory */
+        path: v.string(),
+        /** Package name from package manager (e.g., "@workspace/webapp") */
+        name: v.string(),
+      })
+    ),
+    syncedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Command execution runs. Tracks lifecycle of a spawned command process.
+   */
+  chatroom_commandRuns: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    commandName: v.string(),
+    script: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('stopped'),
+      v.literal('killed')
+    ),
+    /**
+     * Why the run was terminated. Set on terminal states:
+     *   'replaced'    — superseded by a re-run of the same command
+     *   'user-stop'   — stopped explicitly by the user via stopCommand
+     *   'timeout-24h' — soft 24-hour timeout expired
+     *   'crash'       — daemon crash/restart detected
+     */
+    terminationReason: v.optional(v.string()),
+    pid: v.optional(v.number()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    exitCode: v.optional(v.number()),
+    requestedBy: v.id('users'),
+    /**
+     * Rolling compressed tail of command output for live viewing while the run is active.
+     * Daemon overwrites this field on each flush (every ~3s) with the last ~32KB of output.
+     * When the run terminates, daemon flushes the full output as chatroom_commandOutput chunks
+     * and clears this field. This avoids N× reactive chunk fan-out during a run:
+     * only a single row update per flush instead of an insert per flush.
+     */
+    tailOutput: v.optional(v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),           // base64-encoded gzipped UTF-8
+      byteLength: v.number(),        // decompressed byte length of the tail window
+      totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
+      updatedAt: v.number(),
+    })),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
+    .index('by_status', ['status']),
+
+  /**
+   * Buffered output chunks for command runs.
+   * While a run is active, output is streamed via the live tail (chatroom_commandRuns.tailOutput).
+   * On termination, daemon flushes the full output as compressed chunks here.
+   * content supports dual-encoding: legacy plaintext (v.string()) and gzip-compressed (v.object).
+   */
+  chatroom_commandOutput: defineTable({
+    runId: v.id('chatroom_commandRuns'),
+    content: v.union(
+      v.string(),                                              // Legacy: plain UTF-8 text
+      v.object({ compression: v.literal('gzip'), content: v.string() }) // base64-encoded gzip
+    ),
+    chunkIndex: v.number(),
+    timestamp: v.number(),
+  }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // V2 Workspace Tables - Compressed-Only
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // These tables replace their v1 counterparts with clean, compressed-only schemas.
+  // All `data` fields are base64-encoded gzip - no optional raw/compressed split.
+  // v1 tables are preserved for migration but should not be used in new code.
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * V2 workspace file tree - compressed only.
+   * `data` is always a base64-encoded gzip of the FileTree JSON.
+   * `dataHash` is used for server-side dedup (skip write if unchanged).
+   */
+  chatroom_workspaceFileTreeV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: base64-encoded gzip of FileTree JSON. */
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
+    /** Hash of the uncompressed data for server-side dedup. */
+    dataHash: v.string(),
+    /** When the tree was last scanned. */
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * V2 workspace full diff - compressed only.
+   * `data` is a discriminated union object containing compression format and content.
+   */
+  chatroom_workspaceFullDiffV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Compressed data object: base64-encoded gzip of the diff content. */
+    data: v.union(
+      v.string(), // Legacy: plain base64 string (to be migrated)
+      v.object({
+        compression: v.literal('gzip'),
+        /** Base64-encoded compressed content. */
+        content: v.string(),
+      })
+    ),
+    truncated: v.boolean(),
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * V2 workspace commit detail - compressed only.
+   * Uses discriminated status field. `data` (compressed object)
+   * is only present when status === 'available'.
+   */
+  chatroom_workspaceCommitDetailV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+    updatedAt: v.number(),
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found')
+    ),
+    /** Compressed data object. Present only when status === 'available'. */
+    data: v.optional(
+      v.union(
+        v.string(), // Legacy: plain base64 string (to be migrated)
+        v.object({
+          compression: v.literal('gzip'),
+          /** Base64-encoded compressed content. */
+          content: v.string(),
+        })
+      )
+    ),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
+    message: v.optional(v.string()),
+    body: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+    /** Present only when status === 'error'. */
+    errorMessage: v.optional(v.string()),
+  }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  /**
+   * V2 workspace file content - compressed only.
+   * `data` is a discriminated union object containing compression format and content.
+   */
+  chatroom_workspaceFileContentV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    /** Compressed data object: base64-encoded gzip of the file content. */
+    data: v.object({
+      compression: v.literal('gzip'),
+      /** Base64-encoded compressed content. */
+      content: v.string(),
+    }),
+    encoding: v.string(), // 'utf8'
+    truncated: v.boolean(),
+    /** When the content was fetched. */
+    fetchedAt: v.number(),
+  }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  // ─── Saved Commands ──────────────────────────────────────────────────────────
+  // Custom prompt templates that users can save and execute via the command palette.
+
+  /**
+   * Saved custom commands (prompt templates) for a chatroom.
+   * Users create these via the command palette (Cmd+Shift+P) and can execute them
+   * to send pre-defined prompts as messages.
+   */
+  chatroom_savedCommands: defineTable(
+    v.object({
+      type: v.literal('prompt'),
+      chatroomId: v.id('chatroom_rooms'),
+      name: v.string(), // Command display name (shown as "Command: <name>")
+      prompt: v.string(), // The prompt text to send as a message
+      createdBy: v.string(), // Session ID or user who created it
+      createdAt: v.number(), // Unix timestamp
+      updatedAt: v.number(), // Unix timestamp
+    })
+  ).index('by_chatroom', ['chatroomId']),
+
+  /**
+   * Chatroom-specific skill customizations that override a skill's default system prompt.
+   * When `isEnabled` is true, the content replaces the default prompt for
+   * the given `type` in the owning chatroom.
+   */
+  chatroom_skillCustomizations: defineTable(
+    v.union(
+      v.object({
+        type: v.literal('development_workflow'),
+        chatroomId: v.id('chatroom_rooms'),
+        ownerId: v.id('users'),
+        name: v.string(),
+        content: v.string(),
+        isEnabled: v.boolean(),
+        sourceChatroomId: v.optional(v.id('chatroom_rooms')),
+        sourceCustomizationId: v.optional(v.id('chatroom_skillCustomizations')),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+      })
+    )
+  )
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_chatroomId_type', ['chatroomId', 'type'])
+    .index('by_sourceCustomizationId', ['sourceCustomizationId']),
+
+  /**
+   * Chatroom observation tracking for event-driven daemon sync.
+   * Frontend sends heartbeats to keep a chatroom "observed"; daemon subscribes
+   * to observed chatrooms to sync only their workspaces.
+   * `lastRefreshedAt` is set explicitly by the frontend on focus/git-panel-open
+   * to trigger an immediate sync instead of waiting for the safety poll.
+   */
+  chatroom_observation: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    lastObservedAt: v.number(),
+    lastRefreshedAt: v.optional(v.number()),
+  })
+    .index('by_chatroomId', ['chatroomId'])
+    .index('by_lastObservedAt', ['lastObservedAt']),
+
+  // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
+
+  /**
+   * A HarnessSession represents one conversation with a harness process.
+   * Uses a discriminated union on `type` - each harness type groups its own
+   * fields under a matching sub-object (e.g. type='opencode' → opencode:{...}).
+   *
+   * Currently only 'opencode' is supported; new types are added as union members.
+   */
+  chatroom_harnessSessions: defineTable(
+    v.union(
+      // ── opencode ────────────────────────────────────────────────
+      v.object({
+        type: v.literal('opencode'),
+        workspaceId: v.id('chatroom_workspaces'),
+        status: v.union(
+          v.literal('pending'),
+          v.literal('spawning'),
+          v.literal('active'),
+          v.literal('idle'),
+          v.literal('closed'),
+          v.literal('failed')
+        ),
+        createdBy: v.id('users'),
+        createdAt: v.number(),
+        lastActiveAt: v.number(),
+        /**
+         * Cursor for the daemon's turn-based message processing.
+         * Indexes into chatroom_harnessSessionTurns. Default treated as 0.
+         */
+        lastProcessedTurnSeq: v.optional(v.number()),
+        /**
+         * True while the agent is actively generating a response.
+         * Combined with the unprocessed-message and queue-item checks in
+         * web/messages.send, this ensures messages sent while work is in
+         * flight are held in chatroom_harnessMessageQueue instead of
+         * landing mid-stream in the main message table.
+         * Owned exclusively by the daemon.
+         */
+        isGenerating: v.optional(v.boolean()),
+        /** OpenCode-specific session state. */
+        opencode: v.object({
+          harnessName: v.string(),
+          /** OpenCode SDK session identifier (set after spawning). */
+          opencodeSessionId: v.optional(v.string()),
+          /** Display title synced from the opencode SDK session. */
+          sessionTitle: v.optional(v.string()),
+          /** The last-used configuration for this session. */
+          lastUsedConfig: v.object({
+            agent: v.string(),
+            model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+            system: v.optional(v.string()),
+            tools: v.optional(v.record(v.string(), v.boolean())),
+          }),
+        }),
+      })
+      // Add new harness types here as additional union members.
+    )
+  )
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_status', ['workspaceId', 'status']),
+
+  /**
+   * Messages produced by a harness session (both user prompts and assistant
+   * response chunks). seq is monotonically increasing per session.
+   * role distinguishes user messages from assistant responses.
+   */
+  chatroom_harnessSessionMessages: defineTable({
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    content: v.string(),
+    timestamp: v.number(),
+    /** opencode SDK messageID - groups all tokens of one agent turn. Absent on user messages. */
+    messageId: v.optional(v.string()),
+    /** Distinguishes reasoning (thinking) tokens from regular text output. */
+    partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
+  })
+    .index('by_session', ['harnessSessionId'])
+    .index('by_session_role', ['harnessSessionId', 'role'])
+    .index('by_messageId', ['messageId']),
+
+  /**
+   * Long-term, source-of-truth turn-level message store.
+   *
+   * One row per logical turn (one user message OR one complete agent response).
+   * Assistant turns are eagerly created with status='pending' at session start,
+   * transition to 'streaming' on the first chunk, and to 'complete' on session.idle
+   * once the daemon flushes the consolidated content. User turns are inserted
+   * directly with status='complete' (no chunk phase).
+   *
+   * The companion chunk table (chatroom_harnessSessionMessages) is treated as
+   * ephemeral — chunks are streamed in for live UI updates and purged ~1 hour
+   * after their turn finalizes via a cron job.
+   *
+   * messageId on assistant turns matches the messageId on chunks belonging to
+   * that turn — the join key for both finalization and TTL cleanup.
+   */
+  chatroom_harnessSessionTurns: defineTable({
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    /** Monotonic, unique per session. 1-based. */
+    turnSeq: v.number(),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    status: v.union(
+      v.literal('pending'), // eagerly created, agent not yet streaming
+      v.literal('streaming'), // first chunk arrived, more incoming
+      v.literal('complete'), // finalized with consolidated content
+      v.literal('failed') // daemon crashed mid-stream, recovered as 'interrupted'
+    ),
+    /** SDK messageId — joins this turn to its chunks. Absent on user turns. */
+    messageId: v.optional(v.string()),
+    /** Concatenated regular text content. Empty until status='complete'. Empty for user role unless content is present (user turns are 'complete' on insert with full content here). */
+    textContent: v.string(),
+    /** Concatenated reasoning (thinking) content. Empty for user role and pending/streaming assistant. */
+    reasoningContent: v.string(),
+    startedAt: v.number(),
+    /** Set when status transitions to 'complete' or 'failed'. */
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_session_turnSeq', ['harnessSessionId', 'turnSeq'])
+    .index('by_session_status', ['harnessSessionId', 'status'])
+    .index('by_messageId', ['messageId'])
+    .index('by_status_completedAt', ['status', 'completedAt']),
+
+  /**
+   * User messages held in reserve while work is in flight for a session.
+   * The web send mutation routes here instead of the main message table
+   * whenever isGenerating is true, unprocessed user messages exist, or
+   * the queue already has items. The daemon promotes items one-by-one
+   * (FIFO by _creationTime) after each session.idle event.
+   */
+  chatroom_harnessMessageQueue: defineTable({
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    content: v.string(),
+    timestamp: v.number(),
+    status: v.union(v.literal('queued'), v.literal('delivered')),
+  }).index('by_session_status', ['harnessSessionId', 'status']),
+
+  /**
+   * Per-machine capability snapshot: registered workspaces + per-workspace
+   * agent list from the running harness. Published by the daemon on startup
+   * and on harness boot. Upsert semantics (one row per machineId).
+   */
+  chatroom_machineRegistry: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    workspaces: v.array(
+      v.object({
+        workspaceId: v.string(),
+        cwd: v.string(),
+        name: v.string(),
+        agents: v.optional(v.array(v.any())),
+        harnesses: v.optional(
+          v.array(
+            v.object({
+              name: v.string(),
+              displayName: v.string(),
+              agents: v.array(
+                v.object({
+                  name: v.string(),
+                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                  model: v.optional(
+                    v.object({
+                      providerID: v.string(),
+                      modelID: v.string(),
+                    })
+                  ),
+                  description: v.optional(v.string()),
+                })
+              ),
+              providers: v.array(
+                v.object({
+                  providerID: v.string(),
+                  name: v.string(),
+                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+                })
+              ),
+              configSchema: v.optional(v.any()),
+            })
+          )
+        ),
+      })
+    ),
+  }).index('by_machineId', ['machineId']),
+
+  /**
+   * Commands issued by the web UI for the daemon to execute.
+   *
+   * Uses a tagged-union pattern: `type` discriminates the command kind, and
+   * a field matching the type name holds the type-specific payload (e.g.
+   * when type is 'refreshCapabilities', `refreshCapabilities` holds the
+   * payload). This keeps the schema extensible - new types add a new optional
+   * field without changing the existing structure.
+   *
+   * Indexed by (machineId, status) for daemon polling.
+   */
+  chatroom_directHarnessCommands: defineTable({
+    /** The machine (daemon) that should execute this command. */
+    machineId: v.string(),
+    /** Workspace context the command applies to. */
+    workspaceId: v.id('chatroom_workspaces'),
+    /** Discriminated union: selects the command kind. */
+    type: v.union(v.literal('refreshCapabilities'), v.literal('refreshSessionTitle')),
+    /** Payload for refreshCapabilities commands. */
+    refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
+    /** Payload for refreshSessionTitle commands. */
+    refreshSessionTitle: v.optional(v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('inProgress'),
+      v.literal('done'),
+      v.literal('failed')
+    ),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  }).index('by_machineId_status', ['machineId', 'status']),
 });

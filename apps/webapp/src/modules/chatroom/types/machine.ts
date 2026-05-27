@@ -12,30 +12,33 @@
  */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
+import type {
+  AgentHarness,
+  AgentStopReason,
+  HarnessVersionInfo,
+} from '@workspace/backend/src/domain/entities/agent';
 
-export type { AgentHarness, HarnessVersionInfo };
+export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
 
 export interface MachineInfo {
   machineId: string;
   hostname: string;
+  alias?: string;
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /** Available AI models discovered dynamically, keyed by harness name */
-  availableModels: Record<string, string[]>;
-  daemonConnected: boolean;
-  lastSeenAt: number;
+  // availableModels removed in v1.38.4 — now served via getMachineModels query / useMachineModels hook
 }
 
 export interface AgentConfig {
   machineId: string;
   hostname: string;
+  alias?: string;
   role: string;
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
-  daemonConnected: boolean;
+  daemonConnected?: boolean;
   availableHarnesses: AgentHarness[];
   updatedAt: number;
   spawnedAgentPid?: number;
@@ -52,6 +55,8 @@ export type SendCommandArgs =
         model?: string;
         agentHarness: AgentHarness;
         workingDir?: string;
+        /** Allows switching to a different machine when the role was already bound elsewhere. */
+        allowNewMachine?: boolean;
       };
     }
   | {
@@ -60,6 +65,7 @@ export type SendCommandArgs =
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
         role: string;
+        reason?: AgentStopReason;
       };
     }
   | {
@@ -96,6 +102,11 @@ export function getHarnessDisplayName(harness: string): string {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/** Returns the display name for a machine: alias if set, otherwise hostname. */
+export function getMachineDisplayName(machine: { hostname: string; alias?: string }): string {
+  return machine.alias || machine.hostname;
+}
 
 /**
  * Convert a hyphenated slug to an uppercase display label.

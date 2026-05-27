@@ -12,6 +12,7 @@ import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -22,6 +23,12 @@ export type { RegisterAgentDeps } from './deps.js';
 export interface RegisterAgentOptions {
   role: string;
   type: 'remote' | 'custom';
+  /**
+   * For `type: 'custom'` only — explicit opt-in to switch a role from a
+   * machine-bound (remote) config to custom. Required because the switch
+   * clears the existing machine binding.
+   */
+  allowTypeChange?: boolean;
 }
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
@@ -49,12 +56,12 @@ export async function registerAgent(
   deps?: RegisterAgentDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, type } = options;
+  const { role, type, allowTypeChange } = options;
 
   // Get session ID for authentication
-  const sessionId = d.session.getSessionId();
+  const sessionId = await d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = d.session.getOtherSessionUrls();
+    const otherUrls = await d.session.getOtherSessionUrls();
     const currentUrl = d.session.getConvexUrl();
 
     console.error(`❌ Not authenticated for: ${currentUrl}`);
@@ -112,19 +119,18 @@ export async function registerAgent(
     //
     // Machine registration + model discovery is owned by the daemon (`machine start`).
     // We only read the machineId from local config here.
-    const machineId = getMachineId();
+    const machineId = await getMachineId();
     if (!machineId) {
       console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
       process.exit(1);
     }
-    const config = loadMachineConfig();
+    const config = await loadMachineConfig();
 
     try {
-      await d.backend.mutation(api.machines.recordAgentRegistered, {
+      await d.backend.mutation(api.machines.recordRemoteAgentRegistered, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-        agentType: 'remote',
         machineId,
       });
     } catch {
@@ -135,18 +141,18 @@ export async function registerAgent(
     console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
     console.log(`   Working directory: ${process.cwd()}`);
   } else {
-    // Custom type: register without machine details
+    // Custom type: team config + agent.registered (via dedicated mutation)
     try {
-      await d.backend.mutation(api.machines.saveTeamAgentConfig, {
+      await d.backend.mutation(api.machines.recordCustomAgentRegistered, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-        type: 'custom',
+        allowTypeChange,
       });
 
       console.log(`✅ Registered as custom agent for role "${role}"`);
     } catch (error) {
-      console.error(`❌ Registration failed: ${(error as Error).message}`);
+      console.error(`❌ Registration failed: ${getErrorMessage(error)}`);
       process.exit(1);
     }
   }

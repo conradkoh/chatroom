@@ -15,12 +15,15 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { transitionAgentStatus } from './transition-agent-status';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import {
+  buildTeamRoleKey,
+  deleteStaleTeamAgentConfigs,
+} from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
-import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
-import { patchParticipantStatus } from '../../entities/participant';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,7 +50,7 @@ export interface StartAgentInput {
   /**
    * Human-readable reason for this start command.
    * Stored in the command record and logged by the daemon to aid tracing.
-   * Examples: 'user.start', 'user.restart', 'platform.ensure_agent'
+   * Examples: 'user.start', 'user.restart', 'platform.crash_recovery'
    */
   reason: AgentStartReason;
 }
@@ -104,6 +107,7 @@ export async function startAgent(
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
+    const previousMachineId = existingTeamConfig?.machineId;
 
     const teamConfigNow = Date.now();
     const teamConfig = {
@@ -131,6 +135,18 @@ export async function startAgent(
         createdAt: teamConfigNow,
       });
     }
+
+    if (previousMachineId != null && previousMachineId !== machineId) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'machine.switched',
+        chatroomId,
+        role,
+        previousMachineId,
+        newMachineId: machineId,
+        reason,
+        timestamp: teamConfigNow,
+      });
+    }
   }
 
   // ── Step 3: Write agent.requestStart event to stream ──────────────────
@@ -149,7 +165,7 @@ export async function startAgent(
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
-  await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
+  await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   return {
     agentHarness,

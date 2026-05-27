@@ -43,9 +43,9 @@ function createMockDeps(overrides?: Partial<HandoffDeps>): HandoffDeps {
       query: vi.fn().mockResolvedValue(true),
     },
     session: {
-      getSessionId: vi.fn().mockReturnValue(TEST_SESSION_ID),
+      getSessionId: vi.fn().mockResolvedValue(TEST_SESSION_ID),
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-      getOtherSessionUrls: vi.fn().mockReturnValue([]),
+      getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
@@ -97,9 +97,9 @@ describe('handoff', () => {
     it('exits with code 1 when not authenticated', async () => {
       const deps = createMockDeps({
         session: {
-          getSessionId: vi.fn().mockReturnValue(null),
+          getSessionId: vi.fn().mockResolvedValue(null),
           getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
-          getOtherSessionUrls: vi.fn().mockReturnValue([]),
+          getOtherSessionUrls: vi.fn().mockResolvedValue([]),
         },
       });
 
@@ -120,8 +120,9 @@ describe('handoff', () => {
       expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
-      expect(output).toContain('Task completed and handed off to builder');
-      expect(output).toContain('Task completed, handing off');
+      expect(output).toContain('Chatroom task completed and handed off to builder');
+      expect(output).toContain('Level B complete');
+      expect(output).toContain('Level A continues');
       expect(output).toContain('get-next-task');
     });
   });
@@ -168,7 +169,7 @@ describe('handoff', () => {
       expect(errOutput).toContain('• user');
       expect(errOutput).toContain('• planner');
       expect(errOutput).toContain('• builder');
-      expect(errOutput).toContain('Check your team\'s workflow');
+      expect(errOutput).toContain("Check your team's workflow");
     });
   });
 
@@ -197,6 +198,60 @@ describe('handoff', () => {
       await handoff(TEST_CHATROOM_ID, defaultOptions({ attachedArtifactIds: ['art_123'] }), deps);
 
       expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('workflow attachment', () => {
+    it('resolves workflow keys and passes attachedWorkflowIds to mutation', async () => {
+      const deps = createMockDeps();
+      const mockWorkflowId = 'wf_resolved_123';
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (_endpoint: unknown, args: Record<string, unknown>) => {
+          // resolveWorkflowId query
+          if (args && 'workflowKey' in args) {
+            return Promise.resolve({ workflowId: mockWorkflowId });
+          }
+          // validateArtifactIds or other queries
+          return Promise.resolve(true);
+        }
+      );
+
+      await handoff(
+        TEST_CHATROOM_ID,
+        defaultOptions({ attachedWorkflowKeys: ['my-workflow'] }),
+        deps
+      );
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      // The mutation should be called with attachedWorkflowIds
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          attachedWorkflowIds: [mockWorkflowId],
+        })
+      );
+    });
+
+    it('exits with code 1 when workflow key not found', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (_endpoint: unknown, args: Record<string, unknown>) => {
+          if (args && 'workflowKey' in args) {
+            return Promise.reject(new Error('Workflow not found'));
+          }
+          return Promise.resolve(true);
+        }
+      );
+
+      await handoff(
+        TEST_CHATROOM_ID,
+        defaultOptions({ attachedWorkflowKeys: ['nonexistent'] }),
+        deps
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      const errOutput = getAllErrorOutput();
+      expect(errOutput).toContain('not found');
     });
   });
 });

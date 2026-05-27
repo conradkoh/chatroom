@@ -31,12 +31,12 @@ function createDefaultDeps(): AuthLogoutDeps {
 export async function authLogout(deps?: AuthLogoutDeps): Promise<void> {
   const d = deps ?? createDefaultDeps();
 
-  if (!d.session.isAuthenticated()) {
+  if (!await d.session.isAuthenticated()) {
     console.log(`ℹ️  Not currently authenticated.`);
     return;
   }
 
-  const cleared = d.session.clearAuthData();
+  const cleared = await d.session.clearAuthData();
 
   if (cleared) {
     console.log(`✅ Logged out successfully.`);

@@ -1,0 +1,34 @@
+import { cn } from '@/lib/utils';
+
+import type { HarnessSessionStatus } from '@workspace/backend/src/domain/direct-harness/types';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type SessionStatus = HarnessSessionStatus;
+
+const STATUS_STYLES: Record<SessionStatus, { color: string; label: string }> = {
+  pending:  { color: 'bg-amber-500 dark:bg-amber-400', label: 'Pending' },
+  spawning: { color: 'bg-amber-500 dark:bg-amber-400 animate-pulse', label: 'Spawning' },
+  active:   { color: 'bg-emerald-500 dark:bg-emerald-400', label: 'Active' },
+  idle:     { color: 'bg-amber-400 dark:bg-amber-300 animate-pulse', label: 'Reconnecting' },
+  closed:   { color: 'bg-slate-400 dark:bg-slate-600', label: 'Closed' },
+  failed:   { color: 'bg-red-500 dark:bg-red-400', label: 'Failed' },
+};
+
+// ─── StatusDot ────────────────────────────────────────────────────────────────
+
+interface StatusDotProps {
+  status: SessionStatus;
+  className?: string;
+}
+
+export function StatusDot({ status, className }: StatusDotProps) {
+  const { color, label } = STATUS_STYLES[status];
+  return (
+    <span
+      className={cn('inline-block w-2 h-2 shrink-0', color, className)}
+      title={label}
+      aria-label={label}
+    />
+  );
+}

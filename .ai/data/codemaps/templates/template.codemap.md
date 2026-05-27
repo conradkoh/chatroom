@@ -114,7 +114,7 @@ Demonstrate the complete user journey for this specific flow
 // Copy actual interface definitions from the codebase with source file comments
 // From path/to/source/file.ts
 export interface Entity {
-  _id: Id<"tableName">;
+  _id: Id<'tableName'>;
   // Copy actual entity structure from code
 }
 

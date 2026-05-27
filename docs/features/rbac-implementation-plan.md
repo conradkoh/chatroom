@@ -11,20 +11,24 @@ This document outlines the plan to migrate from the current simple `accessLevel`
 ### Existing Implementation
 
 **Schema (`services/backend/convex/schema.ts`):**
+
 - Users have an optional `accessLevel` field: `'user' | 'system_admin'`
 - Default is `'user'` when undefined
 
 **Access Control (`services/backend/modules/auth/accessControl.ts`):**
+
 - `getAccessLevel(user)` - Returns user's access level (defaults to 'user')
 - `isSystemAdmin(user)` - Checks if user is system_admin
 - `hasAccessLevel(user, requiredLevel)` - Checks if user meets required level
 
 **Usage Locations:**
+
 - `AdminGuard.tsx` - Frontend component for admin-only pages
 - `system/auth/google.ts` - System admin endpoints for OAuth configuration
 - `AuthState.ts` - Includes `accessLevel` and `isSystemAdmin` in auth state
 
 ### Limitations of Current System
+
 1. Only two levels (binary admin/not-admin)
 2. No granular permissions (can't allow user to do X but not Y)
 3. Can't create custom roles
@@ -102,34 +106,36 @@ rbac_userRoles: defineTable({
 
 **System Roles (cannot be deleted):**
 
-| Role | Description | Permissions |
-|------|-------------|-------------|
-| `user` | Default role for all users | Basic access permissions |
-| `system_admin` | Full system access | All permissions (wildcard `*`) |
+| Role           | Description                | Permissions                    |
+| -------------- | -------------------------- | ------------------------------ |
+| `user`         | Default role for all users | Basic access permissions       |
+| `system_admin` | Full system access         | All permissions (wildcard `*`) |
 
 **Permission Categories:**
 
-| Resource | Permissions |
-|----------|-------------|
-| `users` | `users.read`, `users.write`, `users.delete`, `users.manage` |
-| `settings` | `settings.read`, `settings.write` |
-| `auth` | `auth.provider.read`, `auth.provider.write`, `auth.provider.manage` |
-| `attendance` | `attendance.read`, `attendance.write`, `attendance.manage` |
-| `presentation` | `presentation.read`, `presentation.write`, `presentation.manage` |
-| `discussion` | `discussion.read`, `discussion.write`, `discussion.manage` |
-| `checklist` | `checklist.read`, `checklist.write`, `checklist.manage` |
+| Resource       | Permissions                                                         |
+| -------------- | ------------------------------------------------------------------- |
+| `users`        | `users.read`, `users.write`, `users.delete`, `users.manage`         |
+| `settings`     | `settings.read`, `settings.write`                                   |
+| `auth`         | `auth.provider.read`, `auth.provider.write`, `auth.provider.manage` |
+| `attendance`   | `attendance.read`, `attendance.write`, `attendance.manage`          |
+| `presentation` | `presentation.read`, `presentation.write`, `presentation.manage`    |
+| `discussion`   | `discussion.read`, `discussion.write`, `discussion.manage`          |
+| `checklist`    | `checklist.read`, `checklist.write`, `checklist.manage`             |
 
 ### Permission Naming Convention
 
 Format: `{resource}.{action}`
 
 **Actions:**
+
 - `read` - View/list resources
 - `write` - Create/update resources
 - `delete` - Delete resources
 - `manage` - Full control including admin operations
 
 **Special Permissions:**
+
 - `*` - Wildcard, grants all permissions (system_admin only)
 - `{resource}.*` - All actions on a resource
 
@@ -142,6 +148,7 @@ Format: `{resource}.{action}`
 **Goal:** Add RBAC tables and utilities without breaking existing functionality.
 
 **Tasks:**
+
 1. Add new RBAC tables to schema
 2. Create RBAC module with core utilities:
    - `hasPermission(user, permission)` - Check if user has permission
@@ -151,6 +158,7 @@ Format: `{resource}.{action}`
 4. Maintain backward compatibility with `isSystemAdmin`
 
 **Files to Create:**
+
 - `services/backend/modules/rbac/permissions.ts` - Permission checking
 - `services/backend/modules/rbac/roles.ts` - Role management
 - `services/backend/modules/rbac/types.ts` - RBAC types
@@ -161,6 +169,7 @@ Format: `{resource}.{action}`
 **Goal:** Migrate existing users to RBAC system.
 
 **Tasks:**
+
 1. Create migration to assign roles based on current `accessLevel`:
    - `accessLevel: 'user'` → assign `user` role
    - `accessLevel: 'system_admin'` → assign `system_admin` role
@@ -172,6 +181,7 @@ Format: `{resource}.{action}`
 **Goal:** Replace `accessLevel` checks with permission checks.
 
 **Tasks:**
+
 1. Update backend endpoints to use `hasPermission()`
 2. Update `AdminGuard` to check for specific permissions
 3. Create frontend permission utilities
@@ -182,6 +192,7 @@ Format: `{resource}.{action}`
 **Goal:** Allow admins to manage roles and permissions.
 
 **Tasks:**
+
 1. Create admin UI for role management
 2. Create admin UI for user-role assignment
 3. Create admin UI for custom role creation
@@ -235,10 +246,10 @@ export const updateUserSettings = mutation({
   args: { ...SessionIdArg, settings: v.object({...}) },
   handler: async (ctx, args) => {
     const user = await getAuthUser(ctx, args);
-    
+
     // Throws if user lacks permission
     await requirePermission(ctx, user, 'settings.write');
-    
+
     // ... rest of handler
   },
 });
@@ -252,11 +263,11 @@ import { useHasPermission } from '@/modules/auth/permissions';
 
 function AdminSettings() {
   const canWriteSettings = useHasPermission('settings.write');
-  
+
   if (!canWriteSettings) {
     return <AccessDenied />;
   }
-  
+
   return <SettingsForm />;
 }
 ```
@@ -332,29 +343,29 @@ const INITIAL_PERMISSIONS = [
   { name: 'users.write', resource: 'users', action: 'write' },
   { name: 'users.delete', resource: 'users', action: 'delete' },
   { name: 'users.manage', resource: 'users', action: 'manage' },
-  
+
   // Auth provider configuration
   { name: 'auth.provider.read', resource: 'auth', action: 'read' },
   { name: 'auth.provider.write', resource: 'auth', action: 'write' },
   { name: 'auth.provider.manage', resource: 'auth', action: 'manage' },
-  
+
   // System settings
   { name: 'settings.read', resource: 'settings', action: 'read' },
   { name: 'settings.write', resource: 'settings', action: 'write' },
-  
+
   // Feature-specific permissions
   { name: 'attendance.read', resource: 'attendance', action: 'read' },
   { name: 'attendance.write', resource: 'attendance', action: 'write' },
   { name: 'attendance.manage', resource: 'attendance', action: 'manage' },
-  
+
   { name: 'presentation.read', resource: 'presentation', action: 'read' },
   { name: 'presentation.write', resource: 'presentation', action: 'write' },
   { name: 'presentation.manage', resource: 'presentation', action: 'manage' },
-  
+
   { name: 'discussion.read', resource: 'discussion', action: 'read' },
   { name: 'discussion.write', resource: 'discussion', action: 'write' },
   { name: 'discussion.manage', resource: 'discussion', action: 'manage' },
-  
+
   { name: 'checklist.read', resource: 'checklist', action: 'read' },
   { name: 'checklist.write', resource: 'checklist', action: 'write' },
   { name: 'checklist.manage', resource: 'checklist', action: 'manage' },

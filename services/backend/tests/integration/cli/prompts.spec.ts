@@ -7,12 +7,12 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
+import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
 import { reportProgressCommand } from '../../../prompts/cli/report-progress/command';
 import { getTaskStartedPrompt } from '../../../prompts/cli/task-started/main-prompt';
-import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
-import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
@@ -163,7 +163,7 @@ describe('Available Actions (Task Delivery)', () => {
 });
 
 describe('Task Classification Prompt', () => {
-  test('generates concise Classify Task format with all classification types', () => {
+  test('generates concise Classify message format with all classification types', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'test-chatroom-456',
@@ -171,8 +171,8 @@ describe('Task Classification Prompt', () => {
       cliEnvPrefix,
     });
 
-    // Should have Classify Task header
-    expect(prompt).toContain('### Classify Task');
+    // Should have Classify message header
+    expect(prompt).toContain('### Classify message');
 
     // Should have all three classification types
     expect(prompt).toContain('#### Question');
@@ -189,7 +189,7 @@ describe('Task Classification Prompt', () => {
     });
 
     // All commands should have the env prefix
-    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started');
+    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify');
   });
 
   test('new_feature command uses EOF format for metadata', () => {

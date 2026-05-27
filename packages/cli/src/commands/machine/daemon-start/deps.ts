@@ -7,7 +7,7 @@
  * Shared interfaces (BackendOps, ProcessOps, ClockOps, FsOps) are imported
  * from infrastructure/deps/ for reuse across other commands.
  *
- * Domain-specific interfaces (IntentionalStopOps, MachineStateOps)
+ * Domain-specific interfaces (MachineStateOps)
  * live here because they are specific to the daemon command module.
  */
 
@@ -18,29 +18,18 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
+import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { SpawnOptions } from '../../../infrastructure/services/harness-spawning/harness-spawning-service.js';
+import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
-
-/**
- * Intentional stop tracking — marks/consumes stops to distinguish
- * intentional stops from crashes.
- */
-export interface IntentionalStopOps {
-  /** Mark an agent as being stopped with the given reason (default: user.stop) */
-  mark: (chatroomId: string, role: string, reason?: StopReason) => void;
-  /** Consume the pending stop reason. Returns reason if found, null if unexpected exit. */
-  consume: (chatroomId: string, role: string) => StopReason | null;
-  /** Clear the marker without consuming (on failure cleanup) */
-  clear: (chatroomId: string, role: string) => void;
-}
 
 /**
  * Local machine state operations — PID persistence, agent context.
  */
 export interface MachineStateOps {
   /** Clear an agent's PID from local state */
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
+  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
   /** Persist a spawned agent's PID for restart recovery */
   persistAgentPid: (
     machineId: string,
@@ -48,15 +37,15 @@ export interface MachineStateOps {
     role: string,
     pid: number,
     harness: AgentHarness
-  ) => void;
+  ) => Promise<void>;
   /** List all persisted agent entries for a machine */
   listAgentEntries: (
     machineId: string
-  ) => { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[];
+  ) => Promise<{ chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]>;
   /** Persist the event stream cursor (last processed event ID) */
-  persistEventCursor: (machineId: string, lastSeenEventId: string) => void;
+  persistEventCursor: (machineId: string, lastSeenEventId: string) => Promise<void>;
   /** Load the event stream cursor from persisted state. Returns null if absent. */
-  loadEventCursor: (machineId: string) => string | null;
+  loadEventCursor: (machineId: string) => Promise<string | null>;
 }
 
 // ─── Per-Handler Dep Interfaces ─────────────────────────────────────────────
@@ -66,7 +55,6 @@ export interface StartAgentDeps {
   backend: BackendOps;
   fs: FsOps;
   machine: Pick<MachineStateOps, 'persistAgentPid' | 'listAgentEntries'>;
-  stops: Pick<IntentionalStopOps, 'consume'>;
 }
 
 /** Dependencies for handleStopAgent */
@@ -74,13 +62,25 @@ export interface StopAgentDeps {
   backend: BackendOps;
   processes: ProcessOps;
   machine: Pick<MachineStateOps, 'clearAgentPid' | 'listAgentEntries'>;
-  stops: Pick<IntentionalStopOps, 'mark' | 'clear'>;
 }
 
 /** Dependencies for recoverAgentState */
 export interface StateRecoveryDeps {
   backend: BackendOps;
   machine: Pick<MachineStateOps, 'listAgentEntries' | 'clearAgentPid'>;
+}
+
+// ─── Spawning Interface ─────────────────────────────────────────────────────
+
+/**
+ * Structural interface for the spawning service, so tests can provide plain
+ * mock objects without having to satisfy private class members.
+ */
+export interface SpawningOps {
+  shouldAllowSpawn(chatroomId: string, reason: string, options?: SpawnOptions): TryConsumeResult;
+  recordSpawn(chatroomId: string): void;
+  recordExit(chatroomId: string): void;
+  getConcurrentCount(chatroomId: string): number;
 }
 
 // ─── Aggregated DaemonDeps ──────────────────────────────────────────────────
@@ -98,7 +98,8 @@ export interface DaemonDeps {
   backend: BackendOps;
   processes: ProcessOps;
   fs: FsOps;
-  stops: IntentionalStopOps;
   machine: MachineStateOps;
   clock: ClockOps;
+  spawning: SpawningOps;
+  agentProcessManager: AgentProcessManager;
 }

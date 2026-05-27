@@ -1,7 +1,7 @@
 'use client';
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 
 import type { Theme } from './theme-utils';
 
@@ -82,25 +82,26 @@ const themeScript = `
   // listen to updates from the system
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   mediaQuery.addEventListener('change', window.__theme.onThemeChange);
+
+  // Re-apply theme when page becomes visible again (e.g., after mobile background)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.__theme.onThemeChange();
+    }
+  });
 })();
 `;
 
 export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) {
   // Custom attribute to use for theme application
   const attribute = targetSelector ? 'data-theme' : 'class';
-  // Only render the provider client-side to avoid hydration mismatch
-  const [mounted, setMounted] = useState(false);
-  const [theme, _setTheme] = useState<Theme | null>(null);
+  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [theme, _setTheme] = useState<Theme | null>(() =>
+    typeof window !== 'undefined' ? window.__theme.value : null
+  );
   const setTheme = useCallback((theme: Theme) => {
     _setTheme(theme);
     window.__theme.setTheme(theme);
-  }, []);
-
-  useEffect(() => {
-    // Set mounted state to indicate hydration is complete
-    setMounted(true);
-    // Sync the theme from the window object to the react state
-    _setTheme(window.__theme.value);
   }, []);
 
   // We need to use this component pattern for hydration safety

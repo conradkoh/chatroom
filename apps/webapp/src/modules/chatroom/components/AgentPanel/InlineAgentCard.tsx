@@ -1,40 +1,45 @@
 'use client';
 
-import React, { memo, useState, useMemo } from 'react';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
+import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
-import { AgentStatusRow } from './AgentStatusRow';
-import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentControlsSection } from './AgentControlsSection';
-import { getDaemonStartCommand } from '@/lib/environment';
+import { AgentRestartStatsModal } from './AgentRestartStatsModal';
+import { AgentStatusRow } from './AgentStatusRow';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
+
+import { getDaemonStartCommand } from '@/lib/environment';
+
+import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
-/** Resolves machine hostname from connected machines by machineId. */
+/** Resolves machine display name (alias or hostname) from connected machines by machineId. */
 export function resolveMachineHostname(
   machineId: string | undefined,
   connectedMachines: MachineInfo[]
 ): string | undefined {
   if (!machineId) return undefined;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
-  return machine?.hostname;
+  return machine ? getMachineDisplayName(machine) : undefined;
 }
 
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
 
 export interface InlineAgentCardProps {
   role: string;
+  /** All agent roles in the workspace (for shared restart stats modal). */
+  allRoles: string[];
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
@@ -53,11 +58,17 @@ export interface InlineAgentCardProps {
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — persists preference to backend */
   onSavePreference?: (pref: AgentPreference) => void;
+  /** Pre-fetched restart summary from parent batch query.
+   * When provided, InlineAgentCard skips its own per-card subscription.
+   * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
+   */
+  restartSummary?: { count3h: number; count3d: number } | null;
 }
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
 export const InlineAgentCard = memo(function InlineAgentCard({
   role,
+  allRoles,
   online,
   lastSeenAt,
   latestEventType,
@@ -72,7 +83,11 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   agentRoleView,
   agentPreference,
   onSavePreference,
+  restartSummary: restartSummaryProp,
 }: InlineAgentCardProps) {
+  const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
+    useChatroomWorkspaces(chatroomId);
+
   const controls = useAgentControls({
     role,
     chatroomId,
@@ -83,7 +98,18 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigHarness: agentRoleView?.agentHarness,
     agentPreference,
     onSavePreference,
+    teamConfigMachineId: agentRoleView?.machineId,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
   });
+
+  const linkedMachineIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const ws of chatroomWorkspaces) {
+      if (ws.machineId) s.add(ws.machineId);
+    }
+    return s;
+  }, [chatroomWorkspaces]);
 
   const daemonStartCommand = getDaemonStartCommand();
 
@@ -104,15 +130,25 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   const [statsOpen, setStatsOpen] = useState(false);
 
-  // Always fetch restart stats by chatroom+role (aggregated across all machines) so the
-  // metrics section is always visible regardless of whether a machine config exists.
-  const restartSummary = useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-  });
+  // Always call the hook (Rules of Hooks), but skip the subscription when
+  // a pre-fetched restart summary is provided by the parent batch query.
+  const ownRestartSummary = useSessionQuery(
+    api.machines.getAgentRestartSummaryByRole,
+    restartSummaryProp != null
+      ? 'skip'
+      : {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        }
+  );
+  const restartSummary = restartSummaryProp ?? ownRestartSummary;
 
   return (
-    <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
+    <div
+      className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3"
+      /* Force WebKit compositing layer flush to prevent Safari ghost rendering */
+      style={{ backfaceVisibility: 'hidden' }}
+    >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
         {/* Status row at top — extra breathing room below */}
@@ -132,8 +168,10 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           connectedMachines={connectedMachines}
           isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
+          chatroomId={chatroomId}
           role={role}
           prompt={prompt}
+          linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
         />
 
@@ -145,11 +183,15 @@ export const InlineAgentCard = memo(function InlineAgentCard({
                 Restarts
               </span>
               <span className="text-[10px] text-chatroom-text-secondary">
-                <span className="font-bold text-chatroom-text-primary">{restartSummary.count1h}</span>
-                <span className="text-chatroom-text-muted"> in 1h</span>
+                <span className="font-bold text-chatroom-text-primary">
+                  {restartSummary.count3h}
+                </span>
+                <span className="text-chatroom-text-muted"> in 3h</span>
                 <span className="mx-1.5 text-chatroom-border-strong">·</span>
-                <span className="font-bold text-chatroom-text-primary">{restartSummary.count24h}</span>
-                <span className="text-chatroom-text-muted"> in 24h</span>
+                <span className="font-bold text-chatroom-text-primary">
+                  {restartSummary.count3d}
+                </span>
+                <span className="text-chatroom-text-muted"> in 3d</span>
               </span>
               {statsMachineId && (
                 <button
@@ -166,10 +208,15 @@ export const InlineAgentCard = memo(function InlineAgentCard({
               <AgentRestartStatsModal
                 isOpen={statsOpen}
                 onClose={() => setStatsOpen(false)}
-                role={role}
+                roles={allRoles}
+                defaultRole={role}
                 machineId={statsMachineId}
-                workingDir={agentRoleView?.workingDir ?? ''}
                 chatroomId={chatroomId}
+                defaultModel={
+                  agentRoleView?.agentHarness && agentRoleView?.model
+                    ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
+                    : undefined
+                }
               />
             )}
           </>

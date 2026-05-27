@@ -4,10 +4,22 @@
 
 import { stat } from 'node:fs/promises';
 
+import { Effect } from 'effect';
+import { featureFlags } from '@workspace/backend/config/featureFlags.js';
+import type { ConvexHttpClient } from 'convex/browser';
+
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
+import type { DaemonContext, SessionId } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -17,24 +29,26 @@ import {
   persistEventCursor,
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
+import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
-  markIntentionalStop,
-  consumeIntentionalStop,
-  clearIntentionalStop,
-} from '../../../infrastructure/machine/intentional-stops.js';
+  SpawnRateLimiter,
+  HarnessSpawningService,
+} from '../../../infrastructure/services/harness-spawning/index.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import type { DaemonDeps } from './deps.js';
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
-import type { DaemonContext, SessionId } from './types.js';
-import { formatTimestamp } from './utils.js';
+import { reapOrphanedProcessGroups } from './handlers/orphan-tracker.js';
+import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
+
+// ─── Private Helpers ────────────────────────────────────────────────────────
+
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
@@ -44,17 +58,46 @@ import { formatTimestamp } from './utils.js';
 export async function discoverModels(
   agentServices: Map<string, RemoteAgentService>
 ): Promise<Record<string, string[]>> {
-  const results: Record<string, string[]> = {};
-  for (const [harness, service] of agentServices) {
-    if (service.isInstalled()) {
-      try {
-        results[harness] = await service.listModels();
-      } catch {
-        results[harness] = [];
-      }
+  const discoverOne = ([harness, service]: [string, RemoteAgentService]) =>
+    Effect.promise(() => service.isInstalled()).pipe(
+      Effect.flatMap((installed) => {
+        if (!installed) {
+          return Effect.succeed(undefined);
+        }
+
+        return Effect.tryPromise({
+          try: () => service.listModels(),
+          catch: (reason) => reason,
+        }).pipe(
+          Effect.map((models) => ({ harness, models })),
+          Effect.catchAll((reason) => {
+            console.warn(
+              JSON.stringify({
+                event: 'discover-models-error',
+                harness,
+                reason: getErrorMessage(reason),
+              })
+            );
+            return Effect.succeed({ harness, models: [] as string[] });
+          })
+        );
+      })
+    );
+
+  const results = await Effect.runPromise(
+    Effect.forEach(Array.from(agentServices.entries()), discoverOne, {
+      concurrency: 'unbounded',
+    })
+  );
+
+  const discovered: Record<string, string[]> = {};
+  for (const result of results) {
+    if (result) {
+      discovered[result.harness] = result.models;
     }
   }
-  return results;
+
+  return discovered;
 }
 
 // ─── Default Dependencies ───────────────────────────────────────────────────
@@ -80,11 +123,6 @@ export function createDefaultDeps(): DaemonDeps {
     fs: {
       stat,
     },
-    stops: {
-      mark: markIntentionalStop,
-      consume: consumeIntentionalStop,
-      clear: clearIntentionalStop,
-    },
     machine: {
       clearAgentPid,
       persistAgentPid,
@@ -96,69 +134,110 @@ export function createDefaultDeps(): DaemonDeps {
       now: () => Date.now(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     },
+    spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
+    // Placeholder — initDaemon() creates the real instance after context is assembled.
+    agentProcessManager: null as unknown as AgentProcessManager,
   };
 }
 
-// ─── Private Helpers ────────────────────────────────────────────────────────
+/** How often (ms) to poll for auth file changes when waiting for login. */
+const AUTH_POLL_INTERVAL_MS = 2000;
+/** Maximum time (ms) to wait for authentication before giving up. */
+const AUTH_WAIT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-import type { ConvexHttpClient } from 'convex/browser';
-import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+/**
+ * Wait for authentication credentials to appear.
+ * Polls the auth file every 2 seconds until a valid session ID is found
+ * or the timeout (5 minutes) is reached.
+ */
+async function waitForAuthentication(convexUrl: string): Promise<string> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < AUTH_WAIT_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, AUTH_POLL_INTERVAL_MS));
+    const sessionId = await getSessionId();
+    if (sessionId) {
+      console.log(`\n✅ Authentication detected. Resuming daemon initialization...`);
+      return sessionId;
+    }
+  }
+  // Timeout reached
+  console.error(`\n❌ Authentication timeout (5 minutes). Exiting.`);
+  releaseLock();
+  process.exit(1);
+}
 
 /**
  * Validate that the user is authenticated for the current Convex deployment.
- * Returns the session ID if valid, or exits the process with an error.
+ * Returns the session ID if valid, or waits for the user to authenticate.
  */
-function validateAuthentication(convexUrl: string): string {
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
-
-    console.error(`❌ Not authenticated for: ${convexUrl}`);
-
-    if (otherUrls.length > 0) {
-      console.error(`\n💡 You have sessions for other environments:`);
-      for (const url of otherUrls) {
-        console.error(`   • ${url}`);
-      }
-    }
-
-    console.error(`\nRun: chatroom auth login`);
-    releaseLock();
-    process.exit(1);
+async function validateAuthentication(convexUrl: string): Promise<string> {
+  const sessionId = await getSessionId();
+  if (sessionId) {
+    return sessionId;
   }
-  return sessionId;
+
+  const otherUrls = await getOtherSessionUrls();
+  console.error(`❌ Not authenticated for: ${convexUrl}`);
+
+  if (otherUrls.length > 0) {
+    console.error(`\n💡 You have sessions for other environments:`);
+    for (const url of otherUrls) {
+      console.error(`   • ${url}`);
+    }
+  }
+
+  console.error(`\nRun: chatroom auth login`);
+  console.log(`\n⏳ Waiting for authentication (timeout: 5 minutes)...`);
+  return waitForAuthentication(convexUrl);
 }
 
 /**
  * Validate the session with the backend to catch expired/revoked tokens early.
- * Exits the process if validation fails.
+ * If the session is invalid, waits for the user to re-authenticate.
  */
 async function validateSession(
   client: ConvexHttpClient,
   sessionId: SessionId,
   convexUrl: string
-): Promise<void> {
+): Promise<SessionId> {
   const validation = await client.query(api.cliAuth.validateSession, { sessionId });
-  if (!validation.valid) {
-    console.error(`❌ Session invalid: ${validation.reason}`);
-    console.error(`\nRun: chatroom auth login`);
+  if (validation.valid) {
+    return sessionId;
+  }
+
+  console.error(`❌ Session invalid: ${validation.reason}`);
+  console.error(`\nRun: chatroom auth login`);
+  console.log(`\n⏳ Waiting for re-authentication (timeout: 5 minutes)...`);
+
+  // Wait for new auth credentials, then re-validate
+  const newSessionId = await waitForAuthentication(convexUrl);
+  const typedNewSession: SessionId = newSessionId;
+
+  // Validate the new session
+  const revalidation = await client.query(api.cliAuth.validateSession, {
+    sessionId: typedNewSession,
+  });
+  if (!revalidation.valid) {
+    console.error(`❌ New session is also invalid: ${revalidation.reason}`);
     releaseLock();
     process.exit(1);
   }
+
+  return typedNewSession;
 }
 
 /**
  * Register machine (or refresh harness detection if already registered).
  * Returns the full machine config (guaranteed non-null).
  */
-function setupMachine(): MachineConfig {
-  // ensureMachineRegistered() creates a new machine ID on first run and always
-  // re-detects available harnesses live — so `chatroom machine start` is fully
-  // self-contained: no prior `auth status` or `register-agent` step required.
-  ensureMachineRegistered();
+async function setupMachine(): Promise<MachineConfig> {
+  // Daemon bootstrap is the only path that may mint a new machine ID for this endpoint.
+  // Mid-session callers use ensureMachineRegistered() without allowCreate so a missing
+  // ~/.chatroom config surfaces as an explicit error instead of a silent UUID.
+  await ensureMachineRegistered({ allowCreate: true });
 
-  // Load the full machine config (guaranteed non-null after ensureMachineRegistered())
-  const config = loadMachineConfig()!;
+  // Load the full machine config (guaranteed non-null after ensureMachineRegistered)
+  const config = (await loadMachineConfig())!;
   return config;
 }
 
@@ -192,7 +271,7 @@ async function registerCapabilities(
     });
   } catch (error) {
     // Registration failure is non-critical — daemon can still work
-    console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
+    console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
   }
 
   return availableModels;
@@ -200,7 +279,7 @@ async function registerCapabilities(
 
 /**
  * Connect the daemon to the backend by updating daemon status.
- * Exits the process on failure.
+ * Throws on failure (caller handles retry).
  */
 async function connectDaemon(
   client: ConvexHttpClient,
@@ -216,12 +295,14 @@ async function connectDaemon(
     });
   } catch (error) {
     if (isNetworkError(error)) {
-      formatConnectivityError(error, convexUrl);
+      // Do NOT log here — the caller (initDaemon retry loop) owns failure logging
+      // so it can suppress the verbose block after the first occurrence.
+      throw error; // Re-throw for caller retry logic
     } else {
-      console.error(`❌ Failed to update daemon status: ${(error as Error).message}`);
+      console.error(`❌ Failed to update daemon status: ${getErrorMessage(error)}`);
+      releaseLock();
+      process.exit(1);
     }
-    releaseLock();
-    process.exit(1);
   }
 }
 
@@ -249,16 +330,58 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   try {
     await recoverAgentState(ctx);
   } catch (e) {
-    console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
+    console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
     console.log(`   Continuing with fresh state`);
   }
+
+  // Clear all stale spawnedAgentPid values for this machine.
+  // Since the daemon just started, no agents are running yet — any PIDs in the
+  // backend are stale from before the restart and must be cleared to prevent
+  // the UI from showing dead agents as "running" or "starting".
+  try {
+    const result = await ctx.deps.backend.mutation(api.machines.clearAllSpawnedPids, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    if (result.clearedCount > 0) {
+      console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
+  }
+
+  // Reap any pending/running command runs left from before the restart.
+  // Since the daemon just started, no command processes are running — any run
+  // in 'pending' or 'running' state is an orphan from the previous daemon process
+  // and must be marked as 'killed' with terminationReason='daemon-restart' so the
+  // UI correctly labels them rather than showing them as 'replaced' when the user
+  // next triggers a run for the same command.
+  try {
+    const runResult = await ctx.deps.backend.mutation(api.commands.reapOrphansForDaemonRestart, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    if (runResult.reapedCount > 0) {
+      console.log(
+        `   🧹 Reaped ${runResult.reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
+      );
+    }
+  } catch (e) {
+    console.warn(`   ⚠️  Failed to reap orphan command runs: ${getErrorMessage(e)}`);
+  }
 }
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
+export const CONNECTION_RETRY_INTERVAL_MS = 10_000;
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 /**
  * Initialize the daemon: validate auth, connect to Convex, recover state.
- * Returns the DaemonContext if successful, or exits the process on failure.
+ * Retries with a fixed 1-second interval on network errors.
+ * Returns the DaemonContext if successful, or exits the process on fatal failure.
  */
 export async function initDaemon(): Promise<DaemonContext> {
   // Acquire lock (prevents multiple daemons)
@@ -266,48 +389,133 @@ export async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
+  // Reap any process groups left over from a previous ungraceful exit (SIGKILL/crash).
+  // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
+  const { reaped } = await reapOrphanedProcessGroups();
+  if (reaped > 0) {
+    console.log(
+      `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
+    );
+  }
+
+  // Clean up orphaned temp files from previous daemon runs.
+  // Daemon writes command output to os.tmpdir()/chatroom-cli/runs/<runId>.log
+  // during execution; on crash/kill, the files aren't cleaned up. Stale temp
+  // files are unrecoverable (the process is gone) — acceptable.
+  await cleanOrphanTempFiles();
+
+  // Single source of truth for backend URL at daemon boot — same value is passed to
+  // AgentProcessManager as convexUrl and forwarded to spawned agents as CHATROOM_CONVEX_URL.
   const convexUrl = getConvexUrl();
-  const sessionId = validateAuthentication(convexUrl);
+  const sessionId = await validateAuthentication(convexUrl);
   const client = await getConvexClient();
 
   // SessionId is validated above as non-null. Cast once at the boundary
   // between our storage format and Convex's branded type system.
-  const typedSessionId: SessionId = sessionId;
+  let typedSessionId: SessionId = sessionId;
 
-  await validateSession(client, typedSessionId, convexUrl);
+  // Counts consecutive backend-availability failures for log-dedup logic.
+  // Reset to 0 on every successful connectDaemon call.
+  let consecutiveFailures = 0;
 
-  const config = setupMachine();
-  const { machineId } = config;
+  // Retry loop for network errors — waits 10s between attempts
+  while (true) {
+    try {
+      typedSessionId = await validateSession(client, typedSessionId, convexUrl);
 
-  // Populate harness registry and build service map from it
-  initHarnessRegistry();
-  const agentServices = new Map<string, RemoteAgentService>(
-    getAllHarnesses().map((s) => [s.id, s])
-  );
+      const config = await setupMachine();
+      const { machineId } = config;
 
-  const availableModels = await registerCapabilities(client, typedSessionId, config, agentServices);
-  await connectDaemon(client, typedSessionId, machineId, convexUrl);
+      // Populate harness registry and build service map from it
+      initHarnessRegistry();
+      const agentServices = new Map<string, RemoteAgentService>(
+        getAllHarnesses().map((s) => [s.id, s])
+      );
 
-  // Create default dependencies and bind the real Convex client
-  const deps = createDefaultDeps();
-  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
-  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+      const availableModels = await registerCapabilities(
+        client,
+        typedSessionId,
+        config,
+        agentServices
+      );
+      await connectDaemon(client, typedSessionId, machineId, convexUrl);
 
-  const events = new DaemonEventBus();
-  const ctx: DaemonContext = {
-    client,
-    sessionId: typedSessionId,
-    machineId,
-    config,
-    deps,
-    events,
-    agentServices,
-  };
+      // Log recovery if the backend was previously unreachable.
+      if (consecutiveFailures > 0) {
+        console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
+        consecutiveFailures = 0;
+      }
 
-  registerEventListeners(ctx);
+      // Create default dependencies and bind the real Convex client
+      const deps = createDefaultDeps();
+      deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+      deps.backend.query = (endpoint, args) => client.query(endpoint, args);
 
-  logStartup(ctx, availableModels);
-  await recoverState(ctx);
+      // Create the AgentProcessManager with all required dependencies
+      deps.agentProcessManager = new AgentProcessManager({
+        agentServices,
+        backend: deps.backend,
+        sessionId: typedSessionId,
+        machineId,
+        processes: deps.processes,
+        clock: deps.clock,
+        fs: deps.fs,
+        persistence: deps.machine,
+        spawning: deps.spawning,
+        crashLoop: new CrashLoopTracker(),
+        convexUrl,
+      });
 
-  return ctx;
+      const events = new DaemonEventBus();
+      const ctx: DaemonContext = {
+        client,
+        sessionId: typedSessionId,
+        machineId,
+        config,
+        deps,
+        events,
+        agentServices,
+        lastPushedGitState: new Map(),
+        // Seed with the snapshot pushed by registerCapabilities() during startup
+        // so the first refreshModels tick correctly detects "no change" instead
+        // of always re-pushing the same set on the first run.
+        lastPushedModels: availableModels,
+        lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
+          config.availableHarnesses,
+          config.harnessVersions as Record<string, unknown>
+        ),
+        observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
+        logger: console,
+      };
+
+      registerEventListeners(ctx);
+
+      logStartup(ctx, availableModels);
+      await recoverState(ctx);
+
+      return ctx;
+    } catch (error) {
+      if (isNetworkError(error)) {
+        consecutiveFailures++;
+        const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
+        if (consecutiveFailures === 1) {
+          // First failure — emit the full guidance block so the user knows what to check.
+          formatConnectivityError(error, convexUrl);
+          console.log(
+            `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying every ${retrySec}s...`
+          );
+        } else {
+          // Subsequent failures — a single concise line to avoid log spam.
+          console.log(
+            `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${consecutiveFailures}, retrying in ${retrySec}s)`
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS));
+        // Continue the loop to retry
+      } else {
+        // Non-network error — propagate (will crash the process)
+        throw error;
+      }
+    }
+  }
 }

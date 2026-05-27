@@ -9,9 +9,10 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { transitionAgentStatus } from './transition-agent-status';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,17 @@ export async function ensureOnlyAgentForRole(
       reason: 'platform.dedup',
       deadline: now + AGENT_REQUEST_DEADLINE_MS,
       timestamp: now,
+      pid: config.spawnedAgentPid ?? undefined,
     });
+
+    // Eagerly clear spawn state and mark as stopped so the UI reflects the
+    // stop immediately rather than waiting for the daemon to confirm.
+    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+      desiredState: 'stopped',
+      spawnedAgentPid: undefined,
+      spawnedAt: undefined,
+    });
+
+    await transitionAgentStatus(ctx, chatroomId, role, 'agent.exited', 'stopped');
   }
 }

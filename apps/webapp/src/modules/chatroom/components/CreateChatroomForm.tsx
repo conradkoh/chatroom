@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 import {
   Select,
@@ -11,52 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-interface TeamsConfig {
-  defaultTeam: string;
-  teams: Record<string, TeamDefinition>;
-}
+import { useTeamConfigs } from '../hooks/use-team-configs';
 
 interface CreateChatroomFormProps {
   onCreated: (chatroomId: string) => void;
   onCancel: () => void;
 }
 
-// Default teams configuration (matching the CLI defaults)
-const DEFAULT_TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'duo',
-  teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
-    },
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair, planner as coordinator',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
-
 export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormProps) {
-  const [config] = useState<TeamsConfig>(DEFAULT_TEAMS_CONFIG);
-  const [selectedTeam, setSelectedTeam] = useState<string>(DEFAULT_TEAMS_CONFIG.defaultTeam);
+  const { teams, defaultTeamId, getById } = useTeamConfigs();
+  const [selectedTeam, setSelectedTeam] = useState<string>(defaultTeamId);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +29,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   const handleCreate = useCallback(async () => {
     if (!selectedTeam) return;
 
-    const team = config.teams[selectedTeam];
+    const team = getById(selectedTeam);
     if (!team) return;
 
     setCreating(true);
@@ -86,9 +50,33 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
     } finally {
       setCreating(false);
     }
-  }, [selectedTeam, config.teams, createChatroom, onCreated]);
+  }, [selectedTeam, getById, createChatroom, onCreated]);
 
-  const selectedTeamData = config.teams[selectedTeam];
+  const selectedTeamData = getById(selectedTeam);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
+
+  // Close form on Escape key (Radix Select handles Escape internally when open)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
+  // Submit form on Enter key when select dropdown is not open
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !isSelectOpen && selectedTeam && !creating) {
+        e.preventDefault();
+        handleCreate();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSelectOpen, selectedTeam, creating, handleCreate]);
 
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-2 border-chatroom-border-strong w-full max-w-md mx-auto">
@@ -103,21 +91,34 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
       </div>
 
       {/* Body */}
-      <div className="p-6 flex flex-col gap-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (selectedTeam && !creating) {
+            handleCreate();
+          }
+        }}
+        className="flex flex-col gap-4 p-6"
+      >
         {/* Form Field */}
         <div className="flex flex-col gap-2">
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Team
           </label>
-          <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+          <Select
+            value={selectedTeam}
+            onValueChange={setSelectedTeam}
+            open={isSelectOpen}
+            onOpenChange={setIsSelectOpen}
+          >
             <SelectTrigger className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none">
-              {Object.entries(config.teams).map(([id, team]) => (
+              {teams.map((team) => (
                 <SelectItem
-                  key={id}
-                  value={id}
+                  key={team.id}
+                  value={team.id}
                   className="text-sm text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none"
                 >
                   {team.name}
@@ -152,25 +153,26 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
             <span>{error}</span>
           </div>
         )}
-      </div>
 
-      {/* Actions */}
-      <div className="p-6 border-t-2 border-chatroom-border flex justify-end gap-3">
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={onCancel}
-          disabled={creating}
-        >
-          Cancel
-        </button>
-        <button
-          className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleCreate}
-          disabled={creating || !selectedTeam}
-        >
-          {creating ? 'Creating...' : 'Create Chatroom'}
-        </button>
-      </div>
+        {/* Actions */}
+        <div className="pt-2 flex justify-end gap-3">
+          <button
+            type="button"
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+            onClick={onCancel}
+            disabled={creating}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chatroom-accent"
+            disabled={creating || !selectedTeam}
+          >
+            {creating ? 'Creating...' : 'Create Chatroom'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

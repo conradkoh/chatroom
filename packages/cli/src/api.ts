@@ -9,10 +9,10 @@
 
 // Re-export the generated API and types from backend
 // Import Doc type for use below
-import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
+import type { Doc } from '@workspace/backend/convex/_generated/dataModel.js';
 
-export { api } from '@workspace/backend/convex/_generated/api';
-export type { Id, Doc } from '@workspace/backend/convex/_generated/dataModel';
+export { api } from '@workspace/backend/convex/_generated/api.js';
+export type { Id, Doc } from '@workspace/backend/convex/_generated/dataModel.js';
 
 // Re-export types for convenience (these match the actual backend schema)
 export type Chatroom = Doc<'chatroom_rooms'>;

@@ -21,6 +21,8 @@ export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
   return `
 ## Reviewer Workflow
 
+Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
 You receive handoffs from other agents containing work to review or validate.
 
 **Typical Flow:**
@@ -28,7 +30,7 @@ You receive handoffs from other agents containing work to review or validate.
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive handoff]
-    B -->|from builder or other agent| C[Run task-started]
+    B -->|from builder or other agent| C[Run task read\non chatroom task]
     C --> D[Review code changes]
     D --> E{Meets requirements?}
     E -->|yes| F[Hand off to ${approvalTarget}]
@@ -56,6 +58,7 @@ ${approvalHandoffCmd}
 Replace \`[Your message here]\` with:
 - **APPROVED ✅**: Clear approval statement
 - **Summary**: What was reviewed and verified
+⚠️ If handing off to \`user\`: the user can ONLY see this message. Write it as a complete, standalone document — include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
 **Review Checklist:**
 - [ ] Code correctness and functionality
@@ -67,7 +70,7 @@ Replace \`[Your message here]\` with:
 - [ ] Performance implications
 
 **Review Process:**
-1. **Understand the requirements**: Review the original task and expected outcome
+1. **Understand the requirements**: Review the original chatroom task and expected outcome
 2. **Check implementation**: Verify the code meets the requirements
 3. **Test the changes**: If possible, test the implementation
 4. **Provide feedback**: Be specific and constructive in feedback

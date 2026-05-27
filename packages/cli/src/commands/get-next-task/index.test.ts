@@ -25,8 +25,8 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('../../infrastructure/auth/storage.js', () => ({
-  getSessionId: vi.fn().mockReturnValue('test-session-id'),
-  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+  getSessionId: vi.fn().mockResolvedValue('test-session-id'),
+  getOtherSessionUrls: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('./session.js', () => ({
@@ -101,7 +101,12 @@ describe('get-next-task — agent config ownership', () => {
 
     mockQuery.mockImplementation(async (queryFn: string) => {
       if (queryFn === 'chatrooms:get') {
-        return { _id: TEST_CHATROOM_ID, teamName: 'Test', teamRoles: ['builder'], teamEntryPoint: 'builder' };
+        return {
+          _id: TEST_CHATROOM_ID,
+          teamName: 'Test',
+          teamRoles: ['builder'],
+          teamEntryPoint: 'builder',
+        };
       }
       if (queryFn === 'machines:getTeamAgentConfigs') return [];
       if (queryFn === 'messages:getInitPrompt') {
@@ -115,9 +120,10 @@ describe('get-next-task — agent config ownership', () => {
     await getNextTask(TEST_CHATROOM_ID, { role: 'builder' }).catch(() => {});
 
     const allOutput = consoleSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(allOutput).toContain('FOREGROUND');
-    expect(allOutput).toContain('background');
-    expect(allOutput).toContain('terminate and restart');
+    expect(allOutput).toContain('resolves as a chatroom task');
+    expect(allOutput).toContain('blocking tool call');
+    expect(allOutput).toContain('foreground');
+    expect(allOutput).toContain('grace-period');
 
     consoleSpy.mockRestore();
   });

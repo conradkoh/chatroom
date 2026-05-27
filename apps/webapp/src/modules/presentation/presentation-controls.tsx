@@ -11,13 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-// Custom hook for safe client-side feature detection
 const useClientSideFeatures = () => {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const [isMounted] = useState(() => typeof window !== 'undefined');
 
   return {
     isMounted,
@@ -64,28 +59,23 @@ export function PresentationControls() {
     setShowSyncInfo(false);
   }, []);
 
-  // Position dialog when shown
-  useEffect(() => {
-    if (!showSyncInfo || !isMounted) return;
+  const [prevShowSyncInfo, setPrevShowSyncInfo] = useState(showSyncInfo);
+  if (prevShowSyncInfo !== showSyncInfo) {
+    setPrevShowSyncInfo(showSyncInfo);
+    if (showSyncInfo && isMounted && isClient) {
+      setDialogPosition(window.innerWidth < 640 ? 'center' : 'default');
+    }
+  }
 
-    // Check if we need to use center positioning (for small screens)
+  useEffect(() => {
+    if (!showSyncInfo || !isMounted || !isClient) return;
+
     const updateDialogPosition = () => {
-      // Use CSS breakpoint equivalent check - sm is typically 640px
-      if (isClient && window.innerWidth < 640) {
-        setDialogPosition('center');
-      } else {
-        setDialogPosition('default');
-      }
+      setDialogPosition(window.innerWidth < 640 ? 'center' : 'default');
     };
 
-    // Initial position calculation
-    updateDialogPosition();
-
-    // Update on resize
-    if (isClient) {
-      window.addEventListener('resize', updateDialogPosition);
-      return () => window.removeEventListener('resize', updateDialogPosition);
-    }
+    window.addEventListener('resize', updateDialogPosition);
+    return () => window.removeEventListener('resize', updateDialogPosition);
   }, [showSyncInfo, isMounted, isClient]);
 
   // Handle Escape key to close the info dialog

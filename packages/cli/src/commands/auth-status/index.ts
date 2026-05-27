@@ -12,6 +12,7 @@ import {
 } from '../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../infrastructure/convex/client.js';
 import { loadMachineConfig } from '../../infrastructure/machine/index.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { getVersion } from '../../version.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -45,9 +46,9 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
   console.log(`🔐 AUTHENTICATION STATUS`);
   console.log(`${'═'.repeat(50)}`);
 
-  const authData = d.session.loadAuthData();
+  const authData = await d.session.loadAuthData();
 
-  if (!d.session.isAuthenticated() || !authData) {
+  if (!await d.session.isAuthenticated() || !authData) {
     console.log(`\n❌ Not authenticated`);
     console.log(`\n   Run: chatroom auth login`);
     return;
@@ -75,7 +76,7 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
       }
 
       // Display local machine info (read-only — machine registration is owned by the daemon)
-      const machineConfig = d.loadMachineConfig();
+      const machineConfig = await d.loadMachineConfig();
       if (machineConfig) {
         console.log(`\n🖥️  Machine: ${machineConfig.hostname}`);
         console.log(`   ID: ${machineConfig.machineId}`);
@@ -91,8 +92,7 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
       console.log(`\n   Run: chatroom auth login`);
     }
   } catch (error) {
-    const err = error as Error;
-    console.log(`\n⚠️  Could not validate session: ${err.message}`);
+    console.log(`\n⚠️  Could not validate session: ${getErrorMessage(error)}`);
     console.log(`   Session may still be valid. Try running a command.`);
   }
 }

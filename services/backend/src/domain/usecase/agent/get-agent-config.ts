@@ -11,8 +11,8 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness, AgentType, ModelSource } from '../../entities/agent';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import type { AgentHarness, AgentType, ModelSource } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -125,9 +125,7 @@ export async function getAgentConfig(
   // ── Step 3: Resolve model ────────────────────────────────────────────
 
   const model = teamConfig.model;
-  const modelSource: ResolvedAgentConfig['modelSource'] = teamConfig.model
-    ? 'team_config'
-    : 'none';
+  const modelSource: ResolvedAgentConfig['modelSource'] = teamConfig.model ? 'team_config' : 'none';
 
   // ── Step 4: Build the resolved config ────────────────────────────────
 

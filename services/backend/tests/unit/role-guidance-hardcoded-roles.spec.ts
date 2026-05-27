@@ -13,8 +13,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
+import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/generator';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
@@ -30,7 +30,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     // The workflow section correctly shows "Planner + Builder (no reviewer)"
@@ -46,7 +45,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     // Extract just the Handoff Rules section
@@ -57,8 +55,12 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
+
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change"
     `);
   });
@@ -69,7 +71,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     expect(guidance).toContain('Current Workflow: Full Team (Planner + Builder + Reviewer)');
@@ -83,7 +84,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
 
     expect(guidance).toContain('Current Workflow: Planner Solo');
@@ -96,8 +96,12 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
-      - **To implement** → Work on the task directly (you are acting as implementer)
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+
+      - **To implement** → Work on the chatroom task directly (you are acting as implementer)
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Revise your implementation directly and re-validate"
     `);
   });
@@ -108,7 +112,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'reviewer'],
     });
 
     expect(guidance).toContain('Current Workflow: Planner + Reviewer (no builder)');
@@ -121,9 +124,13 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
-      - **To implement** → Work on the task directly (you are acting as implementer)
+
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+
+      - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To request review** → Hand off to \`reviewer\` with context about what to check
-      - **To deliver to user** → Hand off to \`user\` with a summary of what was done
+      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Revise your implementation directly and re-validate"
     `);
   });
@@ -138,12 +145,11 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
-      'Do NOT send a full implementation plan to the builder — feed tasks incrementally'
+      'Feed phases to the builder incrementally — one at a time, not all at once'
     );
-    expect(guidance).not.toContain('tackle one logical change at a time');
+    expect(guidance).not.toContain('tackle one layer at a time');
   });
 
   test('solo planner: Delegation Guidelines mentions self-implementation instruction', () => {
@@ -152,10 +158,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
-    expect(guidance).toContain('tackle one logical change at a time');
-    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+    expect(guidance).toContain('tackle one layer at a time');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
@@ -164,10 +169,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'reviewer'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'reviewer'],
     });
-    expect(guidance).toContain('tackle one logical change at a time');
-    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+    expect(guidance).toContain('tackle one layer at a time');
+    expect(guidance).not.toContain('Feed phases to the builder incrementally');
   });
 
   // ---------------------------------------------------------------------------
@@ -180,7 +184,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner', 'builder'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
       "If the user's requirements are not met, hand work back to the builder for rework."
@@ -194,7 +197,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       teamRoles: ['planner'],
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner'],
     });
     expect(guidance).toContain(
       "If the work doesn't meet requirements, revise it yourself before delivering."
@@ -237,6 +239,8 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       "
       ## Builder Workflow
 
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
       You are responsible for implementing code changes based on requirements.
 
 
@@ -244,18 +248,25 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
-          B -->|from planner| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **planner**]
-          E -->|question| G[Hand off to **planner**]
+          A([Start]) --> B[Receive chatroom task
+      notification]
+          B -->|from planner| C[Read chatroom task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **planner**]
+          F -->|question| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
+
+      **When working on a workflow step:**
+      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
       **Development Best Practices:**
       - Write clean, maintainable code
@@ -263,6 +274,7 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
@@ -301,7 +313,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);
@@ -323,7 +334,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);
@@ -342,7 +352,6 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
       teamName: 'Squad',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
-      availableMembers: ['planner', 'builder', 'reviewer'],
     });
 
     const guidance = getRoleGuidanceFromContext(ctx);

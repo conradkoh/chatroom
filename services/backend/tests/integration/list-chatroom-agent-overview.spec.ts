@@ -12,7 +12,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { listChatroomAgentOverview } from '../../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { t } from '../../test.setup';
 import {
-  createPairTeamChatroom,
+  createDuoTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -30,7 +30,7 @@ async function getOwnerUserId(chatroomId: Id<'chatroom_rooms'>) {
 describe('listChatroomAgentOverview — no agents', () => {
   test('returns none status when no machine configs exist', async () => {
     const { sessionId } = await createTestSession('test-lcao-none-1');
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     const results = await t.run(async (ctx) => {
@@ -51,7 +51,7 @@ describe('listChatroomAgentOverview — running agent', () => {
     const { sessionId } = await createTestSession('test-lcao-running-1');
     const machineId = 'machine-lcao-running-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -82,7 +82,7 @@ describe('listChatroomAgentOverview — stopped agent', () => {
     const { sessionId } = await createTestSession('test-lcao-stopped-1');
     const machineId = 'machine-lcao-stopped-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -105,7 +105,7 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     const { sessionId } = await createTestSession('test-lcao-noleak-1');
     const machineId = 'machine-lcao-noleak-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -119,5 +119,44 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     // Verify the shape only has the expected keys
     const keys = Object.keys(entry!).sort();
     expect(keys).toEqual(['agentStatus', 'chatroomId', 'runningAgents', 'runningRoles']);
+  });
+});
+
+describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
+  test('returns stopped status when agent has PID but daemon is disconnected', async () => {
+    const { sessionId } = await createTestSession('test-lcao-disconn-1');
+    const machineId = 'machine-lcao-disconn-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const ownerId = await getOwnerUserId(chatroomId);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    // Set a spawned agent PID
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 88888,
+    });
+
+    // Now disconnect the daemon
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId: sessionId as any,
+      machineId,
+      connected: false,
+    });
+
+    const results = await t.run(async (ctx) => {
+      return listChatroomAgentOverview(ctx, { userId: ownerId });
+    });
+
+    const entry = results.find((r) => r.chatroomId === chatroomId);
+    expect(entry).toBeDefined();
+    // Agent has PID but daemon is disconnected → should be "stopped", not "running"
+    expect(entry!.agentStatus).toBe('stopped');
+    expect(entry!.runningRoles).toEqual([]);
+    expect(entry!.runningAgents).toEqual([]);
   });
 });

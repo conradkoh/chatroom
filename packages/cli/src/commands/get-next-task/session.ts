@@ -17,6 +17,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { api, type Id } from '../../api.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ---------------------------------------------------------------------------
@@ -197,7 +198,7 @@ export class GetNextTaskSession {
       },
       (response: GetNextTaskResponse) => {
         this.handleSubscriptionResponse(response).catch((error) => {
-          console.error(`❌ Error processing task: ${(error as Error).message}`);
+          console.error(`❌ Error processing task: ${getErrorMessage(error)}`);
         });
       },
       (error: Error) => {
@@ -218,10 +219,7 @@ export class GetNextTaskSession {
       });
     } catch (error) {
       // Best-effort — subscription is already running; liveness will catch up
-      console.warn(
-        '[get-next-task] Failed to emit agent.waiting after subscription start:',
-        error
-      );
+      console.warn('[get-next-task] Failed to emit agent.waiting after subscription start:', error);
     }
   }
 
@@ -427,7 +425,7 @@ export class GetNextTaskSession {
 
       // Log task received with timestamp
       const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
+      console.log(`\n[${taskReceivedTime}] 📨 CHATROOM TASK received\n`);
 
       // Print the complete backend-generated output
       console.log(sanitizeForTerminal(taskDeliveryPrompt.fullCliOutput));

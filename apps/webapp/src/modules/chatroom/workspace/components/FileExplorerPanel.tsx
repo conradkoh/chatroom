@@ -1,0 +1,153 @@
+'use client';
+
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+
+/** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
+export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface FileExplorerPanelProps {
+  chatroomId?: string;
+  machineId: string | null;
+  workingDir: string | null;
+  onFileSelect?: (filePath: string) => void;
+  onFileDoubleClick?: (filePath: string) => void;
+  /** When set, auto-expand tree to reveal this file path (always honored) */
+  revealPath?: string | null;
+  /** The currently active file tab path; used for sync when preference is enabled */
+  activeTabPath: string | null;
+  /** Whether Explorer↔active-editor sync is enabled */
+  explorerSyncEnabled: boolean;
+  /** Toggle for Explorer↔active-editor sync */
+  onToggleSync: (enabled: boolean) => void;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export const FileExplorerPanel = memo(function FileExplorerPanel({
+  chatroomId,
+  machineId,
+  workingDir,
+  onFileSelect,
+  onFileDoubleClick,
+  revealPath,
+  activeTabPath,
+  explorerSyncEnabled,
+  onToggleSync,
+}: FileExplorerPanelProps) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
+
+  // When sync is enabled, the active tab path becomes the effective reveal/select target.
+  // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
+  const effectiveSelectedPath = useMemo<string | null>(() => {
+    if (explorerSyncEnabled && activeTabPath) return activeTabPath;
+    return null;
+  }, [explorerSyncEnabled, activeTabPath]);
+  const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
+
+  const handleRefresh = useCallback(() => {
+    if (machineId && workingDir) {
+      requestTree({ machineId, workingDir }).catch(() => {
+        // Silently ignore
+      });
+    }
+    setRefreshKey((k) => k + 1);
+  }, [machineId, workingDir, requestTree]);
+
+  // Request file tree on initial mount (or when workspace changes)
+  useEffect(() => {
+    if (machineId && workingDir) {
+      requestTree({ machineId, workingDir }).catch(() => {
+        // Silently ignore — tree may already exist
+      });
+    }
+  }, [machineId, workingDir, requestTree]);
+
+  // Listen for external refresh requests (e.g. from command palette "Open File Explorer")
+  useEffect(() => {
+    const handler = () => handleRefresh();
+    window.addEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
+  }, [handleRefresh]);
+
+  if (!machineId || !workingDir) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="px-3 py-2 border-b-2 border-chatroom-border-strong">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+            Explorer
+          </span>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
+          No workspace connected
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col min-w-0">
+      {/* Header */}
+      <div className="px-3 py-2 border-b-2 border-chatroom-border-strong flex items-center justify-between shrink-0">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          Explorer
+        </span>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-sm p-0.5"
+                aria-label="Explorer options"
+              >
+                <MoreHorizontal size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuCheckboxItem
+                checked={explorerSyncEnabled}
+                onCheckedChange={onToggleSync}
+              >
+                Sync with active editor
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+            onClick={handleRefresh}
+            title="Refresh file tree"
+          >
+            <RefreshCw size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Tree content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <WorkspaceFileExplorer
+          key={refreshKey}
+          chatroomId={chatroomId}
+          machineId={machineId}
+          workingDir={workingDir}
+          onFileSelect={onFileSelect}
+          onFileDoubleClick={onFileDoubleClick}
+          revealPath={effectiveRevealPath}
+          selectedPath={effectiveSelectedPath}
+        />
+      </div>
+    </div>
+  );
+});

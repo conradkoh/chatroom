@@ -3,11 +3,42 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Check, AlertTriangle } from 'lucide-react';
-import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
+import {
+  Settings,
+  Users,
+  Server,
+  Monitor,
+  Check,
+  AlertTriangle,
+  Pencil,
+  X,
+  Plug,
+  HardDrive,
+  Trash2,
+  Database,
+  FileText,
+} from 'lucide-react';
+import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
+import type { SettingsTab } from './CommandPalette/types';
+import { IntegrationsTab } from './IntegrationsTab';
+import { SkillsTab } from './SkillsTab';
+import { useTeamConfigs } from '../hooks/use-team-configs';
+import { getWorkspaceDisplayHostname } from '../types/workspace';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -16,65 +47,39 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { PromptsContext } from '@/contexts/PromptsContext';
 import { getDaemonStartCommand } from '@/lib/environment';
 
 // ─── Types ──────────────────────────────────────────────────────────────
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-interface TeamsConfig {
-  defaultTeam: string;
-  teams: Record<string, TeamDefinition>;
-}
 
 interface AgentSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
   currentTeamId?: string;
-  currentTeamName?: string;
   currentTeamRoles?: string[];
-  currentTeamEntryPoint?: string;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'setup' | 'team' | 'machine';
+export type { SettingsTab };
 
 // ─── Constants ──────────────────────────────────────────────────────────
-
-// Available teams (matching CreateChatroomForm and CLI defaults)
-const TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'duo',
-  teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
-    },
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair, planner as coordinator',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
 
 const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'setup', label: 'Setup', icon: <Settings size={16} /> },
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
+  { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
+  { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
+  { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
+  { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -84,12 +89,29 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
  */
 const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: string }) {
   const [copied, setCopied] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(chatroomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [chatroomId]);
+
+  const handleArchive = useCallback(async () => {
+    setIsArchiving(true);
+    try {
+      await updateStatus({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        status: 'completed',
+      });
+    } catch (error) {
+      console.error('Failed to archive chat:', error);
+    } finally {
+      setIsArchiving(false);
+    }
+  }, [updateStatus, chatroomId]);
 
   return (
     <div className="space-y-6">
@@ -120,7 +142,7 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
         </div>
       </div>
 
-      {/* Environment variable */}
+      {/* Connection Command */}
       <div className="space-y-2">
         <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Connection Command
@@ -128,6 +150,23 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
         <div className="font-mono text-[10px] text-chatroom-text-secondary break-all p-3 bg-chatroom-bg-tertiary border border-chatroom-border leading-relaxed">
           chatroom get-next-task --chatroom-id={chatroomId} --role=&lt;role&gt;
         </div>
+      </div>
+
+      {/* Chat Actions */}
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Chat Actions
+        </label>
+        <p className="text-[10px] text-chatroom-text-muted">
+          Archive this chat to mark it as complete. Archived chats appear in the Complete tab.
+        </p>
+        <button
+          onClick={handleArchive}
+          disabled={isArchiving}
+          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isArchiving ? 'Archiving...' : 'Archive Chat'}
+        </button>
       </div>
     </div>
   );
@@ -145,14 +184,15 @@ const TeamConfigContent = memo(function TeamConfigContent({
   currentTeamId?: string;
   currentTeamRoles?: string[];
 }) {
-  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || 'duo');
+  const { teams, defaultTeamId, getById } = useTeamConfigs();
+  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || defaultTeamId);
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
 
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
-  const hasChanges = selectedTeam !== (currentTeamId || 'duo');
-  const selectedTeamData = TEAMS_CONFIG.teams[selectedTeam];
+  const hasChanges = selectedTeam !== (currentTeamId || defaultTeamId);
+  const selectedTeamData = getById(selectedTeam);
 
   const handleSave = useCallback(async () => {
     if (!hasChanges || !selectedTeamData) return;
@@ -215,13 +255,13 @@ const TeamConfigContent = memo(function TeamConfigContent({
           Select Team
         </label>
         <div className="space-y-2">
-          {Object.entries(TEAMS_CONFIG.teams).map(([teamId, team]) => (
+          {teams.map((team) => (
             <button
-              key={teamId}
+              key={team.id}
               type="button"
-              onClick={() => setSelectedTeam(teamId)}
+              onClick={() => setSelectedTeam(team.id)}
               className={`w-full text-left p-3 border transition-colors ${
-                selectedTeam === teamId
+                selectedTeam === team.id
                   ? 'border-chatroom-accent bg-chatroom-accent/5'
                   : 'border-chatroom-border hover:border-chatroom-border-strong hover:bg-chatroom-bg-hover'
               }`}
@@ -235,7 +275,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
                     {team.description}
                   </div>
                 </div>
-                {selectedTeam === teamId && (
+                {selectedTeam === team.id && (
                   <Check size={12} className="text-chatroom-accent flex-shrink-0" />
                 )}
               </div>
@@ -296,97 +336,8 @@ const TeamConfigContent = memo(function TeamConfigContent({
   );
 });
 
-// ─── Ping State Management ──────────────────────────────────────────────
-
-type PingState = 'idle' | 'pinging' | 'success' | 'failed';
-
-interface PingInfo {
-  state: PingState;
-  pingEventId: Id<'chatroom_eventStream'> | null;
-  startedAt: number | null;
-}
-
 /**
- * Hook to manage ping state for a single machine.
- * Sends a ping event and reactively watches for a daemon.pong response event.
- */
-function useMachinePing(machineId: string) {
-  const [pingInfo, setPingInfo] = useState<PingInfo>({
-    state: 'idle',
-    pingEventId: null,
-    startedAt: null,
-  });
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  // Reactively watch for a daemon.pong event after the ping was sent
-  const pongEvent = useSessionQuery(
-    api.machines.getDaemonPongEvent,
-    pingInfo.pingEventId ? { machineId, afterEventId: pingInfo.pingEventId } : 'skip'
-  );
-
-  // React to pong event arrival
-  useEffect(() => {
-    if (!pongEvent || pingInfo.state !== 'pinging') return;
-
-    setPingInfo((prev) => ({ ...prev, state: 'success' }));
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [pongEvent, pingInfo.state]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const sendPing = useCallback(async () => {
-    // Reset any previous state
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    setPingInfo({ state: 'pinging', pingEventId: null, startedAt: Date.now() });
-
-    try {
-      const result = await sendCommand({
-        machineId,
-        type: 'ping',
-      });
-      const eventId = result?.eventId as Id<'chatroom_eventStream'> | undefined;
-
-      if (eventId) {
-        setPingInfo({ state: 'pinging', pingEventId: eventId, startedAt: Date.now() });
-
-        // Auto-timeout after 10 seconds
-        timeoutRef.current = setTimeout(() => {
-          setPingInfo((prev) => {
-            if (prev.state === 'pinging') {
-              return { ...prev, state: 'failed' };
-            }
-            return prev;
-          });
-        }, 10000);
-      } else {
-        setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-      }
-    } catch {
-      setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-    }
-  }, [machineId, sendCommand]);
-
-  return { pingState: pingInfo.state, sendPing };
-}
-
-/**
- * Individual machine row with integrated ping button
+ * Individual machine row with inline alias editing
  */
 const MachineRow = memo(function MachineRow({
   machine,
@@ -394,96 +345,141 @@ const MachineRow = memo(function MachineRow({
   machine: {
     machineId: string;
     hostname: string;
+    alias?: string;
     os: string;
-    daemonConnected: boolean;
-    lastSeenAt: number;
     registeredAt: number;
   };
 }) {
-  const { pingState, sendPing } = useMachinePing(machine.machineId);
+  const [isEditing, setIsEditing] = useState(false);
+  const [aliasValue, setAliasValue] = useState(machine.alias || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const pingLabel = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'Pinging...';
-      case 'success':
-        return 'Online';
-      case 'failed':
-        return 'No Response';
-      default:
-        return 'Ping';
-    }
-  })();
+  // Connectivity via getDaemonStatus — tiny heartbeat payload, doesn't invalidate listMachines.
+  const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
+  const statusResult = useSessionQuery(api.machines.getDaemonStatus, { machineId: machine.machineId });
+  const lastSeenAt = statusResult?.lastSeenAt ?? 0;
 
-  const pingClasses = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'text-chatroom-text-muted border-chatroom-border cursor-wait';
-      case 'success':
-        return 'text-chatroom-status-success border-chatroom-status-success/30 bg-chatroom-status-success/10';
-      case 'failed':
-        return 'text-chatroom-status-error border-chatroom-status-error/30 bg-chatroom-status-error/10';
-      default:
-        return 'text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover';
+  const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
     }
-  })();
+  }, [isEditing]);
+
+  const handleStartEdit = useCallback(() => {
+    setAliasValue(machine.alias || '');
+    setIsEditing(true);
+  }, [machine.alias]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setAliasValue(machine.alias || '');
+  }, [machine.alias]);
+
+  const handleSaveAlias = useCallback(async () => {
+    const trimmed = aliasValue.trim();
+    // No change — just close
+    if (trimmed === (machine.alias || '')) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await setMachineAlias({
+        machineId: machine.machineId,
+        alias: trimmed || undefined, // empty string clears alias
+      });
+      setIsEditing(false);
+    } catch {
+      // Keep editing on error
+    } finally {
+      setIsSaving(false);
+    }
+  }, [aliasValue, machine.alias, machine.machineId, setMachineAlias]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveAlias();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancelEdit();
+      }
+    },
+    [handleSaveAlias, handleCancelEdit]
+  );
+
+  const displayName = machine.alias || machine.hostname;
 
   return (
     <div className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface">
       <div
-        className={`w-2.5 h-2.5 flex-shrink-0 ${
-          pingState === 'success'
-            ? 'bg-chatroom-status-success'
-            : pingState === 'failed'
-              ? 'bg-chatroom-status-error'
-              : machine.daemonConnected
-                ? 'bg-chatroom-status-success'
-                : 'bg-chatroom-text-muted'
-        }`}
+        className={`w-2.5 h-2.5 flex-shrink-0 ${daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-chatroom-text-primary truncate">
-          {machine.hostname}
-        </div>
+        {isEditing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={inputRef}
+              type="text"
+              value={aliasValue}
+              onChange={(e) => setAliasValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSaveAlias}
+              maxLength={64}
+              placeholder={machine.hostname}
+              disabled={isSaving}
+              className="flex-1 min-w-0 text-xs font-bold text-chatroom-text-primary bg-chatroom-bg-tertiary border border-chatroom-accent px-1.5 py-0.5 outline-none disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCancelEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary"
+              title="Cancel"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <div className="group flex items-center gap-1.5">
+            <div className="text-xs font-bold text-chatroom-text-primary truncate">
+              {displayName}
+            </div>
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted opacity-0 group-hover:opacity-100 hover:text-chatroom-text-primary transition-opacity"
+              title="Edit alias"
+            >
+              <Pencil size={10} />
+            </button>
+          </div>
+        )}
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-          {machine.daemonConnected ? 'online' : 'offline'} · {machine.os}
+          {machine.alias ? `${machine.hostname} · ` : ''}
+          {daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
-      {machine.lastSeenAt && (
+      {lastSeenAt ? (
         <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-          {new Date(machine.lastSeenAt).toLocaleTimeString()}
+          {new Date(lastSeenAt).toLocaleTimeString()}
         </div>
-      )}
-      <button
-        onClick={sendPing}
-        disabled={pingState === 'pinging'}
-        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border transition-colors flex-shrink-0 ${pingClasses}`}
-      >
-        {pingState === 'pinging' && (
-          <span className="inline-block w-3 h-3 border border-current border-t-transparent animate-spin mr-1.5 align-middle" />
-        )}
-        {pingLabel}
-      </button>
+      ) : null}
     </div>
   );
 });
 
 /**
- * Machine tab — shows connected machines with ping/health-check and daemon start command
+ * Machine tab — shows connected machines and daemon start command
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | {
-        machines: {
-          machineId: string;
-          hostname: string;
-          os: string;
-          daemonConnected: boolean;
-          lastSeenAt: number;
-          registeredAt: number;
-        }[];
-      }
-    | undefined;
+  const machinesResult = useSessionQuery(api.machines.listMachines, {});
   const machines = machinesResult?.machines;
 
   // Daemon start command
@@ -496,8 +492,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
           Machine Integration
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          View connected machines and their status. Use the ping button to verify if a daemon is
-          responsive.
+          View connected machines and their status.
         </p>
       </div>
 
@@ -543,13 +538,366 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
           />
         </div>
       </div>
+    </div>
+  );
+});
 
-      {/* Future Feature Note */}
-      <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-chatroom-text-muted">
-        <strong className="text-chatroom-text-secondary">Coming soon:</strong> Automatic agent
-        startup — machines will automatically start offline agents when new messages are received in
-        this chatroom.
+// ─── Agents Content ─────────────────────────────────────────────────
+
+/**
+ * Workspaces tab — lists all registered workspaces and allows deletion.
+ * Deletion is disabled for workspaces that have active remote agents.
+ */
+const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chatroomId: string }) {
+  const { agents: agentRoleViews } = useAgentPanelData(chatroomId);
+
+  // Pass agentViews so workspaces are enriched with their agent roles
+  const agentViews = useMemo(
+    () => agentRoleViews.map((a) => ({ role: a.role, workingDir: a.workingDir })),
+    [agentRoleViews]
+  );
+  const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, {
+    agentViews,
+  });
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const purgeFileTreeMutation = useSessionMutation(api.workspaceFiles.purgeFileTreeV2);
+  const purgeFileContentMutation = useSessionMutation(api.workspaceFiles.purgeFileContentV2);
+  const purgeFullDiffMutation = useSessionMutation(api.workspaces.purgeFullDiffV2);
+  const purgeCommitDetailMutation = useSessionMutation(api.workspaces.purgeCommitDetailV2);
+
+  // Build a set of machineId::workingDir keys for active team agents.
+  // Any agent in the active team that has a machine + workspace configured
+  // protects that workspace from deletion.
+  const activeAgentWorkspaceKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const agent of agentRoleViews) {
+      if (agent.type === 'remote' && agent.machineId && agent.workingDir) {
+        keys.add(`${agent.machineId}::${agent.workingDir}`);
+      }
+    }
+    return keys;
+  }, [agentRoleViews]);
+
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  const handleRemove = useCallback(
+    async (registryId: string) => {
+      setRemovingId(registryId);
+      setRemoveError(null);
+      try {
+        await removeWorkspace(registryId);
+      } catch (err) {
+        setRemoveError(err instanceof Error ? err.message : 'Failed to remove workspace');
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [removeWorkspace]
+  );
+
+  // Purge cache dialog state
+  const [purgeDialogWs, setPurgeDialogWs] = useState<{
+    machineId: string;
+    workingDir: string;
+    id: string;
+  } | null>(null);
+  const [purgingCategory, setPurgingCategory] = useState<string | null>(null);
+  const [purgedCategories, setPurgedCategories] = useState<Set<string>>(new Set());
+
+  const handlePurgeCategory = useCallback(
+    async (
+      category: string,
+      mutationFn: (args: { machineId: string; workingDir: string }) => Promise<unknown>
+    ) => {
+      if (!purgeDialogWs) return;
+      setPurgingCategory(category);
+      try {
+        await mutationFn({
+          machineId: purgeDialogWs.machineId,
+          workingDir: purgeDialogWs.workingDir,
+        });
+        setPurgedCategories((prev) => new Set(prev).add(category));
+      } catch (err) {
+        console.warn('Purge failed:', err instanceof Error ? err.message : err);
+      } finally {
+        setPurgingCategory(null);
+      }
+    },
+    [purgeDialogWs]
+  );
+
+  if (isLoading) {
+    return <div className="p-4 text-sm text-chatroom-text-muted">Loading workspaces…</div>;
+  }
+
+  if (workspaces.length === 0) {
+    return (
+      <div className="p-4 text-sm text-chatroom-text-muted">
+        No workspaces registered. Workspaces are automatically registered when a machine daemon
+        connects.
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-1">
+      <p className="text-xs text-chatroom-text-muted px-2">
+        Workspaces are registered when machine daemons connect. Remove a workspace to disassociate
+        it from this chatroom.
+      </p>
+      {removeError && (
+        <div className="text-xs text-red-600 dark:text-red-400 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded">
+          {removeError}
+        </div>
+      )}
+      {workspaces.map((ws) => {
+        const hostname = getWorkspaceDisplayHostname(ws);
+        const hasActiveRemote = ws.machineId
+          ? activeAgentWorkspaceKeys.has(`${ws.machineId}::${ws.workingDir}`)
+          : false;
+        const isRemoving = removingId === ws._registryId;
+        const canRemove = !hasActiveRemote && !isRemoving && !!ws._registryId;
+
+        return (
+          <div
+            key={ws.id}
+            className="flex items-start gap-3 px-3 py-2.5 rounded border border-chatroom-border bg-chatroom-bg-secondary/30"
+          >
+            <HardDrive size={16} className="shrink-0 mt-0.5 text-chatroom-text-muted" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-chatroom-text-primary truncate">
+                {hostname}
+              </div>
+              <div className="text-xs text-chatroom-text-muted font-mono truncate mt-0.5">
+                {ws.workingDir}
+              </div>
+              {ws.agentRoles.length > 0 && (
+                <div className="text-[10px] text-chatroom-text-muted mt-1">
+                  Agents: {ws.agentRoles.join(', ')}
+                </div>
+              )}
+              {hasActiveRemote && (
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={10} />
+                  Active team agents use this workspace
+                </div>
+              )}
+              {/* Data purge controls */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    ws.machineId &&
+                    setPurgeDialogWs({
+                      machineId: ws.machineId,
+                      workingDir: ws.workingDir,
+                      id: ws.id,
+                    })
+                  }
+                  className="text-[10px] px-2 py-0.5 rounded border border-chatroom-border text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-colors flex items-center gap-1"
+                >
+                  <Database size={10} />
+                  Purge Cache
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!canRemove}
+              onClick={() => ws._registryId && handleRemove(ws._registryId)}
+              className="shrink-0 p-1.5 rounded text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-chatroom-text-muted disabled:hover:bg-transparent"
+              title={hasActiveRemote ? 'Cannot remove: active remote agents' : 'Remove workspace'}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Purge Cache Dialog */}
+      <Dialog
+        open={!!purgeDialogWs}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPurgeDialogWs(null);
+            setPurgedCategories(new Set());
+            setPurgingCategory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Purge Cache</DialogTitle>
+            <DialogDescription>
+              Clear cached data for this workspace. Data will be re-fetched automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {[
+              {
+                key: 'fileTree',
+                label: 'File Tree',
+                desc: 'Cached file tree data',
+                fn: purgeFileTreeMutation,
+              },
+              {
+                key: 'fileContent',
+                label: 'File Content',
+                desc: 'Cached file contents',
+                fn: purgeFileContentMutation,
+              },
+              {
+                key: 'fullDiff',
+                label: 'Git Diffs',
+                desc: 'Cached git diff output',
+                fn: purgeFullDiffMutation,
+              },
+              {
+                key: 'commitDetail',
+                label: 'Commit Details',
+                desc: 'Cached commit detail data',
+                fn: purgeCommitDetailMutation,
+              },
+            ].map(({ key, label, desc, fn }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-3 px-3 py-2 rounded border border-border bg-card/50"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground">{label}</div>
+                  <div className="text-xs text-muted-foreground">{desc}</div>
+                </div>
+                <button
+                  type="button"
+                  disabled={purgingCategory === key || purgedCategories.has(key)}
+                  onClick={() => handlePurgeCategory(key, fn)}
+                  className="shrink-0 text-xs px-3 py-1 rounded border border-border text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[80px] text-center"
+                >
+                  {purgingCategory === key
+                    ? 'Purging...'
+                    : purgedCategories.has(key)
+                      ? 'Purged \u2713'
+                      : 'Purge'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+});
+
+/**
+ * Agents tab — shows a flat list of all agents for the team.
+ * Uses InlineAgentCard for each agent to show full configuration details
+ * (status, controls, machine, model, restart stats).
+ */
+const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
+  const {
+    agents: agentRoleViews,
+    teamRoles,
+    connectedMachines,
+    machineConfigs: agentConfigs,
+    sendCommand,
+    agentPreferenceMap,
+    savePreference,
+    isLoading: isPanelLoading,
+  } = useAgentPanelData(chatroomId);
+
+  const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Build a status lookup map
+  const statusMap = useMemo(() => {
+    const map = new Map<string, (typeof agentStatusList)[number]>();
+    for (const agent of agentStatusList) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentStatusList]);
+
+  // Build a role → AgentRoleView map for InlineAgentCard
+  const agentRoleViewMap = useMemo(() => {
+    const map = new Map<string, (typeof agentRoleViews)[number]>();
+    for (const agent of agentRoleViews) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentRoleViews]);
+
+  // Safe prompt generation — works inside and outside PromptsProvider
+  const promptsContext = useContext(PromptsContext);
+  const generatePrompt = useCallback(
+    (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
+    [promptsContext]
+  );
+
+  // Batch restart summaries for all roles
+  const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: allRoles,
+  });
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count3h: number; count3d: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count3h: summary.count3h,
+          count3d: summary.count3d,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
+
+  const totalAgents = agentStatusList.length;
+  const onlineAgents = agentStatusList.filter((a) => a.online).length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
+          Agents
+        </h3>
+        <p className="text-xs text-chatroom-text-muted">
+          {onlineAgents}/{totalAgents} agents online.
+        </p>
+      </div>
+
+      {agentStatusList.length === 0 ? (
+        <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
+          No agents configured
+        </div>
+      ) : (
+        <div className="border border-chatroom-border bg-chatroom-bg-surface">
+          {agentStatusList.map((agent) => {
+            const status = statusMap.get(agent.role.toLowerCase());
+
+            return (
+              <InlineAgentCard
+                key={agent.role}
+                role={agent.role}
+                allRoles={teamRoles}
+                online={status?.online ?? false}
+                lastSeenAt={status?.lastSeenAt}
+                latestEventType={status?.latestEventType}
+                statusVariant={status?.statusVariant ?? 'offline'}
+                prompt={generatePrompt(agent.role)}
+                chatroomId={chatroomId}
+                connectedMachines={connectedMachines}
+                isLoadingMachines={isPanelLoading}
+                agentConfigs={agentConfigs}
+                sendCommand={sendCommand}
+                agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
+                agentPreference={agentPreferenceMap.get(agent.role.toLowerCase())}
+                onSavePreference={savePreference}
+                restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });
@@ -562,13 +910,19 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
   chatroomId,
   currentTeamId,
   currentTeamRoles,
+  initialTab,
 }: AgentSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('setup');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? 'setup');
+
+  // Sync activeTab when initialTab changes (e.g. opening to a different tab)
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
-      {/* Side Navigation */}
-      <FixedModalSidebar className="w-48">
+      {/* Side Navigation — hidden on mobile */}
+      <FixedModalSidebar className="w-48 hidden sm:flex">
         {/* Sidebar Title — uses FixedModalHeader for consistent height alignment */}
         <FixedModalHeader>
           <FixedModalTitle>Settings</FixedModalTitle>
@@ -600,6 +954,22 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           <FixedModalTitle>{TAB_CONFIG.find((t) => t.id === activeTab)?.label}</FixedModalTitle>
         </FixedModalHeader>
 
+        {/* Mobile tab selector — visible only on small screens */}
+        <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
+          <Select value={activeTab} onValueChange={(val) => setActiveTab(val as SettingsTab)}>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TAB_CONFIG.map((tab) => (
+                <SelectItem key={tab.id} value={tab.id}>
+                  {tab.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FixedModalBody className="p-6">
           {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
           {activeTab === 'team' && (
@@ -610,6 +980,10 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             />
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
+          {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
+          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
+          {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
+          {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

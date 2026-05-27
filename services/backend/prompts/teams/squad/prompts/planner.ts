@@ -7,15 +7,13 @@
  * Team composition is fixed: planner + builder + reviewer.
  * Static sections (handoff rules, delegation guidelines, responsibilities,
  * when-work-comes-back) use this hardcoded config — no runtime conditionals.
- * Dynamic sections (team availability, workflow diagram) adapt to which
- * members are currently online.
+ * Team availability and workflow sections use teamRoles configuration.
  */
 
-import type { PlannerGuidanceParams } from '../../../types/cli';
-import { getCliEnvPrefix } from '../../../utils/env';
-import { taskStartedCommand } from '../../../cli/task-started/command';
+import { classifyCommand } from '../../../cli/classify/command';
 import {
   getCoreResponsibilitiesSection,
+  getDelegationAndDecompositionSection,
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
@@ -25,17 +23,19 @@ import {
   getPlannerPlusReviewerWorkflow,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
 
 /** Squad team always has a builder and reviewer (fixed team composition) */
 const SQUAD_TEAM_CONFIG = { hasBuilder: true, hasReviewer: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
+  const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  // Dynamic: which members are currently online
-  const members = availableMembers ?? teamRoles;
+  // Always use teamRoles — prompts assume all team members are available
+  const members = teamRoles;
   const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
   const reviewerOnline = members.some((r) => r.toLowerCase() === 'reviewer');
 
@@ -43,10 +43,11 @@ export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
-2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-3. Decompose the task into actionable work items if needed
-4. Delegate to the appropriate team member or handle it yourself`
+1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
+2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
+3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
+4. Decompose the chatroom task into actionable work items if needed
+5. Delegate to the appropriate team member or handle it yourself`
     : '';
 
   // Workflow diagram adapts to current availability
@@ -70,9 +71,7 @@ ${classificationNote}
 - You coordinate a team of builder and reviewer
 - You are the ONLY role that communicates directly with the user
 - You are ultimately accountable for all work quality
-- You manage the backlog and prioritize tasks
-${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
-${reviewerOnline ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}
+- Team members may go offline at any time — adapt by handling their responsibilities yourself if needed
 
 ${getTeamAvailabilitySection(members)}
 
@@ -80,7 +79,9 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG)}
+${getDelegationAndDecompositionSection(SQUAD_TEAM_CONFIG)}
+
+${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(SQUAD_TEAM_CONFIG)}
 

@@ -32,16 +32,6 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 const PI_COMMAND = 'pi';
 
-/**
- * Default trigger message used when the caller provides no prompt.
- *
- * Pi requires at least one user message to call the AI API. When the init
- * prompt is empty (e.g. composeInitMessage returns ''), we send this trigger
- * so Pi can read the system prompt and execute the Getting Started steps.
- */
-const DEFAULT_TRIGGER_PROMPT =
-  'Please read your system prompt carefully and follow the Getting Started instructions.';
-
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
@@ -53,54 +43,45 @@ export class PiAgentService extends BaseCLIAgentService {
     super(deps);
   }
 
-  isInstalled(): boolean {
+  async isInstalled(): Promise<boolean> {
     return this.checkInstalled(PI_COMMAND);
   }
 
-  getVersion() {
+  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
     return this.checkVersion(PI_COMMAND);
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const output = this.deps
-        .execSync(`${PI_COMMAND} --list-models`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000,
-        })
-        .toString()
-        .trim();
+    // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
+    // write output to stderr (e.g. Pi) are also captured.
+    const output = await this.runListCommand('pi', `${PI_COMMAND} --list-models 2>&1`);
 
-      if (!output) return [];
+    if (output === null) return [];
 
-      // Parse table output: first two columns are provider + model, joined as "provider/model".
-      // Expected format (tab or whitespace separated):
-      //   anthropic   claude-3-5-sonnet   ...
-      const models: string[] = [];
-      for (const line of output.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
-        const cols = trimmed.split(/\s+/);
-        // Skip header row (first line: "provider  model  context  max-out  thinking  images")
-        if (cols[0] === 'provider') continue;
-        if (cols.length >= 2) {
-          models.push(`${cols[0]}/${cols[1]}`);
-        } else if (cols.length === 1 && cols[0]) {
-          models.push(cols[0]);
-        }
+    // Parse table output: first two columns are provider + model, joined as "provider/model".
+    // Expected format (tab or whitespace separated):
+    //   anthropic   claude-3-5-sonnet   ...
+    const models: string[] = [];
+    for (const line of output.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
+      const cols = trimmed.split(/\s+/);
+      // Skip header row (first line: "provider  model  context  max-out  thinking  images")
+      if (cols[0] === 'provider') continue;
+      if (cols.length >= 2) {
+        models.push(`${cols[0]}/${cols[1]}`);
+      } else if (cols.length === 1 && cols[0]) {
+        models.push(cols[0]);
       }
-      return models;
-    } catch {
-      return [];
     }
+    return models;
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, model } = options;
-
-    // Pi requires at least one user message — fall back to a default trigger when
-    // the caller passes an empty prompt (e.g. composeInitMessage returns '').
-    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
+    // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
+    // at the use-case layer (`agent-process-manager`). See
+    // `infrastructure/services/remote-agents/spawn-prompt.ts`.
+    const { prompt, systemPrompt, model } = options;
 
     // Build args for RPC mode. The prompt is NOT a positional arg — it is sent
     // over stdin as a JSON command after the process starts.
@@ -119,6 +100,12 @@ export class PiAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
+      env: {
+        ...process.env,
+        // Prevent git rebase/merge from opening an interactive editor
+        GIT_EDITOR: 'true',
+        GIT_SEQUENCE_EDITOR: 'true',
+      },
     });
 
     // Send the initial prompt as a JSON RPC command over stdin.
@@ -145,9 +132,7 @@ export class PiAgentService extends BaseCLIAgentService {
     // Build a log prefix from spawn context for easier debugging.
     // Format: [pi:role] or [pi:role@short-id] when chatroomId is available.
     const roleTag = context.role ?? 'unknown';
-    const chatroomSuffix = context.chatroomId
-      ? `@${context.chatroomId.slice(-6)}`
-      : '';
+    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
     const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
 
     // Output tracking callbacks (for external consumers) + internal timestamp update

@@ -98,6 +98,10 @@ export const myQuery = query({
 });
 ```
 
+### Error Handling
+
+All backend errors must use structured `ConvexError({ code, message, fields? })` with codes registered in `services/backend/config/errorCodes.ts`. Bare-string throws (`throw new ConvexError('msg')`) are forbidden — enforced by a unit test. See `docs/developer/error-handling.md` for the full convention, including the return-union pattern for expected business outcomes.
+
 ### Feature Flags
 
 Configured in `services/backend/config/featureFlags.ts`.
@@ -197,14 +201,22 @@ chatroom/
 
 ### Workflow Loop
 
+**Level A (session)** = the outer loop. **Level B (chatroom task)** = one iteration.
+
 ```
 get-next-task → do work → handoff → get-next-task → repeat
 ```
 
-1. **Run `get-next-task`** immediately via `bash` — block until task arrives
+1. **Run `get-next-task`** immediately via `bash` — a blocking tool call that resolves when the user or team message is ready, delivered as a chatroom task; infer what to do from that message (numbered next-steps in delivery are hints, not a rigid script)
 2. **Process** the task
 3. **Run `handoff`** to signal completion
-4. **Run `get-next-task`** again to wait for next task
+4. **Run `get-next-task`** again to wait for the next message
+
+### Session Model (Level A vs Level B)
+
+A session (Level A) processes many chatroom tasks (Level B). Completing one chatroom task does NOT end the session.
+
+**Explicit rule:** After EVERY handoff — even to `user` — you MUST run `get-next-task` in the foreground to continue the session. The workflow loop above never ends: each handoff completes Level B, and `get-next-task` keeps Level A alive.
 
 ### Reliability
 

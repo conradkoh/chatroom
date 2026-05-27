@@ -1,23 +1,26 @@
 {
   "name": "chatroom-cli",
-  "version": "1.6.5",
+  "version": "1.45.1",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
-    "typecheck": "tsc --noEmit",
+    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
+    "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
+    "@llamaindex/liteparse": "^1.4.2",
+    "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
     "convex": "^1.31.0",
-    "convex-helpers": "^0.1.108"
+    "convex-helpers": "^0.1.108",
+    "effect": "^3.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -40,7 +43,8 @@
     "url": "https://github.com/conradkoh/chatroom"
   },
   "files": [
-    "dist",
+    "dist/index.js",
+    "dist/index.js.map",
     "package.json",
     "README.md"
   ]

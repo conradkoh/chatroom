@@ -6,7 +6,7 @@
  */
 
 /**
- * Classification types for task-started command
+ * Classification types for classify command
  */
 export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
 
@@ -29,10 +29,10 @@ export interface CommandContext {
 }
 
 // ============================================================================
-// task-started command types
+// classify command types
 // ============================================================================
 
-export interface TaskStartedParams extends CommandContext {
+export interface ClassifyParams extends CommandContext {
   chatroomId?: string;
   role?: string;
   taskId?: string;
@@ -113,8 +113,8 @@ export interface PlannerGuidanceParams extends BasePromptParams {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
-  /** Currently available team members (for dynamic workflow adaptation) */
-  availableMembers?: string[];
+  /** Chatroom ID for generating exact CLI commands */
+  chatroomId?: string;
 }
 
 /**

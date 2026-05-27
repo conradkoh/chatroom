@@ -4,11 +4,41 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { useAuthState } from '@/modules/auth/AuthProvider';
+
+type CodeAction =
+  | { type: 'SET_CODE'; code: string; expiresAt: number }
+  | { type: 'CLEAR_CODE' }
+  | { type: 'SET_EXPIRED' }
+  | { type: 'SET_GENERATING'; value: boolean }
+  | { type: 'SET_COPIED'; value: boolean };
+
+interface CodeState {
+  loginCode: string | null;
+  expiresAt: number | null;
+  isExpired: boolean;
+  isGenerating: boolean;
+  isCopied: boolean;
+}
+
+function codeReducer(state: CodeState, action: CodeAction): CodeState {
+  switch (action.type) {
+    case 'SET_CODE':
+      return { ...state, loginCode: action.code, expiresAt: action.expiresAt, isExpired: false };
+    case 'CLEAR_CODE':
+      return { ...state, loginCode: null, expiresAt: null, isExpired: false, isCopied: false };
+    case 'SET_EXPIRED':
+      return { ...state, isExpired: true };
+    case 'SET_GENERATING':
+      return { ...state, isGenerating: action.value };
+    case 'SET_COPIED':
+      return { ...state, isCopied: action.value };
+  }
+}
 
 /**
  * Displays login code generator for authenticated users to access their account on other devices.
@@ -18,15 +48,19 @@ export function LoginCodeGenerator() {
   const createLoginCode = useSessionMutation(api.auth.createLoginCode);
   const activeCodeQuery = useSessionQuery(api.auth.getActiveLoginCode);
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [loginCode, setLoginCode] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<number | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
-  const [isExpired, setIsExpired] = useState(false);
+  const [state, dispatch] = useReducer(codeReducer, {
+    loginCode: null,
+    expiresAt: null,
+    isExpired: false,
+    isGenerating: false,
+    isCopied: false,
+  });
 
-  // Computed values
+  const { loginCode, expiresAt, isExpired, isGenerating, isCopied } = state;
+
   const getTimeRemaining = useCallback(() => _getTimeRemaining(expiresAt), [expiresAt]);
-  const [timeRemaining, setTimeRemaining] = useState<string>(getTimeRemaining());
+  const [, forceUpdate] = useState(0);
+  const timeRemaining = _getTimeRemaining(expiresAt);
 
   const isAuthenticatedUser = useMemo(() => {
     return authState?.state === 'authenticated' && 'user' in authState;
@@ -44,61 +78,47 @@ export function LoginCodeGenerator() {
     return loginCode ? 'Generate New Code' : 'Generate Login Code';
   }, [isGenerating, loginCode]);
 
-  // Keep login code synced with active code from backend
-  useEffect(() => {
-    if (!activeCodeQuery) return;
-
-    if (activeCodeQuery.success && activeCodeQuery.code && activeCodeQuery.expiresAt) {
-      // We have an active code
-      if (loginCode !== activeCodeQuery.code) {
-        setLoginCode(activeCodeQuery.code);
-        setExpiresAt(activeCodeQuery.expiresAt);
-        setIsExpired(false);
-      }
-    } else {
-      // No active code or code was consumed
-      if (loginCode) {
-        setLoginCode(null);
-        setExpiresAt(null);
-        setIsExpired(false);
-
-        // Only show notification if code was used (not expired)
+  // Sync code from backend query during render
+  const [prevActiveCodeQuery, setPrevActiveCodeQuery] = useState(activeCodeQuery);
+  if (prevActiveCodeQuery !== activeCodeQuery) {
+    setPrevActiveCodeQuery(activeCodeQuery);
+    if (activeCodeQuery) {
+      if (activeCodeQuery.success && activeCodeQuery.code && activeCodeQuery.expiresAt) {
+        if (loginCode !== activeCodeQuery.code) {
+          dispatch({
+            type: 'SET_CODE',
+            code: activeCodeQuery.code,
+            expiresAt: activeCodeQuery.expiresAt,
+          });
+        }
+      } else if (loginCode) {
         if (activeCodeQuery.reason === 'no_active_code' && !isExpired) {
           toast.info('Your login code was used successfully');
         }
+        dispatch({ type: 'CLEAR_CODE' });
       }
     }
-  }, [activeCodeQuery, loginCode, isExpired]);
+  }
 
-  // Update timer every second
   useEffect(() => {
     if (!expiresAt) return;
 
     const interval = setInterval(() => {
-      const remaining = getTimeRemaining();
-      setTimeRemaining(remaining);
-
-      // If expired, mark as expired (only once)
-      if (remaining === '0:00' && !isExpired) {
-        setIsExpired(true);
+      forceUpdate((n) => n + 1);
+      if (_getTimeRemaining(expiresAt) === '0:00' && !isExpired) {
+        dispatch({ type: 'SET_EXPIRED' });
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [expiresAt, getTimeRemaining, isExpired]);
+  }, [expiresAt, isExpired]);
 
-  // Event handlers
   const handleGenerateCode = useCallback(async () => {
-    // Reset expired state when generating new code
-    setIsExpired(false);
     await _handleGenerateCode({
       authState,
       isGenerating,
-      setIsGenerating,
+      dispatch,
       createLoginCode,
-      setLoginCode,
-      setExpiresAt,
-      setTimeRemaining,
       getTimeRemaining,
     });
   }, [authState, isGenerating, createLoginCode, getTimeRemaining]);
@@ -108,12 +128,11 @@ export function LoginCodeGenerator() {
 
     try {
       await navigator.clipboard.writeText(loginCode);
-      setIsCopied(true);
+      dispatch({ type: 'SET_COPIED', value: true });
       toast.success('Code copied to clipboard');
 
-      // Reset the copied state after 2 seconds
       setTimeout(() => {
-        setIsCopied(false);
+        dispatch({ type: 'SET_COPIED', value: false });
       }, 2000);
     } catch (error) {
       console.error('Failed to copy code:', error);
@@ -122,10 +141,7 @@ export function LoginCodeGenerator() {
   }, [loginCode]);
 
   const handleClearCode = useCallback(() => {
-    setLoginCode(null);
-    setExpiresAt(null);
-    setIsExpired(false);
-    setIsCopied(false);
+    dispatch({ type: 'CLEAR_CODE' });
   }, []);
 
   // Early return if not an authenticated user
@@ -266,11 +282,8 @@ function _getTimeRemaining(expiresAt: number | null): string {
 interface _HandleGenerateCodeParams {
   authState: ReturnType<typeof useAuthState>;
   isGenerating: boolean;
-  setIsGenerating: (generating: boolean) => void;
+  dispatch: React.Dispatch<CodeAction>;
   createLoginCode: () => Promise<{ success: boolean; code?: string; expiresAt?: number }>;
-  setLoginCode: (code: string | null) => void;
-  setExpiresAt: (expiresAt: number | null) => void;
-  setTimeRemaining: (time: string) => void;
   getTimeRemaining: () => string;
 }
 
@@ -278,16 +291,7 @@ interface _HandleGenerateCodeParams {
  * Handles login code generation with authentication validation and error handling.
  */
 async function _handleGenerateCode(params: _HandleGenerateCodeParams): Promise<void> {
-  const {
-    authState,
-    isGenerating,
-    setIsGenerating,
-    createLoginCode,
-    setLoginCode,
-    setExpiresAt,
-    setTimeRemaining,
-    getTimeRemaining,
-  } = params;
+  const { authState, isGenerating, dispatch, createLoginCode } = params;
 
   if (authState?.state !== 'authenticated') {
     toast.error('You must be logged in to generate a login code');
@@ -296,13 +300,11 @@ async function _handleGenerateCode(params: _HandleGenerateCodeParams): Promise<v
 
   if (isGenerating) return;
 
-  setIsGenerating(true);
+  dispatch({ type: 'SET_GENERATING', value: true });
   try {
     const result = await createLoginCode();
     if (result.success && result.code && result.expiresAt) {
-      setLoginCode(result.code);
-      setExpiresAt(result.expiresAt);
-      setTimeRemaining(getTimeRemaining());
+      dispatch({ type: 'SET_CODE', code: result.code, expiresAt: result.expiresAt });
       toast.success('Login code generated successfully');
     } else {
       toast.error('Failed to generate login code');
@@ -311,6 +313,6 @@ async function _handleGenerateCode(params: _HandleGenerateCodeParams): Promise<v
     console.error('Error generating login code:', error);
     toast.error('An error occurred while generating login code');
   } finally {
-    setIsGenerating(false);
+    dispatch({ type: 'SET_GENERATING', value: false });
   }
 }

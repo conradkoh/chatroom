@@ -2,8 +2,9 @@
 
 import { memo, useState } from 'react';
 
-import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 import type { MachineInfo } from '../../types/machine';
+import type { useAgentControls } from '../AgentConfigTabs';
+import { RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 
 // ─── AgentControlsSection ────────────────────────────────────────────────────
 
@@ -13,8 +14,11 @@ export interface AgentControlsSectionProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
+  chatroomId: string;
   role: string;
   prompt: string;
+  /** Machines with at least one workspace in this chatroom (avoids N duplicate subscriptions). */
+  linkedMachineIds?: ReadonlySet<string>;
   /** Which tab to show initially. Defaults to 'remote'. */
   initialTab?: 'remote' | 'custom';
 }
@@ -28,8 +32,10 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
+  chatroomId,
   role,
   prompt,
+  linkedMachineIds,
   initialTab = 'remote',
 }: AgentControlsSectionProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(initialTab);
@@ -68,6 +74,8 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             connectedMachines={connectedMachines}
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
+            chatroomId={chatroomId}
+            linkedMachineIds={linkedMachineIds}
           />
         ) : (
           <CustomTabContent role={role} prompt={prompt} />

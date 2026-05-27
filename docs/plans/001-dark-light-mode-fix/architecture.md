@@ -17,44 +17,44 @@ Add a light mode variant that activates when the `dark` class is NOT present on 
 ```css
 /* Dark mode (default for .chatroom-root) */
 .dark .chatroom-root {
-  --chatroom-bg-primary: #09090b;           /* zinc-950 */
+  --chatroom-bg-primary: #09090b; /* zinc-950 */
   --chatroom-bg-secondary: rgba(24, 24, 27, 0.5);
-  --chatroom-bg-tertiary: #18181b;          /* zinc-900 */
-  --chatroom-bg-hover: #27272a;             /* zinc-800 */
+  --chatroom-bg-tertiary: #18181b; /* zinc-900 */
+  --chatroom-bg-hover: #27272a; /* zinc-800 */
   --chatroom-bg-surface: rgba(24, 24, 27, 0.6);
   --chatroom-border: rgba(250, 250, 250, 0.1);
   --chatroom-border-strong: rgba(250, 250, 250, 0.15);
-  --chatroom-text-primary: #fafafa;         /* zinc-100 */
-  --chatroom-text-secondary: #a1a1aa;       /* zinc-400 */
-  --chatroom-text-muted: #71717a;           /* zinc-500 */
-  --chatroom-status-success: #34d399;       /* emerald-400 */
-  --chatroom-status-warning: #fbbf24;       /* amber-400 */
-  --chatroom-status-error: #f87171;         /* red-400 */
-  --chatroom-status-info: #60a5fa;          /* blue-400 */
-  --chatroom-status-purple: #c084fc;        /* purple-400 */
-  --chatroom-accent: #fafafa;               /* zinc-100 */
-  --chatroom-accent-subtle: #27272a;        /* zinc-800 */
+  --chatroom-text-primary: #fafafa; /* zinc-100 */
+  --chatroom-text-secondary: #a1a1aa; /* zinc-400 */
+  --chatroom-text-muted: #71717a; /* zinc-500 */
+  --chatroom-status-success: #34d399; /* emerald-400 */
+  --chatroom-status-warning: #fbbf24; /* amber-400 */
+  --chatroom-status-error: #f87171; /* red-400 */
+  --chatroom-status-info: #60a5fa; /* blue-400 */
+  --chatroom-status-purple: #c084fc; /* purple-400 */
+  --chatroom-accent: #fafafa; /* zinc-100 */
+  --chatroom-accent-subtle: #27272a; /* zinc-800 */
 }
 
 /* Light mode - Neutral Glass theme */
 :root:not(.dark) .chatroom-root {
-  --chatroom-bg-primary: #f5f5f5;           /* neutral-100 */
+  --chatroom-bg-primary: #f5f5f5; /* neutral-100 */
   --chatroom-bg-secondary: rgba(255, 255, 255, 0.6);
-  --chatroom-bg-tertiary: #ffffff;          /* white */
-  --chatroom-bg-hover: #e5e5e5;             /* neutral-200 */
+  --chatroom-bg-tertiary: #ffffff; /* white */
+  --chatroom-bg-hover: #e5e5e5; /* neutral-200 */
   --chatroom-bg-surface: rgba(255, 255, 255, 0.6);
   --chatroom-border: rgba(23, 23, 23, 0.1);
   --chatroom-border-strong: rgba(23, 23, 23, 0.15);
-  --chatroom-text-primary: #171717;         /* neutral-900 */
-  --chatroom-text-secondary: #525252;       /* neutral-600 */
-  --chatroom-text-muted: #737373;           /* neutral-500 */
-  --chatroom-status-success: #15803d;       /* green-700 */
-  --chatroom-status-warning: #b45309;       /* amber-700 */
-  --chatroom-status-error: #b91c1c;         /* red-700 */
-  --chatroom-status-info: #1d4ed8;          /* blue-700 */
-  --chatroom-status-purple: #7c3aed;        /* purple-600 */
-  --chatroom-accent: #171717;               /* neutral-900 */
-  --chatroom-accent-subtle: #f5f5f5;        /* neutral-100 */
+  --chatroom-text-primary: #171717; /* neutral-900 */
+  --chatroom-text-secondary: #525252; /* neutral-600 */
+  --chatroom-text-muted: #737373; /* neutral-500 */
+  --chatroom-status-success: #15803d; /* green-700 */
+  --chatroom-status-warning: #b45309; /* amber-700 */
+  --chatroom-status-error: #b91c1c; /* red-700 */
+  --chatroom-status-info: #1d4ed8; /* blue-700 */
+  --chatroom-status-purple: #7c3aed; /* purple-600 */
+  --chatroom-accent: #171717; /* neutral-900 */
+  --chatroom-accent-subtle: #f5f5f5; /* neutral-100 */
 }
 ```
 
@@ -66,11 +66,11 @@ Uses hardcoded `zinc-950` background and `zinc-100` text colors.
 **Modification:**
 Replace with semantic tokens or theme-aware classes:
 
-| Current | Replacement |
-|---------|-------------|
+| Current          | Replacement                                                   |
+| ---------------- | ------------------------------------------------------------- |
 | `bg-zinc-950/95` | `bg-background border-b border-border` or theme-aware variant |
-| `text-zinc-100` | `text-foreground` |
-| `text-zinc-300` | `text-muted-foreground` |
+| `text-zinc-100`  | `text-foreground`                                             |
+| `text-zinc-300`  | `text-muted-foreground`                                       |
 
 ### 3. ChatroomDashboard Header (`apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx`)
 
@@ -80,13 +80,13 @@ Header portal content (lines 339-451) uses hardcoded zinc colors for buttons, in
 **Modification:**
 Replace hardcoded colors with chatroom CSS variables:
 
-| Current | Replacement |
-|---------|-------------|
-| `border-zinc-700` | `border-chatroom-border` |
-| `text-zinc-400` | `text-chatroom-text-secondary` |
-| `bg-zinc-800` | `bg-chatroom-bg-tertiary` |
-| `text-zinc-100` | `text-chatroom-text-primary` |
-| `hover:bg-zinc-800` | `hover:bg-chatroom-bg-hover` |
+| Current             | Replacement                    |
+| ------------------- | ------------------------------ |
+| `border-zinc-700`   | `border-chatroom-border`       |
+| `text-zinc-400`     | `text-chatroom-text-secondary` |
+| `bg-zinc-800`       | `bg-chatroom-bg-tertiary`      |
+| `text-zinc-100`     | `text-chatroom-text-primary`   |
+| `hover:bg-zinc-800` | `hover:bg-chatroom-bg-hover`   |
 
 ### 4. MessageFeed Prose Styling (`apps/webapp/src/modules/chatroom/components/MessageFeed.tsx`)
 
@@ -95,6 +95,7 @@ Uses `prose prose-invert` unconditionally, forcing dark prose styling.
 
 **Modification:**
 Make prose styling theme-aware:
+
 - Change `prose prose-invert` to `prose dark:prose-invert`
 - Update prose-specific color overrides to use CSS variables
 

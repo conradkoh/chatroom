@@ -30,19 +30,18 @@ export function CallbackSuccessCard({
   userName,
 }: CallbackSuccessCardProps) {
   const [countdown, setCountdown] = useState(autoCloseDelay);
-  const [isClosing, setIsClosing] = useState(false);
+  const [manualClose, setManualClose] = useState(false);
+  const isClosing = countdown <= 0 || manualClose;
 
-  // Auto-close functionality with countdown
   useEffect(() => {
     if (countdown <= 0) {
-      setIsClosing(true);
       const timer = setTimeout(() => {
         if (onClose) {
           onClose();
         } else {
           window.close();
         }
-      }, 500); // Small delay for smooth transition
+      }, 500);
 
       return () => clearTimeout(timer);
     }
@@ -55,7 +54,7 @@ export function CallbackSuccessCard({
   }, [countdown, onClose]);
 
   const handleManualClose = () => {
-    setIsClosing(true);
+    setManualClose(true);
     if (onClose) {
       onClose();
     } else {

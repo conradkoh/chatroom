@@ -1,30 +1,29 @@
-import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Doc, Id } from './_generated/dataModel';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { getCompletionStatus } from './lib/taskWorkflows';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
-import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
-import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import { isActiveParticipant } from '../src/domain/entities/participant';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
-import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
+import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
 
@@ -33,6 +32,167 @@ interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
+}
+
+// =============================================================================
+// SHARED HELPERS
+// =============================================================================
+
+/**
+ * Resolves attachment IDs on a message into full attachment details.
+ * Shared by listQueued to avoid duplication.
+ */
+async function enrichMessageAttachments(
+  ctx: QueryCtx,
+  msg: {
+    attachedTaskIds?: Id<'chatroom_tasks'>[];
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
+    attachedMessageIds?: Id<'chatroom_messages'>[];
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
+  }
+) {
+  // Resolve attached tasks
+  let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
+  if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
+    const tasks = await Promise.all(
+      msg.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
+    );
+    attachedTasks = tasks
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
+  }
+
+  // Resolve attached backlog items
+  let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
+  if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
+    const items = await Promise.all(
+      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
+    );
+    attachedBacklogItems = items
+      .filter((i): i is NonNullable<typeof i> => i !== null)
+      .map((i) => ({ id: i._id, content: i.content, status: i.status }));
+  }
+
+  // Resolve attached messages
+  let attachedMessages:
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
+  if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
+    const msgs = await Promise.all(
+      msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
+    );
+    attachedMessages = msgs
+      .filter((m): m is NonNullable<typeof m> => m !== null)
+      .map((m) => ({
+        _id: m._id,
+        content: m.content,
+        senderRole: m.senderRole,
+        _creationTime: m._creationTime,
+      }));
+  }
+
+  // Resolve attached artifacts
+  let attachedArtifacts:
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
+  if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
+    const artifacts = await Promise.all(
+      msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
+    );
+    attachedArtifacts = artifacts
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({
+        _id: a._id,
+        filename: a.filename,
+        description: a.description,
+        mimeType: a.mimeType,
+      }));
+  }
+
+  // Resolve attached workflows
+  let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
+  if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
+    const workflows = await Promise.all(
+      msg.attachedWorkflowIds.map((wfId) => ctx.db.get('chatroom_workflows', wfId))
+    );
+    attachedWorkflows = workflows
+      .filter((w): w is NonNullable<typeof w> => w !== null)
+      .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
+  }
+
+  return {
+    ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
+    ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+    ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
+    ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+    ...(attachedWorkflows && attachedWorkflows.length > 0 && { attachedWorkflows }),
+  };
+}
+
+/**
+ * Enriches an array of chatroom messages with task status, attachments, and
+ * latest progress information. Used by the messageList module.
+ */
+export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
+  // Batch task lookups: collect unique taskIds, fetch in parallel
+  const uniqueTaskIds = [
+    ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
+  ];
+  const taskMap = new Map<string, { status: string } | null>();
+  const taskResults = await Promise.all(
+    uniqueTaskIds.map(async (id) => {
+      const task = await ctx.db.get('chatroom_tasks', id);
+      return [id.toString(), task ? { status: task.status } : null] as const;
+    })
+  );
+  for (const [id, task] of taskResults) {
+    taskMap.set(id, task);
+  }
+
+  const enrichedMessages = await Promise.all(
+    messages.map(async (message) => {
+      // Use batched task lookup
+      let taskStatus: TaskStatus | undefined;
+      if (message.taskId) {
+        const task = taskMap.get(message.taskId.toString());
+        taskStatus = task?.status as TaskStatus | undefined;
+      }
+
+      // Resolve attachments (shared helper)
+      const attachments = await enrichMessageAttachments(ctx, message);
+
+      // Fetch latest progress message for tasks (for inline progress display)
+      let latestProgress:
+        | { content: string; senderRole: string; _creationTime: number }
+        | undefined;
+      if (message.taskId) {
+        const progressMessages = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
+          .filter((q) => q.eq(q.field('type'), 'progress'))
+          .order('desc')
+          .take(1);
+        if (progressMessages.length > 0) {
+          const latest = progressMessages[0];
+          latestProgress = {
+            content: latest.content,
+            senderRole: latest.senderRole,
+            _creationTime: latest._creationTime,
+          };
+        }
+      }
+
+      return {
+        ...message,
+        ...(taskStatus && { taskStatus }),
+        ...attachments,
+        ...(latestProgress && { latestProgress }),
+      };
+    })
+  );
+
+  return enrichedMessages;
 }
 
 // =============================================================================
@@ -50,6 +210,8 @@ async function _sendMessageHandler(
     targetRole?: string;
     type: 'message' | 'handoff';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
+    attachedMessageIds?: Id<'chatroom_messages'>[];
   }
 ) {
   const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -70,10 +232,55 @@ async function _sendMessageHandler(
           message: 'Invalid task reference: task belongs to different chatroom.',
         });
       }
-      if (task.status === 'closed' || task.status === 'completed') {
+      if (task.status === 'completed') {
         throw new ConvexError({
           code: 'INVALID_TASK_STATUS',
-          message: 'Cannot attach closed or completed tasks. Please select active backlog items.',
+          message: 'Cannot attach completed tasks. Please select active items.',
+        });
+      }
+    }
+  }
+
+  // Validate attached backlog items if provided
+  if (args.attachedBacklogItemIds && args.attachedBacklogItemIds.length > 0) {
+    for (const itemId of args.attachedBacklogItemIds) {
+      const item = await ctx.db.get('chatroom_backlog', itemId);
+      if (!item) {
+        throw new ConvexError({
+          code: 'ITEM_NOT_FOUND',
+          message:
+            'One or more attached backlog items no longer exist. Please refresh and try again.',
+        });
+      }
+      if (item.chatroomId !== args.chatroomId) {
+        throw new ConvexError({
+          code: 'INVALID_ITEM',
+          message: 'Invalid backlog item reference: item belongs to different chatroom.',
+        });
+      }
+      if (item.status === 'closed') {
+        throw new ConvexError({
+          code: 'INVALID_ITEM_STATUS',
+          message: 'Cannot attach closed backlog items.',
+        });
+      }
+    }
+  }
+
+  // Validate attached messages if provided
+  if (args.attachedMessageIds && args.attachedMessageIds.length > 0) {
+    for (const messageId of args.attachedMessageIds) {
+      const msg = await ctx.db.get('chatroom_messages', messageId);
+      if (!msg) {
+        throw new ConvexError({
+          code: 'MESSAGE_NOT_FOUND',
+          message: 'One or more attached messages no longer exist. Please refresh and try again.',
+        });
+      }
+      if (msg.chatroomId !== args.chatroomId) {
+        throw new ConvexError({
+          code: 'INVALID_MESSAGE',
+          message: 'Invalid message reference: message belongs to different chatroom.',
         });
       }
     }
@@ -122,7 +329,14 @@ async function _sendMessageHandler(
         type: 'message' as const,
         queuePosition,
         ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+        ...(args.attachedBacklogItemIds?.length && {
+          attachedBacklogItemIds: args.attachedBacklogItemIds,
+        }),
+        ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
+
+      // Update materialized queue count
+      await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
 
       // Update chatroom lastActivityAt
       await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -138,8 +352,11 @@ async function _sendMessageHandler(
         content: args.content,
         targetRole,
         type: args.type,
-        ...(args.attachedTaskIds &&
-          args.attachedTaskIds.length > 0 && { attachedTaskIds: args.attachedTaskIds }),
+        ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+        ...(args.attachedBacklogItemIds?.length && {
+          attachedBacklogItemIds: args.attachedBacklogItemIds,
+        }),
+        ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
 
       await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -155,74 +372,84 @@ async function _sendMessageHandler(
         sourceMessageId: messageId,
         attachedTaskIds: args.attachedTaskIds,
         queuePosition,
-        origin: 'chat',
       });
 
       await ctx.db.patch('chatroom_messages', messageId, { taskId });
 
-      // Bidirectional tracking for attached backlog tasks
-      if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
-        const now = Date.now();
-        for (const attachedTaskId of args.attachedTaskIds) {
-          const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-          if (!attachedTask) continue;
-          const existingParents = attachedTask.parentTaskIds || [];
-          await ctx.db.patch('chatroom_tasks', attachedTaskId, {
-            parentTaskIds: [...existingParents, taskId],
-            updatedAt: now,
-          });
-          if (attachedTask.status === 'backlog') {
-            try {
-              await transitionTask(ctx, attachedTaskId, 'backlog_acknowledged', 'attachToMessage', {
-                parentTaskIds: [...existingParents, taskId],
-              });
-            } catch (error) {
-              console.error(
-                `Failed to transition backlog task ${attachedTaskId} to backlog_acknowledged:`,
-                error
-              );
-            }
-          }
-        }
-      }
-
       return messageId;
     }
-  } else {
-    // ─── Non-user messages: always write to chatroom_messages ────────────────
+    // ─── Pending path: existing flow (store in chatroom_messages) ────────
     const messageId = await ctx.db.insert('chatroom_messages', {
       chatroomId: args.chatroomId,
       senderRole: args.senderRole,
       content: args.content,
       targetRole,
       type: args.type,
-      ...(args.attachedTaskIds &&
-        args.attachedTaskIds.length > 0 && { attachedTaskIds: args.attachedTaskIds }),
+      ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+      ...(args.attachedBacklogItemIds?.length && {
+        attachedBacklogItemIds: args.attachedBacklogItemIds,
+      }),
+      ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
     });
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       lastActivityAt: Date.now(),
     });
 
-    if (isHandoffToAgent) {
-      const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
-      const assignedTo = targetRole;
-      const { taskId } = await createTaskUsecase(ctx, {
-        chatroomId: args.chatroomId,
-        createdBy: args.senderRole,
-        content: args.content,
-        forceStatus: 'pending',
-        assignedTo,
-        sourceMessageId: messageId,
-        attachedTaskIds: args.attachedTaskIds,
-        queuePosition,
-        origin: 'chat',
-      });
-      await ctx.db.patch('chatroom_messages', messageId, { taskId });
-    }
+    const { taskId } = await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: 'user',
+      content: args.content,
+      forceStatus: undefined,
+      assignedTo,
+      sourceMessageId: messageId,
+      attachedTaskIds: args.attachedTaskIds,
+      queuePosition,
+    });
+
+    await ctx.db.patch('chatroom_messages', messageId, { taskId });
 
     return messageId;
   }
+  // ─── Non-user messages: always write to chatroom_messages ────────────────
+  const messageId = await ctx.db.insert('chatroom_messages', {
+    chatroomId: args.chatroomId,
+    senderRole: args.senderRole,
+    content: args.content,
+    targetRole,
+    type: args.type,
+    ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+    ...(args.attachedBacklogItemIds?.length && {
+      attachedBacklogItemIds: args.attachedBacklogItemIds,
+    }),
+  });
+
+  await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+    lastActivityAt: Date.now(),
+  });
+
+  if (isHandoffToAgent) {
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+    const assignedTo = targetRole;
+    const { taskId } = await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: args.senderRole,
+      content: args.content,
+      forceStatus: 'pending',
+      assignedTo,
+      sourceMessageId: messageId,
+      attachedTaskIds: args.attachedTaskIds,
+      queuePosition,
+    });
+    await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  }
+
+  // Update unread status for chatroom owner (skip if sender is the owner's "user" role)
+  if (args.senderRole !== 'user' && chatroom.ownerId) {
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, false);
+  }
+
+  return messageId;
 }
 
 // =============================================================================
@@ -239,6 +466,8 @@ export const send = mutation({
     targetRole: v.optional(v.string()),
     type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
@@ -255,6 +484,7 @@ async function _handoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -312,6 +542,40 @@ async function _handoffHandler(
         newTaskId: null,
         promotedTaskId: null,
       };
+    }
+  }
+
+  // Validate workflow requirement for planner→builder handoffs (blocking)
+  if (normalizedSenderRole === 'planner' && normalizedTargetRole === 'builder') {
+    const activeWorkflow = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'active')
+      )
+      .first();
+
+    if (!activeWorkflow) {
+      const draftWorkflow = await ctx.db
+        .query('chatroom_workflows')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'draft')
+        )
+        .first();
+
+      if (!draftWorkflow) {
+        return {
+          success: false,
+          error: {
+            code: 'WORKFLOW_REQUIRED',
+            message:
+              'Active workflow required for planner → builder handoff. Create a workflow first.',
+          },
+          messageId: null,
+          completedTaskIds: [],
+          newTaskId: null,
+          promotedTaskId: null,
+        };
+      }
     }
   }
 
@@ -373,22 +637,18 @@ async function _handoffHandler(
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
 
   for (const task of tasksToComplete) {
-    // Determine the new status using the workflow definition:
-    // - When handing off to user: use workflow-defined completion status
-    //   (backlog → pending_user_review, chat → completed)
-    // - When handing off to agent: always 'completed' (a new task is created for target)
-    const newStatus: 'pending_user_review' | 'completed' = isHandoffToUser
-      ? (getCompletionStatus(task.origin, task.status) as 'pending_user_review' | 'completed')
-      : 'completed';
+    // All tasks complete to 'completed' status
+    const newStatus: 'completed' = 'completed';
 
-    // Use FSM for transition
-    // Use appropriate trigger based on context
-    const trigger = isHandoffToUser ? 'completeTask' : 'completeTask';
-    await transitionTask(ctx, task._id, newStatus, trigger);
+    // Use FSM for transition — skip auto-promotion because the handoff handler
+    // manages promotion explicitly (Step 6 for handoff-to-user).
+    await transitionTask(ctx, task._id, newStatus, 'completeTask', undefined, {
+      skipAutoPromotion: true,
+    });
     completedTaskIds.push(task._id);
 
-    // Set completedAt on the source message (lifecycle tracking) - only for completed tasks
-    if (task.sourceMessageId && newStatus === 'completed') {
+    // Set completedAt on the source message (lifecycle tracking)
+    if (task.sourceMessageId) {
       await ctx.db.patch('chatroom_messages', task.sourceMessageId, {
         completedAt: now,
       });
@@ -410,6 +670,8 @@ async function _handoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
+    ...(args.attachedWorkflowIds &&
+      args.attachedWorkflowIds.length > 0 && { attachedWorkflowIds: args.attachedWorkflowIds }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -432,7 +694,6 @@ async function _handoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
-      origin: 'chat',
     });
     newTaskId = createdTaskId;
 
@@ -454,43 +715,10 @@ async function _handoffHandler(
     });
   }
 
-  // Step 5: Update attached backlog tasks to pending_user_review when handing off to user
-  // This is the ONLY place where attached backlog tasks should have their status changed
-  // Use whitelist approach: only transition specific statuses, not "everything except completed/closed"
-  // This avoids accidentally flipping cancelled/archived tasks
-  const TRANSITIONABLE_STATUSES = ['backlog', 'pending', 'in_progress'] as const;
-  type TransitionableStatus = (typeof TRANSITIONABLE_STATUSES)[number];
-
-  if (isHandoffToUser) {
-    // For each completed task, get its source message and update attached backlog tasks
-    for (const task of inProgressTasks) {
-      if (task.sourceMessageId) {
-        const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-        if (sourceMessage?.attachedTaskIds && sourceMessage.attachedTaskIds.length > 0) {
-          for (const attachedTaskId of sourceMessage.attachedTaskIds) {
-            const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-            // Only update backlog-origin tasks in transitionable statuses
-            if (
-              attachedTask &&
-              attachedTask.origin === 'backlog' &&
-              TRANSITIONABLE_STATUSES.includes(attachedTask.status as TransitionableStatus)
-            ) {
-              await transitionTask(
-                ctx,
-                attachedTaskId,
-                'pending_user_review',
-                'parentTaskAcknowledged'
-              );
-              console.warn(
-                `[Attached Task Update] chatroomId=${task.chatroomId} taskId=${attachedTaskId} ` +
-                  `from=${attachedTask.status} to=pending_user_review`
-              );
-            }
-          }
-        }
-      }
-    }
-  }
+  // Step 5: Attached backlog items remain in their current status on handoff.
+  // Agents should explicitly use `chatroom backlog mark-for-review` to transition
+  // items they worked on to pending_user_review. Auto-transitioning all attached
+  // items would incorrectly mark items that were attached for context only.
 
   // Step 6: Explicit queue promotion on handoff-to-user
   // When handing off to user, we need to explicitly promote the next queued task
@@ -501,19 +729,38 @@ async function _handoffHandler(
     // 'acknowledged' must be included: a claimed task is actively being worked on.
     // Promoting a queued message while an acknowledged task exists would create a
     // race condition where two tasks compete for agent attention simultaneously.
-    const allTasks = await ctx.db
+    // Check if any active task exists using indexed lookups instead of
+    // loading all tasks. Short-circuit: stop as soon as one is found.
+    const pendingTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const hasActiveTask = allTasks.some((t) => ACTIVE_TASK_STATUSES.has(t.status));
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      )
+      .first();
+    const acknowledgedTask = pendingTask
+      ? null
+      : await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+          )
+          .first();
+    const inProgressTask =
+      pendingTask || acknowledgedTask
+        ? null
+        : await ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+            )
+            .first();
+    const hasActiveTask = !!(pendingTask || acknowledgedTask || inProgressTask);
 
     if (!hasActiveTask) {
       // No active tasks — find oldest queued message and promote it
       const queuedMessages = await ctx.db
         .query('chatroom_messageQueue')
-        .withIndex('by_chatroom_queue', (q) =>
-          q.eq('chatroomId', args.chatroomId)
-        )
+        .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
         .order('asc')
         .first();
 
@@ -524,6 +771,13 @@ async function _handoffHandler(
         }
       }
     }
+  }
+
+  // Update unread status for chatroom owner
+  // Handoff-to-user is specially flagged
+  if (chatroom?.ownerId) {
+    const isHandoffToUser = args.targetRole?.toLowerCase() === 'user';
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
   }
 
   return {
@@ -561,6 +815,8 @@ export const sendMessage = mutation({
     targetRole: v.optional(v.string()),
     type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
@@ -576,6 +832,7 @@ export const handoff = mutation({
     content: v.string(),
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);
@@ -615,10 +872,12 @@ export const reportProgress = mutation({
     // Find the current in-progress task for this role to link the progress message
     const inProgressTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      .withIndex('by_chatroom_status_assignedTo', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('status', 'in_progress')
+          .eq('assignedTo', args.senderRole)
       )
-      .filter((q) => q.eq(q.field('assignedTo'), args.senderRole))
       .first();
 
     // Create the progress message linked to the task (if found)
@@ -692,20 +951,21 @@ export const taskStarted = mutation({
       });
     }
 
-    // Get the associated message (all tasks have sourceMessageId since they are created at promotion time)
+    // Get the associated message (user-originated tasks have sourceMessageId;
+    // system-generated tasks like skill activations may not)
     let message: Doc<'chatroom_messages'> | null = null;
 
     if (task.sourceMessageId) {
       message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-    } else {
-      throw new ConvexError({
-        code: 'INVALID_TASK',
-        message: 'Task must have an associated message (sourceMessageId)',
-      });
     }
+    // System tasks without a sourceMessageId are allowed — they skip classification below
 
-    // Only allow classification of user messages (skip this check if we're not classifying)
-    if (!args.skipClassification && message!.senderRole.toLowerCase() !== 'user') {
+    // Only allow classification of user messages (skip this check for system tasks or when not classifying)
+    if (
+      !args.skipClassification &&
+      message !== null &&
+      message.senderRole.toLowerCase() !== 'user'
+    ) {
       throw new ConvexError({
         code: 'INVALID_MESSAGE',
         message: 'Can only classify user messages',
@@ -716,8 +976,19 @@ export const taskStarted = mutation({
     if (task.status !== 'in_progress') {
       throw new ConvexError({
         code: 'INVALID_TASK_STATUS',
-        message: `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`,
+        message: `Task must be in_progress to classify (current status: ${task.status}). Call 'task read' first to transition task to in_progress.`,
       });
+    }
+
+    // System tasks (no sourceMessageId) have no associated user message — skip classification entirely
+    if (!task.sourceMessageId) {
+      return {
+        success: true,
+        taskId: task._id,
+        chatroomId: task.chatroomId,
+        classification: 'question' as const, // System tasks are treated as questions
+        isSystemTask: true,
+      };
     }
 
     // Use existing classification if skipClassification is true
@@ -804,7 +1075,7 @@ export const taskStarted = mutation({
     }
 
     // Note: Attached backlog tasks remain in their current status when agent acknowledges.
-    // They will only be transitioned to pending_user_review when the agent hands off to user.
+    // Agents explicitly use `chatroom backlog mark-for-review` for items they worked on.
 
     // For follow-ups, link to the previous non-follow-up message
     if (!args.skipClassification && finalClassification === 'follow_up' && message) {
@@ -847,7 +1118,8 @@ export const taskStarted = mutation({
         message?._id?.toString(),
         args.taskId.toString(),
         args.convexUrl,
-        getTeamRolesFromChatroom(chatroom).teamRoles
+        getTeamRolesFromChatroom(chatroom).teamRoles,
+        chatroom.teamName
       );
     } catch (error) {
       console.error('Error generating task started reminder:', error);
@@ -922,7 +1194,7 @@ export const getAllowedHandoffRoles = query({
   },
 });
 
-/** Returns all messages in a chatroom up to an optional limit. */
+/** Returns recent messages in a chatroom up to an optional limit. */
 export const list = query({
   args: {
     ...SessionIdArg,
@@ -933,17 +1205,18 @@ export const list = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const query = ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId));
-
-    const messages = await query.collect();
-
     // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 1000;
+    const MAX_LIMIT = 50;
     const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
-    return messages.slice(-limit);
+    // Fetch the most recent N messages (desc order) then reverse for chronological
+    const recentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .take(limit);
+
+    return recentMessages.reverse();
   },
 });
 
@@ -965,6 +1238,127 @@ export const deleteQueuedMessage = mutation({
 
     // Delete the queue record
     await ctx.db.delete('chatroom_messageQueue', args.queuedMessageId);
+
+    // Update materialized queue count
+    await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
+
+    return { success: true };
+  },
+});
+
+/** Deletes a pending message from chatroom_messages and its associated pending task (user-triggered cancel).
+ *  Only messages with a linked task in 'pending' status can be deleted — messages that are already
+ *  being processed (acknowledged / in_progress) are protected.
+ */
+export const deletePendingMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    messageId: v.id('chatroom_messages'),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message) {
+      // Already deleted — idempotent
+      return { success: true };
+    }
+
+    // Validate session and check chatroom access (also verifies ownership)
+    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
+
+    // Guard: only allow deletion if the linked task is still pending
+    if (!message.taskId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message has no associated task and cannot be deleted.',
+      });
+    }
+
+    const task = await ctx.db.get('chatroom_tasks', message.taskId);
+    if (!task) {
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Associated task not found.',
+      });
+    }
+
+    if (task.status !== 'pending') {
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Cannot delete message: task is already ${task.status}. Only pending messages can be deleted.`,
+      });
+    }
+
+    // Delete the associated pending task first
+    await ctx.db.delete('chatroom_tasks', task._id);
+
+    // Delete the message itself (hard delete)
+    await ctx.db.delete('chatroom_messages', args.messageId);
+
+    return { success: true };
+  },
+});
+
+/** Updates the content of a pending message (task still pending — not yet picked up by an agent).
+ *  Also updates the associated task content to stay in sync.
+ */
+export const updatePendingMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    messageId: v.id('chatroom_messages'),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message) {
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Message not found.',
+      });
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
+
+    // Validate non-empty content
+    const trimmed = args.content.trim();
+    if (!trimmed) {
+      throw new ConvexError({
+        code: 'INVALID_CONTENT',
+        message: 'Message content cannot be empty.',
+      });
+    }
+
+    // Guard: only allow edit if the linked task is still pending
+    if (!message.taskId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message has no associated task and cannot be edited.',
+      });
+    }
+
+    const task = await ctx.db.get('chatroom_tasks', message.taskId);
+    if (!task) {
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Associated task not found.',
+      });
+    }
+
+    if (task.status !== 'pending') {
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Cannot edit message: task is already ${task.status}. Only pending messages can be edited.`,
+      });
+    }
+
+    // Update the message content
+    await ctx.db.patch('chatroom_messages', args.messageId, { content: trimmed });
+
+    // Update the associated task content to stay in sync
+    await ctx.db.patch('chatroom_tasks', task._id, {
+      content: trimmed,
+      updatedAt: Date.now(),
+    });
 
     return { success: true };
   },
@@ -1029,133 +1423,31 @@ export const listQueued = query({
       type: qMsg.type,
       taskId: undefined as undefined, // No task until promoted
       attachedTaskIds: qMsg.attachedTaskIds,
+      attachedBacklogItemIds: qMsg.attachedBacklogItemIds,
       attachedArtifactIds: qMsg.attachedArtifactIds,
+      attachedMessageIds: qMsg.attachedMessageIds,
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
     }));
 
-    return transformedMessages.slice(-limit);
-  },
-});
-
-/** Returns messages in descending order with task status and attached task/artifact details, paginated. */
-export const listPaginated = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Paginate with descending order (newest first)
-    // Filter out progress messages (shown inline in task headers) and
-    // legacy join messages (no longer created) at the DB level so pagination
-    // counts only displayable messages.
-    const result = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
-      .order('desc')
-      .paginate(args.paginationOpts);
-
-    // Enrich messages with task status and attached task details
-    const enrichedPage = await Promise.all(
-      result.page.map(async (message) => {
-        // Fetch task status if message has a linked task
-        let taskStatus: TaskStatus | undefined;
-        if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
-        }
-
-        // Fetch attached task details if message has attached tasks
-        let attachedTasks:
-          | {
-              _id: string;
-              content: string;
-              backlogStatus?: TaskStatus;
-              status: TaskStatus;
-              origin?: string;
-            }[]
-          | undefined;
-        if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
-          const tasks = await Promise.all(
-            message.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
-          );
-          attachedTasks = tasks
-            .filter((t) => t !== null)
-            .map((t) => ({
-              _id: t!._id,
-              content: t!.content,
-              status: t!.status,
-              origin: t!.origin,
-              // Compute backlogStatus from actual task status for display in the UI
-              backlogStatus: t!.status,
-            }));
-        }
-
-        // Fetch attached artifact details if message has attached artifacts
-        let attachedArtifacts:
-          | { _id: string; filename: string; description?: string; mimeType?: string }[]
-          | undefined;
-        if (message.attachedArtifactIds && message.attachedArtifactIds.length > 0) {
-          const artifacts = await Promise.all(
-            message.attachedArtifactIds.map((artifactId) =>
-              ctx.db.get('chatroom_artifacts', artifactId)
-            )
-          );
-          attachedArtifacts = artifacts
-            .filter((a) => a !== null)
-            .map((a) => ({
-              _id: a!._id,
-              filename: a!.filename,
-              description: a!.description,
-              mimeType: a!.mimeType,
-            }));
-        }
-
-        // Fetch latest progress message for tasks (for inline progress display)
-        let latestProgress:
-          | { content: string; senderRole: string; _creationTime: number }
-          | undefined;
-        if (message.taskId) {
-          const progressMessages = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
-            .filter((q) => q.eq(q.field('type'), 'progress'))
-            .order('desc')
-            .take(1);
-          if (progressMessages.length > 0) {
-            const latest = progressMessages[0];
-            latestProgress = {
-              content: latest.content,
-              senderRole: latest.senderRole,
-              _creationTime: latest._creationTime,
-            };
-          }
-        }
-
-        return {
-          ...message,
-          ...(taskStatus && { taskStatus }),
-          ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
-          ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
-          ...(latestProgress && { latestProgress }),
-        };
+    // Enrich queued messages with attachment details (shared helper)
+    const enrichedMessages = await Promise.all(
+      transformedMessages.map(async (qMsg) => {
+        const attachments = await enrichMessageAttachments(ctx, qMsg);
+        return { ...qMsg, ...attachments };
       })
     );
 
-    return {
-      ...result,
-      page: enrichedPage,
-    };
+    return enrichedMessages.slice(-limit);
   },
 });
 
-/** Returns all progress messages for a task in chronological order. */
+/**
+ * Returns all progress messages for a given task, ordered chronologically.
+ * Used by TaskProgressHistory in MessageFeed to display progress updates
+ * when the user expands the progress history view.
+ */
 export const getProgressForTask = query({
   args: {
     ...SessionIdArg,
@@ -1247,15 +1539,16 @@ export const getContextWindow = query({
                 classification: originMessage.classification || null,
               };
             }
-            // Origin is older than our recent window - fetch all messages from origin
-            // This is rare but handles edge case
-            const allMessages = await ctx.db
+            // Origin is older than our recent window — use compound index to fetch
+            // messages from the origin's creation time onward (avoids loading ALL messages)
+            const contextMessages = await ctx.db
               .query('chatroom_messages')
-              .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+              .withIndex('by_chatroom', (q) =>
+                q
+                  .eq('chatroomId', args.chatroomId)
+                  .gte('_creationTime', originMessage._creationTime)
+              )
               .collect();
-            const fullOriginIndex = allMessages.findIndex((m) => m._id === originMessage._id);
-            const contextMessages =
-              fullOriginIndex !== -1 ? allMessages.slice(fullOriginIndex) : allMessages;
             return {
               originMessage,
               contextMessages,
@@ -1442,16 +1735,20 @@ export const listFeatures = query({
     const MAX_LIMIT = 50;
     const effectiveLimit = Math.min(limit, MAX_LIMIT);
 
-    // Get all messages in the chatroom
-    const messages = await ctx.db
+    // Use the senderRole+type compound index to narrow to user messages,
+    // then filter for new_feature classification. Scan desc to get newest first.
+    // Over-fetch to compensate for post-filter on classification.
+    const candidateMessages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .take(effectiveLimit * 10); // Over-fetch since not all user messages are new_feature
 
     // Filter to new_feature messages with feature title
-    const features = messages
+    const features = candidateMessages
       .filter((msg) => msg.classification === 'new_feature' && msg.featureTitle)
-      .reverse() // Most recent first
       .slice(0, effectiveLimit)
       .map((msg) => ({
         id: msg._id,
@@ -1481,14 +1778,18 @@ export const inspectFeature = query({
     // Try to get the message from either table
     // First try chatroom_messages, then chatroom_messageQueue
     let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-    
+
     // Check if it's in chatroom_messages
-    const regularMessage = await ctx.db.get('chatroom_messages', args.messageId as Id<'chatroom_messages'>).catch(() => null);
+    const regularMessage = await ctx.db
+      .get('chatroom_messages', args.messageId as Id<'chatroom_messages'>)
+      .catch(() => null);
     if (regularMessage && regularMessage.chatroomId === args.chatroomId) {
       message = regularMessage;
     } else {
       // Try chatroom_messageQueue
-      const queuedMessage = await ctx.db.get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>).catch(() => null);
+      const queuedMessage = await ctx.db
+        .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
+        .catch(() => null);
       if (queuedMessage && queuedMessage.chatroomId === args.chatroomId) {
         message = queuedMessage;
       }
@@ -1519,20 +1820,14 @@ export const inspectFeature = query({
       });
     }
 
-    // Get all messages in the chatroom to find the thread
-    const allMessages = await ctx.db
+    // Use compound index to fetch messages from this message's creation time onward
+    // instead of loading ALL messages in the chatroom
+    const messagesFromFeature = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    // Find the index of this message
-    const messageIndex = allMessages.findIndex((m) => m._id === args.messageId);
-    if (messageIndex === -1) {
-      throw new ConvexError({
-        code: 'MESSAGE_NOT_FOUND',
-        message: 'Message not found in chatroom',
-      });
-    }
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).gte('_creationTime', regularMsg._creationTime)
+      )
+      .take(500); // Reasonable upper bound for a feature thread
 
     // Get all messages after this one until the next non-follow-up user message
     const thread: {
@@ -1543,8 +1838,15 @@ export const inspectFeature = query({
       createdAt: number;
     }[] = [];
 
-    for (let i = messageIndex + 1; i < allMessages.length; i++) {
-      const msg = allMessages[i];
+    // Skip past the feature message itself, then collect thread
+    let foundFeatureMsg = false;
+    for (const msg of messagesFromFeature) {
+      if (!foundFeatureMsg) {
+        if (msg._id === args.messageId) {
+          foundFeatureMsg = true;
+        }
+        continue;
+      }
 
       // Stop at the next non-follow-up user message
       if (
@@ -1670,14 +1972,6 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Look up actual participants to provide real availability data
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const availableMembers = participants.filter(isActiveParticipant).map((p) => p.role);
-
     // Look up existing team agent config to include the agent type in the prompt
     const teamRoleKey = chatroom.teamId
       ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
@@ -1697,7 +1991,6 @@ export const getInitPrompt = query({
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      availableMembers,
       agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
     };
 
@@ -1752,13 +2045,15 @@ export const getTaskDeliveryPrompt = query({
     if (chatroom.currentContextId) {
       const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
       if (context) {
-        // Get current message count to compute staleness
-        const allMessages = await ctx.db
+        // Count only messages since context creation to compute staleness.
+        // Uses compound index for an indexed range scan (no full table scan).
+        const recentMessages = await ctx.db
           .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .withIndex('by_chatroom', (q) =>
+            q.eq('chatroomId', args.chatroomId).gte('_creationTime', context.createdAt)
+          )
           .collect();
-        const currentMessageCount = allMessages.length;
-        const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+        const messagesSinceContext = recentMessages.length;
 
         // Compute time elapsed since context creation
         const elapsedMs = Date.now() - context.createdAt;
@@ -1788,12 +2083,16 @@ export const getTaskDeliveryPrompt = query({
     let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
     if (args.messageId) {
       // Try chatroom_messages first
-      const regularMessage = await ctx.db.get('chatroom_messages', args.messageId as Id<'chatroom_messages'>).catch(() => null);
+      const regularMessage = await ctx.db
+        .get('chatroom_messages', args.messageId as Id<'chatroom_messages'>)
+        .catch(() => null);
       if (regularMessage) {
         message = regularMessage;
       } else {
         // Try chatroom_messageQueue
-        const queuedMessage = await ctx.db.get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>).catch(() => null);
+        const queuedMessage = await ctx.db
+          .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
+          .catch(() => null);
         if (queuedMessage) {
           message = queuedMessage;
         }
@@ -1928,7 +2227,7 @@ export const getTaskDeliveryPrompt = query({
     // Fetch attached task details
     const attachedTasksMap = new Map<
       string,
-      { id: string; content: string; status: TaskStatus; createdBy: string; backlogStatus?: string }
+      { id: string; content: string; status: TaskStatus; createdBy: string }
     >();
     if (allAttachedTaskIds.length > 0) {
       const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
@@ -1940,7 +2239,54 @@ export const getTaskDeliveryPrompt = query({
             content: attachedTask.content,
             status: attachedTask.status,
             createdBy: attachedTask.createdBy,
-            backlogStatus: attachedTask.origin === 'backlog' ? attachedTask.status : undefined,
+          });
+        }
+      }
+    }
+
+    // Fetch attached backlog items if any exist in context messages
+    const allAttachedBacklogItemIds: Id<'chatroom_backlog'>[] = [];
+    if (originMessage?.attachedBacklogItemIds && originMessage.attachedBacklogItemIds.length > 0) {
+      allAttachedBacklogItemIds.push(...originMessage.attachedBacklogItemIds);
+    }
+    for (const msg of contextMessagesSlice) {
+      if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
+        allAttachedBacklogItemIds.push(...msg.attachedBacklogItemIds);
+      }
+    }
+
+    // Fetch attached backlog item details
+    const attachedBacklogItemsMap = new Map<
+      string,
+      { id: string; content: string; status: string }
+    >();
+    if (allAttachedBacklogItemIds.length > 0) {
+      const uniqueItemIds = [...new Set(allAttachedBacklogItemIds)];
+      for (const itemId of uniqueItemIds) {
+        const item = await ctx.db.get('chatroom_backlog', itemId);
+        if (item) {
+          attachedBacklogItemsMap.set(itemId, {
+            id: item._id,
+            content: item.content,
+            status: item.status,
+          });
+        }
+      }
+    }
+
+    // Fetch attached messages if any exist in origin message
+    const attachedMessagesMap = new Map<
+      string,
+      { id: string; content: string; senderRole: string }
+    >();
+    if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
+      for (const msgId of originMessage.attachedMessageIds) {
+        const msg = await ctx.db.get('chatroom_messages', msgId);
+        if (msg) {
+          attachedMessagesMap.set(msgId, {
+            id: msg._id,
+            content: msg.content,
+            senderRole: msg.senderRole,
           });
         }
       }
@@ -1992,6 +2338,10 @@ export const getTaskDeliveryPrompt = query({
                 createdBy: string;
                 backlogStatus?: string;
               }[],
+              attachedBacklogItemIds: originMessage.attachedBacklogItemIds,
+              attachedBacklogItems: originMessage.attachedBacklogItemIds
+                ?.map((id) => attachedBacklogItemsMap.get(id))
+                .filter(Boolean) as { id: string; content: string; status: string }[],
             }
           : null,
         contextMessages: contextMessagesSlice.map((m) => ({
@@ -2011,6 +2361,10 @@ export const getTaskDeliveryPrompt = query({
             createdBy: string;
             backlogStatus?: string;
           }[],
+          attachedBacklogItemIds: m.attachedBacklogItemIds,
+          attachedBacklogItems: m.attachedBacklogItemIds
+            ?.map((id) => attachedBacklogItemsMap.get(id))
+            .filter(Boolean) as { id: string; content: string; status: string }[],
         })),
         classification: originMessage?.classification || null,
         // Staleness metadata for warning display
@@ -2055,12 +2409,13 @@ export const getTaskDeliveryPrompt = query({
             senderRole: originMessage.senderRole,
             content: originMessage.content,
             classification: originMessage.classification,
-            attachedTasks: originMessage.attachedTaskIds
-              ?.map((id) => attachedTasksMap.get(id))
+            attachedMessages: originMessage.attachedMessageIds
+              ?.map((id) => attachedMessagesMap.get(id))
               .filter(Boolean)
-              .map((t) => ({
-                status: t!.status,
-                content: t!.content,
+              .map((m) => ({
+                _id: m!.id,
+                content: m!.content,
+                senderRole: m!.senderRole,
               })),
           }
         : null,
@@ -2157,12 +2512,13 @@ export const listSinceMessage = query({
     const limit = args.limit || 100;
     const maxLimit = 500;
 
-    // Fetch all messages from reference onwards (inclusive)
-    // Using filter on _creationTime since we need >= comparison
+    // Fetch messages from reference creation time onward using compound index
+    // for an indexed range scan (avoids scanning all older messages)
     const messages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.gte(q.field('_creationTime'), referenceMessage._creationTime))
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).gte('_creationTime', referenceMessage._creationTime)
+      )
       .order('asc')
       .take(Math.min(limit, maxLimit));
 
@@ -2306,6 +2662,20 @@ export const getContextForRole = query({
           }
         }
 
+        // Get full attached backlog item objects (not just IDs)
+        let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
+        if (message.attachedBacklogItemIds && message.attachedBacklogItemIds.length > 0) {
+          const items = await Promise.all(
+            message.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
+          );
+          const validItems = items
+            .filter((i): i is NonNullable<typeof i> => i !== null)
+            .map((i) => ({ id: i._id, content: i.content, status: i.status }));
+          if (validItems.length > 0) {
+            attachedBacklogItems = validItems;
+          }
+        }
+
         return {
           _id: message._id.toString(),
           _creationTime: message._creationTime,
@@ -2319,6 +2689,7 @@ export const getContextForRole = query({
           taskStatus,
           taskContent,
           attachedTasks,
+          ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
         };
       })
     );

@@ -1,23 +1,22 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Search, X, Pencil, Trash2 } from 'lucide-react';
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { Search, Pencil, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
-type TaskStatus =
-  | 'pending'
-  | 'acknowledged'
-  | 'in_progress'
-  | 'backlog'
-  | 'backlog_acknowledged'
-  | 'pending_user_review'
-  | 'completed'
-  | 'closed'
-  | 'cancelled'; // deprecated
-type TaskOrigin = 'backlog' | 'chat';
+import { getScoringBadge } from './backlog';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+} from '@/components/ui/fixed-modal';
+
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
@@ -58,40 +57,15 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'backlog_acknowledged':
-      return {
-        label: 'Backlog Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
     case 'in_progress':
       return {
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
-    case 'backlog':
-      return {
-        label: 'Backlog',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'pending_user_review':
-      return {
-        label: 'Pending User Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
-      };
     case 'completed':
       return {
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'cancelled':
-      return {
-        label: 'Cancelled',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     default:
       return {
@@ -111,35 +85,6 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
     }
   }, [isOpen]);
 
-  // Handle Escape key
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
   // Filter tasks by search query
   const filteredTasks = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -150,23 +95,20 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   }, [tasks, searchQuery]);
 
   // Group tasks by status
-  // Backlog items sorted by createdAt descending (newest first) for better visibility
   const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {
       current: [],
-      backlog: [],
     };
 
     for (const task of filteredTasks) {
-      if (task.status === 'pending' || task.status === 'in_progress') {
+      if (
+        task.status === 'pending' ||
+        task.status === 'acknowledged' ||
+        task.status === 'in_progress'
+      ) {
         groups.current.push(task);
-      } else if (task.status === 'backlog') {
-        groups.backlog.push(task);
       }
     }
-
-    // Sort backlog by createdAt descending (newest first)
-    groups.backlog.sort((a, b) => b.createdAt - a.createdAt);
 
     return groups;
   }, [filteredTasks]);
@@ -176,17 +118,9 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
-        onClick={handleBackdropClick}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-2xl md:max-h-[85vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl" className="sm:max-h-[85vh]">
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose} className="py-4">
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
               All Tasks
@@ -195,63 +129,46 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
               Task Queue ({tasks.length})
             </span>
           </div>
-          <button
-            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </FixedModalHeader>
 
-        {/* Search */}
-        <div className="p-3 border-b border-chatroom-border flex-shrink-0">
-          <div className="relative">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
-            />
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-chatroom-bg-tertiary border-2 border-chatroom-border text-chatroom-text-primary text-sm pl-9 pr-3 py-2 focus:outline-none focus:border-chatroom-accent placeholder:text-chatroom-text-muted"
-            />
-          </div>
-        </div>
-
-        {/* Task List */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {filteredTasks.length === 0 ? (
-            <div className="p-8 text-center text-chatroom-text-muted text-sm">
-              {searchQuery ? 'No tasks match your search' : 'No tasks found'}
+        <FixedModalBody className="flex flex-col min-h-0 p-0">
+          <div className="p-3 border-b border-chatroom-border flex-shrink-0">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
+              />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-chatroom-bg-tertiary border-2 border-chatroom-border text-chatroom-text-primary text-sm pl-9 pr-3 py-2 focus:outline-none focus:border-chatroom-accent placeholder:text-chatroom-text-muted"
+              />
             </div>
-          ) : (
-            <>
-              {/* Current Tasks */}
-              {groupedTasks.current.length > 0 && (
-                <TaskGroup
-                  title="Current"
-                  tasks={groupedTasks.current}
-                  onTaskClick={onTaskClick}
-                  isProtected
-                />
-              )}
+          </div>
 
-              {/* Backlog Tasks */}
-              {groupedTasks.backlog.length > 0 && (
-                <TaskGroup
-                  title={`Backlog (${groupedTasks.backlog.length})`}
-                  tasks={groupedTasks.backlog}
-                  onTaskClick={onTaskClick}
-                />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {filteredTasks.length === 0 ? (
+              <div className="p-8 text-center text-chatroom-text-muted text-sm">
+                {searchQuery ? 'No tasks match your search' : 'No tasks found'}
+              </div>
+            ) : (
+              <>
+                {groupedTasks.current.length > 0 && (
+                  <TaskGroup
+                    title="Current"
+                    tasks={groupedTasks.current}
+                    onTaskClick={onTaskClick}
+                    isProtected
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 }
 
@@ -327,23 +244,6 @@ interface TaskListItemProps {
   onDelete?: () => void;
 }
 
-// Scoring badge helper for complexity/value
-function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
-  const colors = {
-    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
-    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
-    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
-  };
-  const labels = {
-    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
-    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
-  };
-  return {
-    label: labels[type][level],
-    classes: colors[level],
-  };
-}
-
 function TaskListItem({
   task,
   onClick,
@@ -414,6 +314,7 @@ function TaskListItem({
         <div className="flex items-center gap-1">
           {onStartEdit && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onStartEdit();
@@ -426,6 +327,7 @@ function TaskListItem({
           )}
           {onDelete && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();

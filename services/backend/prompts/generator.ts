@@ -22,7 +22,6 @@
  * duplication.
  */
 
-import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
@@ -32,25 +31,29 @@ import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
 import { getGettingStartedSection } from './sections/getting-started';
+import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
+import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import {
   getTeamHeaderSection,
   getRoleTitleSection,
   getRoleDescriptionSection,
 } from './sections/role-identity';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
-import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext';
+import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
+import type { TeamKind } from '../src/domain/entities/team-kind';
 import { getCliEnvPrefix } from './utils/index';
+import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
-export { getReviewGuidelines } from './teams/pair/roles';
+export { getReviewGuidelines } from './review-guidelines';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';
@@ -92,16 +95,19 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 function detectTeamType(
   teamRoles: string[],
   teamName?: string
-): 'pair' | 'squad' | 'duo' | 'unknown' {
+): TeamKind | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
+  if (normalizedName.includes('solo')) return 'solo';
   if (normalizedName.includes('squad')) return 'squad';
   if (normalizedName.includes('duo')) return 'duo';
-  if (normalizedName.includes('pair')) return 'pair';
-
   // Detect by role composition
   const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  const hasSolo = teamRoles.some((r) => r.toLowerCase() === 'solo');
+
+  // Solo: single solo role
+  if (hasSolo && teamRoles.length === 1) return 'solo';
 
   // Duo: planner + builder (exactly 2 roles, no reviewer)
   if (hasPlanner && hasBuilder && !hasReviewer && teamRoles.length === 2) return 'duo';
@@ -109,10 +115,7 @@ function detectTeamType(
   // Squad: has planner (with more than 2 roles or with reviewer)
   if (hasPlanner) return 'squad';
 
-  if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
-
-  // 'unknown' is intentional: custom teams get generic base guidance rather than
-  // pair-specific rules which could impose incorrect handoff constraints.
+  // 'unknown' is intentional: custom teams get generic base guidance.
   // Base guidance provides safe defaults for any team structure.
   return 'unknown';
 }
@@ -140,7 +143,6 @@ export function buildSelectorContext(params: {
   teamEntryPoint?: string;
   convexUrl: string;
   chatroomId?: string;
-  availableMembers?: string[];
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
@@ -160,7 +162,6 @@ export function buildSelectorContext(params: {
     teamConfig,
     workflow: params.workflow,
     teamRoles: params.teamRoles,
-    availableMembers: params.availableMembers,
     isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
     convexUrl: params.convexUrl,
     chatroomId: params.chatroomId,
@@ -178,6 +179,11 @@ export function buildSelectorContext(params: {
  */
 export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
   try {
+    if (ctx.team === 'solo') {
+      const result = getSoloRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
+    }
+
     if (ctx.team === 'squad') {
       const result = getSquadRoleGuidanceFromContext(ctx);
       if (result !== null) return result;
@@ -188,10 +194,6 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
       if (result !== null) return result;
     }
 
-    if (ctx.team === 'pair') {
-      const result = getPairRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
   } catch {
     // Fall back to base guidance
   }
@@ -215,8 +217,6 @@ export interface RolePromptContext {
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
   convexUrl: string; // Required Convex URL for env var prefix generation
-  /** Currently available (waiting) team members for dynamic workflow adaptation */
-  availableMembers?: string[];
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -242,7 +242,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     teamEntryPoint: ctx.teamEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
-    availableMembers: ctx.availableMembers,
     workflow: ctx.currentClassification,
   });
 
@@ -251,6 +250,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
+  sections.push(getGlossarySection({ convexUrl: ctx.convexUrl ?? '', chatroomId: ctx.chatroomId }));
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
@@ -287,7 +287,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 // sections/commands-reference.ts
 
 /**
- * Generate a focused reminder for task-started based on role + classification.
+ * Generate a focused reminder for classify/task-read based on role + classification.
  * Returns a short, specific prompt reminding the agent of the expected action.
  *
  * Uses SelectorContext internally for team/role detection (Phase 4).
@@ -315,7 +315,6 @@ export function generateTaskStartedReminder(
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const isPairTeam = ctx.team === 'pair';
   const isSquadTeam = ctx.team === 'squad';
   const isDuoTeam = ctx.team === 'duo';
 
@@ -329,7 +328,7 @@ export function generateTaskStartedReminder(
           nextRole: 'user',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as QUESTION.
+        return `✅ Chatroom task acknowledged as QUESTION.
 
 **Next steps:**
 1. Answer the user's question
@@ -356,10 +355,10 @@ Task ID: ${taskId}`;
           role: 'planner',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as NEW FEATURE.
+        return `✅ Chatroom task acknowledged as NEW FEATURE.
 
 **Next steps:**
-1. Decompose the task into clear, actionable work items
+1. Decompose the chatroom task into clear, actionable work items
 2. **Report progress to the user** before delegating — so they know work has started:
 
 \`\`\`bash
@@ -385,7 +384,7 @@ Task ID: ${taskId}`;
           role: 'planner',
           cliEnvPrefix,
         });
-        return `✅ Task acknowledged as FOLLOW UP.
+        return `✅ Chatroom task acknowledged as FOLLOW UP.
 
 **Next steps:**
 1. Review the follow-up request against previous work
@@ -396,7 +395,7 @@ ${progressCmdFollowUp}
 \`\`\`
 
 3. Delegate to appropriate team member or handle yourself
-4. Follow-up inherits the workflow rules from the original task:
+4. Follow-up inherits the workflow rules from the original chatroom task:
    - If original was a QUESTION → handle and hand off to user when done
    - If original was a NEW FEATURE → delegate, review, and deliver to user
 
@@ -408,72 +407,7 @@ Task ID: ${taskId}`;
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
-    if (isPairTeam) {
-      // Pair team: explicit handoff instructions based on classification
-      switch (classification) {
-        case 'question': {
-          const handoffToUserCmd = handoffCommand({
-            chatroomId,
-            role: 'builder',
-            nextRole: 'user',
-            cliEnvPrefix,
-          });
-          const progressCmd = reportProgressCommand({
-            chatroomId,
-            role: 'builder',
-            cliEnvPrefix,
-          });
-          return `✅ Task acknowledged as QUESTION.
-
-**Next steps:**
-1. Send a progress update: \`${progressCmd}\`
-2. Answer the user's question
-3. When done, hand off directly to user:
-
-\`\`\`bash
-${handoffToUserCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-        case 'new_feature': {
-          const handoffToReviewerCmd = handoffCommand({
-            chatroomId,
-            role: 'builder',
-            nextRole: 'reviewer',
-            cliEnvPrefix,
-          });
-          return `✅ Task acknowledged as NEW FEATURE.
-
-**Next steps:**
-1. Implement the feature
-2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
-3. Commit your changes
-4. MUST hand off to reviewer for approval:
-
-\`\`\`bash
-${handoffToReviewerCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-        case 'follow_up': {
-          return `✅ Task acknowledged as FOLLOW UP.
-
-**Next steps:**
-1. Complete the follow-up work
-2. Send \`report-progress\` at milestones for visibility
-3. Follow-up inherits the workflow rules from the original task:
-   - If original was a QUESTION → hand off to user when done
-   - If original was a NEW FEATURE → hand off to reviewer when done
-
-💡 You're working on:
-Task ID: ${taskId}`;
-        }
-      }
-    } else if (isSquadTeam) {
+    if (isSquadTeam) {
       // Squad team: builder hands off to reviewer or planner, never to user
       const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
       const handoffTarget = hasReviewer ? 'reviewer' : 'planner';
@@ -483,7 +417,7 @@ Task ID: ${taskId}`;
         nextRole: handoffTarget,
         cliEnvPrefix,
       });
-      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+      return `✅ Chatroom task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
 
 **Next steps:**
 1. Implement the requested changes
@@ -506,7 +440,7 @@ Task ID: ${taskId}`;
         nextRole: 'planner',
         cliEnvPrefix,
       });
-      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+      return `✅ Chatroom task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
 
 **Next steps:**
 1. Implement the requested changes
@@ -540,7 +474,7 @@ Task ID: ${taskId}`;
     }
   }
 
-  // Reviewer should run task-started to acknowledge receipt
+  // Reviewer acknowledges receipt and reviews work
   if (normalizedRole === 'reviewer') {
     if (isSquadTeam) {
       // Squad team: reviewer hands off to planner, not user
@@ -552,7 +486,7 @@ Task ID: ${taskId}`;
       }
       return `Review the work. Hand off to planner when approved, or to builder for rework.`;
     }
-    // Pair team or generic: hand off to user when approved
+    // Generic: hand off to user when approved
     if (taskId) {
       return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 
@@ -562,8 +496,67 @@ Task ID: ${taskId}`;
     return `Review the work and approve or request changes.`;
   }
 
+  // Solo agent reminders — plan, implement, and deliver independently
+  if (normalizedRole === 'solo') {
+    const handoffToUserCmd = handoffCommand({
+      chatroomId,
+      role: 'solo',
+      nextRole: 'user',
+      cliEnvPrefix,
+    });
+    const progressCmd = reportProgressCommand({
+      chatroomId,
+      role: 'solo',
+      cliEnvPrefix,
+    });
+
+    switch (classification) {
+      case 'question':
+        return `✅ Chatroom task acknowledged as QUESTION.
+
+**Next steps:**
+1. Answer the user's question
+2. When done, hand off directly to user:
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 You're working on:
+Task ID: ${taskId}`;
+      case 'new_feature':
+        return `✅ Chatroom task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. **Plan**: Decompose the chatroom task into actionable work items
+2. **Report progress**: \`${progressCmd}\` — keep the user informed at milestones
+3. **Implement**: Build the solution yourself using best practices
+4. **Verify**: Run \`pnpm typecheck && pnpm test\` before delivering
+5. **Deliver**: Hand off to user with a clear summary of what was done
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 Use the workflow skill for multi-step tasks. You're working on:
+Task ID: ${taskId}`;
+      case 'follow_up':
+        return `✅ Chatroom task acknowledged as FOLLOW UP.
+
+**Next steps:**
+1. Review the follow-up request against previous work
+2. **Report progress**: \`${progressCmd}\` — let the user know you're handling it
+3. Plan and implement the follow-up changes yourself
+4. \`pnpm typecheck && pnpm test\` before delivering
+5. Follow-up inherits workflow rules from the original chatroom task
+
+💡 You're working on:
+Task ID: ${taskId}`;
+    }
+  }
+
   // Generic fallback for unknown roles
-  return `Proceed with your task and hand off when complete.`;
+  return `Proceed with your chatroom task and hand off when complete.`;
 }
 
 // =============================================================================
@@ -578,8 +571,6 @@ export interface InitPromptInput {
   teamRoles: string[];
   teamEntryPoint?: string;
   convexUrl: string; // Required Convex URL for env var prefix generation
-  /** Currently available (waiting) team members. Falls back to teamRoles if not provided. */
-  availableMembers?: string[];
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
   agentType?: 'remote' | 'custom' | 'unset';
 }
@@ -596,7 +587,7 @@ export interface InitPromptInput {
 export interface ComposedInitPrompt {
   /** System prompt: general instructions + role prompt (for harnesses that support it) */
   systemPrompt: string;
-  /** Init message: context-gaining instructions and task-started guidance (first user message) */
+  /** Init message: context-gaining instructions and classify guidance (first user message) */
   initMessage: string;
   /** Combined init prompt: everything in one message (for harnesses without system prompt) */
   initPrompt: string;
@@ -625,13 +616,13 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     teamEntryPoint,
     convexUrl,
     chatroomId,
-    availableMembers: input.availableMembers,
     agentType: input.agentType,
   });
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
 
-  // In squad/duo team, only the planner can hand off to the user
+  // In squad/duo team, only the planner can hand off to the user.
+  // Solo team can always hand off to user (only team member).
   const isRestrictedTeam = selectorCtx.team === 'squad' || selectorCtx.team === 'duo';
   const canHandoffToUser = isRestrictedTeam ? role.toLowerCase() === 'planner' : true;
   const handoffTargets = canHandoffToUser
@@ -644,6 +635,10 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getTeamHeaderSection(teamName));
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
+  sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }));
+
+  // Session model: explains Level A (session) vs Level B (chatroom task) — high salience
+  sections.push(getSessionVsChatroomTaskSection());
 
   // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
@@ -699,9 +694,11 @@ export function generateHandoffOutput(params: {
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
-  lines.push(`✅ Task completed and handed off to ${nextRole}`);
+  lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   lines.push('');
-  lines.push(`Run now to receive your next task:`);
+  lines.push('✅ Level B complete (chatroom task handed off).');
+  lines.push('⏳ Level A continues (session is still active) — run get-next-task to stay connected:');
+  lines.push('');
   lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 
   return lines.join('\n');
@@ -726,7 +723,7 @@ export function composeInitMessage(_input: InitPromptInput): string {
  *
  * Returns all three forms so the caller can choose based on harness capability:
  *   - `systemPrompt` — for harnesses that support system prompt (general instructions + role)
- *   - `initMessage` — first user message (context-gaining, task-started, next steps)
+ *   - `initMessage` — first user message (context-gaining, classify, next steps)
  *   - `initPrompt` — combined single message (for harnesses without system prompt support)
  */
 export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {

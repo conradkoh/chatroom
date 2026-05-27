@@ -26,10 +26,10 @@ EOF
 
 ### Multiple Parameters (Structured)
 
-For commands with multiple text parameters (e.g., `task-started` with title, description, techSpecs):
+For commands with multiple text parameters (e.g., `classify` with title, description, techSpecs):
 
 ```bash
-chatroom task-started <chatroomId> --role=<role> --task-id=<id> --classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=<chatroomId> --role=<role> --task-id=<id> --origin-message-classification=new_feature << 'PARAMS_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -44,12 +44,14 @@ PARAMS_END
 ```
 
 **Structure**:
+
 - Each parameter starts with `---PARAM_NAME---` on its own line
 - Parameter content follows until the next delimiter or end of input
 - Parameter names must be UPPERCASE with underscores
 - Leading/trailing whitespace in content is preserved (important for markdown)
 
 **Decoding**:
+
 1. Split input by lines
 2. Look for lines matching pattern: `^---[A-Z_]+---$`
 3. Content between delimiters belongs to that parameter
@@ -69,7 +71,7 @@ PARAMS_END
 3. **If collision detected**, use a **prefixed delimiter format**:
 
 ```bash
-chatroom task-started ... << 'PARAMS_END'
+chatroom classify ... << 'PARAMS_END'
 ---(UUID:a1b2c3d4)TITLE---
 Content here that might contain ---TITLE---
 ---(UUID:a1b2c3d4)DESCRIPTION---
@@ -81,7 +83,8 @@ The UUID prefix makes collisions astronomically unlikely.
 
 ### Collision Detection Strategy
 
-**Practical approach**: 
+**Practical approach**:
+
 - For 99.9% of cases, simple `---PARAM_NAME---` is sufficient
 - The content is unlikely to contain the exact delimiter pattern on its own line
 - **Only use UUID prefix if**:
@@ -89,6 +92,7 @@ The UUID prefix makes collisions astronomically unlikely.
   2. Command explicitly requests it (future feature)
 
 **Implementation decision**:
+
 - **Phase 1** (current): Only support simple delimiters `---PARAM_NAME---`
   - If content contains delimiter, it will cause parse error
   - Error message: "Content contains delimiter '---TITLE---'. Please remove or rephrase."
@@ -102,7 +106,7 @@ Standard parameter names that map to CLI options:
 
 - `MESSAGE` - Handoff message content
 - `TITLE` - Feature title
-- `DESCRIPTION` - Feature description  
+- `DESCRIPTION` - Feature description
 - `TECH_SPECS` - Technical specifications
 - `FEEDBACK` - Review feedback
 - `SUMMARY` - General summary content
@@ -110,6 +114,7 @@ Standard parameter names that map to CLI options:
 ### Custom Parameters
 
 Future commands can define their own parameter names following the pattern:
+
 - UPPERCASE letters
 - Underscores for word separation
 - No special characters
@@ -135,16 +140,17 @@ EOF
 ```
 
 **Decoded to**:
+
 ```typescript
 {
-  message: "## Summary\nImplemented user authentication\n\n## Changes Made\n- Added login endpoint\n- Added JWT token generation\n- Added password hashing with bcrypt\n\n## Testing\n- All tests passing\n- Manually verified login flow"
+  message: '## Summary\nImplemented user authentication\n\n## Changes Made\n- Added login endpoint\n- Added JWT token generation\n- Added password hashing with bcrypt\n\n## Testing\n- All tests passing\n- Manually verified login flow';
 }
 ```
 
-### Example 2: Task Started with Multiple Parameters
+### Example 2: Classify with Multiple Parameters
 
 ```bash
-chatroom task-started j123abc456def --role=builder --task-id=k789xyz --classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=j123abc456def --role=builder --task-id=k789xyz --origin-message-classification=new_feature << 'PARAMS_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -163,6 +169,7 @@ PARAMS_END
 ```
 
 **Decoded to**:
+
 ```typescript
 {
   title: "User Authentication System",
@@ -188,20 +195,23 @@ EOF
 ```
 
 **Decoded to**:
+
 ```typescript
 {
-  message: "## Summary\nFixed markdown rendering\n\n## Details\nThe code was incorrectly parsing sections like:\n---HEADER---\nThis should be treated as content, not a delimiter.\n\nFixed by escaping in the parser."
+  message: '## Summary\nFixed markdown rendering\n\n## Details\nThe code was incorrectly parsing sections like:\n---HEADER---\nThis should be treated as content, not a delimiter.\n\nFixed by escaping in the parser.';
 }
 ```
 
 **Note**: This works because:
+
 1. Single-parameter mode doesn't use structured delimiters
 2. Content is read as-is
 
 **Edge case collision** (in multi-parameter mode):
+
 ```bash
 # This WILL cause a parse error because TITLE appears in content
-chatroom task-started ... << 'PARAMS_END'
+chatroom classify ... << 'PARAMS_END'
 ---TITLE---
 Fix delimiter handling
 ---DESCRIPTION---
@@ -212,6 +222,7 @@ PARAMS_END
 ```
 
 **Error message**:
+
 ```
 ❌ Parse error: Found unexpected delimiter '---TITLE---' at line 5.
 Content appears to contain the delimiter pattern.

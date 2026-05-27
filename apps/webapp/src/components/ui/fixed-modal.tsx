@@ -6,6 +6,10 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
 
+// ─── Modal Stack ─────────────────────────────────────────────────────────────
+// Tracks open FixedModals so only the topmost modal responds to Escape.
+let modalStack: (() => void)[] = [];
+
 // ─── Composition Sub-Components ─────────────────────────────────────────
 
 /**
@@ -39,10 +43,12 @@ function FixedModalHeader({
       <div className="flex-1 min-w-0 min-h-8 flex items-center">{children}</div>
       {onClose && (
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close"
           className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex-shrink-0"
         >
-          <X size={18} />
+          <X size={18} aria-hidden />
         </button>
       )}
     </div>
@@ -157,6 +163,11 @@ interface FixedModalProps {
   maxWidth?: string;
   /** Additional className for the modal panel */
   className?: string;
+  /**
+   * When false, clicking the backdrop does not call `onClose` (escape still does).
+   * @default true
+   */
+  closeOnBackdrop?: boolean;
 }
 
 /**
@@ -168,7 +179,7 @@ interface FixedModalProps {
  * Features:
  * - Fixed height: 70vh on desktop, full screen on mobile
  * - Scrollable content area (via FixedModalBody)
- * - Backdrop click and Escape key to close
+ * - Backdrop click and Escape key to close (backdrop optional via `closeOnBackdrop`)
  * - Body scroll lock while open
  *
  * ### Simple modal (header + scrollable content):
@@ -208,6 +219,7 @@ const FixedModal = memo(function FixedModal({
   children,
   maxWidth = 'max-w-lg',
   className,
+  closeOnBackdrop = true,
 }: FixedModalProps) {
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -223,21 +235,31 @@ const FixedModal = memo(function FixedModal({
   // Handle backdrop click
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
+      if (e.target === e.currentTarget && closeOnBackdrop) {
         onClose();
       }
     },
-    [onClose]
+    [onClose, closeOnBackdrop]
   );
 
-  // Handle Escape key
+  // Handle Escape key — only the topmost modal responds
   useEffect(() => {
     if (!isOpen) return;
+
+    const handler = onClose;
+    modalStack.push(handler);
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === handler) {
+        onClose();
+      }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      modalStack = modalStack.filter((h) => h !== handler);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;

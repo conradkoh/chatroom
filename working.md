@@ -22,24 +22,28 @@ The agent configuration system has grown organically across three tables (`chatr
 **Status**: Merged into PR #55
 
 ### 1a. `getAgentStatusForChatroom` use case
+
 - **File**: `services/backend/src/domain/usecase/agent/get-agent-status-for-chatroom.ts`
 - **Purpose**: Role-centric agent status view merging team + machine configs
 - **Returns**: `ChatroomAgentStatus` with `AgentRoleView[]` and `WorkspaceView[]` — no raw table records
 - **Tests**: 8 tests in `tests/integration/get-agent-status-for-chatroom.spec.ts`
 
 ### 1b. `getAgentConfigForStart` use case
+
 - **File**: `services/backend/src/domain/usecase/agent/get-agent-config-for-start.ts`
 - **Purpose**: Populate "Start Agent" form with defaults from preference → teamConfig → machineConfig chain
 - **Returns**: `AgentStartFormData` with `ConnectedMachineView[]` and `AgentStartDefaults`
 - **Tests**: 5 tests in `tests/integration/get-agent-config-for-start.spec.ts`
 
 ### 1c. `listChatroomAgentOverview` use case
+
 - **File**: `services/backend/src/domain/usecase/agent/list-chatroom-agent-overview.ts`
 - **Purpose**: Per-chatroom agent status summary for sidebar, no machine IDs exposed
 - **Returns**: `ChatroomAgentOverview[]` with `agentStatus` and `runningRoles`
 - **Tests**: 4 tests in `tests/integration/list-chatroom-agent-overview.spec.ts`
 
 ### 1d. `updateTeam` use case (refactored)
+
 - **File**: `services/backend/src/domain/usecase/team/update-team.ts`
 - **Purpose**: Event-driven team switch cleanup
 - **Behavior**:
@@ -77,6 +81,7 @@ Also export Convex validators (`agentStartReasonValidator`, `agentStopReasonVali
 **File**: `services/backend/convex/schema.ts`
 
 Import validators from `domain/entities/agent.ts` and use them in:
+
 - `agent.requestStart` event → `reason` field
 - `agent.requestStop` event → `reason` field
 - `agent.exited` event → `stopReason` field (currently `v.optional(v.string())`)
@@ -85,31 +90,31 @@ Single declaration, referenced across all event tables.
 
 ### Step 3: Update backend consumers
 
-| File | Change |
-|------|--------|
-| `src/domain/usecase/agent/start-agent.ts` | `StartAgentReason` → `AgentStartReason` |
-| `src/domain/usecase/agent/stop-agent.ts` | `StopAgentReason` → `AgentStopReason` |
-| `src/domain/usecase/team/update-team.ts` | `'team-switch'` → `'platform.team_switch'` |
-| `src/domain/usecase/agent/ensure-only-agent-for-role.ts` | `'dedup-stop'` → `'platform.dedup'` |
-| `convex/machines.ts` (sendCommand) | `'user-start'` → `'user.start'`, `'user-stop'` → `'user.stop'` |
-| `convex/ensureAgentHandler.ts` | `'ensure-agent-retry'` → `'platform.ensure_agent'`, update circuit breaker exclusions |
-| `src/events/agent/on-agent-exited.ts` | Add `'platform.team_switch'` to auto-restart exclusion list |
-| `convex/migration.ts` | Add migration to convert persisted event reasons (see Step 5) |
+| File                                                     | Change                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `src/domain/usecase/agent/start-agent.ts`                | `StartAgentReason` → `AgentStartReason`                                               |
+| `src/domain/usecase/agent/stop-agent.ts`                 | `StopAgentReason` → `AgentStopReason`                                                 |
+| `src/domain/usecase/team/update-team.ts`                 | `'team-switch'` → `'platform.team_switch'`                                            |
+| `src/domain/usecase/agent/ensure-only-agent-for-role.ts` | `'dedup-stop'` → `'platform.dedup'`                                                   |
+| `convex/machines.ts` (sendCommand)                       | `'user-start'` → `'user.start'`, `'user-stop'` → `'user.stop'`                        |
+| `convex/ensureAgentHandler.ts`                           | `'ensure-agent-retry'` → `'platform.ensure_agent'`, update circuit breaker exclusions |
+| `src/events/agent/on-agent-exited.ts`                    | Add `'platform.team_switch'` to auto-restart exclusion list                           |
+| `convex/migration.ts`                                    | Add migration to convert persisted event reasons (see Step 5)                         |
 
 ### Step 4: Update CLI consumers
 
-| File | Change |
-|------|--------|
-| `packages/cli/src/commands/machine/daemon-start/types.ts` | Import `AgentStartReason`, `AgentStopReason` from backend entities instead of local definition |
-| `packages/cli/src/infrastructure/machine/stop-reason.ts` | Align `StopReason` type with import from entities |
-| `packages/cli/src/infrastructure/machine/intentional-stops.ts` | Add `'platform.team_switch'` to intentional stops |
-| `packages/cli/src/events/daemon/agent/on-request-start-agent.ts` | Update type import |
-| `packages/cli/src/events/daemon/agent/on-request-stop-agent.ts` | Update type import |
-| `packages/cli/src/events/daemon/agent/on-agent-exited.ts` | Update type import |
-| `packages/cli/src/events/lifecycle/on-agent-shutdown.ts` | Update type import |
-| `packages/cli/src/events/daemon/event-bus.ts` | Align local `stopReason` type with import |
-| `packages/cli/src/commands/machine/daemon-start/handlers/start-agent.ts` | Update reason literals |
-| `packages/cli/src/commands/machine/daemon-start/handlers/stop-agent.ts` | Update reason literals |
+| File                                                                     | Change                                                                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `packages/cli/src/commands/machine/daemon-start/types.ts`                | Import `AgentStartReason`, `AgentStopReason` from backend entities instead of local definition |
+| `packages/cli/src/infrastructure/machine/stop-reason.ts`                 | Align `StopReason` type with import from entities                                              |
+| `packages/cli/src/infrastructure/machine/intentional-stops.ts`           | Add `'platform.team_switch'` to intentional stops                                              |
+| `packages/cli/src/events/daemon/agent/on-request-start-agent.ts`         | Update type import                                                                             |
+| `packages/cli/src/events/daemon/agent/on-request-stop-agent.ts`          | Update type import                                                                             |
+| `packages/cli/src/events/daemon/agent/on-agent-exited.ts`                | Update type import                                                                             |
+| `packages/cli/src/events/lifecycle/on-agent-shutdown.ts`                 | Update type import                                                                             |
+| `packages/cli/src/events/daemon/event-bus.ts`                            | Align local `stopReason` type with import                                                      |
+| `packages/cli/src/commands/machine/daemon-start/handlers/start-agent.ts` | Update reason literals                                                                         |
+| `packages/cli/src/commands/machine/daemon-start/handlers/stop-agent.ts`  | Update reason literals                                                                         |
 
 ### Step 5: Migration for persisted events
 
@@ -133,6 +138,7 @@ agent.requestStart events:
 - Update all test string literals (~15 test files)
 
 ### Estimated scope
+
 ~22 source files + ~15 test files modified, 1 migration added.
 
 ---
@@ -144,13 +150,14 @@ agent.requestStart events:
 
 ### New Convex queries to add
 
-| New Query | Use Case | Replaces |
-|-----------|----------|----------|
-| `machines.getAgentStatus` | `getAgentStatusForChatroom` | `machines.getAgentPanel` (status portion) |
-| `machines.getAgentStartConfig` | `getAgentConfigForStart` | `machines.getAgentPanel` (start form portion) |
-| `machines.listAgentOverview` | `listChatroomAgentOverview` | `machines.listRemoteAgentRunningStatus` |
+| New Query                      | Use Case                    | Replaces                                      |
+| ------------------------------ | --------------------------- | --------------------------------------------- |
+| `machines.getAgentStatus`      | `getAgentStatusForChatroom` | `machines.getAgentPanel` (status portion)     |
+| `machines.getAgentStartConfig` | `getAgentConfigForStart`    | `machines.getAgentPanel` (start form portion) |
+| `machines.listAgentOverview`   | `listChatroomAgentOverview` | `machines.listRemoteAgentRunningStatus`       |
 
 ### Deprecation strategy
+
 - Add new queries alongside existing ones
 - Mark old queries with `@deprecated` JSDoc
 - Both old and new queries coexist during Phase 4 frontend migration
@@ -164,16 +171,17 @@ agent.requestStart events:
 
 ### Migration map
 
-| Frontend File | Current Backend API | New Backend API |
-|---------------|--------------------|--------------------|
-| `hooks/useAgentPanelData.ts` | `api.machines.getAgentPanel` | `api.machines.getAgentStatus` |
-| `context/ChatroomListingContext.tsx` | `api.machines.listRemoteAgentRunningStatus` | `api.machines.listAgentOverview` |
-| `components/AgentStartModal.tsx` | `useAgentPanelData` (machineConfigs) | `api.machines.getAgentStartConfig` |
-| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData` | `api.machines.getAgentStatus` |
-| `hooks/useWorkspaces.ts` | `TeamAgentConfig` from `useAgentPanelData` | `WorkspaceView` from `getAgentStatus` |
-| `components/AgentPanel/InlineAgentCard.tsx` | `TeamAgentConfig` | `AgentRoleView` from `getAgentStatus` |
+| Frontend File                                     | Current Backend API                         | New Backend API                       |
+| ------------------------------------------------- | ------------------------------------------- | ------------------------------------- |
+| `hooks/useAgentPanelData.ts`                      | `api.machines.getAgentPanel`                | `api.machines.getAgentStatus`         |
+| `context/ChatroomListingContext.tsx`              | `api.machines.listRemoteAgentRunningStatus` | `api.machines.listAgentOverview`      |
+| `components/AgentStartModal.tsx`                  | `useAgentPanelData` (machineConfigs)        | `api.machines.getAgentStartConfig`    |
+| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData`                         | `api.machines.getAgentStatus`         |
+| `hooks/useWorkspaces.ts`                          | `TeamAgentConfig` from `useAgentPanelData`  | `WorkspaceView` from `getAgentStatus` |
+| `components/AgentPanel/InlineAgentCard.tsx`       | `TeamAgentConfig`                           | `AgentRoleView` from `getAgentStatus` |
 
 ### Components that stay unchanged (no use case yet)
+
 - `AgentSettingsModal.tsx` → keeps `listMachines`, `sendCommand`, `getDaemonPongEvent`
 - `AgentConfigTabs.tsx` → keeps `getMachineModelFilters`, `upsertMachineModelFilters`
 - `useAgentStatuses.ts` → keeps `getLatestAgentEventsForChatroom`
@@ -181,6 +189,7 @@ agent.requestStart events:
 - `SetupChecklist.tsx` → keeps `listMachines`
 
 ### Key changes
+
 - `useAgentPanelData` hook refactored to consume `AgentRoleView[]` instead of raw configs
 - `ChatroomListingContext` simplified: `runningConfigs` (with machineId) → `runningRoles` (string[])
 - `AgentStartModal` no longer derives defaults client-side — backend provides them
@@ -193,12 +202,14 @@ agent.requestStart events:
 **Goal**: Remove deprecated queries and unused types after frontend migration is verified.
 
 ### Removals
+
 - `machines.getAgentPanel` query (replaced by `getAgentStatus` + `getAgentStartConfig`)
 - `machines.listRemoteAgentRunningStatus` query (replaced by `listAgentOverview`)
 - Raw config type exports that are no longer consumed by frontend
 - Old hook implementations if fully replaced
 
 ### Safety checks before removal
+
 - Verify no frontend imports of deprecated queries
 - Verify no CLI imports of deprecated queries
 - Run full test suite

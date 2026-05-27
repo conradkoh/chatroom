@@ -44,10 +44,10 @@ describe('Duo Team > Builder > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Non-entry point should NOT have context creation step
-    expect(output).not.toContain('Code changes expected?');
+    expect(output).not.toContain('Set a new context per user message');
     expect(output).toContain('targets: planner');
   });
 });

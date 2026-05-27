@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 
@@ -37,22 +37,27 @@ export function ChecklistInlineInput({
   placeholder = 'Add new item...',
   className,
 }: ChecklistInlineInputProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => {
+    if (getAndClearFailedText) {
+      const failedText = getAndClearFailedText();
+      if (failedText) return failedText;
+    }
+    return '';
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shouldFocus, setShouldFocus] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Check for failed text on mount and when getAndClearFailedText changes
-  useEffect(() => {
+  const [prevGetAndClearFailedText, setPrevGetAndClearFailedText] = useState(getAndClearFailedText);
+  if (prevGetAndClearFailedText !== getAndClearFailedText) {
+    setPrevGetAndClearFailedText(getAndClearFailedText);
     if (getAndClearFailedText) {
       const failedText = getAndClearFailedText();
       if (failedText) {
         setText(failedText);
-        // Focus the input to draw attention to the recovered text
         _focusAndPositionCursor(inputRef, failedText);
       }
     }
-  }, [getAndClearFailedText]);
+  }
 
   // Focus after successful submission (when text is cleared)
   useLayoutEffect(() => {

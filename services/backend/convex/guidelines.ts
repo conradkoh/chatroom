@@ -2,11 +2,13 @@
 
 import { v } from 'convex/values';
 
+import { toLiteralValidators } from '../src/domain/entities/_shared/v-literals-of';
+
 import { query } from './_generated/server';
 import { getDesignPolicy } from '../prompts/policies/design';
 import { getPerformancePolicy } from '../prompts/policies/performance';
 import { getSecurityPolicy } from '../prompts/policies/security';
-import { getReviewGuidelines } from '../prompts/teams/pair/roles';
+import { getReviewGuidelines } from '../prompts/review-guidelines';
 
 /**
  * Available guideline types
@@ -14,16 +16,22 @@ import { getReviewGuidelines } from '../prompts/teams/pair/roles';
 export const GUIDELINE_TYPES = ['coding', 'security', 'design', 'performance', 'all'] as const;
 export type GuidelineType = (typeof GUIDELINE_TYPES)[number];
 
+/** Enum-like object: GuidelineTypeEnum.coding === 'coding', etc. */
+export const GuidelineTypeEnum = Object.fromEntries(
+  GUIDELINE_TYPES.map((g) => [g, g])
+) as { readonly [K in GuidelineType]: K };
+
+/** Convex validator for guideline types. */
+export const guidelineTypeValidator = v.union(...toLiteralValidators(GUIDELINE_TYPES));
+
+/** Runtime type guard. */
+export const isGuidelineType = (value: unknown): value is GuidelineType =>
+  (GUIDELINE_TYPES as readonly string[]).includes(value as string);
+
 /** Returns review guidelines content for the specified type (coding, security, design, performance, or all). */
 export const getGuidelines = query({
   args: {
-    type: v.union(
-      v.literal('coding'),
-      v.literal('security'),
-      v.literal('design'),
-      v.literal('performance'),
-      v.literal('all')
-    ),
+    type: guidelineTypeValidator,
   },
   handler: async (_ctx, args) => {
     switch (args.type) {

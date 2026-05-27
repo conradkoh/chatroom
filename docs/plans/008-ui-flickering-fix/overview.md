@@ -52,6 +52,7 @@ function useIsSmallScreen() {
 ```
 
 Then in the component:
+
 ```tsx
 const isSmallScreen = useIsSmallScreen();
 
@@ -63,9 +64,9 @@ if (isSmallScreen === undefined) {
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx` | Update `useIsSmallScreen` hook |
+| File                                                       | Change                         |
+| ---------------------------------------------------------- | ------------------------------ |
+| `apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx`   | Update `useIsSmallScreen` hook |
 | `apps/webapp/src/modules/chatroom/components/SendForm.tsx` | Update `useIsTouchDevice` hook |
 
 ## Success Criteria

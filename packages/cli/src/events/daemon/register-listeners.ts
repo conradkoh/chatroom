@@ -5,10 +5,10 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { onAgentExited } from './agent/on-agent-exited.js';
 import { onAgentStarted } from './agent/on-agent-started.js';
 import { onAgentStopped } from './agent/on-agent-stopped.js';
+import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 
 export function registerEventListeners(ctx: DaemonContext): () => void {
   const unsubs: (() => void)[] = [];

@@ -27,11 +27,11 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 /**
  * Helper to create a Pair team chatroom
  */
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
+    teamId: 'duo',
+    teamName: 'Duo Team',
     teamRoles: ['builder', 'reviewer'],
     teamEntryPoint: 'builder',
   });
@@ -59,19 +59,17 @@ describe('Get-Next-Task Full Prompt', () => {
   test('materializes complete get-next-task message with backlog attachment', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-get-next-task-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create a backlog task
-    const backlogResult = await t.mutation(api.tasks.createTask, {
+    // Create a backlog item using the new chatroom_backlog API
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content:
         'Fix: Agent lacks knowledge of backlog listing\n\nAdd backlog section to get-next-task',
       createdBy: 'user',
-      isBacklog: true,
     });
-    const backlogTaskId = backlogResult.taskId;
 
     // User sends message with backlog attachment
     const userMessageId = await t.mutation(api.messages.sendMessage, {
@@ -81,7 +79,7 @@ describe('Get-Next-Task Full Prompt', () => {
       content:
         'Can we add a backlog section to the available actions? Keep it concise and follow current format.',
       type: 'message',
-      attachedTaskIds: [backlogTaskId],
+      attachedBacklogItemIds: [backlogItemId],
     });
 
     // Builder claims and starts the task
@@ -123,7 +121,7 @@ describe('Get-Next-Task Full Prompt', () => {
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for task...
+[TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -140,7 +138,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 ══════════════════════════════════════════════════
 -->
 
-[TIMESTAMP] 📨 Task received!
+[TIMESTAMP] 📨 CHATROOM TASK received
 
 ${taskDeliveryPrompt.fullCliOutput}
 `;
@@ -150,7 +148,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
-      [TIMESTAMP] ✅ Connected. Waiting for task...
+      [TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -160,19 +158,97 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to receive tasks from your team.
+      Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
+      When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
 
-      If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
+      The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
+
+      Exactly one active waiter should own task delivery at a time. Additional or backgrounded \`get-next-task\` sessions can acknowledge incoming tasks early, causing grace-period conflicts where your active agent receives nothing.
+
+      After interruption or restart: complete any in-progress work, then restore a single foreground blocking \`get-next-task\` so chatroom tasks can arrive again.
 
       ══════════════════════════════════════════════════
 
-      # Pair Team
+      # Duo Team
 
       ## Your Role: BUILDER
 
       You are the implementer responsible for writing code and building solutions.
+
+      # Glossary
+
+      - \`session\`
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+
+      - \`chatroom-task\`
+          - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
+
+      - \`listen-loop\`
+          - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
+
+      - \`backlog\` (1 skill available)
+          - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+      - \`software-engineering\` (1 skill available)
+          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+      - \`code-review\` (1 skill available)
+          - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
+      - \`development-workflow\` (1 skill available)
+          - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
+
+      - \`structural-decisions\`
+          - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
+
+      # Skills
+
+      Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
+
+      ## When to Activate Skills
+
+      **Proactively activate skills** when your task matches their purpose:
+      - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
+      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
+      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
+
+      Don't wait for the user to ask — proactively activate the skill that matches the task.
+
+      ## Two-Level Model: Session vs Chatroom Task
+
+      | Level | Name | Scope | Ends when |
+      |-------|------|-------|-----------|
+      | **A** | **Session** (harness turn) | The entire agent invocation — from startup to shutdown | You deliberately shut down or the harness exits |
+      | **B** | **Chatroom task** | One discrete unit of work delivered by \`get-next-task\` | You run \`handoff\` to pass work to the next role |
+
+      **Completing Level B does NOT end Level A.**
+      After every \`handoff\`, you must run \`get-next-task\` again to stay in the session and receive the next chatroom task.
+
+      ### Session Lifecycle
+
+      A session starts when your harness launches you and ends only when the harness shuts down (or you explicitly stop).
+      Within a session, you process many chatroom tasks sequentially:
+
+      \`get-next-task\` → do work → \`handoff\` → \`get-next-task\` → do work → \`handoff\` → …
+
+      Never exit or stop after a handoff — that closes the session (Level A) before the user is done with you.
+
+      ### Common Mistakes
+
+      ❌ **Wrong:** Run \`handoff\`, then stop or wait for the user to re-invoke you.
+      ✅ **Right:** Run \`handoff\`, then immediately run \`get-next-task\` in the foreground.
+
+      ❌ **Wrong:** Think "I finished the task, I'm done."
+      ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
+
+      ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
 
       ## Getting Started
 
@@ -182,13 +258,25 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      classify]
+      chatroom task notification]
+          C --> D[task read
+      get chatroom task +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
+
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
+
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
+
+      1. **Get the chatroom task content** — the full description
+      2. **Mark it as in_progress** — signals you're working on it
+
+      Failure to run \`task read\` promptly may trigger the system to restart you.
+
+      ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -196,7 +284,7 @@ ${taskDeliveryPrompt.fullCliOutput}
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
-      to see your current task context.
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -206,34 +294,40 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      ### Classify Task
-      Acknowledge and classify user messages before starting work.
+      **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
+
+
+      ### Classify message
+
+      Acknowledge and classify user messages after reading the chatroom task.
+
+      Run this after \`task read\` to classify the message type.
 
       #### Question
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -243,49 +337,59 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
+      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
 
-       **Pair Team Context:**
-       - You work with a reviewer who will check your code
-       - Focus on implementation, let reviewer handle quality checks
-       - Hand off to reviewer for all code changes
+       **Duo Team Context:**
+       - You work with a planner who coordinates work and communicates with the user
+       - You do NOT communicate directly with the user — hand off to the planner instead
+       - Focus on implementation; the planner handles user communication and delivery
+       - After completing work, hand off back to planner
+       - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
       ## Builder Workflow
+
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You are responsible for implementing code changes based on requirements.
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      2. Then do your work
-      3. Hand off to reviewer for code changes, or directly to user for questions
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
+      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      3. Then do your work
+      4. Hand off to planner for code changes, or directly to planner for questions
 
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
-          B -->|from user or reviewer| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **reviewer**]
-          E -->|question| G[Hand off to **user**]
+          A([Start]) --> B[Receive chatroom task
+      notification]
+          B -->|from planner| C[Read chatroom task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **planner**]
+          F -->|question| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
-      - **After code changes** → Hand off to \`reviewer\`
-      - **For simple questions** → Can hand off directly to \`user\`
-      - **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
+      - **After code changes** → Hand off to \`planner\`
+      - **For simple questions** → Can hand off directly to \`planner\`
+        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
+      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
-      **When you receive handoffs from the reviewer:**
-      You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
+      **When working on a workflow step:**
+      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
       **Development Best Practices:**
       - Write clean, maintainable code
@@ -293,6 +397,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
@@ -303,11 +408,13 @@ ${taskDeliveryPrompt.fullCliOutput}
        
 
       ### Handoff Options
-      Available targets: reviewer, user
+      Available targets: reviewer
+
+      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
@@ -321,7 +428,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
@@ -330,23 +437,24 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
-      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="builder" --status=backlog\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ### Next
 
@@ -359,11 +467,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       ══════════════════════════════════════════════════
       -->
 
-      [TIMESTAMP] 📨 Task received!
+      [TIMESTAMP] 📨 CHATROOM TASK received
 
       <task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: 10007;chatroom_tasks
       Origin Message ID: 10006;chatroom_messages
@@ -372,21 +480,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
-      ## Task
-      Can we add a backlog section to the available actions? Keep it concise and follow current format.
-
-      ## Attached Backlog (1)
-      - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
-
-      Add backlog section to get-next-task
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"
+      \`\`\`
       </task>
 
       <next-steps>
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
 
-      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
 
-      new_feature example:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
+      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+
+         new_feature example:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -395,10 +505,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       <tech-specs>
       EOF
 
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      3. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
-      EOF\`
-      3. Hand off when complete:
+      EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
+      4. Hand off when complete:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -409,8 +523,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current task.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current chatroom task.
       ============================================================
       "
     `);
@@ -420,7 +534,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toBeDefined();
 
     // Should have role header
-    expect(initPrompt?.prompt).toContain('# Pair Team');
+    expect(initPrompt?.prompt).toContain('# Duo Team');
     expect(initPrompt?.prompt).toContain('## Your Role: BUILDER');
 
     // Should have Getting Started section (not Available Actions)
@@ -429,7 +543,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // Should have classification section
-    expect(initPrompt?.prompt).toContain('### Classify Task');
+    expect(initPrompt?.prompt).toContain('### Classify message');
     expect(initPrompt?.prompt).toContain('#### Question');
     expect(initPrompt?.prompt).toContain('#### Follow Up');
     expect(initPrompt?.prompt).toContain('#### New Feature');
@@ -439,15 +553,20 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should include commands section
     expect(initPrompt?.prompt).toContain('### Commands');
-    expect(initPrompt?.prompt).toContain('**Complete task and hand off:**');
+    expect(initPrompt?.prompt).toContain('**Complete chatroom task and hand off:**');
 
     // ===== VERIFY TASK DELIVERY PROMPT =====
     expect(taskDeliveryPrompt).toBeDefined();
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
     expect(taskDeliveryPrompt.json).toBeDefined();
 
+    // ===== VERIFY context view-template hint presence =====
+    expect(fullCliMessage).toContain('chatroom context view-template');
+
     // ===== VERIFY FULL CLI OUTPUT FORMAT =====
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
+
+    expect(fullOutput).toContain('chatroom context view-template');
 
     // Should have consolidated NEXT STEPS section with inline guidance
     expect(fullOutput).toContain('Hand off');
@@ -476,17 +595,21 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.originMessage).toBeDefined();
     expect(jsonContext.contextWindow.originMessage?.content).toContain('backlog section');
 
-    // Should have attached backlog task in context
-    expect(jsonContext.contextWindow.originMessage?.attachedTaskIds).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedTaskIds?.length).toBeGreaterThan(0);
-    expect(jsonContext.contextWindow.originMessage?.attachedTasks).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedTasks?.length).toBeGreaterThan(0);
+    // Should have attached backlog item in context
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds).toBeDefined();
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds?.length).toBeGreaterThan(
+      0
+    );
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems).toBeDefined();
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems?.length).toBeGreaterThan(
+      0
+    );
 
-    // Verify backlog task details
-    const attachedTask = jsonContext.contextWindow.originMessage?.attachedTasks?.[0];
-    expect(attachedTask).toBeDefined();
-    expect(attachedTask?.content).toContain('Fix: Agent lacks knowledge');
-    expect(attachedTask?.status).toBe('backlog_acknowledged');
+    // Verify backlog item details
+    const attachedItem = jsonContext.contextWindow.originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem).toBeDefined();
+    expect(attachedItem?.content).toContain('Fix: Agent lacks knowledge');
+    expect(attachedItem?.status).toBe('backlog');
 
     // Should have role prompt context
     expect(jsonContext.rolePrompt).toBeDefined();
@@ -495,7 +618,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Should have chatroom metadata
     expect(jsonContext.chatroomId).toBe(chatroomId);
     expect(jsonContext.role).toBe('builder');
-    expect(jsonContext.teamName).toBe('Pair Team');
+    expect(jsonContext.teamName).toBe('Duo Team');
     expect(jsonContext.teamRoles).toContain('builder');
     expect(jsonContext.teamRoles).toContain('reviewer');
   });
@@ -503,7 +626,7 @@ ${taskDeliveryPrompt.fullCliOutput}
   test('formats task info section correctly for CLI display', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-task-info-format');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends simple message
@@ -557,10 +680,10 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.classification).toBeDefined();
   });
 
-  test('includes classification info for task-started command', async () => {
+  test('includes classification info for classify command', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classification-info');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message
@@ -625,7 +748,6 @@ Use JWT tokens, bcrypt for passwords`,
     expect(updatedPrompt.json.rolePrompt.currentClassification).toBe('new_feature');
   });
 });
-
 
 describe('Get-Next-Task Error Prompts', () => {
   test('materializes complete interrupt signal reconnection prompt', () => {
@@ -719,7 +841,7 @@ describe('Reviewer Get-Next-Task Prompt After Handoff', () => {
   test('materializes complete get-next-task message for reviewer receiving handoff from builder', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-reviewer-handoff-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends message to builder
@@ -814,7 +936,7 @@ Testing: Toggle in settings switches between light/dark modes`,
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for task...
+[TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -831,7 +953,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 ══════════════════════════════════════════════════
 -->
 
-[TIMESTAMP] 📨 Task received!
+[TIMESTAMP] 📨 CHATROOM TASK received
 
 ${taskDeliveryPrompt.fullCliOutput}
 `;
@@ -841,7 +963,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
-      [TIMESTAMP] ✅ Connected. Waiting for task...
+      [TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -851,19 +973,97 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to receive tasks from your team.
+      Your primary directive: Stay available to receive chatroom tasks from your team.
 
-      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
+      When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
 
-      If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
+      The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
+
+      Exactly one active waiter should own task delivery at a time. Additional or backgrounded \`get-next-task\` sessions can acknowledge incoming tasks early, causing grace-period conflicts where your active agent receives nothing.
+
+      After interruption or restart: complete any in-progress work, then restore a single foreground blocking \`get-next-task\` so chatroom tasks can arrive again.
 
       ══════════════════════════════════════════════════
 
-      # Pair Team
+      # Duo Team
 
       ## Your Role: REVIEWER
 
       You are the quality guardian responsible for reviewing and validating code changes.
+
+      # Glossary
+
+      - \`session\`
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+
+      - \`chatroom-task\`
+          - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
+
+      - \`listen-loop\`
+          - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
+
+      - \`backlog\` (1 skill available)
+          - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+      - \`software-engineering\` (1 skill available)
+          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+      - \`code-review\` (1 skill available)
+          - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
+      - \`development-workflow\` (1 skill available)
+          - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
+
+      - \`structural-decisions\`
+          - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
+
+      # Skills
+
+      Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
+
+      ## When to Activate Skills
+
+      **Proactively activate skills** when your task matches their purpose:
+      - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
+      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
+      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
+
+      Don't wait for the user to ask — proactively activate the skill that matches the task.
+
+      ## Two-Level Model: Session vs Chatroom Task
+
+      | Level | Name | Scope | Ends when |
+      |-------|------|-------|-----------|
+      | **A** | **Session** (harness turn) | The entire agent invocation — from startup to shutdown | You deliberately shut down or the harness exits |
+      | **B** | **Chatroom task** | One discrete unit of work delivered by \`get-next-task\` | You run \`handoff\` to pass work to the next role |
+
+      **Completing Level B does NOT end Level A.**
+      After every \`handoff\`, you must run \`get-next-task\` again to stay in the session and receive the next chatroom task.
+
+      ### Session Lifecycle
+
+      A session starts when your harness launches you and ends only when the harness shuts down (or you explicitly stop).
+      Within a session, you process many chatroom tasks sequentially:
+
+      \`get-next-task\` → do work → \`handoff\` → \`get-next-task\` → do work → \`handoff\` → …
+
+      Never exit or stop after a handoff — that closes the session (Level A) before the user is done with you.
+
+      ### Common Mistakes
+
+      ❌ **Wrong:** Run \`handoff\`, then stop or wait for the user to re-invoke you.
+      ✅ **Right:** Run \`handoff\`, then immediately run \`get-next-task\` in the foreground.
+
+      ❌ **Wrong:** Think "I finished the task, I'm done."
+      ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
+
+      ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
 
       ## Getting Started
 
@@ -873,55 +1073,59 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      classify]
+      chatroom task notification]
+          C --> D[task read
+      get chatroom task +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
+
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
+
+      1. **Get the chatroom task content** — the full description
+      2. **Mark it as in_progress** — signals you're working on it
+
+      Failure to run \`task read\` promptly may trigger the system to restart you.
+
+      ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
+
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10048;chatroom_rooms" --role="reviewer"
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"
-      to see your current task context.
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10048;chatroom_rooms" --role="reviewer" --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10039;chatroom_rooms" --role="reviewer" --type=<remote|custom>
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10048;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
+
+      **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
+
 
       ### Start Working
-      Before starting work on a received message, acknowledge it:
 
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
-
-      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
+      After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.
 
 
-       **Pair Team Context:**
-       - You work with a builder who implements code
-       - Focus on code quality and requirements
-       - Provide constructive feedback to builder
-       - If the user's goal is met → hand off to user
-       - If changes are needed → hand off to builder with specific feedback
-       
-       
       ## Reviewer Workflow
+
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You receive handoffs from other agents containing work to review or validate.
 
@@ -930,7 +1134,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task-started]
+          B -->|from builder or other agent| C[Run task read
+      on chatroom task]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to user]
@@ -964,6 +1169,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Replace \`[Your message here]\` with:
       - **APPROVED ✅**: Clear approval statement
       - **Summary**: What was reviewed and verified
+      ⚠️ If handing off to \`user\`: the user can ONLY see this message. Write it as a complete, standalone document — include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **Review Checklist:**
       - [ ] Code correctness and functionality
@@ -975,7 +1181,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [ ] Performance implications
 
       **Review Process:**
-      1. **Understand the requirements**: Review the original task and expected outcome
+      1. **Understand the requirements**: Review the original chatroom task and expected outcome
       2. **Check implementation**: Verify the code meets the requirements
       3. **Test the changes**: If possible, test the implementation
       4. **Provide feedback**: Be specific and constructive in feedback
@@ -989,54 +1195,18 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Suggest solutions when possible
       - Maintain a collaborative and constructive tone
 
-       
-       
-      ## Available Review Policies
-
-      These policies should be applied when reviewing code to ensure high quality:
-
-      ### 1. Security Policy
-      **Focus:** Authentication, authorization, input validation, data handling, and API security.
-
-      **Key Areas:**
-      - Authentication & authorization checks
-      - Input validation and sanitization (SQL injection, XSS, path traversal)
-      - Secrets management and PII handling
-      - API security (rate limiting, CORS, error messages)
-      - Common vulnerabilities (injection attacks, broken access control, cryptographic issues)
-
-      ### 2. Design Policy
-      **Focus:** Design system compliance, UI/UX patterns, accessibility, and consistency.
-
-      **Key Areas:**
-      - Design system compliance (tokens, component patterns, reusability)
-      - Color usage (semantic colors, dark mode support)
-      - Component patterns (structure, TypeScript props, accessibility, responsive design)
-      - Typography and spacing following design system
-      - UX considerations (loading states, error states, interactive feedback)
-
-      ### 3. Performance Policy
-      **Focus:** Frontend and backend optimization, efficient resource usage.
-
-      **Key Areas:**
-      - Frontend: React optimization (useMemo, useCallback, React.memo), bundle size, rendering
-      - Backend: Database queries (indexes, N+1 patterns), API design, memory management
-      - Platform-specific: Next.js (Server/Client Components), Convex (query indexing), Core Web Vitals
-      - Scalability considerations
-
-      **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
-
-       
 
       ### Handoff Options
-      Available targets: builder, user
+      Available targets: builder
+
+      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10048;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1047,76 +1217,80 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10048;chatroom_rooms" --role="reviewer" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10039;chatroom_rooms" --role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10048;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10048;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
-      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10048;chatroom_rooms" --role="reviewer" --status=backlog\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10039;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
-      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
+      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10048;chatroom_rooms" --role="reviewer"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
       ══════════════════════════════════════════════════
       -->
 
-      [TIMESTAMP] 📨 Task received!
+      [TIMESTAMP] 📨 CHATROOM TASK received
 
       <task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
-      Task ID: 10063;chatroom_tasks
-      Origin Message ID: 10062;chatroom_messages
+      Task ID: 10051;chatroom_tasks
+      Origin Message ID: 10050;chatroom_messages
       From: builder
 
       ## Context
-      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\`
 
-      ## Task
-      Implemented dark mode toggle. Please review.
-
-      Changes:
-      - Added ThemeProvider context
-      - Created toggle component in Settings
-      - Applied CSS variables for theming
-
-      Testing: Toggle in settings switches between light/dark modes
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"
+      \`\`\`
 
       Classification: NEW_FEATURE
       </task>
 
       <next-steps>
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
 
-      handed off from builder — start work immediately.
-      1. Hand off when complete:
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
+         handed off from builder — start work immediately.
+
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"\`
+      2. Hand off when complete:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10048;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1125,8 +1299,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10048;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\` for current task.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current chatroom task.
       ============================================================
       "
     `);
@@ -1143,13 +1317,14 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
-    // CRITICAL: Should have task-started instruction for reviewer (without classification)
+    // CRITICAL: Should have Start Working instruction for reviewer (without task-started references)
     // Reviewer receives handoffs, not user messages, so no classification needed
     expect(initPrompt?.prompt).toContain('### Start Working');
-    expect(initPrompt?.prompt).toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('task-started');
 
     // Should NOT have classification section (that's only for entry point roles)
-    expect(initPrompt?.prompt).not.toContain('### Classify Task');
+    expect(initPrompt?.prompt).not.toContain('### Classify message');
     expect(initPrompt?.prompt).not.toContain('--origin-message-classification');
 
     // Should have reviewer workflow instructions
@@ -1205,7 +1380,9 @@ describe('Get-Next-Task Recent Improvements', () => {
     // Updated guidance should contain key sections
     expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
     expect(guidance).toContain('get-next-task');
-    expect(guidance).toContain('Stay available to receive tasks from your team');
+    expect(guidance).toContain('Stay available to receive chatroom tasks from your team');
+    expect(guidance).toContain('source of truth');
+    expect(guidance).toContain('typical role patterns');
 
     // Should NOT contain shell-specific language that is misleading for coding agents
     expect(guidance).not.toContain('FOREGROUND');
@@ -1216,35 +1393,36 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(guidance).not.toContain('HOW WAIT-FOR-TASK WORKS');
     expect(guidance).not.toContain('The command may timeout before a task arrives');
 
-    // Reminder should be a single-line reminder
-    expect(reminder).toContain('Message availability is critical');
+    // Reminder should be a single-line reminder with resolution semantics
+    expect(reminder).toContain('blocks until the user or team message is ready');
+    expect(reminder).toContain('Message availability requires');
+    expect(reminder).toContain('blocking tool call');
+    expect(reminder).toContain('grace-period');
     expect(reminder).toContain('get-next-task');
   });
 
   test('attached backlog tasks appear in task delivery prompt JSON', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-attached-backlog-in-prompt');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create a backlog task
-    const backlogResult = await t.mutation(api.tasks.createTask, {
+    // Create a backlog item using the new chatroom_backlog API
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content: 'Recovery of acknowledged tasks: implement 1-min grace period',
       createdBy: 'user',
-      isBacklog: true,
     });
-    const backlogTaskId = backlogResult.taskId;
 
-    // User sends message with the backlog task attached
+    // User sends message with the backlog item attached
     const userMessageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Can we work on this task?',
       type: 'message',
-      attachedTaskIds: [backlogTaskId],
+      attachedBacklogItemIds: [backlogItemId],
     });
 
     // Builder claims and starts the task
@@ -1270,17 +1448,17 @@ describe('Get-Next-Task Recent Improvements', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Verify attached backlog tasks appear in the prompt JSON
+    // Verify attached backlog items appear in the prompt JSON
     const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
     expect(originMessage).toBeDefined();
-    expect(originMessage?.attachedTasks).toBeDefined();
-    expect(originMessage?.attachedTasks?.length).toBe(1);
+    expect(originMessage?.attachedBacklogItems).toBeDefined();
+    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
 
-    const attachedTask = originMessage?.attachedTasks?.[0];
-    expect(attachedTask?.content).toBe(
+    const attachedItem = originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem?.content).toBe(
       'Recovery of acknowledged tasks: implement 1-min grace period'
     );
-    expect(attachedTask?.status).toBeDefined();
+    expect(attachedItem?.status).toBeDefined();
 
     // Verify the full CLI output also exists
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
@@ -1290,7 +1468,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('getPendingTasksForRole returns acknowledged tasks for recovery', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-acknowledged-task-recovery');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // User sends a message (creates a pending task for builder)
@@ -1336,7 +1514,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('init prompt contains backlog and guidance sections', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-sections');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Get the init prompt
@@ -1363,7 +1541,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns no_tasks when no tasks exist', async () => {
     const { sessionId } = await createTestSession('test-no-tasks-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     const result = await t.query(api.tasks.getPendingTasksForRole, {
@@ -1376,7 +1554,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns superseded when connectionId does not match', async () => {
     const { sessionId } = await createTestSession('test-superseded-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Join with a specific connectionId
     await t.mutation(api.participants.join, {
@@ -1403,7 +1581,7 @@ describe('Get-Next-Task Recent Improvements', () => {
   test('getPendingTasksForRole returns error for invalid session', async () => {
     // Create a valid session to create the chatroom
     const { sessionId } = await createTestSession('test-error-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
 
     // Query with an invalid session
     const result = await t.query(api.tasks.getPendingTasksForRole, {
@@ -1420,7 +1598,7 @@ describe('Get-Next-Task Recent Improvements', () => {
 
   test('getPendingTasksForRole returns grace_period for recently acknowledged task', async () => {
     const { sessionId } = await createTestSession('test-grace-period-response');
-    const chatroomId = await createPairTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Send a message to create a task
@@ -1454,5 +1632,171 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(gracePeriod.taskId).toBeDefined();
     expect(gracePeriod.remainingMs).toBeGreaterThan(0);
     expect(gracePeriod.remainingMs).toBeLessThanOrEqual(60_000);
+  });
+
+  test('attached chatroom_backlog items (Attach to Context) appear in CLI output and JSON', async () => {
+    // Regression test for: bb701b29
+    // Bug: backlog items attached via "Attach to Context" (using chatroom_backlog table, not
+    // chatroom_tasks) were stored correctly in attachedBacklogItemIds but were never passed to
+    // generateFullCliOutput — so agents never saw them in the task delivery output.
+
+    const { sessionId } = await createTestSession('test-backlog-item-attach-to-context');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a chatroom_backlog item (created via the backlog tab, not via createTask)
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+      sessionId,
+      chatroomId,
+      content: 'Refactor: extract shared auth helpers into a utility module',
+      createdBy: 'user',
+    });
+
+    // User attaches the backlog item and sends a message — simulates clicking "Attach to Context"
+    // Note: this uses attachedBacklogItemIds (chatroom_backlog), NOT attachedTaskIds (chatroom_tasks)
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Can you work on this backlog item?',
+      type: 'message',
+      attachedBacklogItemIds: [backlogItemId],
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get task delivery prompt
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // ── Verify JSON context has the attached backlog item ──────────────────────
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+    expect(originMessage).toBeDefined();
+
+    // The backlog item ID should appear in attachedBacklogItemIds
+    expect(originMessage?.attachedBacklogItemIds).toBeDefined();
+    expect(originMessage?.attachedBacklogItemIds).toContain(backlogItemId);
+
+    // The resolved item should appear in attachedBacklogItems
+    expect(originMessage?.attachedBacklogItems).toBeDefined();
+    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
+    const attachedItem = originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem?.content).toBe(
+      'Refactor: extract shared auth helpers into a utility module'
+    );
+    expect(attachedItem?.status).toBe('backlog');
+
+    // ── Verify CLI output does NOT contain backlog section (moved to task-read) ──
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).not.toContain('## Attached Backlog');
+    expect(fullOutput).not.toContain('<backlog-item>');
+    expect(fullOutput).not.toContain('<system-info>');
+  });
+
+  test('readTask mutation returns attached backlog items from source message', async () => {
+    // Verifies that the readTask mutation (used by CLI `task read` command)
+    // correctly returns attachedBacklogItems when the source message has them.
+    const { sessionId } = await createTestSession('test-readtask-backlog-items');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a chatroom_backlog item
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+      sessionId,
+      chatroomId,
+      content: 'Add dead code elimination pillar',
+      createdBy: 'user',
+    });
+
+    // User sends message with backlog item attached
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please work on this backlog item',
+      type: 'message',
+      attachedBacklogItemIds: [backlogItemId],
+    });
+
+    // Builder claims the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Get the task ID from the acknowledged task
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    // Use readTask mutation (the one used by CLI `task read`)
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    // Verify backlog items are returned
+    expect(result.attachedBacklogItems).toBeDefined();
+    expect(result.attachedBacklogItems).toHaveLength(1);
+    expect(result.attachedBacklogItems![0].content).toBe('Add dead code elimination pillar');
+    expect(result.attachedBacklogItems![0].status).toBe('backlog');
+    expect(result.attachedBacklogItems![0]._id).toBe(backlogItemId);
+  });
+
+  test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {
+    const { sessionId } = await createTestSession('test-readtask-no-backlog-items');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message WITHOUT backlog items
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Just a regular message',
+      type: 'message',
+    });
+
+    // Builder claims the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Get the task ID
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    // Use readTask mutation
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    // Should not have attachedBacklogItems
+    expect(result.attachedBacklogItems).toBeUndefined();
   });
 });

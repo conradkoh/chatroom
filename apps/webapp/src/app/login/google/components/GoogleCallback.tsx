@@ -5,7 +5,7 @@ import { useAction } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
 export interface GoogleCallbackProps {
@@ -21,8 +21,7 @@ export interface GoogleCallbackProps {
  */
 export const GoogleCallback = ({ code, state, redirectPath = '/app' }: GoogleCallbackProps) => {
   const router = useRouter();
-  const [isProcessing, setIsProcessing] = useState(true);
-  const [hasProcessed, setHasProcessed] = useState(false);
+  const hasProcessedRef = useRef(false);
 
   const exchangeGoogleCode = useAction(api.auth.google.exchangeGoogleCode);
   const loginWithGoogle = useSessionMutation(api.auth.google.loginWithGoogle);
@@ -31,13 +30,12 @@ export const GoogleCallback = ({ code, state, redirectPath = '/app' }: GoogleCal
    * Processes the OAuth callback with the provided parameters.
    */
   const processCallback = useCallback(async () => {
-    // Prevent double execution
-    if (hasProcessed) {
+    if (hasProcessedRef.current) {
       return;
     }
 
     try {
-      setHasProcessed(true);
+      hasProcessedRef.current = true;
 
       // Validate CSRF state
       const isStateValid = await _validateCSRFState(state);
@@ -70,22 +68,20 @@ export const GoogleCallback = ({ code, state, redirectPath = '/app' }: GoogleCal
         throw new Error('Failed to complete Google login');
       }
 
-      // Success!
       toast.success(`Welcome, ${exchangeResult.profile.name}!`);
-      setIsProcessing(false);
       router.push(redirectPath);
     } catch (error: unknown) {
       console.error('Google OAuth callback error:', error);
       router.push('/login');
     }
-  }, [code, state, exchangeGoogleCode, loginWithGoogle, router, redirectPath, hasProcessed]);
+  }, [code, state, exchangeGoogleCode, loginWithGoogle, router, redirectPath]);
 
   // Process callback on mount
   useEffect(() => {
     processCallback();
   }, [processCallback]);
 
-  return _renderLoadingState(isProcessing);
+  return _renderLoadingState();
 };
 
 /**
@@ -115,9 +111,7 @@ async function _validateCSRFState(state: string): Promise<boolean> {
 /**
  * Renders the loading state while processing OAuth callback.
  */
-function _renderLoadingState(isProcessing: boolean) {
-  if (!isProcessing) return null;
-
+function _renderLoadingState() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6 text-center">

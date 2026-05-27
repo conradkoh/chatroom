@@ -2,6 +2,7 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import { PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {
@@ -15,56 +16,77 @@ function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentService
 
 describe('PiAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when pi command exists', () => {
+    it('returns true when pi command exists', async () => {
       const deps = createMockDeps({ execSync: vi.fn() });
       const service = new PiAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when pi command is missing', () => {
+    it('returns false when pi command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which pi') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new PiAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses version 0.55.0 correctly', () => {
+    it('parses version 0.55.0 correctly', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('0.55.0')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
     });
 
-    it('parses version with v prefix', () => {
+    it('parses version with v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v1.2.3')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.2.3', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.2.3', major: 1 });
     });
 
-    it('returns null for garbage output', () => {
+    it('returns null for garbage output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('not a version')),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
 
-    it('returns null when command fails', () => {
+    it('captures version from stderr (Pi CLI writes to stderr)', async () => {
+      // Pi CLI may write version info to stderr, so checkVersion uses 2>&1
+      const deps = createMockDeps({
+        execSync: vi.fn().mockReturnValue(Buffer.from('0.55.0')),
+      });
+      const service = new PiAgentService(deps);
+      expect(await service.getVersion()).toEqual({ version: '0.55.0', major: 0 });
+
+      // Verify execSync was called with the 2>&1 redirect
+      expect(deps.execSync).toHaveBeenCalledWith(
+        'pi --version 2>&1',
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 })
+      );
+    });
+
+    it('returns null when command fails', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('command not found');
         }),
       });
       const service = new PiAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 
@@ -113,7 +135,8 @@ describe('PiAgentService', () => {
       expect(await service.listModels()).toEqual([]);
     });
 
-    it('returns empty array when command fails', async () => {
+    it('returns empty array and warns when command fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('failed');
@@ -121,6 +144,37 @@ describe('PiAgentService', () => {
       });
       const service = new PiAgentService(deps);
       expect(await service.listModels()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toEqual({
+        event: 'list-models-error',
+        harness: 'pi',
+        reason: 'failed',
+        attempts: 3,
+      });
+      warnSpy.mockRestore();
+    });
+
+    it('captures output from stderr (Pi CLI writes to stderr)', async () => {
+      // When Pi CLI writes output to stderr, listModels() should still capture it
+      // The 2>&1 shell redirect in the command ensures stderr is merged into stdout
+      const tableOutput = [
+        'provider  model              context  max-out  thinking  images',
+        'anthropic claude-3-5-sonnet  200000   8192     false     true',
+        'openai    gpt-4o             128000   4096     false     true',
+      ].join('\n');
+
+      const deps = createMockDeps({
+        execSync: vi.fn().mockReturnValue(Buffer.from(tableOutput)),
+      });
+      const service = new PiAgentService(deps);
+      const models = await service.listModels();
+
+      // Verify execSync was called with the 2>&1 redirect
+      expect(deps.execSync).toHaveBeenCalledWith(
+        'pi --list-models 2>&1',
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+      );
+      expect(models).toEqual(['anthropic/claude-3-5-sonnet', 'openai/gpt-4o']);
     });
 
     it('skips lines starting with # or -', async () => {
@@ -170,7 +224,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'You are a test agent',
-        prompt: 'Hello world',
+        prompt: createSpawnPrompt('Hello world'),
         model: 'github-copilot/claude-sonnet-4.6',
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
       });
@@ -204,7 +258,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'You are a test agent',
-        prompt: 'Hello world',
+        prompt: createSpawnPrompt('Hello world'),
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
       });
 
@@ -221,7 +275,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: "It's a system prompt with 'quotes'",
-        prompt: "Don't stop",
+        prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -241,7 +295,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp/test',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -266,7 +320,7 @@ describe('PiAgentService', () => {
         service.spawn({
           workingDir: '/tmp',
           systemPrompt: 'test',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           context: { machineId: 'm', chatroomId: 'c', role: 'r' },
         })
       ).rejects.toThrow('exited immediately');
@@ -281,7 +335,7 @@ describe('PiAgentService', () => {
       const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -299,7 +353,7 @@ describe('PiAgentService', () => {
       const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
-        prompt: 'prompt',
+        prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -329,7 +383,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'You are an agent',
-        prompt: '',
+        prompt: createSpawnPrompt(''),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -350,7 +404,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'You are an agent',
-        prompt: '   ',
+        prompt: createSpawnPrompt('   '),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
@@ -369,7 +423,7 @@ describe('PiAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         systemPrompt: "It's a system prompt with 'quotes'",
-        prompt: "Don't stop",
+        prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 

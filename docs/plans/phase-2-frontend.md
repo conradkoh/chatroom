@@ -7,6 +7,7 @@ Migrate the chatroom web dashboard from `chatroom-cli/src/web/` to `chatroom/app
 ## Source Files
 
 From `chatroom-cli/src/web/`:
+
 - `app/App.tsx` - Main dashboard component
 - `app/main.tsx` - React entry point
 - `app/styles/index.css` - Styling
@@ -24,6 +25,7 @@ From `chatroom-cli/src/web/`:
   - `WorkingIndicator.tsx` - Activity indicator
 
 From `chatroom-cli/src/domain/`:
+
 - `prompts/generator.ts` - Prompt generation
 - `prompts/templates.ts` - Role templates
 - `prompts/init/` - Prompt initialization sections
@@ -33,9 +35,11 @@ From `chatroom-cli/src/domain/`:
 ## Tasks
 
 ### 2.1 Create Chatroom Module
+
 Create `apps/webapp/src/modules/chatroom/`:
 
 **Components to Create:**
+
 - `ChatroomDashboard.tsx` - Main dashboard (from App.tsx)
 - `ChatroomSelector.tsx` - Chatroom list and selector
 - `components/AgentPanel.tsx` - Agent status
@@ -47,30 +51,37 @@ Create `apps/webapp/src/modules/chatroom/`:
 - `components/CopyButton.tsx` - Copy utility
 
 **Hooks to Create:**
+
 - `use-chatroom-sync.ts` - Real-time chatroom sync
 - `use-participants.ts` - Participant state management
 
 **Utilities:**
+
 - `prompts/generator.ts` - Prompt generation
 - `prompts/templates.ts` - Role templates
 - `role-hierarchy.ts` - Client-side hierarchy
 
 ### 2.2 Create Pages
+
 Add new pages in `apps/webapp/src/app/`:
 
 **Pages:**
+
 - `app/chatroom/page.tsx` - Chatroom selector/dashboard entry
 - `app/chatroom/[id]/page.tsx` - Individual chatroom view
 
 ### 2.3 Adapt Styling
+
 Convert CSS to match target app's styling approach:
 
 **Options:**
+
 - Use Tailwind CSS (target uses Tailwind)
 - Use existing shadcn/ui components where applicable
 - Create dedicated CSS module if needed
 
 ### 2.4 Update Dependencies
+
 Add required dependencies to `apps/webapp/package.json`:
 
 ```json
@@ -78,27 +89,28 @@ Add required dependencies to `apps/webapp/package.json`:
   "dependencies": {
     "react-markdown": "^10.x",
     "remark-gfm": "^4.x",
-    "lucide-react": "^0.x"  // Already present
+    "lucide-react": "^0.x" // Already present
   }
 }
 ```
 
 ## Component Mapping
 
-| Source Component | Target Component |
-|-----------------|------------------|
-| `App.tsx` | `ChatroomDashboard.tsx` |
-| `AgentPanel.tsx` | `components/AgentPanel.tsx` |
-| `ChatroomSelector.tsx` | `ChatroomSelector.tsx` |
-| `MessageFeed.tsx` | `components/MessageFeed.tsx` |
-| `SendForm.tsx` | `components/SendForm.tsx` |
-| `TeamStatus.tsx` | `components/TeamStatus.tsx` |
-| `SetupChecklist.tsx` | `components/SetupChecklist.tsx` |
-| `PromptModal.tsx` | `components/PromptModal.tsx` |
+| Source Component       | Target Component                |
+| ---------------------- | ------------------------------- |
+| `App.tsx`              | `ChatroomDashboard.tsx`         |
+| `AgentPanel.tsx`       | `components/AgentPanel.tsx`     |
+| `ChatroomSelector.tsx` | `ChatroomSelector.tsx`          |
+| `MessageFeed.tsx`      | `components/MessageFeed.tsx`    |
+| `SendForm.tsx`         | `components/SendForm.tsx`       |
+| `TeamStatus.tsx`       | `components/TeamStatus.tsx`     |
+| `SetupChecklist.tsx`   | `components/SetupChecklist.tsx` |
+| `PromptModal.tsx`      | `components/PromptModal.tsx`    |
 
 ## File Structure
 
 After migration:
+
 ```
 apps/webapp/src/
 ├── app/

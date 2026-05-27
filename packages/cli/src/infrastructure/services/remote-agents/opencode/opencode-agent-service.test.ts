@@ -2,6 +2,7 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createSpawnPrompt } from '../spawn-prompt.js';
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {
@@ -15,58 +16,64 @@ function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCode
 
 describe('OpenCodeAgentService', () => {
   describe('isInstalled', () => {
-    it('returns true when opencode command exists', () => {
+    it('returns true when opencode command exists', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.isInstalled()).toBe(true);
+      expect(await service.isInstalled()).toBe(true);
     });
 
-    it('returns false when opencode command is missing', () => {
+    it('returns false when opencode command is missing', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw new Error('not found');
+          const err = new Error('Command failed: which opencode') as Error & {
+            status?: number;
+            stderr?: Buffer;
+          };
+          err.status = 1;
+          err.stderr = Buffer.from('');
+          throw err;
         }),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.isInstalled()).toBe(false);
+      expect(await service.isInstalled()).toBe(false);
     });
   });
 
   describe('getVersion', () => {
-    it('parses semantic version from opencode --version output', () => {
+    it('parses semantic version from opencode --version output', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('v0.2.15')),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '0.2.15', major: 0 });
+      expect(await service.getVersion()).toEqual({ version: '0.2.15', major: 0 });
     });
 
-    it('parses version without v prefix', () => {
+    it('parses version without v prefix', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('1.0.3')),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.getVersion()).toEqual({ version: '1.0.3', major: 1 });
+      expect(await service.getVersion()).toEqual({ version: '1.0.3', major: 1 });
     });
 
-    it('returns null when version cannot be parsed', () => {
+    it('returns null when version cannot be parsed', async () => {
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('unknown')),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
 
-    it('returns null when command fails', () => {
+    it('returns null when command fails', async () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('command not found');
         }),
       });
       const service = new OpenCodeAgentService(deps);
-      expect(service.getVersion()).toBeNull();
+      expect(await service.getVersion()).toBeNull();
     });
   });
 
@@ -90,7 +97,8 @@ describe('OpenCodeAgentService', () => {
       expect(await service.listModels()).toEqual([]);
     });
 
-    it('returns empty array when command fails', async () => {
+    it('returns empty array and warns when command fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           throw new Error('failed');
@@ -98,6 +106,14 @@ describe('OpenCodeAgentService', () => {
       });
       const service = new OpenCodeAgentService(deps);
       expect(await service.listModels()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toEqual({
+        event: 'list-models-error',
+        harness: 'opencode',
+        reason: 'failed',
+        attempts: 3,
+      });
+      warnSpy.mockRestore();
     });
 
     it('filters blank lines from output', async () => {
@@ -184,7 +200,7 @@ describe('OpenCodeAgentService', () => {
 
       const result = await service.spawn({
         workingDir: '/tmp/test',
-        prompt: 'Hello agent',
+        prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
         model: 'anthropic/claude-3.5-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
@@ -231,7 +247,7 @@ describe('OpenCodeAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        prompt: 'test',
+        prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
@@ -258,7 +274,7 @@ describe('OpenCodeAgentService', () => {
       await expect(
         service.spawn({
           workingDir: '/tmp',
-          prompt: 'test',
+          prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         })

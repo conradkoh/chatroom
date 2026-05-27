@@ -6,20 +6,21 @@
  */
 
 import type { Team } from '../../src/domain/entities/team';
+import type { TeamKind } from '../../src/domain/entities/team-kind';
 
 /**
  * The three-dimensional context that determines which prompt sections to include.
  *
  * Every prompt section is selected based on these dimensions:
  * - role: what the agent does (builder, reviewer, planner)
- * - team: how the team is structured (pair, squad, custom)
+ * - team: how the team is structured (duo, squad, solo, or custom)
  * - workflow: what the team is doing (new_feature, question, follow_up)
  */
 export interface SelectorContext {
   /** Agent role (e.g., 'builder', 'reviewer', 'planner') */
   role: string;
-  /** Team type (e.g., 'pair', 'squad', or custom team name) */
-  team: 'pair' | 'squad' | 'duo' | 'unknown';
+  /** Team type (e.g., 'duo', 'squad', 'solo', or custom team name) */
+  team: TeamKind | 'unknown';
   /**
    * Full team configuration entity.
    * Available when the chatroom has a valid team configuration.
@@ -31,8 +32,6 @@ export interface SelectorContext {
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   /** Team roles as configured */
   teamRoles: string[];
-  /** Currently available (waiting) team members */
-  availableMembers?: string[];
   /** Whether this role is the team's entry point */
   isEntryPoint: boolean;
   /** Convex URL for CLI command generation */
@@ -90,14 +89,16 @@ export type SectionId =
   | 'commands-reference'
   // Actions (task delivery)
   | 'available-actions'
-  // Task-Started Reminders
-  | 'task-started-reminder'
   // Policies
   | 'review-policies'
   // Next Step
   | 'next-step'
   // Get-next-task reminder
-  | 'get-next-task-reminder';
+  | 'get-next-task-reminder'
+  // Glossary
+  | 'glossary'
+  // Session model
+  | 'session-vs-chatroom-task';
 
 /**
  * Helper to create a PromptSection with type safety.

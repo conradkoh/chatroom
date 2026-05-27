@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-import { usePresenceTick, isAgentPresent } from '../hooks/usePresenceTick';
+import { deriveChatStatus } from '../utils/deriveChatStatus';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,7 @@ export interface Agent {
   lastSeenAction: string | null;
   lastStatus: string | null;
   lastDesiredState: string | null;
+  isAlive: boolean;
 }
 
 export interface ChatroomWithStatus {
@@ -30,9 +31,10 @@ export interface ChatroomWithStatus {
   chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
+  hasUnreadHandoff: boolean;
   remoteAgentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
-  runningAgentConfigs: Array<{ machineId: string; role: string }>;
+  runningAgentConfigs: { machineId: string; role: string }[];
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -74,9 +76,6 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
   const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
 
-  // Tick every 30s to keep time-based `chatStatus` fresh without DB writes
-  const tick = usePresenceTick();
-
   // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
     // Wait for all subscriptions to resolve before returning data
@@ -92,6 +91,9 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
 
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
+    const unreadHandoffMap = new Map(
+      unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false])
+    );
     const remoteAgentStatusMap = new Map(
       remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
     );
@@ -99,6 +101,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     // Group presence by chatroomId
     const presenceByRoom = new Map<string, Agent[]>();
     for (const p of presenceData) {
+      const runningRoles = remoteAgentStatusMap.get(p.chatroomId)?.runningRoles ?? [];
       const existing = presenceByRoom.get(p.chatroomId) ?? [];
       existing.push({
         role: p.role,
@@ -106,34 +109,15 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         lastSeenAction: p.lastSeenAction,
         lastStatus: p.lastStatus ?? null,
         lastDesiredState: p.lastDesiredState ?? null,
+        isAlive: runningRoles.some((r) => r.toLowerCase() === p.role.toLowerCase()),
       });
       presenceByRoom.set(p.chatroomId, existing);
     }
 
-    const now = Date.now();
-
     return baseChatrooms.map((chatroom) => {
       const agents = presenceByRoom.get(chatroom._id) ?? [];
 
-      // Derive chatStatus from presence and chatroom status
-      type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
-      let chatStatus: ChatStatus;
-      if (chatroom.status === 'completed') {
-        chatStatus = 'completed';
-      } else {
-        const onlineAgents = agents.filter(
-          (a) => a.lastSeenAction !== 'exited' && isAgentPresent(a.lastSeenAt, now)
-        );
-        if (onlineAgents.length === 0) {
-          chatStatus = 'idle';
-        } else {
-          // 'working': any online agent is actively doing something (not waiting for next task)
-          const hasWorking = onlineAgents.some(
-            (a) => a.lastSeenAction && a.lastSeenAction !== 'get-next-task:started'
-          );
-          chatStatus = hasWorking ? 'working' : 'active';
-        }
-      }
+      const chatStatus = deriveChatStatus(chatroom.status, agents);
 
       return {
         ...chatroom,
@@ -141,12 +125,16 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
-        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as 'running' | 'stopped' | 'none',
+        hasUnreadHandoff: unreadHandoffMap.get(chatroom._id) ?? false,
+        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
+          | 'running'
+          | 'stopped'
+          | 'none',
         runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
         runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
       } as ChatroomWithStatus;
     });
-  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData, tick]);
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData]);
 
   const value = useMemo(
     () => ({

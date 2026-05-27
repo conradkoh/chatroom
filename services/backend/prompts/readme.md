@@ -10,7 +10,7 @@ prompts/
 │   └── cli.ts          # CLI command generator types
 ├── base/               # Base prompts (shared by all teams)
 │   ├── cli/            # CLI command prompts
-│   │   ├── task-started/
+│   │   ├── classify/
 │   │   │   └── command.ts       # Command generator
 │   │   ├── handoff/
 │   │   │   └── command.ts       # Command generator
@@ -36,20 +36,20 @@ Each CLI command has a `command.ts` file that generates command strings. This en
 
 | Command         | Generator                           | Description                             |
 | --------------- | ----------------------------------- | --------------------------------------- |
-| `task-started`  | `base/cli/task-started/command.ts`  | Acknowledge and classify a task         |
+| `classify`      | `base/cli/classify/command.ts`      | Classify a task's origin message        |
 | `handoff`       | `base/cli/handoff/command.ts`       | Complete task and hand off to next role |
 | `get-next-task` | `base/cli/get-next-task/command.ts` | Wait for incoming tasks                 |
 
 ### Usage
 
 ```typescript
-import { taskStartedCommand } from './base/cli/task-started/command.js';
+import { classifyCommand } from './base/cli/classify/command.js';
 import { handoffCommand } from './base/cli/handoff/command.js';
 import { getNextTaskCommand } from './base/cli/get-next-task/command.js';
 
 // Examples with placeholders (for documentation)
-taskStartedCommand({ type: 'example' });
-// → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ..."
+classifyCommand({ cliEnvPrefix: '' });
+// → "chatroom classify --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> ..."
 
 handoffCommand({ type: 'example' });
 // → "chatroom handoff <chatroom-id> --role=<role> --message-file=<message-file> --next-role=<target>"
@@ -58,26 +58,14 @@ getNextTaskCommand({ type: 'example' });
 // → "chatroom get-next-task <chatroom-id> --role=<role>"
 
 // Commands with real values (for actual prompts)
-taskStartedCommand({
-  type: 'command',
+classifyCommand({
   chatroomId: 'abc',
   role: 'builder',
   taskId: 'xyz',
   classification: 'question',
+  cliEnvPrefix: '',
 });
-// → "chatroom task-started abc --role=builder --task-id=xyz --origin-message-classification=question"
-```
-
-## Discriminated Unions
-
-Command params use discriminated unions with `type` field:
-
-```typescript
-// types/cli.ts
-
-type TaskStartedParams =
-  | { type: 'example'; classification?: MessageClassification }  // Placeholders
-  | { type: 'command'; chatroomId: string; role: string; ... }   // Real values
+// → "chatroom classify --chatroom-id=abc --role=builder --task-id=xyz --origin-message-classification=question"
 ```
 
 ## Guidelines
@@ -85,5 +73,4 @@ type TaskStartedParams =
 1. **All CLI commands in prompts must use command generators** - Never hardcode command strings
 2. **Colocate command.ts with its command folder** - `cli/<command-name>/command.ts`
 3. **Types go in prompts/types/** - Shared across all command generators
-4. **Use `type: 'example'` for documentation** - Shows placeholders
-5. **Use `type: 'command'` for actual prompts** - Uses real values from context
+4. **Use command generators for actual prompts** - Uses real values from context

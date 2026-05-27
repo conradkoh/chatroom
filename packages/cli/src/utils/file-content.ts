@@ -6,8 +6,10 @@
  * This makes the CLI more accessible to AI models that struggle with escaping.
  */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import type { NodeError } from '../infrastructure/types/node-error.js';
 
 /**
  * Read content from a file.
@@ -29,32 +31,9 @@ export function readFileContent(filePath: string, optionName: string): string {
   try {
     return readFileSync(absolutePath, 'utf-8');
   } catch (err) {
-    const nodeErr = err as NodeJS.ErrnoException;
+    const nodeErr = err as NodeError;
     throw new Error(
       `Cannot read file for --${optionName}: ${absolutePath}\n` + `Reason: ${nodeErr.message}`
     );
   }
-}
-
-/**
- * @deprecated Use readFileContent instead. This function is kept for backward compatibility.
- * Resolves content from either a direct string or a file path.
- */
-export function resolveContent(
-  content: string | undefined,
-  filePath: string | undefined,
-  optionName: string
-): string | undefined {
-  // Both provided - error
-  if (content && filePath) {
-    throw new Error(`Cannot specify both --${optionName} and --${optionName}-file`);
-  }
-
-  // File path provided - read from file
-  if (filePath) {
-    return readFileContent(filePath, `${optionName}-file`);
-  }
-
-  // Direct content or undefined
-  return content;
 }

@@ -12,7 +12,7 @@
  * all existing callers remain unchanged. Internally it:
  *
  *   1. Delegates the FSM transition to `lib/taskStateMachine.transitionTask`
- *   2. After transitions to `completed` or `closed`, calls `promoteNextTask`
+ *   2. After transitions to `completed`, calls `promoteNextTask`
  *      using deps wired from the Convex mutation context
  *
  * ## Callers
@@ -22,19 +22,51 @@
  *
  * The FSM rules, type definitions, and helper functions remain in
  * lib/taskStateMachine.ts as the authoritative implementation.
+ *
+ * Note: Agent restart for active tasks is now handled by the daemon's task monitor
+ * instead of a backend ensure-agent handler.
  */
 
 import { promoteNextTask } from './promote-next-task';
-import { promoteQueuedMessage } from './promote-queued-message';
-import { internal } from '../../../../convex/_generated/api';
+import { adjustTaskCountsForTransition } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
-import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
+import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
-import { patchParticipantStatus } from '../../entities/participant';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/**
+ * Options for controlling side effects during a task transition.
+ */
+export interface TransitionTaskOptions {
+  /**
+   * When true, skips writing the agent status event to chatroom_eventStream
+   * and skips updating the participant's lastStatus via transitionAgentStatus.
+   *
+   * Use this when the task is being externally force-completed (e.g. from the UI)
+   * and the actual agent process may still be running. Emitting status events in
+   * this case would mislead the UI — the agent will update its own status naturally
+   * when it calls get-next-task again or when it crashes and exits.
+   */
+  skipAgentStatusUpdate?: boolean;
+
+  /**
+   * When true, skips automatic queue promotion after terminal transitions.
+   *
+   * Use this when the caller manages promotion explicitly (e.g. the handoff
+   * handler has its own promotion logic in Step 6). Without this flag,
+   * transitionTask would auto-promote queued messages immediately after
+   * completing a task, which can conflict with the caller's own promotion
+   * or task creation logic.
+   */
+  skipAutoPromotion?: boolean;
+}
 
 // ============================================================================
 // USECASE
@@ -53,23 +85,53 @@ import { patchParticipantStatus } from '../../entities/participant';
  * @param newStatus - The desired target status
  * @param trigger - FSM trigger label (must match a valid transition rule)
  * @param overrides - Optional field overrides applied after transition
+ * @param options - Optional behavior flags (e.g. skipAgentStatusUpdate)
  */
 export async function transitionTask(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>,
   newStatus: TaskStatus,
   trigger: string,
-  overrides?: Partial<Task>
+  overrides?: Partial<Task>,
+  options?: TransitionTaskOptions
 ): Promise<void> {
+  // 0. Read old status before transition for counter adjustment
+  const taskBeforeTransition = await ctx.db.get("chatroom_tasks", taskId);
+  const oldStatus = taskBeforeTransition?.status;
+
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
 
+  // 1b. Update materialized task counts
+  if (taskBeforeTransition && oldStatus) {
+    await adjustTaskCountsForTransition(ctx, taskBeforeTransition.chatroomId, oldStatus, newStatus);
+  }
+
   // 2. Write event to chatroom_eventStream based on new status.
-  //    Re-fetch the task to get current fields (assignedTo, content, chatroomId).
+  //    Re-fetch the task to get current fields (assignedTo, chatroomId).
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
   if (eventTask) {
-    if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-      const chatroom = eventTask.assignedTo ? null : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+    if (newStatus === 'in_progress') {
+      // Emit task.inProgress for in_progress status — this is the event type
+      // that the UI uses to show "WORKING" status (agentStatusLabel.ts maps it).
+      // Note: task.activated is intentionally NOT mapped to UI status.
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.inProgress',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role,
+        timestamp: Date.now(),
+      });
+    } else if (ACTIVE_TASK_STATUSES.has(newStatus)) {
+      // Emit task.activated for other active statuses (pending, acknowledged).
+      // Note: This event is NOT mapped to UI status — it's only for the event stream.
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
       const role = resolveTaskRole(eventTask.assignedTo, chatroom);
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.activated',
@@ -82,6 +144,11 @@ export async function transitionTask(
       });
     } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
       const completedRole = eventTask.assignedTo ?? 'unknown';
+
+      // Always emit task.completed — it's the authoritative terminal-transition event.
+      // When skipAgentStatusUpdate is requested (e.g. force-complete from UI), include
+      // the flag on the event so consumers know agent status should NOT be derived from it.
+      // The actual agent process may still be running and will update status naturally.
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.completed',
         chatroomId: eventTask.chatroomId,
@@ -89,9 +156,22 @@ export async function transitionTask(
         role: completedRole,
         finalStatus: newStatus,
         timestamp: Date.now(),
+        ...(options?.skipAgentStatusUpdate && { skipAgentStatusUpdate: true }),
       });
-      if (eventTask.assignedTo) {
-        await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+
+      // Only update participant lastStatus when NOT skipping agent status.
+      // transitionAgentStatus writes to the participant record which drives the UI.
+      // For force-complete, we skip this so the UI reflects the real agent state
+      // rather than the externally-forced completion.
+      if (!options?.skipAgentStatusUpdate) {
+        if (eventTask.assignedTo) {
+          await transitionAgentStatus(
+            ctx,
+            eventTask.chatroomId,
+            eventTask.assignedTo,
+            'task.completed'
+          );
+        }
       }
     }
   }
@@ -99,37 +179,16 @@ export async function transitionTask(
   // 3. After terminal transitions, attempt to promote the next queued task.
   //    We re-fetch the task to get its chatroomId (the transition has already
   //    committed, so the status is now `newStatus`).
-  if (TERMINAL_TASK_STATUSES.has(newStatus)) {
+  //    Skip when caller manages promotion explicitly (e.g. handoff handler).
+  if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
-      await promoteNextTask(task.chatroomId, {
-        areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-        getOldestQueuedMessage: async (chatroomId) => {
-          return await ctx.db
-            .query('chatroom_messageQueue')
-            .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
-            .order('asc')
-            .first();
-        },
-        promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
-      });
+      await promoteNextTask(task.chatroomId, makePromoteNextTaskDeps(ctx));
     }
   }
 
-  // 4. After active-status transitions, schedule an ensure-agent check.
-  //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
-  //    For in_progress tasks, the check itself handles the token-activity guard
-  //    (rescheduling if the agent is still producing output, restarting if stale).
-  if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-    const activeTask = await ctx.db.get('chatroom_tasks', taskId);
-    if (activeTask) {
-      await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
-        taskId,
-        chatroomId: activeTask.chatroomId,
-        snapshotUpdatedAt: activeTask.updatedAt,
-      });
-    }
-  }
+  // Note: Agent restart for active tasks is now handled by the daemon's task monitor.
+  // No backend scheduling needed here.
 }
 
 // Re-export the TaskStatus type so callers only need one import path

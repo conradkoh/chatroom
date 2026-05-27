@@ -5,17 +5,18 @@
  */
 
 import type { Id } from '../../../api.js';
+import { executeStopAgent } from '../../../commands/machine/daemon-start/handlers/stop-agent.js';
 import type {
   DaemonContext,
   StopAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
-import { executeStopAgent } from '../../../commands/machine/daemon-start/handlers/stop-agent.js';
 
 export interface AgentRequestStopEventPayload {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   reason: string;
   deadline: number;
+  pid?: number;
 }
 
 export async function onRequestStopAgent(
@@ -32,5 +33,6 @@ export async function onRequestStopAgent(
     chatroomId: event.chatroomId,
     role: event.role,
     reason: event.reason as StopAgentReason,
+    pid: event.pid,
   });
 }

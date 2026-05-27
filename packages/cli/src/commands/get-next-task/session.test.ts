@@ -303,7 +303,7 @@ describe('GetNextTaskSession', () => {
       expect(params.client.mutation).toHaveBeenCalled();
 
       const output = getAllLogOutput();
-      expect(output).toContain('📨 Task received!');
+      expect(output).toContain('📨 CHATROOM TASK received');
       expect(output).toContain('Task delivery output here');
     });
 
@@ -329,7 +329,7 @@ describe('GetNextTaskSession', () => {
       expect(exitSpy).toHaveBeenCalledWith(0);
 
       const output = getAllLogOutput();
-      expect(output).toContain('📨 Task received!');
+      expect(output).toContain('📨 CHATROOM TASK received');
       expect(output).toContain('Acknowledged task output');
 
       // For acknowledged tasks, claimTask and claimMessage should NOT be called.

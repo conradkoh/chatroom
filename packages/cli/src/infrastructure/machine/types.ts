@@ -5,7 +5,10 @@
  * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  */
 
-import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
+import type {
+  AgentHarness,
+  HarnessVersionInfo,
+} from '@workspace/backend/src/domain/entities/agent';
 
 export type { AgentHarness, HarnessVersionInfo };
 

@@ -6,7 +6,7 @@
  */
 
 import { getCliEnvPrefix } from '../../utils/index';
-import { contextNewCommand } from '../context/new';
+import { contextNewCommand, contextNewHint } from '../context/new';
 
 export interface AvailableActionsParams {
   chatroomId: string;
@@ -50,35 +50,23 @@ git log --oneline -10
 \`\`\`
 
 ### Backlog
-The chatroom has a task backlog. View items with:
+For backlog commands and workflows, activate the backlog skill:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog
-\`\`\`
-
-**After completing work on a backlog item**, mark it for user review:
-
-\`\`\`bash
-${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --task-id=<task-id>
-\`\`\`
-
-This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
-
-#### Backlog Scoring and Maintenance
-When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\` to view items, then provide recommendations.
-
-More actions: \`chatroom backlog --help\``);
+${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"
+\`\`\``);
 
   // Context management is restricted to the entry point (planner) role only
   if (isEntryPoint) {
     sections.push(`
 ### Context Management
-Only the entry point role can create new contexts. Set a new context when a new commit is expected, to keep agents focused on the current goal.
+Only the entry point role can create new contexts. By default, set a new context for every user message — skip ONLY when the message is clearly a follow-up of the current chatroom task.
 
 **Create new context:**
 \`\`\`bash
 ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\`
+${contextNewHint()}
 
 **List previous contexts:**
 \`\`\`bash
@@ -86,7 +74,7 @@ ${cliEnvPrefix}chatroom context list --chatroom-id="${chatroomId}" --role="${rol
 \`\`\`
 
 When to create a new context:
-- When a new commit is expected — summarize the planned changes in the new context
+- For every new user message (default) — summarize the planned focus in the new context; skip only when the message is clearly a follow-up of the current task
 - When the pinned context shows staleness warnings — summarize recent progress in the new context`);
   }
 

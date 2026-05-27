@@ -32,11 +32,11 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [tempRange, setTempRange] = React.useState<DateRange>(value);
-
-  // Update temp range when value prop changes
-  React.useEffect(() => {
+  const [prevValue, setPrevValue] = React.useState<DateRange>(value);
+  if (prevValue !== value) {
+    setPrevValue(value);
     setTempRange(value);
-  }, [value]);
+  }
 
   const handleStartDateSelect = (date: Date | undefined) => {
     if (date) {

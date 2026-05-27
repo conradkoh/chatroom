@@ -9,9 +9,6 @@
  *
  * All agents are always considered "present" (no time-based filtering).
  * An agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
- * An agent is stuck if they have an acknowledged task AND either:
- *   - Have never been seen (lastSeenAt == null), OR
- *   - Have not produced a token in over STUCK_TOKEN_THRESHOLD_MS
  *
  * ## Daemon Heartbeat
  *
@@ -23,13 +20,6 @@
  * Changing these values affects system behavior across the CLI, daemon, and
  * backend cron jobs. Test timing changes end-to-end before deploying.
  */
-
-// ─── Stuck Agent Detection ───────────────────────────────────────────────────
-
-/** If an agent has an acknowledged task AND has not produced a token in over this
- *  threshold, it is considered stuck. Set to 5 minutes — long enough to tolerate
- *  slow LLM responses, short enough to detect genuinely hung agents. */
-export const STUCK_TOKEN_THRESHOLD_MS = 300_000; // 5 min
 
 // ─── Grace Period ────────────────────────────────────────────────────────────
 
@@ -44,9 +34,9 @@ export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
 export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 
-/** How long a daemon is considered alive after the last heartbeat (ms).
- *  Must be > DAEMON_HEARTBEAT_INTERVAL_MS to tolerate missed beats. Allows 3 missed beats. */
-export const DAEMON_HEARTBEAT_TTL_MS = 120_000; // 2 min (Plan 026: increased from 90s)
+/** How long before a daemon is considered offline if no heartbeat received (ms).
+ *  Set to 3× the heartbeat interval (90s). */
+export const DAEMON_HEARTBEAT_TTL_MS = 90_000; // 90s
 
 // ─── Agent Request Deadline ──────────────────────────────────────────────────
 
@@ -55,16 +45,28 @@ export const DAEMON_HEARTBEAT_TTL_MS = 120_000; // 2 min (Plan 026: increased fr
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
 
-// ─── ensureAgentHandler Fallback Delay ──────────────────────────────────────
+// ─── Observed Chatroom Sync ───────────────────────────────────────────────────
 
-/**
- * Delay (ms) for the ensureAgentHandler backend fallback.
- * Set to 60 seconds — frequent enough to ensure that if the daemon is offline
- * and reconnects within the deadline window (2 × 60s = 120s), the requestStart
- * event will still be valid. Shorter interval reduces the timing gap where a
- * daemon restart misses an expired requestStart.
- */
-export const ENSURE_AGENT_FALLBACK_DELAY_MS = 60_000; // 60 seconds
+/** How long a chatroom remains marked as "observed" before TTL expires (ms).
+ *  If frontend stops sending heartbeats within this window, daemon stops syncing.
+ *  Set to 60s. */
+export const OBSERVATION_TTL_MS = 60_000;
+
+/** How often the daemon performs a full (non-slim) git state push per workspace
+ *  when observedSyncEnabled is on. Slim pushes run every safety poll; this
+ *  ensures non-slim fields (diffStat, commitsAhead, remotes, allPullRequests,
+ *  recentCommits) refresh at least this often. Set to 5 minutes. */
+export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
+
+/** Safety poll interval for observed chatrooms (ms).
+ *  Daemon additionally polls observed chatrooms periodically as a safety net
+ *  in case frontend heartbeat stops unexpectedly. Set to 30s. */
+export const OBSERVED_SAFETY_POLL_MS = 30_000;
+
+/** How often frontend sends a heartbeat while chatroom view is visible (ms).
+ *  Frontend sends this heartbeat to keep chatrooms marked as observed.
+ *  Set to 30s. */
+export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
