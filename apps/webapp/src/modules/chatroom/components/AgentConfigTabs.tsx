@@ -34,6 +34,7 @@ import {
   getModelDisplayLabel,
   getMachineDisplayName,
 } from '../types/machine';
+import type { Workspace } from '../types/workspace';
 
 import {
   Command,
@@ -153,10 +154,11 @@ function deriveInitialHarness(
   return null;
 }
 
-function deriveInitialWorkingDir(
+export function deriveInitialWorkingDir(
   machineId: string | null,
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined
+  preference: AgentPreference | undefined,
+  chatroomWorkspaces?: Workspace[]
 ): string {
   if (machineId) {
     const config = roleConfigs.find((c) => c.machineId === machineId);
@@ -164,12 +166,35 @@ function deriveInitialWorkingDir(
     if (preference && preference.machineId === machineId && preference.workingDir) {
       return preference.workingDir;
     }
+    if (chatroomWorkspaces) {
+      const ws = chatroomWorkspaces.find((w) => w.machineId === machineId);
+      if (ws?.workingDir) return ws.workingDir;
+    }
   }
   if (roleConfigs.length > 0) {
     const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
     if (latest.workingDir) return latest.workingDir;
   }
   return preference?.workingDir ?? '';
+}
+
+/** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
+export function shouldDeferInitUntilWorkspacesLoad(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): boolean {
+  if (machineId) {
+    const config = roleConfigs.find((c) => c.machineId === machineId);
+    if (config?.workingDir) return false;
+    if (preference && preference.machineId === machineId && preference.workingDir) {
+      return false;
+    }
+    return true;
+  }
+  if (roleConfigs.some((c) => c.workingDir)) return false;
+  if (preference?.workingDir) return false;
+  return false;
 }
 
 export function useAgentControls({
@@ -183,6 +208,8 @@ export function useAgentControls({
   agentPreference,
   onSavePreference,
   teamConfigMachineId,
+  chatroomWorkspaces,
+  chatroomWorkspacesLoading,
 }: {
   role: string;
   chatroomId: string;
@@ -200,6 +227,10 @@ export function useAgentControls({
   onSavePreference?: (pref: AgentPreference) => void;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
+  /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
+  chatroomWorkspaces?: Workspace[];
+  /** When true, init defers until workspaces load if working dir may come from the registry */
+  chatroomWorkspacesLoading?: boolean;
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
@@ -239,7 +270,9 @@ export function useAgentControls({
 
   // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find((c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId));
+    return roleConfigs.find(
+      (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
+    );
   }, [roleConfigs, connectedMachines]);
 
   // Get available harnesses for selected machine
@@ -270,6 +303,12 @@ export function useAgentControls({
       runningAgentConfig,
       pref
     );
+    if (
+      chatroomWorkspacesLoading &&
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, pref)
+    ) {
+      return;
+    }
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
@@ -277,29 +316,49 @@ export function useAgentControls({
       pref,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
     setIsInitialized(true);
-  }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
+  }, [
+    isInitialized,
+    connectedMachines,
+    roleConfigs,
+    runningAgentConfig,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
+  ]);
 
   // Available models from the selected machine filtered by selected harness
-  const machineModels = useMachineModels(selectedMachineId ?? undefined);
+  const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
+    selectedMachineId ?? undefined
+  );
   const availableModelsForHarness = useMemo(
     () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
-    [machineModels, selectedMachineId, selectedHarness],
+    [machineModels, selectedMachineId, selectedHarness]
   );
 
   // Machine-level model filter — used to exclude blacklisted models from
   // automatic selection and the model combobox.
-  const machineModelFilter = useSessionQuery(
+  const machineModelFilterResult = useSessionQuery(
     api.machines.getMachineModelFilters,
     selectedMachineId && selectedHarness
       ? { machineId: selectedMachineId, agentHarness: selectedHarness }
       : 'skip'
   );
+  const machineModelFilter = machineModelFilterResult ?? null;
+  const machineModelFilterLoading =
+    !!selectedMachineId && !!selectedHarness && machineModelFilterResult === undefined;
+
+  // Wait for async machine models + filter before deriving selection — avoids flashing
+  // a stale model label when switching machines or harnesses.
+  const modelSelectionReady =
+    !!selectedMachineId &&
+    !!selectedHarness &&
+    !machineModelsLoading &&
+    !machineModelFilterLoading;
 
   // Visible models = available models minus those hidden by the filter.
   // The combobox and automatic model selection use this list.
@@ -312,6 +371,7 @@ export function useAgentControls({
   // selectedModel is a pure derivation — no useEffect, no setState.
   // Uses the extracted selectModel utility for testability.
   const selectedModel = useMemo((): string | null => {
+    if (!modelSelectionReady) return null;
     // Machine config model — only if it's saved under the same harness type
     const config = roleConfigs.find(
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
@@ -337,6 +397,7 @@ export function useAgentControls({
       preferenceModel: prefModel,
     });
   }, [
+    modelSelectionReady,
     selectedHarness,
     availableModelsForHarness,
     visibleModels,
@@ -496,10 +557,10 @@ export function useAgentControls({
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
       const pref = initialPreferenceRef.current;
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref, chatroomWorkspaces);
       setWorkingDir(wd);
     },
-    [roleConfigs]
+    [roleConfigs, chatroomWorkspaces]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
@@ -866,9 +927,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 <MachineCapabilitiesRefreshButton
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
-                  daemonConnected={
-                    connectedMachines.some((m) => m.machineId === displayMachineId)
-                  }
+                  daemonConnected={connectedMachines.some((m) => m.machineId === displayMachineId)}
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />
               ) : null}
