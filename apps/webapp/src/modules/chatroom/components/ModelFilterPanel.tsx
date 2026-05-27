@@ -3,6 +3,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
+import {
+  getModelProviderKey,
+  UNPREFIXED_PROVIDER_KEY,
+} from '../utils/modelSelection';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -30,6 +34,11 @@ function titleCaseProvider(provider: string): string {
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('-');
+}
+
+function getProviderDisplayName(providerKey: string): string {
+  if (providerKey === UNPREFIXED_PROVIDER_KEY) return 'Models';
+  return titleCaseProvider(providerKey);
 }
 
 /**
@@ -63,14 +72,14 @@ export function ModelFilterPanel({
     [onOpenChange]
   );
 
-  // Group models by provider
+  // Group models by provider key (unprefixed bare slugs share one group)
   const modelsByProvider = useMemo(() => {
     const groups = new Map<string, string[]>();
     for (const model of availableModels) {
-      const provider = model.split('/')[0];
-      const existing = groups.get(provider) ?? [];
+      const providerKey = getModelProviderKey(model);
+      const existing = groups.get(providerKey) ?? [];
       existing.push(model);
-      groups.set(provider, existing);
+      groups.set(providerKey, existing);
     }
     return groups;
   }, [availableModels]);
@@ -80,16 +89,18 @@ export function ModelFilterPanel({
     if (!searchTerm.trim()) return modelsByProvider;
     const term = searchTerm.toLowerCase();
     const filtered = new Map<string, string[]>();
-    for (const [provider, models] of modelsByProvider.entries()) {
+    for (const [providerKey, models] of modelsByProvider.entries()) {
+      const providerLabel = getProviderDisplayName(providerKey);
       // Match against provider name or model display label
       const matchingModels = models.filter(
         (model) =>
-          provider.toLowerCase().includes(term) ||
+          providerLabel.toLowerCase().includes(term) ||
+          providerKey.toLowerCase().includes(term) ||
           model.toLowerCase().includes(term) ||
           getModelDisplayLabel(model).toLowerCase().includes(term)
       );
       if (matchingModels.length > 0) {
-        filtered.set(provider, matchingModels);
+        filtered.set(providerKey, matchingModels);
       }
     }
     return filtered;
@@ -127,11 +138,26 @@ export function ModelFilterPanel({
     onFilterChange([], []);
   };
 
+  const allProviderKeys = Array.from(modelsByProvider.keys());
+  const allHidden =
+    allProviderKeys.length > 0 &&
+    allProviderKeys.every((key) => hiddenProviders.includes(key));
+
+  const handleHideAll = () => {
+    if (disabled) return;
+    onFilterChange([], allProviderKeys);
+  };
+
+  const handleShowAll = () => {
+    if (disabled) return;
+    onFilterChange([], []);
+  };
+
   // Count models that are effectively hidden (used for the header badge)
   const hiddenCount = useMemo(() => {
     return availableModels.filter((model) => {
-      const provider = model.split('/')[0];
-      const providerHidden = hiddenProviders.includes(provider);
+      const providerKey = getModelProviderKey(model);
+      const providerHidden = hiddenProviders.includes(providerKey);
       const hasOverride = hiddenModels.includes(model);
       return providerHidden ? !hasOverride : hasOverride;
     }).length;
@@ -151,11 +177,28 @@ export function ModelFilterPanel({
           <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
             Model Visibility
           </span>
-          {hiddenCount > 0 && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
-              {hiddenCount} HIDDEN
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {hiddenCount > 0 && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+                {hiddenCount} HIDDEN
+              </span>
+            )}
+            {allProviderKeys.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={allHidden ? handleShowAll : handleHideAll}
+                className={cn(
+                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                  allHidden
+                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                )}
+              >
+                {allHidden ? 'Show All' : 'Hide All'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Search input */}
@@ -172,10 +215,10 @@ export function ModelFilterPanel({
 
         {/* Model list grouped by provider */}
         <div className="max-h-[576px] overflow-y-auto">
-          {Array.from(filteredModelsByProvider.entries()).map(([provider, models]) => {
-            const isProviderHidden = hiddenProviders.includes(provider);
+          {Array.from(filteredModelsByProvider.entries()).map(([providerKey, models]) => {
+            const isProviderHidden = hiddenProviders.includes(providerKey);
             return (
-              <div key={provider}>
+              <div key={providerKey}>
                 {/* Provider row */}
                 <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center justify-between bg-chatroom-bg-tertiary">
                   <span
@@ -185,12 +228,12 @@ export function ModelFilterPanel({
                         : 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-secondary'
                     }
                   >
-                    {titleCaseProvider(provider)}
+                    {getProviderDisplayName(providerKey)}
                   </span>
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => handleProviderToggle(provider)}
+                    onClick={() => handleProviderToggle(providerKey)}
                     className={cn(
                       'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                       isProviderHidden
