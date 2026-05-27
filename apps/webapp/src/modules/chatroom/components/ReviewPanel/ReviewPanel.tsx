@@ -3,7 +3,16 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, ClipboardCheck, CornerUpLeft, Inbox, Undo2 } from 'lucide-react';
+import {
+  Check,
+  ClipboardCheck,
+  CornerUpLeft,
+  Inbox,
+  MoreHorizontal,
+  Paperclip,
+  Undo2,
+  X,
+} from 'lucide-react';
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -20,7 +29,16 @@ import {
 
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
+import { useAttachments } from '../../context/AttachmentsContext';
 import { formatRelativeTime } from '../WorkQueue/utils';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -131,6 +149,7 @@ interface ReviewDetailProps {
   item: BacklogItem;
   onComplete: (itemId: Id<'chatroom_backlog'>) => void;
   onSendBack: (itemId: Id<'chatroom_backlog'>) => void;
+  onCloseItem: (itemId: Id<'chatroom_backlog'>) => void;
   isLoading: boolean;
 }
 
@@ -138,10 +157,17 @@ const ReviewDetail = memo(function ReviewDetail({
   item,
   onComplete,
   onSendBack,
+  onCloseItem,
   isLoading,
 }: ReviewDetailProps) {
+  const { add, isAttached } = useAttachments();
+  const isAttachedToContext = isAttached('backlog', item._id);
   const relativeTime = formatRelativeTime(item.updatedAt);
   const createdTime = formatRelativeTime(item.createdAt);
+
+  const handleAttach = () => {
+    add({ type: 'backlog', id: item._id, content: item.content });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -183,6 +209,57 @@ const ReviewDetail = memo(function ReviewDetail({
           <CornerUpLeft size={12} />
           Back to Backlog
         </button>
+
+        <div className="flex-1" />
+
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={isLoading}
+              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="More actions"
+            >
+              <MoreHorizontal size={14} />
+              Actions
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[160px]">
+            <DropdownMenuItem
+              onClick={handleAttach}
+              disabled={isAttachedToContext}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              {isAttachedToContext ? <Check size={14} /> : <Paperclip size={14} />}
+              {isAttachedToContext ? 'Attached' : 'Attach to Context'}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onSendBack(item._id)}
+              disabled={isLoading}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <CornerUpLeft size={14} />
+              Return to Backlog
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onComplete(item._id)}
+              disabled={isLoading}
+              className="flex items-center gap-2 cursor-pointer text-chatroom-status-success"
+            >
+              <Check size={14} />
+              Mark as Complete
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onCloseItem(item._id)}
+              disabled={isLoading}
+              className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+            >
+              <X size={14} />
+              Mark as Closed
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -299,6 +376,7 @@ export const ReviewPanel = memo(function ReviewPanel({
   const sendBackForRework = useSessionMutation(api.backlog.sendBacklogItemBackForRework);
   const reopenItem = useSessionMutation(api.backlog.reopenBacklogItem);
   const markForReview = useSessionMutation(api.backlog.markBacklogItemForReview);
+  const closeItem = useSessionMutation(api.backlog.closeBacklogItem);
 
   // Auto-select first visible item when panel opens or visible items change
   useEffect(() => {
@@ -444,6 +522,23 @@ export const ReviewPanel = memo(function ReviewPanel({
     [visibleItems, sendBackForRework, selectNextItem, addToUndoStack, revertDismissal, chatroomId]
   );
 
+  const handleCloseItem = useCallback(
+    (itemId: Id<'chatroom_backlog'>) => {
+      setDismissedIds((prev) => new Set(prev).add(itemId));
+      selectNextItem(itemId);
+
+      closeItem({
+        chatroomId,
+        itemId,
+        reason: 'Closed by user from review panel',
+      }).catch((error) => {
+        console.error('Failed to close item:', error);
+        revertDismissal(itemId);
+      });
+    },
+    [closeItem, selectNextItem, revertDismissal, chatroomId]
+  );
+
   // ── Handle undo ────────────────────────────────────────────────────────
 
   const handleUndo = useCallback(
@@ -514,6 +609,7 @@ export const ReviewPanel = memo(function ReviewPanel({
               item={selectedItem}
               onComplete={handleComplete}
               onSendBack={handleSendBack}
+              onCloseItem={handleCloseItem}
               isLoading={false}
             />
           ) : (
