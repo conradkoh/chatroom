@@ -5,19 +5,55 @@
  * concepts in the agent domain — harness types, agent configuration types,
  * command types, and model resolution sources.
  *
+ * Harness types follow the multi-shape pattern: a single source of truth
+ * (as-const tuple) drives the type, enum-like object, Convex validator,
+ * Zod schema, and runtime guard.
+ *
+ * @see docs/conventions/domain-models.md
+ *
  * These are NOT DTOs or intermediate types. They represent the shared
  * vocabulary used across all agent-related use cases.
  */
 
+import { v } from 'convex/values';
+import { z } from 'zod';
+
+import { toLiteralValidators } from './_shared/v-literals-of';
+
 // ─── Agent Harness ───────────────────────────────────────────────────────────
 
 /**
- * The type of agent harness used to run an agent process.
+ * Supported agent harness types.
  *
  * A harness is the execution environment that hosts the AI agent.
- * Supported harnesses: 'opencode', 'pi', 'cursor'.
  */
-export type AgentHarness = 'opencode' | 'pi' | 'cursor';
+export const AGENT_HARNESSES = [
+  'opencode',
+  'opencode-sdk',
+  'pi',
+  'cursor',
+  'claude',
+  'copilot',
+  'commandcode',
+] as const;
+
+/** The type of agent harness used to run an agent process. */
+export type AgentHarness = (typeof AGENT_HARNESSES)[number];
+
+/** Enum-like object: AgentHarnessEnum.opencode === 'opencode', etc. */
+export const AgentHarnessEnum = Object.fromEntries(
+  AGENT_HARNESSES.map((h) => [h, h])
+) as { readonly [K in AgentHarness]: K };
+
+/** Convex validator for agent harness types. */
+export const agentHarnessValidator = v.union(...toLiteralValidators(AGENT_HARNESSES));
+
+/** Zod schema for API / CLI validation of harness values. */
+export const agentHarnessZodSchema = z.enum(AGENT_HARNESSES);
+
+/** Runtime type guard. */
+export const isAgentHarness = (value: unknown): value is AgentHarness =>
+  (AGENT_HARNESSES as readonly string[]).includes(value as string);
 
 /**
  * Detected harness version info from a machine's installed toolchain.
@@ -99,15 +135,12 @@ export const AGENT_STOP_REASONS = [
 ] as const;
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
 
-// Convex validator exports for use in schema.ts
-import { v } from 'convex/values';
-
 export const agentStartReasonValidator = v.union(
-  ...AGENT_START_REASONS.map((r) => v.literal(r))
+  ...toLiteralValidators(AGENT_START_REASONS)
 );
 
 export const agentStopReasonValidator = v.union(
-  ...AGENT_STOP_REASONS.map((r) => v.literal(r))
+  ...toLiteralValidators(AGENT_STOP_REASONS)
 );
 
 /**

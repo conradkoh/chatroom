@@ -111,6 +111,39 @@ describe('getAgentConfigForStart — preference fallback', () => {
     expect(result!.defaults.model).toBe('preferred-model');
     expect(result!.defaults.workingDir).toBe('/preferred/dir');
   });
+
+  test('preserves opencode-sdk preference harness without coercion', async () => {
+    const { sessionId } = await createTestSession('test-gacfs-opencode-sdk-1');
+    const machineId = 'machine-gacfs-opencode-sdk-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+    const ownerId = await getOwnerUserId(chatroomId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_agentPreferences', {
+        userId: ownerId,
+        chatroomId,
+        role: 'builder',
+        machineId,
+        agentHarness: 'opencode-sdk',
+        model: 'sdk-model',
+        workingDir: '/sdk/dir',
+        updatedAt: Date.now(),
+        createdAt: Date.now(),
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return getAgentConfigForStart(ctx, {
+        chatroomId,
+        role: 'builder',
+        userId: ownerId,
+      });
+    });
+
+    expect(result!.defaults.agentHarness).toBe('opencode-sdk');
+    expect(result!.defaults.model).toBe('sdk-model');
+  });
 });
 
 // ─── Team config fallback ─────────────────────────────────────────────────────

@@ -1,12 +1,11 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-/** Canonical harness validator — add new harnesses here. */
-export const agentHarnessValidator = v.union(
-  v.literal('opencode'),
-  v.literal('pi'),
-  v.literal('cursor')
-);
+import { agentHarnessValidator } from '../src/domain/entities/agent';
+
+// agentHarnessValidator re-exported for backward compatibility.
+// Canonical source is entities/agent.ts — add new harnesses to AGENT_HARNESSES there.
+export { agentHarnessValidator };
 
 /**
  * Database schema definition for the application.

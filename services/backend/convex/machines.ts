@@ -2,7 +2,7 @@
 
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { agentHarnessValidator } from './schema';
+import { agentHarnessValidator } from '../src/domain/entities/agent';
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
