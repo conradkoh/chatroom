@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   CursorAgentService,
+  resolveCursorCliModel,
   type CursorAgentServiceDeps,
 } from './cursor-agent-service.js';
 
@@ -72,14 +73,25 @@ describe('CursorAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns cursor models with opus-4.6 first (default)', async () => {
+    it('returns cursor-prefixed model IDs with cursor/opus-4.6 first (default)', async () => {
       const service = new CursorAgentService(createMockDeps());
       const models = await service.listModels();
-      expect(models[0]).toBe('opus-4.6');
+      expect(models[0]).toBe('cursor/opus-4.6');
       expect(models.length).toBeGreaterThan(2);
-      expect(models).toContain('gpt-5.4-high');
-      expect(models).toContain('sonnet-4.6');
-      expect(models).toContain('gemini-3.1-pro');
+      expect(models).toContain('cursor/gpt-5.4-high');
+      expect(models).toContain('cursor/sonnet-4.6');
+      expect(models).toContain('cursor/gemini-3.1-pro');
+      expect(models.every((m) => m.startsWith('cursor/'))).toBe(true);
+    });
+  });
+
+  describe('resolveCursorCliModel', () => {
+    it('strips cursor/ prefix for CLI', () => {
+      expect(resolveCursorCliModel('cursor/gpt-5.4-high')).toBe('gpt-5.4-high');
+    });
+
+    it('passes through bare slugs for backward compatibility', () => {
+      expect(resolveCursorCliModel('gpt-5.4-high')).toBe('gpt-5.4-high');
     });
   });
 
@@ -179,6 +191,78 @@ describe('CursorAgentService', () => {
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
       expect(typeof result.onAgentEnd).toBe('function');
+    });
+
+    it('strips cursor/ prefix from model before passing to CLI', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 43,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        prompt: 'Hello',
+        systemPrompt: 'System',
+        model: 'cursor/gpt-5.4-high',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'agent',
+        ['-p', '--force', '--output-format', 'stream-json', '--model', 'gpt-5.4-high'],
+        expect.any(Object)
+      );
+    });
+
+    it('accepts bare model slug for backward compatibility with saved preferences', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 44,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        prompt: 'Hello',
+        systemPrompt: 'System',
+        model: 'gpt-5.4-high',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'agent',
+        ['-p', '--force', '--output-format', 'stream-json', '--model', 'gpt-5.4-high'],
+        expect.any(Object)
+      );
     });
 
     it('spawns without --model flag when model is not specified', async () => {

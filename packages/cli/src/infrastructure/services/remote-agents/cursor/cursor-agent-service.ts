@@ -26,7 +26,11 @@ export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
 const CURSOR_COMMAND = 'agent';
 
-const CURSOR_MODELS: string[] = [
+/** Provider prefix for model IDs — matches OpenCode `provider/model-slug` convention. */
+const CURSOR_PROVIDER = 'cursor';
+
+/** Bare model slugs accepted by the Cursor CLI `--model` flag. */
+const CURSOR_MODEL_SLUGS: string[] = [
   // Anthropic Claude
   'opus-4.6',
   'opus-4.6-thinking',
@@ -83,6 +87,12 @@ const CURSOR_MODELS: string[] = [
   'composer-1',
 ];
 
+/** Strip `cursor/` prefix so the CLI receives a bare slug. Bare slugs pass through unchanged. */
+export function resolveCursorCliModel(model: string): string {
+  const prefix = `${CURSOR_PROVIDER}/`;
+  return model.startsWith(prefix) ? model.slice(prefix.length) : model;
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CursorAgentService extends BaseCLIAgentService {
@@ -103,13 +113,13 @@ export class CursorAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    return CURSOR_MODELS;
+    return CURSOR_MODEL_SLUGS.map((slug) => `${CURSOR_PROVIDER}/${slug}`);
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
-      args.push('--model', options.model);
+      args.push('--model', resolveCursorCliModel(options.model));
     }
 
     const fullPrompt = options.systemPrompt
