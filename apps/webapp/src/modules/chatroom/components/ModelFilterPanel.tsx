@@ -96,6 +96,20 @@ export function ModelFilterPanel({
     onFilterChange([], []);
   };
 
+  const allProviders = Array.from(modelsByProvider.keys());
+  const allHidden =
+    allProviders.length > 0 && allProviders.every((p) => hiddenProviders.includes(p));
+
+  const handleHideAll = () => {
+    if (disabled) return;
+    onFilterChange([], allProviders);
+  };
+
+  const handleShowAll = () => {
+    if (disabled) return;
+    onFilterChange([], []);
+  };
+
   // Count models that are effectively hidden (used for the header badge)
   const hiddenCount = useMemo(() => {
     return availableModels.filter((model) => {
@@ -120,11 +134,28 @@ export function ModelFilterPanel({
           <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
             Model Visibility
           </span>
-          {hiddenCount > 0 && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
-              {hiddenCount} HIDDEN
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {hiddenCount > 0 && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+                {hiddenCount} HIDDEN
+              </span>
+            )}
+            {allProviders.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={allHidden ? handleShowAll : handleHideAll}
+                className={cn(
+                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                  allHidden
+                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                )}
+              >
+                {allHidden ? 'Show All' : 'Hide All'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Model list grouped by provider */}
