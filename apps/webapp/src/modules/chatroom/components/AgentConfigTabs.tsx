@@ -154,7 +154,7 @@ function deriveInitialHarness(
   return null;
 }
 
-function deriveInitialWorkingDir(
+export function deriveInitialWorkingDir(
   machineId: string | null,
   roleConfigs: AgentConfig[],
   preference: AgentPreference | undefined,
