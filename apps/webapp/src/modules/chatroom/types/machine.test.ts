@@ -1,12 +1,9 @@
+import { AGENT_HARNESSES } from '@workspace/backend/src/domain/entities/agent';
 import { describe, expect, it } from 'vitest';
 import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName } from './machine';
 
-/**
- * Canonical list of all harnesses supported by the backend and CLI.
- * When a new harness is added, it must also be added here and to the
- * frontend HARNESS_DISPLAY_NAMES record.
- */
-const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'pi', 'cursor'];
+/** Canonical harness list from backend entity — display names must cover each entry. */
+const ALL_KNOWN_HARNESSES: string[] = [...AGENT_HARNESSES];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
   it.each(ALL_KNOWN_HARNESSES)(
@@ -29,9 +26,11 @@ describe('HARNESS_DISPLAY_NAMES', () => {
 
 describe('getHarnessDisplayName', () => {
   it('returns known display name for registered harnesses', () => {
-    expect(getHarnessDisplayName('opencode')).toBe('OpenCode');
+    expect(getHarnessDisplayName('opencode')).toBe('OpenCode (CLI)');
+    expect(getHarnessDisplayName('opencode-sdk')).toBe('OpenCode (SDK)');
     expect(getHarnessDisplayName('pi')).toBe('Pi');
     expect(getHarnessDisplayName('cursor')).toBe('Cursor');
+    expect(getHarnessDisplayName('commandcode')).toBe('CommandCode');
   });
 
   it('returns title-cased fallback for unknown harnesses', () => {
