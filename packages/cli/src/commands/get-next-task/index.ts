@@ -157,9 +157,11 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
 
     if (initPromptResult?.prompt) {
       const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`[${connectedTime}] ✅ Connected. Waiting for chatroom task...\n`);
       console.log(
-        `💡 Session active (Level A). Waiting for chatroom tasks (Level B). Each chatroom task completes with handoff; the session continues with get-next-task.\n`
+        `[${connectedTime}] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...\n`
+      );
+      console.log(
+        `💡 Session active (Level A). Each blocking get-next-task resolves with one chatroom task (Level B) when a message is ready; handoff completes Level B and the session continues with get-next-task.\n`
       );
       console.log(`⚠️ IMPORTANT: ${getNextTaskReminder()}\n`);
 

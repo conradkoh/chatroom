@@ -228,6 +228,10 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push('<next-steps>');
+  lines.push(
+    'This blocking `get-next-task` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.'
+  );
+  lines.push('');
 
   if (isUserMessage) {
     // User message case: read task first, then classify

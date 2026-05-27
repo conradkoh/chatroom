@@ -121,7 +121,7 @@ describe('Get-Next-Task Full Prompt', () => {
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for chatroom task...
+[TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -148,7 +148,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
-      [TIMESTAMP] ✅ Connected. Waiting for chatroom task...
+      [TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -159,6 +159,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       🔗 STAYING CONNECTED TO YOUR TEAM
 
       Your primary directive: Stay available to receive chatroom tasks from your team.
+
+      When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
 
       The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
 
@@ -292,7 +294,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
@@ -444,7 +446,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability requires exactly one foreground \`get-next-task\` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
@@ -486,6 +488,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
+
       ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
 
       1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
@@ -519,7 +523,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability requires exactly one foreground \`get-next-task\` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current chatroom task.
       ============================================================
       "
@@ -932,7 +936,7 @@ Testing: Toggle in settings switches between light/dark modes`,
 
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
-[TIMESTAMP] ✅ Connected. Waiting for chatroom task...
+[TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
 <!-- REFERENCE: Agent Initialization
 
@@ -959,7 +963,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
       [TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
-      [TIMESTAMP] ✅ Connected. Waiting for chatroom task...
+      [TIMESTAMP] ✅ Connected. Blocking until the next user or team message resolves as a chatroom task...
 
       <!-- REFERENCE: Agent Initialization
 
@@ -970,6 +974,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       🔗 STAYING CONNECTED TO YOUR TEAM
 
       Your primary directive: Stay available to receive chatroom tasks from your team.
+
+      When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
 
       The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
 
@@ -1103,7 +1109,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
@@ -1229,7 +1235,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10039;chatroom_rooms" --role="reviewer"
       \`\`\`
 
-      Message availability requires exactly one foreground \`get-next-task\` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10039;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
@@ -1273,6 +1279,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
+
       ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
          handed off from builder — start work immediately.
 
@@ -1291,7 +1299,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability requires exactly one foreground \`get-next-task\` as a blocking tool call—the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10039;chatroom_rooms" --role="reviewer"\` for current chatroom task.
       ============================================================
       "
@@ -1373,6 +1381,8 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
     expect(guidance).toContain('get-next-task');
     expect(guidance).toContain('Stay available to receive chatroom tasks from your team');
+    expect(guidance).toContain('source of truth');
+    expect(guidance).toContain('typical role patterns');
 
     // Should NOT contain shell-specific language that is misleading for coding agents
     expect(guidance).not.toContain('FOREGROUND');
@@ -1383,7 +1393,8 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(guidance).not.toContain('HOW WAIT-FOR-TASK WORKS');
     expect(guidance).not.toContain('The command may timeout before a task arrives');
 
-    // Reminder should be a single-line reminder
+    // Reminder should be a single-line reminder with resolution semantics
+    expect(reminder).toContain('blocks until the user or team message is ready');
     expect(reminder).toContain('Message availability requires');
     expect(reminder).toContain('blocking tool call');
     expect(reminder).toContain('grace-period');
