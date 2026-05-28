@@ -71,14 +71,15 @@ function LoginPageContent() {
   }, [redirectTo]);
 
   /**
-   * Redirects authenticated users to the main application or original destination.
+   * Redirects authenticated users — prefers returnTo/redirect params (validated), falls back to /app.
    */
   const redirectAuthenticated = useCallback(() => {
-    const safe = safeRedirectTo(redirectTo);
+    const returnTo = searchParams.get('returnTo');
+    const safe = safeRedirectTo(returnTo) ?? safeRedirectTo(redirectTo);
     router.push(safe ?? '/app');
-  }, [router, redirectTo]);
+  }, [router, redirectTo, searchParams]);
 
-  // Redirect authenticated users to app
+  // Redirect authenticated users to app (or returnTo/redirect)
   useEffect(() => {
     if (authState?.state === 'authenticated') {
       redirectAuthenticated();

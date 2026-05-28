@@ -31,7 +31,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <AdminGuard>
-      <div className="flex h-full">
+      <div className="flex h-full min-h-0">
         {_renderMobileHeader(openSidebar)}
         {_renderMobileSidebar(sidebarOpen, closeSidebar, handleBackdropKeyDown)}
         {_renderDesktopSidebar(closeSidebar)}
@@ -98,7 +98,7 @@ function _renderDesktopSidebar(closeSidebar: () => void) {
 
 function _renderMainContent(children: React.ReactNode) {
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
       <div className="pt-20 lg:pt-0 p-4 lg:p-6">{children}</div>
     </div>
   );

@@ -71,9 +71,9 @@ export default function RootLayout({
               <AuthProvider>
                 <ThemeProvider>
                   <HeaderPortalProvider>
-                    <div className="flex flex-col h-screen overflow-hidden bg-background dark:bg-zinc-950">
+                    <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
                       <Navigation />
-                      <main className="flex-1 flex flex-col overflow-auto overscroll-contain">
+                      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
                         {children}
                       </main>
                     </div>

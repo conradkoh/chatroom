@@ -15,7 +15,11 @@ A quick reference for working with the Next.js + Convex monorepo.
 ## Architecture
 
 - **apps/webapp** — Next.js frontend application
+  - `src/application/` — App-specific frontend code (see [README](apps/webapp/src/application/README.md))
 - **services/backend** — Convex backend
+  - `application/` — App-specific backend code (see [README](services/backend/application/README.md))
+- **docs** — Project documentation
+  - `application/` — App-specific documentation (see [README](docs/application/README.md))
 
 ---
 
@@ -186,11 +190,13 @@ turbo run test --filter=webapp --filter=backend
 ```
 chatroom/
 ├── apps/webapp/           # Next.js frontend application
+│   └── src/application/   # App-specific frontend code
 ├── packages/cli/          # CLI package (chatroom-cli on npm)
 ├── services/backend/      # Convex backend
+│   └── application/       # App-specific backend code
 ├── docs/                  # Documentation
+│   └── application/       # App-specific documentation
 ├── guides/                # Guides and tutorials
-├── codemaps/              # Code mapping templates
 └── scripts/               # Utility scripts
 ```
 

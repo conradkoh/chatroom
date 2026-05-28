@@ -58,9 +58,12 @@ export default function GoogleAuthConfigPage() {
     if (typeof window === 'undefined') return [];
     return [`${window.location.origin}/api/auth/google/callback`];
   }, []);
+  const javascriptOrigins = useMemo(() => {
+    if (typeof window === 'undefined') return [];
+    return [window.location.origin];
+  }, []);
   const isConfigLoading = configData === undefined;
   const isPageLoading = appInfoLoading || isConfigLoading;
-  const isFullyConfigured = isConfigured && enabled;
   const clientSecretDisplayValue = useMemo(
     () => _getClientSecretDisplayValue(configData || undefined, clientSecretFocused, clientSecret),
     [configData, clientSecretFocused, clientSecret]
@@ -328,6 +331,35 @@ export default function GoogleAuthConfigPage() {
         <CardContent>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Overall Status</span>
+              <div className="flex items-center gap-2">
+                {enabled && isConfigured ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-600">Ready</span>
+                  </>
+                ) : !enabled && isConfigured ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Disabled</span>
+                  </>
+                ) : enabled && !isConfigured ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-600">Setup Required</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Not Configured
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
               <span className="text-sm">Configuration Status</span>
               <div className="flex items-center gap-2">
                 {isConfigured ? (
@@ -339,23 +371,6 @@ export default function GoogleAuthConfigPage() {
                   <>
                     <XCircle className="h-4 w-4 text-red-600" />
                     <span className="text-sm text-red-600">Not Configured</span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Overall Status</span>
-              <div className="flex items-center gap-2">
-                {isFullyConfigured ? (
-                  <>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-600">Ready</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-600">Setup Required</span>
                   </>
                 )}
               </div>
@@ -476,6 +491,35 @@ export default function GoogleAuthConfigPage() {
                 ? 'A client secret is already configured. Click to enter a new secret, or leave empty to keep the current one.'
                 : 'Copy this from your Google Cloud Console OAuth 2.0 Client IDs'}
             </p>
+          </div>
+
+          <Separator />
+
+          {/* Authorised JavaScript Origins */}
+          <div className="space-y-4">
+            <div>
+              <Label>Authorised JavaScript origins</Label>
+              <p className="text-xs text-muted-foreground mb-3">
+                Copy this value and add it to your Google Cloud Console OAuth configuration
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {javascriptOrigins.map((origin) => (
+                <div key={origin} className="flex gap-2">
+                  <Input value={origin} readOnly className="font-mono text-sm" />
+                  <Button variant="outline" size="sm" onClick={() => handleCopyToClipboard(origin)}>
+                    Copy
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {javascriptOrigins.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                JavaScript origins will be generated automatically based on your current domain.
+              </p>
+            )}
           </div>
 
           <Separator />
