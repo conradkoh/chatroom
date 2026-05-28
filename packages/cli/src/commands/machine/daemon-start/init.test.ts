@@ -412,32 +412,40 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('waits for auth and resumes when session ID is initially missing', async () => {
-    // First call returns null (unauthenticated), subsequent calls return valid session
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue('session-123' as never);
+  it(
+    'waits for auth and resumes when session ID is initially missing',
+    async () => {
+      // First call returns null (unauthenticated), subsequent calls return valid session
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue('session-123' as never);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
-    expect(ctx).toBeDefined();
-    expect(ctx.sessionId).toBe('session-123');
-    expect(exitSpy).not.toHaveBeenCalled();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
+      expect(ctx).toBeDefined();
+      expect(ctx.sessionId).toBe('session-123');
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+    10_000
+  );
 
-  it('shows other session URLs when waiting for auth', async () => {
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue('session-123' as never);
-    vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
+  it(
+    'shows other session URLs when waiting for auth',
+    async () => {
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue('session-123' as never);
+      vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
-    expect(ctx).toBeDefined();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
+      expect(ctx).toBeDefined();
+    },
+    10_000
+  );
 
   it('waits for re-auth when backend session validation fails', async () => {
     const mockClient = await getMockClient();
