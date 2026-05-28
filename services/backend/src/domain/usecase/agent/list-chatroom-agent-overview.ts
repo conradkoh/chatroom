@@ -82,7 +82,7 @@ export async function listChatroomAgentOverview(
         if (!c.machineId || !machineMap.has(c.machineId)) return false;
         // Only include configs for the current team
         if (currentTeamId && c.teamRoleKey) {
-          return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
+          return c.teamRoleKey.includes(`#team_${currentTeamId.toLowerCase()}#`);
         }
         return true;
       });
@@ -96,8 +96,17 @@ export async function listChatroomAgentOverview(
         return status?.daemonConnected === true;
       });
 
-      const agentStatus: ChatroomAgentOverview['agentStatus'] =
-        configs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
+      let agentStatus: ChatroomAgentOverview['agentStatus'];
+      if (configs.length === 0) {
+        const preferences = await ctx.db
+          .query('chatroom_agentPreferences')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+          .collect();
+        const hasPreferences = preferences.some((p) => p.userId === input.userId);
+        agentStatus = hasPreferences ? 'stopped' : 'none';
+      } else {
+        agentStatus = runningConfigs.length > 0 ? 'running' : 'stopped';
+      }
 
       const runningRoles = runningConfigs.map((c) => c.role);
       const runningAgents = runningConfigs.map((c) => ({
