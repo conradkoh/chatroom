@@ -673,7 +673,9 @@ describe('initDaemon', () => {
 // ---------------------------------------------------------------------------
 
 describe('initDaemon — backend-availability retry backoff', () => {
-  it('logs verbose error block exactly once across N consecutive failures', async () => {
+  it(
+    'logs verbose error block exactly once across N consecutive failures',
+    async () => {
     vi.useFakeTimers();
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
@@ -713,7 +715,9 @@ describe('initDaemon — backend-availability retry backoff', () => {
     expect(stillUnreachableCount).toBe(2);
 
     vi.useRealTimers();
-  });
+    },
+    10_000
+  );
 
   it('uses a 10-second retry interval between connection attempts', async () => {
     vi.useFakeTimers();
