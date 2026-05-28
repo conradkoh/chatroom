@@ -216,23 +216,23 @@ describe('Solo Team > Solo > System Prompt', () => {
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="solo"
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="solo"
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="solo" --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --type=<remote|custom>
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="solo"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       \`\`\`
 
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
@@ -248,21 +248,21 @@ describe('Solo Team > Solo > System Prompt', () => {
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -274,7 +274,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="solo" --trigger-message-id="<userMessageId>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
@@ -349,7 +349,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="solo" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --next-role="<target>" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -363,7 +363,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Report progress on current chatroom task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="solo" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="000000000000010002chatroom_rooms" --role="solo" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -375,25 +375,25 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="solo"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       \`\`\`
 
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="solo" --sender-role=user --limit=5 --full\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --sender-role=user --limit=5 --full\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
-      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="solo"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="solo"\`
+      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="solo"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       \`\`\`"
     `);
   });

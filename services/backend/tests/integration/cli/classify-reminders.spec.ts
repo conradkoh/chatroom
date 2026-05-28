@@ -123,7 +123,7 @@ Use React Context + CSS variables`,
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -132,7 +132,7 @@ Use React Context + CSS variables`,
       ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Task ID: 10006;chatroom_tasks"
+      Task ID: 000000000000010006chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -204,7 +204,7 @@ Use React Context + CSS variables`,
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10014;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010014chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -213,7 +213,7 @@ Use React Context + CSS variables`,
       ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Task ID: 10018;chatroom_tasks"
+      Task ID: 000000000000010018chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -285,7 +285,7 @@ Use React Context + CSS variables`,
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10026;chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010026chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -294,7 +294,7 @@ Use React Context + CSS variables`,
       ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Task ID: 10030;chatroom_tasks"
+      Task ID: 000000000000010030chatroom_tasks"
     `);
 
     // Verify reminder structure
