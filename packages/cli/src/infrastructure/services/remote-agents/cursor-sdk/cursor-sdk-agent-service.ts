@@ -243,7 +243,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           apiKey,
           name: `${context.role}@${context.chatroomId.slice(-6)}`,
           model: { id: resolveModelId(options.model) },
-          local: { cwd: options.workingDir, settingSources: [], sandboxOptions: { enabled: true } },
+          local: { cwd: options.workingDir, settingSources: [] },
         }),
         AGENT_CREATE_TIMEOUT_MS,
         'Agent.create'
