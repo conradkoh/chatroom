@@ -113,6 +113,7 @@ describe('CursorSdkAgentService', () => {
 
       expect(sharedAgentCreateFn).toHaveBeenCalledWith({
         apiKey: 'cursor_test_key',
+        name: 'builder@c1',
         model: { id: 'composer-2.5' },
         local: { cwd: '/tmp/work', settingSources: [] },
       });
@@ -131,7 +132,13 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
       });
 
-      expect(sharedAgentSendFn).toHaveBeenCalledWith('you are helpful\n\ndo work');
+      expect(sharedAgentSendFn).toHaveBeenCalledWith(
+        'you are helpful\n\ndo work',
+        expect.objectContaining({
+          local: { force: true },
+          idempotencyKey: expect.any(String),
+        })
+      );
     });
   });
 

@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
 
 // Type-only import — no runtime effect, safe even if native deps fail to load.
@@ -240,6 +241,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agent = await withTimeout(
         Agent.create({
           apiKey,
+          name: `${context.role}@${context.chatroomId.slice(-6)}`,
           model: { id: resolveModelId(options.model) },
           local: { cwd: options.workingDir, settingSources: [] },
         }),
@@ -274,7 +276,15 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
       try {
         const run = await withTimeout(
-          agent.send(fullPrompt),
+          agent.send(fullPrompt, {
+            // Clear any wedged run left over from a crashed daemon process,
+            // so this message starts fresh instead of getting an agent_busy error.
+            local: { force: true },
+            // Deduplication key: prevents double-execution if the network drops
+            // between send and ack. Unique per spawn so retries within the same
+            // session reuse it but a fresh spawn always gets a new run.
+            idempotencyKey: randomUUID(),
+          }),
           SEND_TIMEOUT_MS,
           'agent.send'
         );
