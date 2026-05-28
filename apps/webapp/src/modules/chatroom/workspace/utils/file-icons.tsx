@@ -13,7 +13,7 @@ import {
   SiJson,
   SiMarkdown,
   SiHtml5,
-  SiCss3,
+  SiCss,
   SiPython,
   SiRust,
   SiGo,
@@ -45,7 +45,7 @@ const EXTENSION_MAP: Record<string, FileIconDescriptor> = {
   md: { Icon: SiMarkdown as FileIconComponent, color: '#519aba' },
   mdx: { Icon: SiMarkdown as FileIconComponent, color: '#519aba' },
   html: { Icon: SiHtml5 as FileIconComponent, color: '#e34f26' },
-  css: { Icon: SiCss3 as FileIconComponent, color: '#1572b6' },
+  css: { Icon: SiCss as FileIconComponent, color: '#1572b6' },
   py: { Icon: SiPython as FileIconComponent, color: '#3776ab' },
   rs: { Icon: SiRust as FileIconComponent, color: '#dea584' },
   go: { Icon: SiGo as FileIconComponent, color: '#00add8' },
@@ -59,8 +59,8 @@ const EXTENSION_MAP: Record<string, FileIconDescriptor> = {
   graphql: { Icon: FileCode as FileIconComponent, color: '#e10098' },
   gql: { Icon: FileCode as FileIconComponent, color: '#e10098' },
   sql: { Icon: FileCode as FileIconComponent, color: undefined },
-  scss: { Icon: SiCss3 as FileIconComponent, color: '#c6538c' },
-  sass: { Icon: SiCss3 as FileIconComponent, color: '#c6538c' },
+  scss: { Icon: SiCss as FileIconComponent, color: '#c6538c' },
+  sass: { Icon: SiCss as FileIconComponent, color: '#c6538c' },
 };
 
 /**
