@@ -44,7 +44,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Set a new context per user message');
@@ -53,7 +53,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: test-task-id
       Origin Message ID: test-message-id
@@ -62,17 +62,19 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"
       \`\`\`
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
+
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
       2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=<type>\`
 
          new_feature example:
@@ -95,8 +97,8 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current task.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current chatroom task.
       ============================================================"
     `);
   });
@@ -117,14 +119,14 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 TASK');
+    expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('handed off from builder');
     expect(output).not.toContain('Classify →');
 
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
-      📋 TASK
+      📋 CHATROOM TASK
       ============================================================
       Task ID: test-task-id
       Origin Message ID: test-message-id
@@ -133,8 +135,8 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ## Context
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
-      ## Task
-      To read this task and mark it as in_progress, run:
+      ## Chatroom task
+      To read this chatroom task and mark it as in_progress, run:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"
       \`\`\`
@@ -143,10 +145,12 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       </task>
 
       <next-steps>
-      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
+
+      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
          handed off from builder — start work immediately.
 
-      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
+      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
       2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
@@ -158,8 +162,8 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current task.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current chatroom task.
       ============================================================"
     `);
   });

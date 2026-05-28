@@ -114,36 +114,43 @@ export function usePRDiff(
 ): { state: PRDiffState; request: (baseBranch: string, prNumber: number) => void } {
   const result = useSessionQuery(api.workspaces.getPRDiff, { machineId, workingDir, prNumber });
   const requestMutation = useSessionMutation(api.workspaces.requestPRDiff);
-  const requestedRef = useRef(false);
+  /** Timestamp of the latest fetch request — used to hide stale cached rows until refreshed. */
+  const fetchStartedAtRef = useRef(0);
 
-  // Reset the requested flag when the target PR changes so the state
-  // transitions back to 'idle' instead of showing stale 'loading' from
-  // a previous PR's request.
   const prevPrNumberRef = useRef(prNumber);
   if (prevPrNumberRef.current !== prNumber) {
     prevPrNumberRef.current = prNumber;
-    requestedRef.current = false;
+    fetchStartedAtRef.current = Date.now();
   }
 
   const request = useCallback(
     (baseBranch: string, prNumber: number) => {
-      requestedRef.current = true;
+      fetchStartedAtRef.current = Date.now();
       requestMutation({ machineId, workingDir, baseBranch, prNumber });
     },
     [requestMutation, machineId, workingDir]
   );
 
   const state: PRDiffState = useMemo(() => {
-    if (!result) {
-      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
+    const awaitingFresh =
+      fetchStartedAtRef.current > 0 &&
+      (!result || result.updatedAt < fetchStartedAtRef.current);
+
+    if (awaitingFresh) {
+      return { status: 'loading' };
     }
+
+    if (!result) {
+      return { status: 'idle' };
+    }
+
     return {
       status: 'available',
       content: result.diffContent,
       truncated: result.truncated,
       diffStat: result.diffStat,
     };
-  }, [result]);
+  }, [result, prNumber]);
 
   return { state, request };
 }

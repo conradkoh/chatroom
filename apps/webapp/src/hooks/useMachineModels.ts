@@ -15,22 +15,25 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
+export interface UseMachineModelsResult {
+  /** Harness → model IDs (e.g. `{ opencode: ['provider/claude-4'], pi: [...] }`) */
+  availableModels: Record<string, string[]>;
+  /** True while loading models for the requested machineId */
+  isLoading: boolean;
+}
+
 /**
- * Returns the available models record for a given machine, keyed by harness name.
+ * Returns available models for a machine and a loading flag for the current query.
  *
  * @param machineId - The machine UUID to query, or undefined when no machine is selected
- * @returns Record of harness → model IDs (e.g. `{ opencode: ['provider/claude-4'], pi: [...] }`)
- *
- * @example
- * ```tsx
- * const machineModels = useMachineModels(machine?.machineId);
- * const modelsForHarness = machineModels[selectedHarness] ?? [];
- * ```
  */
-export function useMachineModels(machineId: string | undefined): Record<string, string[]> {
+export function useMachineModels(machineId: string | undefined): UseMachineModelsResult {
   const result = useSessionQuery(
     api.machines.getMachineModels,
     machineId ? { machineId } : 'skip',
   );
-  return result?.availableModels ?? {};
+  return {
+    availableModels: result?.availableModels ?? {},
+    isLoading: machineId !== undefined && result === undefined,
+  };
 }

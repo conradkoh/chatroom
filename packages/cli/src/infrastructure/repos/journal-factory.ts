@@ -39,6 +39,17 @@ export class BufferedJournalFactory implements JournalFactory {
     const buffer: OutputChunk[] = [];
     let flushInProgress = false;
 
+    const waitForInProgress = (): Promise<void> => {
+      if (!flushInProgress) return Promise.resolve();
+      return new Promise((resolve) => {
+        const check = () => {
+          if (!flushInProgress) resolve();
+          else setTimeout(check, 10);
+        };
+        setTimeout(check, 10);
+      });
+    };
+
     // Periodic drain: flush regardless of buffer state
     const intervalHandle = setInterval(() => {
       if (buffer.length === 0 || flushInProgress) return;
@@ -86,19 +97,8 @@ export class BufferedJournalFactory implements JournalFactory {
       },
 
       async flush(): Promise<void> {
-        if (buffer.length === 0) return;
-
-        // Wait for any in-progress flush to settle
-        const waitForInProgress = (): Promise<void> => {
-          if (!flushInProgress) return Promise.resolve();
-          return new Promise((resolve) => {
-            const check = () => {
-              if (!flushInProgress) resolve();
-              else setTimeout(check, 10);
-            };
-            setTimeout(check, 10);
-          });
-        };
+        // Always wait for an in-flight periodic flush — the buffer may be empty
+        // while chunks are still being appended (spliced out by the interval).
         await waitForInProgress();
 
         if (buffer.length === 0) return;
@@ -122,6 +122,8 @@ export class BufferedJournalFactory implements JournalFactory {
       async commit(): Promise<void> {
         // Stop the periodic drain first — no more flushes after this
         clearInterval(intervalHandle);
+
+        await waitForInProgress();
 
         // Flush whatever remains
         if (buffer.length === 0) return;

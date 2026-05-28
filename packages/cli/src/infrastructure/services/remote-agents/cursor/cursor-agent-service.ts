@@ -26,6 +26,8 @@ export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
 const CURSOR_COMMAND = 'agent';
 
+const CURSOR_PROVIDER = 'cursor';
+
 const CURSOR_MODELS: string[] = [
   // Anthropic Claude
   'claude-4.6-opus-high',
@@ -91,6 +93,12 @@ const CURSOR_MODELS: string[] = [
   'composer-1',
 ];
 
+/** Strip `cursor/` prefix so the CLI receives a bare slug. Bare slugs pass through unchanged. */
+export function resolveCursorCliModel(model: string): string {
+  const prefix = `${CURSOR_PROVIDER}/`;
+  return model.startsWith(prefix) ? model.slice(prefix.length) : model;
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CursorAgentService extends BaseCLIAgentService {
@@ -117,7 +125,7 @@ export class CursorAgentService extends BaseCLIAgentService {
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
-      args.push('--model', options.model);
+      args.push('--model', resolveCursorCliModel(options.model));
     }
 
     const fullPrompt = options.systemPrompt

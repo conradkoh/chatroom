@@ -45,6 +45,7 @@ import { isNetworkError, formatConnectivityError } from '../../../utils/error-fo
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 import { reapOrphanedProcessGroups } from './handlers/orphan-tracker.js';
+import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -392,8 +393,16 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
   const { reaped } = await reapOrphanedProcessGroups();
   if (reaped > 0) {
-    console.log(`[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`);
+    console.log(
+      `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
+    );
   }
+
+  // Clean up orphaned temp files from previous daemon runs.
+  // Daemon writes command output to os.tmpdir()/chatroom-cli/runs/<runId>.log
+  // during execution; on crash/kill, the files aren't cleaned up. Stale temp
+  // files are unrecoverable (the process is gone) — acceptable.
+  await cleanOrphanTempFiles();
 
   // Single source of truth for backend URL at daemon boot — same value is passed to
   // AgentProcessManager as convexUrl and forwarded to spawned agents as CHATROOM_CONVEX_URL.
@@ -476,6 +485,7 @@ export async function initDaemon(): Promise<DaemonContext> {
           config.harnessVersions as Record<string, unknown>
         ),
         observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
+        logger: console,
       };
 
       registerEventListeners(ctx);

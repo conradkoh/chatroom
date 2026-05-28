@@ -1986,6 +1986,20 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
+    /**
+     * Rolling compressed tail of command output for live viewing while the run is active.
+     * Daemon overwrites this field on each flush (every ~3s) with the last ~32KB of output.
+     * When the run terminates, daemon flushes the full output as chatroom_commandOutput chunks
+     * and clears this field. This avoids N× reactive chunk fan-out during a run:
+     * only a single row update per flush instead of an insert per flush.
+     */
+    tailOutput: v.optional(v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),           // base64-encoded gzipped UTF-8
+      byteLength: v.number(),        // decompressed byte length of the tail window
+      totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
+      updatedAt: v.number(),
+    })),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
@@ -1993,11 +2007,16 @@ export default defineSchema({
 
   /**
    * Buffered output chunks for command runs.
-   * Daemon flushes accumulated stdout/stderr every few seconds to limit DB writes.
+   * While a run is active, output is streamed via the live tail (chatroom_commandRuns.tailOutput).
+   * On termination, daemon flushes the full output as compressed chunks here.
+   * content supports dual-encoding: legacy plaintext (v.string()) and gzip-compressed (v.object).
    */
   chatroom_commandOutput: defineTable({
     runId: v.id('chatroom_commandRuns'),
-    content: v.string(),
+    content: v.union(
+      v.string(),                                              // Legacy: plain UTF-8 text
+      v.object({ compression: v.literal('gzip'), content: v.string() }) // base64-encoded gzip
+    ),
     chunkIndex: v.number(),
     timestamp: v.number(),
   }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),

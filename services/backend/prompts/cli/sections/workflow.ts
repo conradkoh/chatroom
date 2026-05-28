@@ -36,7 +36,7 @@ export function getFullTeamWorkflow(): string {
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task from user]
+    A([Start]) --> B[Receive chatroom task from user]
     B --> C[task read:\nget content + mark in_progress]
     C --> D[Classify with classify]
     D --> E[Decompose into phases]
@@ -52,7 +52,7 @@ flowchart TD
     M -->|yes| F
     M -->|no| N[Verify: pnpm typecheck && pnpm test]
     N --> O[Deliver final result to user]
-    O --> P([Stop])
+    O --> P[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -64,7 +64,7 @@ export function getPlannerPlusBuilderWorkflow(): string {
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task from user]
+    A([Start]) --> B[Receive chatroom task from user]
     B --> C[task read:\nget content + mark in_progress]
     C --> D[Classify with classify]
     D --> E[Decompose into phases]
@@ -79,7 +79,7 @@ flowchart TD
     L -->|yes| F
     L -->|no| M[Verify: pnpm typecheck && pnpm test]
     M --> N[Deliver final result to user]
-    N --> O([Stop])
+    N --> O[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -91,7 +91,7 @@ export function getPlannerPlusReviewerWorkflow(): string {
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task from user]
+    A([Start]) --> B[Receive chatroom task from user]
     B --> C[task read:\nget content + mark in_progress]
     C --> D[Classify with classify]
     D --> E[Decompose into phases]
@@ -105,7 +105,7 @@ flowchart TD
     K -->|yes| F
     K -->|no| L[Verify: pnpm typecheck && pnpm test]
     L --> M[Deliver final result to user]
-    M --> N([Stop])
+    M --> N[Run get-next-task] --> B
 \`\`\``;
 }
 
@@ -115,12 +115,13 @@ flowchart TD
 export function getPlannerSoloWorkflow(): string {
   return `**Current Workflow: Planner Solo**
 
-1. Receive task from user
-2. Run task read (get content + mark in_progress)
+1. Receive chatroom task from user
+2. Run task read (get chatroom task content + mark in_progress)
 3. Classify with classify
 4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
 5. Implement the solution yourself (following workflow steps if created)
 6. Review your own work for quality
 7. Verify: \`pnpm typecheck && pnpm test\`
-8. Deliver to **user**`;
+8. Deliver to **user**
+9. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)`;
 }

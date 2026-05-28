@@ -32,6 +32,9 @@ import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
+/** Timeout for PR action execAsync calls (60s) — prevents indefinite hangs. */
+const EXEC_TIMEOUT_MS = 60_000;
+
 /** Handle returned by `startGitRequestSubscription` to stop the subscription. */
 export interface GitSubscriptionHandle {
   /** Stop the subscription and clean up. */
@@ -62,6 +65,27 @@ export function startGitRequestSubscription(
   // Track whether we're currently processing to avoid overlapping batches
   let processing = false;
 
+  // Reset any orphaned 'processing' requests left behind by a previous daemon crash.
+  // Without this, requests stuck in 'processing' are permanently lost since
+  // getPendingRequests only returns status='pending' rows.
+  ctx.deps.backend
+    .mutation(api.workspaces.resetProcessingRequests, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    })
+    .then((resetCount: number) => {
+      if (resetCount > 0) {
+        console.log(
+          `[${formatTimestamp()}] 🔀 Reset ${resetCount} orphaned processing request(s) to pending`
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Failed to reset orphaned processing requests: ${getErrorMessage(err)}`
+      );
+    });
+
   const unsubscribe = wsClient.onUpdate(
     api.workspaces.getPendingRequests,
     {
@@ -70,6 +94,12 @@ export function startGitRequestSubscription(
     },
     (requests) => {
       if (!requests || requests.length === 0) return;
+
+      const logger = ctx.logger ?? console;
+      logger.log(
+        `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
+      );
+
       if (processing) return; // Skip if still processing previous batch
 
       processing = true;
@@ -248,7 +278,11 @@ async function processPRAction(ctx: DaemonContext, req: PendingRequest): Promise
   }
 
   const execAsync = promisify(exec);
-  const result = await execAsync(cmd, { cwd: req.workingDir });
+  const result = await execAsync(cmd, {
+    cwd: req.workingDir,
+    // 60s: PR merge/close can exceed git-reader's 15s gh timeout; kills child on expiry
+    timeout: EXEC_TIMEOUT_MS,
+  });
   console.log(
     `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
   );
@@ -454,6 +488,11 @@ export async function processRequests(
         requestId: req._id,
         status: 'processing',
       });
+
+      const logger = ctx.logger ?? console;
+      logger.log(
+        `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
+      );
 
       switch (req.requestType) {
         case 'full_diff':

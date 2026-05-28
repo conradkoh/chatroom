@@ -195,6 +195,13 @@ interface FileListSidebarProps {
   onSelect: (idx: number) => void;
 }
 
+function fileListContentPropsEqual(
+  prev: FileListSidebarProps,
+  next: FileListSidebarProps
+): boolean {
+  return prev.selectedIdx === next.selectedIdx && prev.sections === next.sections;
+}
+
 const FileListContent = memo(function FileListContent({
   sections,
   selectedIdx,
@@ -247,7 +254,7 @@ const FileListContent = memo(function FileListContent({
       })}
     </>
   );
-});
+}, fileListContentPropsEqual);
 
 const FileListSidebar = memo(function FileListSidebar({
   sections,

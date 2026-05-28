@@ -115,6 +115,10 @@ vi.mock('./utils.js', () => ({
   formatTimestamp: vi.fn().mockReturnValue('2026-01-01 00:00:00'),
 }));
 
+vi.mock('./handlers/process/output-store.js', () => ({
+  cleanOrphanTempFiles: vi.fn().mockResolvedValue(0),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

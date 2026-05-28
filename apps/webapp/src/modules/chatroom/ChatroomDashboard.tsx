@@ -51,6 +51,7 @@ import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
+import { useActiveRunOutput } from './hooks/useActiveRunOutput';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
@@ -737,6 +738,14 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
+  // Demand-driven: subscribe to output only when a UI surface is showing it.
+  // Convex deduplicates identical queries, so multiple consumers of the same
+  // `runId` share one backend subscription.  When neither surface is visible,
+  // the query is skipped entirely — no reactive push from the backend.
+  const activeRunOutput = useActiveRunOutput(
+    activeView === 'processes' || terminalOpen ? commandRunner.activeRunId : null
+  );
+
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
   const openEventStreamRef = useRef<(() => void) | null>(null);
@@ -894,18 +903,26 @@ export function ChatroomDashboard({
   const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
   const executeStopAllRemoteAgents = useCallback(async () => {
     setStopAllConfirmOpen(false);
-    const agentRoles = teamRoles.filter((r) => r !== 'user');
-    // Stop all agents in parallel across all machines
     setIsStoppingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const stoppableAgents = agentPanelData.agents.filter(
+      (a) => (a.state === 'running' || a.state === 'starting') && a.machineId
+    );
+
+    if (stoppableAgents.length === 0) {
+      setIsStoppingAllAgents(false);
+      toast.success('No running agents to stop');
+      return;
+    }
+
     const results = await Promise.allSettled(
-      agentRoles.map((role) =>
+      stoppableAgents.map((agent) =>
         agentPanelData.sendCommand({
-          machineId: ALL_MACHINES, // Empty machineId stops agents across all machines
+          machineId: agent.machineId!,
           type: 'stop-agent' as const,
           payload: {
             chatroomId: chatroomIdTyped,
-            role,
+            role: agent.role,
           },
         })
       )
@@ -913,7 +930,9 @@ export function ChatroomDashboard({
     setIsStoppingAllAgents(false);
 
     const failed = results
-      .map((r, i) => (r.status === 'rejected' ? { role: agentRoles[i], reason: r.reason } : null))
+      .map((r, i) =>
+        r.status === 'rejected' ? { role: stoppableAgents[i].role, reason: r.reason } : null
+      )
       .filter(Boolean) as { role: string; reason: unknown }[];
     if (failed.length > 0) {
       const failedRoles = failed.map((f) => f.role).join(', ');
@@ -924,9 +943,9 @@ export function ChatroomDashboard({
         description: errorDetails,
       });
     } else {
-      toast.success(`Stopped ${agentRoles.length} agent(s)`);
+      toast.success(`Stopped ${stoppableAgents.length} agent(s)`);
     }
-  }, [teamRoles, agentPanelData, chatroomId]);
+  }, [agentPanelData, chatroomId]);
 
   // Restart all remote agents handler — starts if stopped, restarts if running
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
@@ -1560,7 +1579,7 @@ export function ChatroomDashboard({
                     workingDir={activeWorkspace?.workingDir}
                     commands={commandRunner.commands}
                     runs={commandRunner.runs}
-                    activeRunOutput={commandRunner.activeRunOutput}
+                    activeRunOutput={activeRunOutput}
                     onRunCommand={handleRunFromProcessesPanel}
                     onStopCommand={(runId) => commandRunner.stopCommand(runId)}
                     onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
@@ -1693,17 +1712,17 @@ export function ChatroomDashboard({
           <TerminalOutputPanel
             open={terminalOpen}
             onOpenChange={setTerminalOpen}
-            commandName={commandRunner.activeRunOutput.run?.commandName ?? null}
-            status={commandRunner.activeRunOutput.run?.status ?? null}
-            terminationReason={commandRunner.activeRunOutput.run?.terminationReason}
-            output={commandRunner.activeRunOutput.chunks.map((c: any) => c.content).join('')}
+            commandName={activeRunOutput.run?.commandName ?? null}
+            status={activeRunOutput.run?.status ?? null}
+            terminationReason={activeRunOutput.run?.terminationReason}
+            output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
             onStop={() => {
               if (commandRunner.activeRunId) {
                 commandRunner.stopCommand(commandRunner.activeRunId);
               }
             }}
             onRestart={() => {
-              const run = commandRunner.activeRunOutput.run;
+              const run = activeRunOutput.run;
               if (run) {
                 const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
                 if (cmd) {

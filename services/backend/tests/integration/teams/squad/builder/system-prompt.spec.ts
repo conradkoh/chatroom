@@ -69,7 +69,7 @@ describe('Squad Team > Builder > System Prompt', () => {
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
     // Builder is NOT entry point in squad — should have "Start Working"
-    expect(prompt).not.toContain('### Classify Task');
+    expect(prompt).not.toContain('### Classify message');
     expect(prompt).toContain('### Start Working');
     expect(prompt).toContain('## Builder Workflow');
     // Squad builder CANNOT hand off to user
@@ -85,6 +85,15 @@ describe('Squad Team > Builder > System Prompt', () => {
       You are the implementer responsible for writing code and building solutions.
 
       # Glossary
+
+      - \`session\`
+          - The entire agent invocation (one harness turn) — from harness startup to shutdown. A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. Always run \`get-next-task\` after a handoff to stay in the session.
+
+      - \`chatroom-task\`
+          - One discrete unit of work delivered by \`get-next-task\`. A chatroom task begins when the agent receives it and ends when the agent runs \`handoff\`. Completing a chatroom task only closes Level B — the session (Level A) continues.
+
+      - \`listen-loop\`
+          - The mandatory foreground loop: after every \`handoff\`, run \`get-next-task\` to listen for the next chatroom task. Running \`get-next-task\` in the background or skipping it breaks the listen loop and disconnects the agent.
 
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
@@ -119,6 +128,36 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
+      ## Two-Level Model: Session vs Chatroom Task
+
+      | Level | Name | Scope | Ends when |
+      |-------|------|-------|-----------|
+      | **A** | **Session** (harness turn) | The entire agent invocation — from startup to shutdown | You deliberately shut down or the harness exits |
+      | **B** | **Chatroom task** | One discrete unit of work delivered by \`get-next-task\` | You run \`handoff\` to pass work to the next role |
+
+      **Completing Level B does NOT end Level A.**
+      After every \`handoff\`, you must run \`get-next-task\` again to stay in the session and receive the next chatroom task.
+
+      ### Session Lifecycle
+
+      A session starts when your harness launches you and ends only when the harness shuts down (or you explicitly stop).
+      Within a session, you process many chatroom tasks sequentially:
+
+      \`get-next-task\` → do work → \`handoff\` → \`get-next-task\` → do work → \`handoff\` → …
+
+      Never exit or stop after a handoff — that closes the session (Level A) before the user is done with you.
+
+      ### Common Mistakes
+
+      ❌ **Wrong:** Run \`handoff\`, then stop or wait for the user to re-invoke you.
+      ✅ **Right:** Run \`handoff\`, then immediately run \`get-next-task\` in the foreground.
+
+      ❌ **Wrong:** Think "I finished the task, I'm done."
+      ✅ **Right:** Think "I finished this chatroom task (Level B). The session (Level A) continues — run \`get-next-task\`."
+
+      ❌ **Wrong:** Run \`get-next-task\` in the background or skip it.
+      ✅ **Right:** \`get-next-task\` must run in the **foreground** so the harness can deliver the next chatroom task.
+
       ## Getting Started
 
       ### Workflow Loop
@@ -127,23 +166,25 @@ describe('Squad Team > Builder > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      task notification]
+      chatroom task notification]
           C --> D[task read
-      get content +
+      get chatroom task +
       mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the task immediately
+      ### ⚠️ CRITICAL: Read the chatroom task immediately
 
-      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
+      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Get the task content** — the full task description
+      1. **Get the chatroom task content** — the full description
       2. **Mark it as in_progress** — signals you're working on it
 
       Failure to run \`task read\` promptly may trigger the system to restart you.
+
+      ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -151,7 +192,7 @@ describe('Squad Team > Builder > System Prompt', () => {
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
-      to see your current task context.
+      to see your current chatroom task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -161,16 +202,18 @@ describe('Squad Team > Builder > System Prompt', () => {
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
+      **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
+
 
       ### Start Working
 
-      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
+      After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.
 
 
        **Squad Team Context:**
@@ -183,6 +226,8 @@ describe('Squad Team > Builder > System Prompt', () => {
        
       ## Builder Workflow
 
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
       You are responsible for implementing code changes based on requirements.
 
 
@@ -190,9 +235,9 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task
+          A([Start]) --> B[Receive chatroom task
       notification]
-          B -->|from user or reviewer| C[Read task with
+          B -->|from user or reviewer| C[Read chatroom task with
       task read]
           C --> D[Implement changes]
           D --> E[Commit work]
@@ -236,7 +281,7 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       ### Commands
 
-      **Complete task and hand off:**
+      **Complete chatroom task and hand off:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
@@ -250,7 +295,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
 
-      **Report progress on current task:**
+      **Report progress on current chatroom task:**
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
@@ -259,7 +304,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       EOF
       \`\`\`
 
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
       **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
@@ -268,7 +313,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
@@ -276,7 +321,7 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\`
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ### Next
 

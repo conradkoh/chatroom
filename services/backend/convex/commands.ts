@@ -13,7 +13,7 @@ import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 
-import { handleRunCommand, handleStopCommand, handleAppendOutput } from './commands/mutations';
+import { handleRunCommand, handleStopCommand, handleAppendOutput, handleUpdateRunTail } from './commands/mutations';
 import {
   handleListCommands,
   handleListActiveRuns,
@@ -164,7 +164,10 @@ export const appendOutput = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     runId: v.id('chatroom_commandRuns'),
-    content: v.string(),
+    content: v.union(
+      v.string(),
+      v.object({ compression: v.literal('gzip'), content: v.string() })
+    ),
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
@@ -181,6 +184,36 @@ export const appendOutput = mutation({
       });
 
     await handleAppendOutput(ctx, args);
+  },
+});
+
+export const updateRunTail = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    runId: v.id('chatroom_commandRuns'),
+    tailOutput: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+      byteLength: v.number(),
+      totalBytesWritten: v.number(),
+      updatedAt: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
+
+    await handleUpdateRunTail(ctx, args);
   },
 });
 

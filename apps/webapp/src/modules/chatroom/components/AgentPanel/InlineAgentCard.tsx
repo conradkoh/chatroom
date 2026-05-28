@@ -85,6 +85,9 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   onSavePreference,
   restartSummary: restartSummaryProp,
 }: InlineAgentCardProps) {
+  const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
+    useChatroomWorkspaces(chatroomId);
+
   const controls = useAgentControls({
     role,
     chatroomId,
@@ -96,9 +99,10 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     agentPreference,
     onSavePreference,
     teamConfigMachineId: agentRoleView?.machineId,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
   });
 
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
   const linkedMachineIds = useMemo(() => {
     const s = new Set<string>();
     for (const ws of chatroomWorkspaces) {

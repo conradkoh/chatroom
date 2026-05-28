@@ -115,7 +115,7 @@ Use React Context + CSS variables`,
          Classification: new_feature
          Task: Add dark mode toggle to the application
 
-      💡 ✅ Task acknowledged as NEW FEATURE.
+      💡 ✅ Chatroom task acknowledged as NEW FEATURE.
 
       **Next steps:**
       1. Implement the requested changes
@@ -196,7 +196,7 @@ Use React Context + CSS variables`,
          Classification: question
          Task: How does the authentication system work?
 
-      💡 ✅ Task acknowledged as QUESTION.
+      💡 ✅ Chatroom task acknowledged as QUESTION.
 
       **Next steps:**
       1. Implement the requested changes
@@ -277,7 +277,7 @@ Use React Context + CSS variables`,
          Classification: follow_up
          Task: Can you also add filtering?
 
-      💡 ✅ Task acknowledged as FOLLOW UP.
+      💡 ✅ Chatroom task acknowledged as FOLLOW UP.
 
       **Next steps:**
       1. Implement the requested changes

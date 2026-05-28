@@ -120,9 +120,10 @@ describe('get-next-task — agent config ownership', () => {
     await getNextTask(TEST_CHATROOM_ID, { role: 'builder' }).catch(() => {});
 
     const allOutput = consoleSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(allOutput).toContain('FOREGROUND');
-    expect(allOutput).toContain('background');
-    expect(allOutput).toContain('terminate and restart');
+    expect(allOutput).toContain('resolves as a chatroom task');
+    expect(allOutput).toContain('blocking tool call');
+    expect(allOutput).toContain('foreground');
+    expect(allOutput).toContain('grace-period');
 
     consoleSpy.mockRestore();
   });
