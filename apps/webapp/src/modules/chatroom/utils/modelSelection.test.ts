@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { isModelHidden, selectModel } from './modelSelection';
+import {
+  getModelProviderKey,
+  isModelHidden,
+  selectModel,
+  UNPREFIXED_PROVIDER_KEY,
+} from './modelSelection';
+
+// ─── getModelProviderKey ────────────────────────────────────────────
+
+describe('getModelProviderKey', () => {
+  it('returns sentinel for bare slugs', () => {
+    expect(getModelProviderKey('claude-4.6-opus-high')).toBe(UNPREFIXED_PROVIDER_KEY);
+    expect(getModelProviderKey('composer-2.5')).toBe(UNPREFIXED_PROVIDER_KEY);
+  });
+
+  it('returns prefix before slash for provider/model IDs', () => {
+    expect(getModelProviderKey('openai/gpt-4')).toBe('openai');
+    expect(getModelProviderKey('anthropic/claude-3')).toBe('anthropic');
+  });
+});
 
 // ─── isModelHidden ──────────────────────────────────────────────────
 
@@ -44,6 +63,21 @@ describe('isModelHidden', () => {
   it('does not hide models from a different provider', () => {
     const filter = { hiddenModels: [], hiddenProviders: ['openai'] };
     expect(isModelHidden('anthropic/claude-3', filter)).toBe(false);
+  });
+
+  it('hides all unprefixed models when sentinel provider is hidden', () => {
+    const filter = { hiddenModels: [], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] };
+    expect(isModelHidden('claude-4.6-opus-high', filter)).toBe(true);
+    expect(isModelHidden('gpt-5.4-high', filter)).toBe(true);
+  });
+
+  it('un-hides an unprefixed model listed as exception when sentinel is hidden', () => {
+    const filter = {
+      hiddenModels: ['claude-4.6-opus-high'],
+      hiddenProviders: [UNPREFIXED_PROVIDER_KEY],
+    };
+    expect(isModelHidden('claude-4.6-opus-high', filter)).toBe(false);
+    expect(isModelHidden('gpt-5.4-high', filter)).toBe(true);
   });
 });
 

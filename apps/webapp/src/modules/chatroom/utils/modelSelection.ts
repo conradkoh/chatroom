@@ -29,19 +29,34 @@ export interface ModelSelectionInput {
   preferenceModel?: string;
 }
 
+// ─── Provider grouping ─────────────────────────────────────────────
+
+/** Sentinel key for models without a `provider/model` prefix (e.g. Cursor CLI bare slugs). */
+export const UNPREFIXED_PROVIDER_KEY = '__unprefixed__';
+
+/**
+ * Provider key used for filter grouping and hide-all semantics.
+ * Models without `/` share one group; prefixed models use the segment before `/`.
+ */
+export function getModelProviderKey(modelId: string): string {
+  const slashIndex = modelId.indexOf('/');
+  if (slashIndex === -1) return UNPREFIXED_PROVIDER_KEY;
+  return modelId.slice(0, slashIndex);
+}
+
 // ─── isModelHidden ──────────────────────────────────────────────────
 
 /**
  * Returns true if the given model should be hidden based on the machine-level filter.
  *
  * Filter semantics:
- * - `hiddenProviders`: provider prefixes (the part before the first '/') to hide
+ * - `hiddenProviders`: provider keys from {@link getModelProviderKey} to hide
  * - `hiddenModels`: when the provider IS hidden, these are **exceptions** (models to UN-hide);
  *   when the provider is NOT hidden, these are models to hide individually.
  */
 export function isModelHidden(modelId: string, filter: ModelFilter | null | undefined): boolean {
   if (!filter) return false;
-  const provider = modelId.split('/')[0];
+  const provider = getModelProviderKey(modelId);
   const providerHidden = filter.hiddenProviders.includes(provider);
   const hasExplicitOverride = filter.hiddenModels.includes(modelId);
 

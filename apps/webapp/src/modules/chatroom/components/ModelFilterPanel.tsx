@@ -3,6 +3,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
+import {
+  getModelProviderKey,
+  UNPREFIXED_PROVIDER_KEY,
+} from '../utils/modelSelection';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -32,6 +36,11 @@ function titleCaseProvider(provider: string): string {
     .join('-');
 }
 
+function getProviderDisplayName(providerKey: string): string {
+  if (providerKey === UNPREFIXED_PROVIDER_KEY) return 'Models';
+  return titleCaseProvider(providerKey);
+}
+
 /**
  * ModelFilterPanel — Popover panel for configuring model visibility per machine+harness.
  * Groups models by provider, with toggles for individual models and entire providers.
@@ -52,6 +61,9 @@ export function ModelFilterPanel({
   const hiddenModels = filter?.hiddenModels ?? [];
   const hiddenProviders = filter?.hiddenProviders ?? [];
 
+  const hiddenModelsSet = useMemo(() => new Set(hiddenModels), [hiddenModels]);
+  const hiddenProvidersSet = useMemo(() => new Set(hiddenProviders), [hiddenProviders]);
+
   const [searchTerm, setSearchTerm] = useState('');
 
   // Clear search when popover closes
@@ -63,14 +75,14 @@ export function ModelFilterPanel({
     [onOpenChange]
   );
 
-  // Group models by provider
+  // Group models by provider key (unprefixed bare slugs share one group)
   const modelsByProvider = useMemo(() => {
     const groups = new Map<string, string[]>();
     for (const model of availableModels) {
-      const provider = model.split('/')[0];
-      const existing = groups.get(provider) ?? [];
+      const providerKey = getModelProviderKey(model);
+      const existing = groups.get(providerKey) ?? [];
       existing.push(model);
-      groups.set(provider, existing);
+      groups.set(providerKey, existing);
     }
     return groups;
   }, [availableModels]);
@@ -80,62 +92,95 @@ export function ModelFilterPanel({
     if (!searchTerm.trim()) return modelsByProvider;
     const term = searchTerm.toLowerCase();
     const filtered = new Map<string, string[]>();
-    for (const [provider, models] of modelsByProvider.entries()) {
+    for (const [providerKey, models] of modelsByProvider.entries()) {
+      const providerLabel = getProviderDisplayName(providerKey);
       // Match against provider name or model display label
       const matchingModels = models.filter(
         (model) =>
-          provider.toLowerCase().includes(term) ||
+          providerLabel.toLowerCase().includes(term) ||
+          providerKey.toLowerCase().includes(term) ||
           model.toLowerCase().includes(term) ||
           getModelDisplayLabel(model).toLowerCase().includes(term)
       );
       if (matchingModels.length > 0) {
-        filtered.set(provider, matchingModels);
+        filtered.set(providerKey, matchingModels);
       }
     }
     return filtered;
   }, [modelsByProvider, searchTerm]);
 
-  const handleModelToggle = (modelId: string) => {
-    if (disabled) return;
-    // Toggle membership in hiddenModels — the isModelHidden() logic handles the semantics
-    const isCurrentlyInList = hiddenModels.includes(modelId);
-    const newHiddenModels = isCurrentlyInList
-      ? hiddenModels.filter((m) => m !== modelId)
-      : [...hiddenModels, modelId];
-    onFilterChange(newHiddenModels, hiddenProviders);
-  };
+  const allProviderKeys = useMemo(
+    () => Array.from(modelsByProvider.keys()),
+    [modelsByProvider]
+  );
 
-  const handleProviderToggle = (provider: string) => {
-    if (disabled) return;
-    const isProviderHidden = hiddenProviders.includes(provider);
-    const providerModels = modelsByProvider.get(provider) ?? [];
-    if (isProviderHidden) {
-      // SHOW ALL — remove provider from hiddenProviders, also clear any overrides
-      onFilterChange(
-        hiddenModels.filter((m) => !providerModels.includes(m)),
-        hiddenProviders.filter((p) => p !== provider)
-      );
-    } else {
-      // HIDE ALL — add provider to hiddenProviders, clear individual model overrides
-      const newHiddenModels = hiddenModels.filter((m) => !providerModels.includes(m));
-      onFilterChange(newHiddenModels, [...hiddenProviders, provider]);
-    }
-  };
+  const allHidden = useMemo(
+    () =>
+      allProviderKeys.length > 0 &&
+      allProviderKeys.every((key) => hiddenProvidersSet.has(key)),
+    [allProviderKeys, hiddenProvidersSet]
+  );
 
-  const handleResetAll = () => {
+  const clearAllFilters = useCallback(() => {
     if (disabled) return;
     onFilterChange([], []);
-  };
+  }, [disabled, onFilterChange]);
+
+  const handleHideAll = useCallback(() => {
+    if (disabled) return;
+    onFilterChange([], allProviderKeys);
+  }, [disabled, onFilterChange, allProviderKeys]);
+
+  const handleModelToggle = useCallback(
+    (modelId: string) => {
+      if (disabled) return;
+      // Toggle membership in hiddenModels — the isModelHidden() logic handles the semantics
+      const isCurrentlyInList = hiddenModelsSet.has(modelId);
+      const newHiddenModels = isCurrentlyInList
+        ? hiddenModels.filter((m) => m !== modelId)
+        : [...hiddenModels, modelId];
+      onFilterChange(newHiddenModels, hiddenProviders);
+    },
+    [disabled, hiddenModels, hiddenModelsSet, hiddenProviders, onFilterChange]
+  );
+
+  const handleProviderToggle = useCallback(
+    (provider: string) => {
+      if (disabled) return;
+      const isProviderHidden = hiddenProvidersSet.has(provider);
+      const providerModels = modelsByProvider.get(provider) ?? [];
+      const providerModelSet = new Set(providerModels);
+      if (isProviderHidden) {
+        // SHOW ALL — remove provider from hiddenProviders, also clear any overrides
+        onFilterChange(
+          hiddenModels.filter((m) => !providerModelSet.has(m)),
+          hiddenProviders.filter((p) => p !== provider)
+        );
+      } else {
+        // HIDE ALL — add provider to hiddenProviders, clear individual model overrides
+        const newHiddenModels = hiddenModels.filter((m) => !providerModelSet.has(m));
+        onFilterChange(newHiddenModels, [...hiddenProviders, provider]);
+      }
+    },
+    [
+      disabled,
+      hiddenModels,
+      hiddenProviders,
+      hiddenProvidersSet,
+      modelsByProvider,
+      onFilterChange,
+    ]
+  );
 
   // Count models that are effectively hidden (used for the header badge)
   const hiddenCount = useMemo(() => {
     return availableModels.filter((model) => {
-      const provider = model.split('/')[0];
-      const providerHidden = hiddenProviders.includes(provider);
-      const hasOverride = hiddenModels.includes(model);
+      const providerKey = getModelProviderKey(model);
+      const providerHidden = hiddenProvidersSet.has(providerKey);
+      const hasOverride = hiddenModelsSet.has(model);
       return providerHidden ? !hasOverride : hasOverride;
     }).length;
-  }, [availableModels, hiddenModels, hiddenProviders]);
+  }, [availableModels, hiddenModelsSet, hiddenProvidersSet]);
 
   const hasAnyFilter = hiddenCount > 0;
 
@@ -151,11 +196,28 @@ export function ModelFilterPanel({
           <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
             Model Visibility
           </span>
-          {hiddenCount > 0 && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
-              {hiddenCount} HIDDEN
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {hiddenCount > 0 && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+                {hiddenCount} HIDDEN
+              </span>
+            )}
+            {allProviderKeys.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={allHidden ? clearAllFilters : handleHideAll}
+                className={cn(
+                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                  allHidden
+                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                )}
+              >
+                {allHidden ? 'Show All' : 'Hide All'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Search input */}
@@ -172,10 +234,10 @@ export function ModelFilterPanel({
 
         {/* Model list grouped by provider */}
         <div className="max-h-[576px] overflow-y-auto">
-          {Array.from(filteredModelsByProvider.entries()).map(([provider, models]) => {
-            const isProviderHidden = hiddenProviders.includes(provider);
+          {Array.from(filteredModelsByProvider.entries()).map(([providerKey, models]) => {
+            const isProviderHidden = hiddenProvidersSet.has(providerKey);
             return (
-              <div key={provider}>
+              <div key={providerKey}>
                 {/* Provider row */}
                 <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center justify-between bg-chatroom-bg-tertiary">
                   <span
@@ -185,12 +247,12 @@ export function ModelFilterPanel({
                         : 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-secondary'
                     }
                   >
-                    {titleCaseProvider(provider)}
+                    {getProviderDisplayName(providerKey)}
                   </span>
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => handleProviderToggle(provider)}
+                    onClick={() => handleProviderToggle(providerKey)}
                     className={cn(
                       'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                       isProviderHidden
@@ -204,7 +266,7 @@ export function ModelFilterPanel({
 
                 {/* Individual model rows — always shown, even when provider is hidden */}
                 {models.map((model) => {
-                  const hasOverride = hiddenModels.includes(model);
+                  const hasOverride = hiddenModelsSet.has(model);
                   // Effective visibility: provider hidden means model is hidden unless there's an override
                   const isEffectivelyHidden = isProviderHidden ? !hasOverride : hasOverride;
 
@@ -255,7 +317,7 @@ export function ModelFilterPanel({
         <button
           type="button"
           disabled={disabled || !hasAnyFilter}
-          onClick={handleResetAll}
+          onClick={clearAllFilters}
           className="w-full text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Reset All
