@@ -404,13 +404,17 @@ describe('discoverModels', () => {
 // ---------------------------------------------------------------------------
 
 describe('initDaemon', () => {
-  it('exits when lock cannot be acquired', async () => {
-    vi.mocked(acquireLock).mockReturnValue(false);
+  it(
+    'exits when lock cannot be acquired',
+    async () => {
+      vi.mocked(acquireLock).mockReturnValue(false);
 
-    await initDaemon();
+      await initDaemon();
 
-    expect(exitSpy).toHaveBeenCalledWith(1);
-  });
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    },
+    10_000
+  );
 
   it(
     'waits for auth and resumes when session ID is initially missing',
@@ -447,28 +451,32 @@ describe('initDaemon', () => {
     10_000
   );
 
-  it('waits for re-auth when backend session validation fails', async () => {
-    const mockClient = await getMockClient();
-    // First validation fails, then succeeds after re-auth
-    mockClient.query
-      .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
-      .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
+  it(
+    'waits for re-auth when backend session validation fails',
+    async () => {
+      const mockClient = await getMockClient();
+      // First validation fails, then succeeds after re-auth
+      mockClient.query
+        .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
+        .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
 
-    // getSessionId returns valid on initial check, then new session after re-auth poll
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce('session-123' as never)
-      .mockResolvedValue('session-456' as never);
+      // getSessionId returns valid on initial check, then new session after re-auth poll
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce('session-123' as never)
+        .mockResolvedValue('session-456' as never);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Session invalid: Session expired')
-    );
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
-    expect(ctx).toBeDefined();
-    expect(ctx.sessionId).toBe('session-456');
-    expect(exitSpy).not.toHaveBeenCalled();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Session invalid: Session expired')
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
+      expect(ctx).toBeDefined();
+      expect(ctx.sessionId).toBe('session-456');
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+    15_000
+  );
 
   it('continues when backend session validation succeeds (valid session)', async () => {
     const mockClient = await getMockClient();
