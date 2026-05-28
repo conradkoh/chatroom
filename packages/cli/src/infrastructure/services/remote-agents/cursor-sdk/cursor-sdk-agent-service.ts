@@ -40,7 +40,10 @@ async function loadSdk(): Promise<typeof import('@cursor/sdk')> {
   }
 }
 
+import { Effect } from 'effect';
+
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { DetectionResult } from '../detection-result.js';
 import type {
   SpawnContext,
   SpawnOptions,
@@ -125,6 +128,18 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Override the base-class CLI binary detection (which checks for a `cursor-sdk`
+   * binary in PATH — there is none). Instead we gate on CURSOR_API_KEY presence
+   * and a successful SDK native-module load, matching isInstalled() behaviour.
+   */
+  public override detectInstallationEffect(): Effect.Effect<DetectionResult, never> {
+    return Effect.promise(async () => {
+      const installed = await this.isInstalled();
+      return installed ? DetectionResult.Installed() : DetectionResult.NotInstalled();
+    });
   }
 
   async getVersion(): Promise<VersionInfo | null> {
