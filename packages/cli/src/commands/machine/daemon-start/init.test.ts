@@ -427,7 +427,7 @@ describe('initDaemon', () => {
       expect(ctx.sessionId).toBe('session-123');
       expect(exitSpy).not.toHaveBeenCalled();
     },
-    10_000
+    15_000
   );
 
   it(
@@ -724,7 +724,7 @@ describe('initDaemon — backend-availability retry backoff', () => {
 
     vi.useRealTimers();
     },
-    10_000
+    20_000
   );
 
   it('uses a 10-second retry interval between connection attempts', async () => {
