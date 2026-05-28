@@ -57,7 +57,7 @@
     "knip": "^6.12.2",
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.0",
-    "turbo": "^2.9.6",
+    "turbo": "^2.9.15",
     "typescript": "^5.9.3"
   },
   "dependencies": {
