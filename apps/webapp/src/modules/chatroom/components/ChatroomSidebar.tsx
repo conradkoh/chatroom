@@ -64,6 +64,11 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     setStartModalOpen(true);
   }, []);
 
+  const showStartButton =
+    chatroom.status !== 'completed' &&
+    chatroom.teamId &&
+    (chatroom.remoteAgentStatus === 'stopped' || chatroom.remoteAgentStatus === 'none');
+
   return (
     <>
       <div
@@ -110,7 +115,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         )}
 
         {/* Remote agent start button */}
-        {chatroom.remoteAgentStatus === 'stopped' && (
+        {showStartButton && (
           <button
             onClick={handleStart}
             title="Start agent"
