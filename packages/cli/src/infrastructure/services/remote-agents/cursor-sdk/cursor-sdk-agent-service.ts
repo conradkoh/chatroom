@@ -4,6 +4,12 @@
  * Spawns a local Cursor agent via Agent.create + agent.send, streams SDKMessage
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.
+ *
+ * NOTE: @cursor/sdk depends on sqlite3, a native .node addon. To avoid crashing
+ * the daemon on startup when sqlite3 native binaries fail to load (ABI mismatch,
+ * wrong Node version, unsupported platform, etc.), the SDK is imported lazily at
+ * runtime via loadSdk(). If the import fails, isInstalled() returns false and the
+ * harness is hidden from the picker without affecting other harnesses.
  */
 
 import { readFileSync } from 'node:fs';
@@ -11,7 +17,28 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import type { ChildProcess } from 'node:child_process';
 
-import { Agent, Cursor, type Run, type SDKAgent } from '@cursor/sdk';
+// Type-only import — no runtime effect, safe even if native deps fail to load.
+import type { Run, SDKAgent } from '@cursor/sdk';
+
+// ─── Lazy SDK loader ───────────────────────────────────────────────────────────
+// @cursor/sdk loads sqlite3 (a native .node addon) on import. We defer the
+// import until first use so that sqlite3 binary failures are caught at call
+// sites (isInstalled / spawn / listModels) rather than at daemon startup.
+
+let _sdkCache: typeof import('@cursor/sdk') | undefined;
+let _sdkLoadError: unknown;
+
+async function loadSdk(): Promise<typeof import('@cursor/sdk')> {
+  if (_sdkCache) return _sdkCache;
+  if (_sdkLoadError) throw _sdkLoadError;
+  try {
+    _sdkCache = await import('@cursor/sdk');
+    return _sdkCache;
+  } catch (err) {
+    _sdkLoadError = err;
+    throw err;
+  }
+}
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type {
@@ -89,7 +116,15 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
   }
 
   async isInstalled(): Promise<boolean> {
-    return Boolean(process.env.CURSOR_API_KEY?.trim());
+    if (!process.env.CURSOR_API_KEY?.trim()) return false;
+    // Verify the SDK's native deps (sqlite3) can actually load. If not, the
+    // harness hides itself rather than crashing the daemon on first spawn.
+    try {
+      await loadSdk();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async getVersion(): Promise<VersionInfo | null> {
@@ -106,6 +141,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     if (!apiKey) return [...CURSOR_SDK_FALLBACK_MODELS];
 
     try {
+      const { Cursor } = await loadSdk();
       const models = await withTimeout(
         Cursor.models.list({ apiKey }),
         MODELS_LIST_TIMEOUT_MS,
@@ -185,6 +221,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
     let agent: SDKAgent;
     try {
+      const { Agent } = await loadSdk();
       agent = await withTimeout(
         Agent.create({
           apiKey,
