@@ -7,7 +7,7 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
+    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm --sourcemap --external @cursor/sdk",
     "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
