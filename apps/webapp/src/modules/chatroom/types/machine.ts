@@ -85,7 +85,8 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   opencode: 'OpenCode (CLI)',
   'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
-  cursor: 'Cursor',
+  cursor: 'Cursor (CLI)',
+  'cursor-sdk': 'Cursor (SDK)',
   commandcode: 'CommandCode',
 };
 
@@ -97,6 +98,11 @@ export function getHarnessDisplayName(harness: string): string {
 /** Check if a harness is the OpenCode SDK harness. */
 export function isOpenCodeSdkHarness(harness: string): boolean {
   return harness === 'opencode-sdk';
+}
+
+/** Check if a harness is the Cursor SDK harness. */
+export function isCursorSdkHarness(harness: string): boolean {
+  return harness === 'cursor-sdk';
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

@@ -1,0 +1,293 @@
+/**
+ * CursorSdkAgentService — concrete RemoteAgentService using @cursor/sdk.
+ *
+ * Spawns a local Cursor agent via Agent.create + agent.send, streams SDKMessage
+ * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
+ * process so PID-based lifecycle management in the daemon continues to work.
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import type { ChildProcess } from 'node:child_process';
+
+import { Agent, Cursor, type Run, type SDKAgent } from '@cursor/sdk';
+
+import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import type {
+  SpawnContext,
+  SpawnOptions,
+  SpawnResult,
+  VersionInfo,
+} from '../remote-agent-service.js';
+import { CURSOR_SDK_FALLBACK_MODELS, resolveCursorSdkModel } from './cursor-models.js';
+import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+
+export type CursorSdkAgentServiceDeps = CLIAgentServiceDeps;
+
+const CURSOR_SDK_COMMAND = 'cursor-sdk';
+const DEFAULT_MODEL = 'composer-2.5';
+const AGENT_CREATE_TIMEOUT_MS = 60_000;
+const SEND_TIMEOUT_MS = 60_000;
+const RUN_WAIT_TIMEOUT_MS = 3_600_000;
+const MODELS_LIST_TIMEOUT_MS = 10_000;
+const RUN_CANCEL_TIMEOUT_MS = 5_000;
+
+let cachedSdkPackageVersion: string | undefined;
+
+function getSdkPackageVersion(): string {
+  if (cachedSdkPackageVersion) return cachedSdkPackageVersion;
+  const require = createRequire(import.meta.url);
+  const entry = require.resolve('@cursor/sdk');
+  const packageJsonPath = join(entry, '..', '..', '..', 'package.json');
+  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version: string };
+  cachedSdkPackageVersion = pkg.version;
+  return pkg.version;
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+interface SdkSession {
+  agent: SDKAgent;
+  run?: Run;
+  keeper: ChildProcess;
+  aborted: boolean;
+  agentClosed: boolean;
+}
+
+function buildLogPrefix(context: SpawnOptions['context']): string {
+  const roleTag = context.role ?? 'unknown';
+  const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
+  return `[cursor-sdk:${roleTag}${chatroomSuffix}`;
+}
+
+function resolveModelId(model?: string): string {
+  return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
+}
+
+export class CursorSdkAgentService extends BaseCLIAgentService {
+  readonly id = 'cursor-sdk';
+  readonly displayName = 'Cursor (SDK)';
+  readonly command = CURSOR_SDK_COMMAND;
+
+  private readonly sessions = new Map<number, SdkSession>();
+
+  constructor(deps?: Partial<CursorSdkAgentServiceDeps>) {
+    super(deps);
+  }
+
+  async isInstalled(): Promise<boolean> {
+    return Boolean(process.env.CURSOR_API_KEY?.trim());
+  }
+
+  async getVersion(): Promise<VersionInfo | null> {
+    const match = getSdkPackageVersion().match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!match) return null;
+    return {
+      version: `${match[1]}.${match[2]}.${match[3]}`,
+      major: parseInt(match[1], 10),
+    };
+  }
+
+  async listModels(): Promise<string[]> {
+    const apiKey = process.env.CURSOR_API_KEY?.trim();
+    if (!apiKey) return [...CURSOR_SDK_FALLBACK_MODELS];
+
+    try {
+      const models = await withTimeout(
+        Cursor.models.list({ apiKey }),
+        MODELS_LIST_TIMEOUT_MS,
+        'Cursor.models.list'
+      );
+      const ids = models.map((m) => m.id).filter((id) => id.length > 0);
+      return ids.length > 0 ? ids : [...CURSOR_SDK_FALLBACK_MODELS];
+    } catch (err) {
+      console.warn(
+        `[cursor-sdk] Cursor.models.list failed, using fallback list:`,
+        err instanceof Error ? err.message : err
+      );
+      return [...CURSOR_SDK_FALLBACK_MODELS];
+    }
+  }
+
+  override async stop(pid: number): Promise<void> {
+    const session = this.sessions.get(pid);
+    if (session) {
+      session.aborted = true;
+      const run = session.run;
+      if (run?.supports('cancel')) {
+        try {
+          await withTimeout(run.cancel(), RUN_CANCEL_TIMEOUT_MS, 'run.cancel');
+        } catch (err) {
+          console.warn(
+            `[cursor-sdk] run.cancel for pid=${pid} failed:`,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+      if (!session.agentClosed) {
+        try {
+          session.agent.close();
+          session.agentClosed = true;
+        } catch {
+          // Best-effort cleanup
+        }
+      }
+      this.sessions.delete(pid);
+    }
+    await super.stop(pid);
+  }
+
+  async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const apiKey = process.env.CURSOR_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error('CURSOR_API_KEY is not set');
+    }
+
+    const keeper = this.deps.spawn(process.execPath, ['-e', 'setInterval(()=>{},2147483647)'], {
+      cwd: options.workingDir,
+      stdio: 'ignore',
+      shell: false,
+      detached: true,
+    });
+
+    if (!keeper.pid) {
+      keeper.kill();
+      throw new Error('Failed to spawn cursor-sdk keeper process');
+    }
+
+    const pid = keeper.pid;
+    const context = options.context;
+    const entry = this.registerProcess(pid, context);
+    const logPrefix = buildLogPrefix(context);
+
+    const fullPrompt = options.systemPrompt
+      ? `${options.systemPrompt}\n\n${options.prompt}`
+      : options.prompt;
+
+    const exitCallbacks: Array<
+      (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
+    > = [];
+    const outputCallbacks: (() => void)[] = [];
+    const agentEndCallbacks: (() => void)[] = [];
+
+    let agent: SDKAgent;
+    try {
+      agent = await withTimeout(
+        Agent.create({
+          apiKey,
+          model: { id: resolveModelId(options.model) },
+          local: { cwd: options.workingDir, settingSources: [] },
+        }),
+        AGENT_CREATE_TIMEOUT_MS,
+        'Agent.create'
+      );
+    } catch (err) {
+      keeper.kill();
+      this.deleteProcess(pid);
+      throw err;
+    }
+
+    const session: SdkSession = {
+      agent,
+      keeper,
+      aborted: false,
+      agentClosed: false,
+    };
+    this.sessions.set(pid, session);
+
+    const finishExit = (code: number | null, signal: string | null) => {
+      this.sessions.delete(pid);
+      this.deleteProcess(pid);
+      for (const cb of exitCallbacks) {
+        cb({ code, signal, context });
+      }
+    };
+
+    void (async () => {
+      let exitCode: number | null = 0;
+      let exitSignal: string | null = null;
+
+      try {
+        const run = await withTimeout(
+          agent.send(fullPrompt),
+          SEND_TIMEOUT_MS,
+          'agent.send'
+        );
+        session.run = run;
+
+        const adapter = new CursorSdkStreamAdapter(logPrefix);
+        adapter.onOutput(() => {
+          entry.lastOutputAt = Date.now();
+          for (const cb of outputCallbacks) cb();
+        });
+        adapter.onAgentEnd(() => {
+          for (const cb of agentEndCallbacks) cb();
+        });
+
+        for await (const message of run.stream()) {
+          if (session.aborted) break;
+          adapter.handleMessage(message);
+        }
+
+        const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
+        adapter.finish();
+
+        if (result.status === 'error') {
+          exitCode = 2;
+          process.stderr.write(
+            `[${new Date().toISOString()}] role:${context.role} cursor-sdk-run-error] run ${result.id} failed\n`
+          );
+        }
+      } catch (err) {
+        exitCode = 1;
+        const reason = err instanceof Error ? err.message : String(err);
+        process.stderr.write(
+          `[${new Date().toISOString()}] role:${context.role} spawn-error] ${reason}\n`
+        );
+      } finally {
+        if (!session.agentClosed) {
+          try {
+            agent.close();
+            session.agentClosed = true;
+          } catch {
+            // Best-effort
+          }
+        }
+
+        try {
+          keeper.kill();
+        } catch {
+          // May already be dead
+        }
+
+        finishExit(exitCode, exitSignal);
+      }
+    })();
+
+    return {
+      pid,
+      onExit: (cb) => {
+        exitCallbacks.push(cb);
+      },
+      onOutput: (cb) => {
+        outputCallbacks.push(cb);
+      },
+      onAgentEnd: (cb) => {
+        agentEndCallbacks.push(cb);
+      },
+    };
+  }
+}
