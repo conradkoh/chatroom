@@ -115,7 +115,7 @@ describe('CursorSdkAgentService', () => {
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
         model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/work', settingSources: [] },
+        local: { cwd: '/tmp/work', settingSources: [], sandboxOptions: { enabled: true } },
       });
     });
 
