@@ -1162,6 +1162,16 @@ daemonCommand
     await daemonStatus();
   });
 
+const harnessCommand = machineCommand.command('harness').description('Manage agent harnesses');
+
+harnessCommand
+  .command('status')
+  .description('List all registered harnesses and their detection status on this machine')
+  .action(async () => {
+    const { harnessStatus } = await import('./commands/machine/index.js');
+    await harnessStatus();
+  });
+
 // ============================================================================
 // OPENCODE COMMANDS (no auth required)
 // ============================================================================
