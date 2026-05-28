@@ -11,12 +11,15 @@
     "noUnusedParameters": true
   },
   "include": [
+    "application/**/*",
     "config/**/*",
     "convex/**/*",
     "modules/**/*",
     "prompts/**/*",
     "src/**/*",
-    "utils/**/*"
+    "utils/**/*",
+    "test.setup.ts",
+    "vitest.config.mts"
   ],
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }
