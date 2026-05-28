@@ -303,18 +303,10 @@ describe('AgentProcessManager', () => {
   // ── stop ──────────────────────────────────────────────────────────────
 
   describe('stop', () => {
-    test('running → stopping → idle: kills process, emits exit event, clears disk', async () => {
-      // Start agent first
+    test('running → stopping → idle: delegates to service.stop, emits exit event, clears disk', async () => {
       await manager.ensureRunning(createOpts());
 
-      // Mock process.kill to pretend process dies on signal 0 check
-      let killed = false;
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
-        (pid: number, sig: string | number) => {
-          if (sig === 0 && killed) throw new Error('ESRCH');
-          if (sig === 'SIGTERM') killed = true;
-        }
-      );
+      const service = deps.agentServices.get('opencode')!;
 
       const result = await manager.stop({
         chatroomId: CHATROOM_ID,
@@ -323,6 +315,9 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
+      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.untrack).toHaveBeenCalledWith(PID);
+      expect(deps.processes.kill).not.toHaveBeenCalled();
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
@@ -333,6 +328,32 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
+    });
+
+    test('doStop falls back to direct kill when harness service is not registered', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.harness = 'cursor';
+
+      let killed = false;
+      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
+        (pid: number, sig: string | number) => {
+          if (sig === 0 && killed) throw new Error('ESRCH');
+          if (sig === 'SIGTERM') killed = true;
+        }
+      );
+
+      const service = deps.agentServices.get('opencode')!;
+      const result = await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'daemon.shutdown',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(service.stop).not.toHaveBeenCalled();
+      expect(service.untrack).toHaveBeenCalledWith(PID);
     });
 
     test('already idle: returns success and notifies backend for cleanup', async () => {
@@ -403,22 +424,24 @@ describe('AgentProcessManager', () => {
     test('concurrent stop calls: second awaits first', async () => {
       await manager.ensureRunning(createOpts());
 
-      // Make the process die on first SIGTERM check
-      let killed = false;
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
-        (pid: number, sig: string | number) => {
-          if (sig === 0 && killed) throw new Error('ESRCH');
-          if (sig === 'SIGTERM') killed = true;
-        }
-      );
+      const service = deps.agentServices.get('opencode')!;
+      let stopResolve: () => void;
+      const stopGate = new Promise<void>((resolve) => {
+        stopResolve = resolve;
+      });
+      (service.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        await stopGate;
+      });
 
       const p1 = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
       const p2 = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
 
+      stopResolve!();
       const [r1, r2] = await Promise.all([p1, p2]);
 
       expect(r1).toEqual({ success: true });
       expect(r2).toEqual({ success: true });
+      expect(service.stop).toHaveBeenCalledTimes(1);
     });
 
     test('stop + onExit callback does NOT produce duplicate exit events', async () => {
@@ -437,22 +460,12 @@ describe('AgentProcessManager', () => {
       // Reset the backend mutation mock to track calls from here
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
 
-      // Mock process.kill: process dies on SIGTERM, then signal 0 throws
-      let killed = false;
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
-        (pid: number, sig: string | number) => {
-          if (sig === 0 && killed) throw new Error('ESRCH');
-          if (sig === 'SIGTERM') {
-            killed = true;
-            // Simulate: the onExit callback fires when the process dies
-            // This happens asynchronously in real life, but we call it here
-            // to simulate the race condition
-            if (registeredOnExit) {
-              registeredOnExit({ code: null, signal: 'SIGTERM' });
-            }
-          }
+      // service.stop may trigger onExit while doStop owns the lifecycle
+      (service.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        if (registeredOnExit) {
+          registeredOnExit({ code: null, signal: 'SIGTERM' });
         }
-      );
+      });
 
       await manager.stop({
         chatroomId: CHATROOM_ID,
