@@ -34,17 +34,20 @@ describe('useChatroomTimeline', () => {
       hasMoreOlder: false,
       isLoadingOlder: false,
       loadOlderMessages: vi.fn(),
+      purgeOldMessages: vi.fn(),
     });
   });
 
   it('passes through loading and pagination state from useMessages', () => {
     const loadOlderMessages = vi.fn();
+    const purgeOldMessages = vi.fn();
     mockUseMessages.mockReturnValue({
       messages: [],
       isLoading: true,
       hasMoreOlder: true,
       isLoadingOlder: true,
       loadOlderMessages,
+      purgeOldMessages,
     });
 
     const { result } = renderHook(() => useChatroomTimeline('room-1'));
@@ -54,6 +57,7 @@ describe('useChatroomTimeline', () => {
     expect(result.current.hasMoreOlder).toBe(true);
     expect(result.current.isLoadingOlder).toBe(true);
     expect(result.current.loadOlderEvents).toBe(loadOlderMessages);
+    expect(result.current.purgeOldMessages).toBe(purgeOldMessages);
   });
 
   it('maps messages to timeline events in order', () => {
@@ -67,6 +71,7 @@ describe('useChatroomTimeline', () => {
       hasMoreOlder: false,
       isLoadingOlder: false,
       loadOlderMessages: vi.fn(),
+      purgeOldMessages: vi.fn(),
     });
 
     const { result } = renderHook(() => useChatroomTimeline('room-1'));
