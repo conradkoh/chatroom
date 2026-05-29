@@ -135,10 +135,21 @@ export async function reassignTasksOnTeamSwitch(
 }
 
 /**
- * Release orphaned tasks when the agent process is gone but recordAgentExited was missed.
+ * Release orphaned **tasks** when backend agent state says the role is not running.
  *
- * Trigger: invoked from claimTask (before claiming) and sweepOrphanedTasks mutation.
- * Sweeps when teamAgentConfig has no live PID and is not desired running.
+ * ## Layering (process vs task orphans)
+ *
+ * | Layer | Owner | Responsibility |
+ * |-------|--------|----------------|
+ * | Process | CLI `AgentProcessManager` | Kill live PIDs on every `agent.requestStart` (`killExistingBeforeSpawn`), recover persisted PIDs on daemon restart (`recover()`). Source of truth for OS processes. |
+ * | Task | This function | Reset acknowledged/in_progress tasks when `chatroom_teamAgentConfigs` has no `spawnedAgentPid` and `desiredState !== 'running'` — i.e. DB thinks the agent is gone. Does not inspect the OS. |
+ *
+ * Daemon kill-then-spawn normally clears PID via `recordAgentExited` (`daemon.respawn`) before respawn,
+ * so tasks stay assigned during replacement. This sweeper is a **fallback** when exit was never recorded
+ * (crash, partial cleanup, manual PID clear).
+ *
+ * **Triggers:** `claimTask` (before claiming, so get-next-task can reclaim) and `sweepOrphanedTasks`
+ * (explicit cleanup). Not redundant with daemon process management — complementary scopes.
  */
 export async function releaseOrphanedTasksForRole(
   ctx: MutationCtx,
