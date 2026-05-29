@@ -100,6 +100,8 @@ interface SdkSession {
   agentClosed: boolean;
   /** Resolves when resumeTurn delivers the next prompt. */
   resumeResolve?: (prompt: string) => void;
+  /** Resolves when stop() aborts while waiting for resume. */
+  abortResolve?: () => void;
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -107,21 +109,18 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
 
   return Promise.race([
     new Promise<string>((resolve) => {
-      session.resumeResolve = (prompt: string) => {
+      session.resumeResolve = (prompt) => {
         session.resumeResolve = undefined;
+        session.abortResolve = undefined;
         resolve(prompt);
       };
     }),
     new Promise<null>((resolve) => {
-      const checkAbort = () => {
-        if (session.aborted) {
-          session.resumeResolve = undefined;
-          resolve(null);
-          return;
-        }
-        setTimeout(checkAbort, 50);
+      session.abortResolve = () => {
+        session.resumeResolve = undefined;
+        session.abortResolve = undefined;
+        resolve(null);
       };
-      checkAbort();
     }),
   ]);
 }
@@ -212,6 +211,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     }
     const resolve = session.resumeResolve;
     session.resumeResolve = undefined;
+    session.abortResolve = undefined;
     resolve(prompt);
   }
 
@@ -219,6 +219,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
+      session.abortResolve?.();
       const run = session.run;
       if (run?.supports('cancel')) {
         try {

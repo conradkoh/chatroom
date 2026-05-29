@@ -155,6 +155,34 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
+    test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      const resumableService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            cb();
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(resumeTurn.mock.calls[0][0]).toBe(PID);
+      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
+      expect(deps.processes.kill).not.toHaveBeenCalled();
+    });
+
     test('onAgentEnd kills instead of resumeTurn when wantResume is false', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();

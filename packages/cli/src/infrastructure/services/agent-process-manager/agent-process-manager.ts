@@ -250,7 +250,6 @@ export class AgentProcessManager {
     role: string;
     pid: number;
     harness: AgentHarness;
-    harnessSessionId?: string;
     wantResume: boolean;
   }): Promise<void> {
     const capabilities = getHarnessCapabilities(opts.harness);
@@ -259,7 +258,7 @@ export class AgentProcessManager {
       `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResume=${opts.wantResume} supportsResume=${capabilities.supportsSessionResume}`
     );
 
-    if (capabilities.supportsSessionResume && opts.harnessSessionId && opts.wantResume) {
+    if (capabilities.supportsSessionResume && opts.wantResume) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
         try {
@@ -722,7 +721,6 @@ export class AgentProcessManager {
             role: opts.role,
             pid,
             harness: opts.agentHarness,
-            harnessSessionId: slot.harnessSessionId,
             wantResume: slot.wantResume,
           });
         });
