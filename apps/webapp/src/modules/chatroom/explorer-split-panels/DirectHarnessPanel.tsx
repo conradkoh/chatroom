@@ -18,7 +18,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { useEffect } from 'react';
 
 import {
@@ -109,10 +109,18 @@ export function DirectHarnessPanel({
 
   const sortedSessions = sessions ? [...sessions].reverse() : [];
 
+  const sessionTitle =
+    typedSessionId && sessionSummary ? displaySessionTitle(sessionSummary) : null;
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="@container flex-1 flex flex-col min-h-0">
       {/* Header: session dropdown + new-session button */}
       <div className="shrink-0 border-b-2 border-border px-2 py-1.5 flex items-center gap-2">
+        {sessionTitle ? (
+          <span className="flex-1 min-w-0 truncate text-xs font-bold @md:hidden" title={sessionTitle}>
+            {sessionTitle}
+          </span>
+        ) : null}
         <Select
           value={dropdownValue}
           onValueChange={(val) => {
@@ -123,8 +131,20 @@ export function DirectHarnessPanel({
             }
           }}
         >
-          <SelectTrigger className="flex-1 h-7 text-xs">
-            <SelectValue placeholder="Select session…" />
+          <SelectTrigger
+            className={
+              sessionTitle
+                ? 'h-7 w-7 shrink-0 p-0 justify-center @md:flex-1 @md:w-auto @md:px-3 @md:justify-between'
+                : 'flex-1 h-7 text-xs'
+            }
+            aria-label={sessionTitle ? 'Change session' : 'Select session'}
+          >
+            {sessionTitle ? (
+              <ChevronDown size={14} className="@md:hidden" />
+            ) : null}
+            <span className={sessionTitle ? 'hidden @md:inline-flex min-w-0' : undefined}>
+              <SelectValue placeholder="Select session…" />
+            </span>
           </SelectTrigger>
           <SelectContent>
             {sortedSessions.map((s) => (
