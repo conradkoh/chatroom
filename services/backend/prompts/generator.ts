@@ -738,4 +738,4 @@ export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {
 export {
   composeResumeMessage,
   type ComposeResumeMessageParams,
-} from './cli/resume-session/message.js';
+} from './cli/resume-session/message';

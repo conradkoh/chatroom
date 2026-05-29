@@ -5,8 +5,8 @@
  * instead of performing a full cold restart.
  */
 
-import { getNextTaskCommand } from '../get-next-task/command.js';
-import { getCliEnvPrefix } from '../../utils/env.js';
+import { getNextTaskCommand } from '../get-next-task/command';
+import { getCliEnvPrefix } from '../../utils/env';
 
 export interface ComposeResumeMessageParams {
   chatroomId: string;
