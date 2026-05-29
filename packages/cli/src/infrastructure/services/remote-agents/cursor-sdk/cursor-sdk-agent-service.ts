@@ -306,21 +306,22 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           adapter.handleMessage(message);
         }
 
-        const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
-        adapter.finish();
+        if (!session.aborted) {
+          const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
+          adapter.finish();
 
-        if (result.status === 'error') {
-          exitCode = 2;
-          process.stderr.write(
-            `[${new Date().toISOString()}] role:${context.role} cursor-sdk-run-error] run ${result.id} failed\n`
-          );
+          if (result.status === 'error') {
+            exitCode = 2;
+            process.stderr.write(`${logPrefix} run-error] run ${result.id} failed\n`);
+          }
+        } else {
+          exitCode = 1;
+          exitSignal = 'SIGTERM';
         }
       } catch (err) {
         exitCode = 1;
         const reason = err instanceof Error ? err.message : String(err);
-        process.stderr.write(
-          `[${new Date().toISOString()}] role:${context.role} spawn-error] ${reason}\n`
-        );
+        process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
       } finally {
         if (!session.agentClosed) {
           try {

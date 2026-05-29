@@ -166,5 +166,56 @@ describe('CursorSdkAgentService', () => {
 
       expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
+
+    it('skips run.wait when aborted during stream', async () => {
+      const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
+      const run = {
+        id: 'run-1',
+        stream: async function* () {
+          yield { type: 'assistant' };
+          while (true) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        },
+        wait: runWait,
+        supports: () => true,
+        cancel: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(7777);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const exitInfo = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+      result.onExit(exitInfo);
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
+      await service.stop(result.pid);
+
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+      expect(runWait).not.toHaveBeenCalled();
+      expect(exitInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 1, signal: 'SIGTERM' })
+      );
+    });
   });
 });
