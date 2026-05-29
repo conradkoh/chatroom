@@ -33,7 +33,9 @@ import {
   getHarnessDisplayName,
   getModelDisplayLabel,
   getMachineDisplayName,
+  harnessSupportsSessionResume,
 } from '../types/machine';
+import { SessionResumeBadge } from './SessionResumeBadge';
 import type { Workspace } from '../types/workspace';
 
 import {
@@ -871,13 +873,16 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                         title="Select Harness"
                       >
-                        <span className="truncate">
+                        <span className="truncate flex items-center min-w-0">
                           {displayHarness
                             ? formatHarnessLabel(
                                 displayHarness,
                                 displayHarnessVersionsForMachine[displayHarness]
                               )
                             : 'Harness...'}
+                          {displayHarness && harnessSupportsSessionResume(displayHarness) && (
+                            <SessionResumeBadge />
+                          )}
                         </span>
                         <ChevronDown
                           size={10}
@@ -907,7 +912,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                   }}
                                   className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                                 >
-                                  <span className="truncate">{label}</span>
+                                  <span className="truncate flex items-center min-w-0">
+                                    {label}
+                                    {harnessSupportsSessionResume(harness) && (
+                                      <SessionResumeBadge />
+                                    )}
+                                  </span>
                                   {displayHarness === harness && (
                                     <span className="ml-2 flex-shrink-0 text-chatroom-accent">
                                       ✓

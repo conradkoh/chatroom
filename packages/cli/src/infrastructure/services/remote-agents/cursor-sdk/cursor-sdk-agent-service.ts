@@ -98,6 +98,31 @@ interface SdkSession {
   keeper: ChildProcess;
   aborted: boolean;
   agentClosed: boolean;
+  /** Resolves when resumeTurn delivers the next prompt. */
+  resumeResolve?: (prompt: string) => void;
+  /** Resolves when stop() aborts while waiting for resume. */
+  abortResolve?: () => void;
+}
+
+function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
+  if (session.aborted) return Promise.resolve(null);
+
+  return Promise.race([
+    new Promise<string>((resolve) => {
+      session.resumeResolve = (prompt) => {
+        session.resumeResolve = undefined;
+        session.abortResolve = undefined;
+        resolve(prompt);
+      };
+    }),
+    new Promise<null>((resolve) => {
+      session.abortResolve = () => {
+        session.resumeResolve = undefined;
+        session.abortResolve = undefined;
+        resolve(null);
+      };
+    }),
+  ]);
 }
 
 function buildLogPrefix(context: SpawnOptions['context']): string {
@@ -176,10 +201,25 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     }
   }
 
+  async resumeTurn(pid: number, prompt: string): Promise<void> {
+    const session = this.sessions.get(pid);
+    if (!session) {
+      throw new Error(`No cursor-sdk session for pid=${pid}`);
+    }
+    if (!session.resumeResolve) {
+      throw new Error(`cursor-sdk session pid=${pid} not waiting for resume`);
+    }
+    const resolve = session.resumeResolve;
+    session.resumeResolve = undefined;
+    session.abortResolve = undefined;
+    resolve(prompt);
+  }
+
   override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
+      session.abortResolve?.();
       const run = session.run;
       if (run?.supports('cancel')) {
         try {
@@ -275,48 +315,64 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     void (async () => {
       let exitCode: number | null = 0;
       let exitSignal: string | null = null;
+      let nextPrompt = fullPrompt;
+      let isFirstTurn = true;
 
       try {
-        const run = await withTimeout(
-          agent.send(fullPrompt, {
-            // Clear any wedged run left over from a crashed daemon process,
-            // so this message starts fresh instead of getting an agent_busy error.
-            local: { force: true },
-            // Deduplication key: prevents double-execution if the network drops
-            // between send and ack. Unique per spawn so retries within the same
-            // session reuse it but a fresh spawn always gets a new run.
-            idempotencyKey: randomUUID(),
-          }),
-          SEND_TIMEOUT_MS,
-          'agent.send'
-        );
-        session.run = run;
+        while (!session.aborted) {
+          const run = await withTimeout(
+            agent.send(nextPrompt, {
+              // Clear any wedged run left over from a crashed daemon process,
+              // so this message starts fresh instead of getting an agent_busy error.
+              local: { force: isFirstTurn },
+              // Deduplication key: prevents double-execution if the network drops
+              // between send and ack. Unique per turn.
+              idempotencyKey: randomUUID(),
+            }),
+            SEND_TIMEOUT_MS,
+            'agent.send'
+          );
+          session.run = run;
+          isFirstTurn = false;
 
-        const adapter = new CursorSdkStreamAdapter(logPrefix);
-        adapter.onOutput(() => {
-          entry.lastOutputAt = Date.now();
-          for (const cb of outputCallbacks) cb();
-        });
-        adapter.onAgentEnd(() => {
-          for (const cb of agentEndCallbacks) cb();
-        });
+          const adapter = new CursorSdkStreamAdapter(logPrefix);
+          adapter.onOutput(() => {
+            entry.lastOutputAt = Date.now();
+            for (const cb of outputCallbacks) cb();
+          });
 
-        for await (const message of run.stream()) {
-          if (session.aborted) break;
-          adapter.handleMessage(message);
-        }
+          for await (const message of run.stream()) {
+            if (session.aborted) break;
+            adapter.handleMessage(message);
+          }
 
-        if (!session.aborted) {
+          if (session.aborted) {
+            exitCode = 1;
+            exitSignal = 'SIGTERM';
+            break;
+          }
+
           const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
           adapter.finish();
 
           if (result.status === 'error') {
             exitCode = 2;
             process.stderr.write(`${logPrefix} run-error] run ${result.id} failed\n`);
+            break;
           }
-        } else {
-          exitCode = 1;
-          exitSignal = 'SIGTERM';
+
+          for (const cb of agentEndCallbacks) cb();
+
+          const resumePrompt = await waitForResumeOrAbort(session);
+          if (resumePrompt === null || session.aborted) {
+            if (session.aborted) {
+              exitCode = 1;
+              exitSignal = 'SIGTERM';
+            }
+            break;
+          }
+
+          nextPrompt = resumePrompt;
         }
       } catch (err) {
         exitCode = 1;

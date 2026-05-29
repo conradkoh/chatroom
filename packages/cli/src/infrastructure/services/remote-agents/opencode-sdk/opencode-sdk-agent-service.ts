@@ -157,6 +157,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     let sessionId: string | undefined;
     let forwarder: SessionEventForwarderHandle | undefined;
+    let agentName: string | undefined;
     try {
       const sessionCreateResult = await withTimeout(
         client.session.create({ body: {} }),
@@ -186,6 +187,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       );
       const availableAgents = agentsResponse.data ?? [];
       const selected = selectAgent(availableAgents);
+      agentName = selected.name;
       const composedSystem = composeSystemPrompt(selected.prompt, systemPrompt);
 
       const modelParts = model ? parseModelId(model) : undefined;
@@ -231,6 +233,8 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       machineId: context.machineId,
       chatroomId: context.chatroomId,
       role: context.role,
+      agentName: agentName!,
+      ...(model ? { model } : {}),
       pid,
       createdAt: new Date().toISOString(),
       baseUrl,
@@ -260,6 +264,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      harnessSessionId: sessionId,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           const fwd = this.forwarders.get(pid);
@@ -279,5 +284,33 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         forwarder?.onAgentEnd(cb);
       },
     };
+  }
+
+  async resumeTurn(pid: number, prompt: string): Promise<void> {
+    const meta = this.sessionStore.findByPid(pid);
+    if (!meta) {
+      throw new Error(`No opencode-sdk session metadata for pid=${pid}`);
+    }
+
+    const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+    const modelParts = meta.model ? parseModelId(meta.model) : undefined;
+
+    await withTimeout(
+      client.session.promptAsync({
+        path: { id: meta.sessionId },
+        body: {
+          agent: meta.agentName,
+          parts: [{ type: 'text', text: prompt }],
+          ...(modelParts ? { model: modelParts } : {}),
+          tools: {
+            task: false,
+            question: false,
+            external_directory: false,
+          },
+        },
+      }),
+      PROMPT_ASYNC_TIMEOUT_MS,
+      'session.promptAsync'
+    );
   }
 }
