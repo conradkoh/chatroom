@@ -705,35 +705,24 @@ export class AgentProcessManager {
     // This ensures handleExit() will see the correct state and return early.
 
     try {
-      // SIGTERM to process group
-      try {
-        this.deps.processes.kill(-pid, 'SIGTERM');
-      } catch {
-        // Process may already be dead
-      }
+      const harness = slot.harness;
+      const service = harness ? this.deps.agentServices.get(harness) : undefined;
 
-      // Poll for 10 seconds
-      let dead = false;
-      for (let i = 0; i < 20; i++) {
-        await this.deps.clock.delay(500);
+      if (service) {
+        await service.stop(pid);
+        // Explicitly untrack: handleExit() returns early when state==='stopping',
+        // so untrack must be called here to keep the service's process map clean.
+        service.untrack(pid);
+      } else {
+        // No registered service for this harness — fall back to direct kill-and-poll
         try {
-          this.deps.processes.kill(pid, 0);
+          this.deps.processes.kill(-pid, 'SIGTERM');
         } catch {
-          dead = true;
-          break;
-        }
-      }
-
-      // If still alive, SIGKILL
-      if (!dead) {
-        try {
-          this.deps.processes.kill(-pid, 'SIGKILL');
-        } catch {
-          // Already dead
+          // Process may already be dead
         }
 
-        // Poll for 5 more seconds
-        for (let i = 0; i < 10; i++) {
+        let dead = false;
+        for (let i = 0; i < 20; i++) {
           await this.deps.clock.delay(500);
           try {
             this.deps.processes.kill(pid, 0);
@@ -741,6 +730,28 @@ export class AgentProcessManager {
             dead = true;
             break;
           }
+        }
+
+        if (!dead) {
+          try {
+            this.deps.processes.kill(-pid, 'SIGKILL');
+          } catch {
+            // Already dead
+          }
+
+          for (let i = 0; i < 10; i++) {
+            await this.deps.clock.delay(500);
+            try {
+              this.deps.processes.kill(pid, 0);
+            } catch {
+              dead = true;
+              break;
+            }
+          }
+        }
+
+        for (const svc of this.deps.agentServices.values()) {
+          svc.untrack(pid);
         }
       }
     } catch {
@@ -775,11 +786,6 @@ export class AgentProcessManager {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
     } catch {
       // Non-critical
-    }
-
-    // Untrack in agent services
-    for (const service of this.deps.agentServices.values()) {
-      service.untrack(pid);
     }
 
     return { success: true };

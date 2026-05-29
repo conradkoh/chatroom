@@ -1,6 +1,8 @@
 /**
  * ClaudeCodeAgentService — concrete RemoteAgentService for the Claude Code CLI runtime.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Encapsulates all interactions with Claude Code: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
  *

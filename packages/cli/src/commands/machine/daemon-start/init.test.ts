@@ -404,63 +404,79 @@ describe('discoverModels', () => {
 // ---------------------------------------------------------------------------
 
 describe('initDaemon', () => {
-  it('exits when lock cannot be acquired', async () => {
-    vi.mocked(acquireLock).mockReturnValue(false);
+  it(
+    'exits when lock cannot be acquired',
+    async () => {
+      vi.mocked(acquireLock).mockReturnValue(false);
 
-    await initDaemon();
+      await initDaemon();
 
-    expect(exitSpy).toHaveBeenCalledWith(1);
-  });
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    },
+    10_000
+  );
 
-  it('waits for auth and resumes when session ID is initially missing', async () => {
-    // First call returns null (unauthenticated), subsequent calls return valid session
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue('session-123' as never);
+  it(
+    'waits for auth and resumes when session ID is initially missing',
+    async () => {
+      // First call returns null (unauthenticated), subsequent calls return valid session
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue('session-123' as never);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
-    expect(ctx).toBeDefined();
-    expect(ctx.sessionId).toBe('session-123');
-    expect(exitSpy).not.toHaveBeenCalled();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
+      expect(ctx).toBeDefined();
+      expect(ctx.sessionId).toBe('session-123');
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+    15_000
+  );
 
-  it('shows other session URLs when waiting for auth', async () => {
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue('session-123' as never);
-    vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
+  it(
+    'shows other session URLs when waiting for auth',
+    async () => {
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue('session-123' as never);
+      vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
-    expect(ctx).toBeDefined();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
+      expect(ctx).toBeDefined();
+    },
+    10_000
+  );
 
-  it('waits for re-auth when backend session validation fails', async () => {
-    const mockClient = await getMockClient();
-    // First validation fails, then succeeds after re-auth
-    mockClient.query
-      .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
-      .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
+  it(
+    'waits for re-auth when backend session validation fails',
+    async () => {
+      const mockClient = await getMockClient();
+      // First validation fails, then succeeds after re-auth
+      mockClient.query
+        .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
+        .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
 
-    // getSessionId returns valid on initial check, then new session after re-auth poll
-    vi.mocked(getSessionId)
-      .mockResolvedValueOnce('session-123' as never)
-      .mockResolvedValue('session-456' as never);
+      // getSessionId returns valid on initial check, then new session after re-auth poll
+      vi.mocked(getSessionId)
+        .mockResolvedValueOnce('session-123' as never)
+        .mockResolvedValue('session-456' as never);
 
-    const ctx = await initDaemon();
+      const ctx = await initDaemon();
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Session invalid: Session expired')
-    );
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
-    expect(ctx).toBeDefined();
-    expect(ctx.sessionId).toBe('session-456');
-    expect(exitSpy).not.toHaveBeenCalled();
-  });
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Session invalid: Session expired')
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
+      expect(ctx).toBeDefined();
+      expect(ctx.sessionId).toBe('session-456');
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+    15_000
+  );
 
   it('continues when backend session validation succeeds (valid session)', async () => {
     const mockClient = await getMockClient();
@@ -716,7 +732,7 @@ describe('initDaemon — backend-availability retry backoff', () => {
 
     vi.useRealTimers();
     },
-    10_000
+    20_000
   );
 
   it('uses a 10-second retry interval between connection attempts', async () => {

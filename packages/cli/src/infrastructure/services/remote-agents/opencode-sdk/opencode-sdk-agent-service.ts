@@ -1,6 +1,8 @@
 /**
  * OpenCodeSdkAgentService — concrete RemoteAgentService using the OpenCode SDK.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Uses @opencode-ai/sdk for session-based integration with OpenCode.
  * Spawns a local OpenCode server via child process, connects via SDK client,
  * and manages session lifecycle with the remote agent runtime.

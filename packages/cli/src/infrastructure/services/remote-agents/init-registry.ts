@@ -2,6 +2,7 @@ import { ClaudeCodeAgentService } from './claude/index.js';
 import { CommandCodeAgentService } from './commandcode/index.js';
 import { CopilotAgentService } from './copilot/index.js';
 import { CursorAgentService } from './cursor/index.js';
+import { CursorSdkAgentService } from './cursor-sdk/index.js';
 import { OpenCodeAgentService } from './opencode/index.js';
 import { OpenCodeSdkAgentService } from './opencode-sdk/index.js';
 import { PiAgentService } from './pi/index.js';
@@ -16,6 +17,7 @@ export function initHarnessRegistry(): void {
   registerHarness(new OpenCodeSdkAgentService());
   registerHarness(new PiAgentService());
   registerHarness(new CursorAgentService());
+  registerHarness(new CursorSdkAgentService());
   registerHarness(new ClaudeCodeAgentService());
   registerHarness(new CommandCodeAgentService());
   registerHarness(new CopilotAgentService());

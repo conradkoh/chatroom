@@ -1,6 +1,8 @@
 /**
  * OpenCodeAgentService — concrete RemoteAgentService for the OpenCode runtime.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Encapsulates all interactions with OpenCode: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
  *

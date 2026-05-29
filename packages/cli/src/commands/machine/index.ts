@@ -7,3 +7,4 @@
 export { daemonStart } from './daemon-start/index.js';
 export { daemonStop } from './daemon-stop.js';
 export { daemonStatus } from './daemon-status.js';
+export { harnessStatus } from './harness-status.js';

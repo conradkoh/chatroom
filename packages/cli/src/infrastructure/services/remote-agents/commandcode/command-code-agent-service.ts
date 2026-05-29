@@ -1,6 +1,8 @@
 /**
  * CommandCodeAgentService — concrete RemoteAgentService for the CommandCode CLI.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Spawns agents using:
  *   cmd -p --skip-onboarding --yolo [--model <provider/name>]
  *

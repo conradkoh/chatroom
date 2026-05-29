@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName } from './machine';
+import {
+  HARNESS_DISPLAY_NAMES,
+  getHarnessDisplayName,
+  isCursorSdkHarness,
+  isOpenCodeSdkHarness,
+} from './machine';
 
 /**
  * Canonical list of all harnesses supported by the backend and CLI.
  * When a new harness is added, it must also be added here and to the
  * frontend HARNESS_DISPLAY_NAMES record.
  */
-const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'opencode-sdk', 'pi', 'cursor', 'commandcode'];
+const ALL_KNOWN_HARNESSES: string[] = [
+  'opencode',
+  'opencode-sdk',
+  'pi',
+  'cursor',
+  'cursor-sdk',
+  'commandcode',
+];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
   it.each(ALL_KNOWN_HARNESSES)('should have a display name for the "%s" harness', (harness) => {
@@ -30,11 +42,28 @@ describe('getHarnessDisplayName', () => {
     expect(getHarnessDisplayName('opencode')).toBe('OpenCode (CLI)');
     expect(getHarnessDisplayName('opencode-sdk')).toBe('OpenCode (SDK)');
     expect(getHarnessDisplayName('pi')).toBe('Pi');
-    expect(getHarnessDisplayName('cursor')).toBe('Cursor');
+    expect(getHarnessDisplayName('cursor')).toBe('Cursor (CLI)');
+    expect(getHarnessDisplayName('cursor-sdk')).toBe('Cursor (SDK)');
     expect(getHarnessDisplayName('commandcode')).toBe('CommandCode');
   });
 
   it('returns title-cased fallback for unknown harnesses', () => {
     expect(getHarnessDisplayName('newharness')).toBe('Newharness');
+  });
+});
+
+describe('isOpenCodeSdkHarness', () => {
+  it('returns true only for opencode-sdk', () => {
+    expect(isOpenCodeSdkHarness('opencode-sdk')).toBe(true);
+    expect(isOpenCodeSdkHarness('opencode')).toBe(false);
+    expect(isOpenCodeSdkHarness('cursor-sdk')).toBe(false);
+  });
+});
+
+describe('isCursorSdkHarness', () => {
+  it('returns true only for cursor-sdk', () => {
+    expect(isCursorSdkHarness('cursor-sdk')).toBe(true);
+    expect(isCursorSdkHarness('cursor')).toBe(false);
+    expect(isCursorSdkHarness('opencode-sdk')).toBe(false);
   });
 });
