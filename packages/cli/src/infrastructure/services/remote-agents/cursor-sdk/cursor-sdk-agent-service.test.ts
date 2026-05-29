@@ -296,6 +296,50 @@ describe('CursorSdkAgentService', () => {
       await service.stop(result.pid);
     });
 
+    it('fires onAgentEnd only after run.wait() completes (not on in-stream status)', async () => {
+      const runWait = vi.fn().mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 30));
+        return { id: 'run-1', status: 'finished' };
+      });
+      const run = {
+        id: 'run-1',
+        stream: async function* () {
+          yield {
+            type: 'status',
+            agent_id: 'agent-1',
+            run_id: 'run-1',
+            status: 'FINISHED',
+          };
+        },
+        wait: runWait,
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(7778);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const agentEndTimes: number[] = [];
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+      result.onAgentEnd!(() => agentEndTimes.push(Date.now()));
+
+      await vi.waitFor(() => expect(agentEndTimes).toHaveLength(1));
+      expect(runWait).toHaveBeenCalled();
+    });
+
     it('stop while waiting for resume exits the session', async () => {
       stubSdkAgent();
       const child = makeFakeChild(6666);

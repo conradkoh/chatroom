@@ -56,15 +56,16 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it.each(['FINISHED', 'ERROR', 'CANCELLED'] as const)(
-    'triggers onAgentEnd for status %s',
+    'logs terminal status %s without emitting agent_end (finish() owns turn end)',
     (status) => {
       let count = 0;
       const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
       adapter.onAgentEnd(() => count++);
       adapter.handleMessage(statusMessage(status));
 
-      expect(count).toBe(1);
-      expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
+      expect(count).toBe(0);
+      expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} status: ${status}]\n`);
+      expect(stdoutWriteSpy).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
     }
   );
 
@@ -99,14 +100,14 @@ describe('CursorSdkStreamAdapter', () => {
     expect(count).toBe(1);
   });
 
-  it('calls onAgentEnd only once for duplicate terminal status messages', () => {
+  it('does not emit agent_end for duplicate terminal status messages before finish()', () => {
     let count = 0;
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
     adapter.onAgentEnd(() => count++);
     adapter.handleMessage(statusMessage('FINISHED'));
     adapter.handleMessage(statusMessage('FINISHED'));
 
-    expect(count).toBe(1);
+    expect(count).toBe(0);
   });
 
   it('does not emit agent-end for non-terminal status', () => {

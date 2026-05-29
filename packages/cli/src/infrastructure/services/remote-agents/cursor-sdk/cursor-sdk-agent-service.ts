@@ -340,6 +340,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             entry.lastOutputAt = Date.now();
             for (const cb of outputCallbacks) cb();
           });
+          adapter.onAgentEnd(() => {
+            for (const cb of agentEndCallbacks) cb();
+          });
 
           for await (const message of run.stream()) {
             if (session.aborted) break;
@@ -353,7 +356,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           }
 
           const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
-          adapter.finish();
+          adapter.flushPendingOutput();
 
           if (result.status === 'error') {
             exitCode = 2;
@@ -361,7 +364,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             break;
           }
 
-          for (const cb of agentEndCallbacks) cb();
+          // finish() emits agent_end (wired to agentEndCallbacks) only after a
+          // successful run.wait(), so resumeTurn is not invoked mid-stream.
+          adapter.finish();
 
           const resumePrompt = await waitForResumeOrAbort(session);
           if (resumePrompt === null || session.aborted) {
