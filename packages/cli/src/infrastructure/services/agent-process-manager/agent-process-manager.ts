@@ -170,35 +170,27 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
 
-    // Check current state
-    if (slot.state === 'running') {
-      if (slot.pid) {
-        if (isProcessAlive(this.deps.processes.kill, slot.pid)) {
-          return { success: true, pid: slot.pid };
-        }
-        // Stale slot — process died without onExit; reset and spawn
-        slot.state = 'idle';
-        slot.pid = undefined;
-        slot.harness = undefined;
-        slot.harnessSessionId = undefined;
-        slot.model = undefined;
-        slot.workingDir = undefined;
-        slot.startedAt = undefined;
-        slot.pendingOperation = undefined;
-      } else {
-        return { success: true, pid: slot.pid };
-      }
-    }
-    if (slot.state === 'spawning' && slot.pendingOperation) {
-      return slot.pendingOperation;
-    }
-    if (slot.state === 'stopping' && slot.pendingOperation) {
-      await slot.pendingOperation;
-      // After stopping completes, proceed to spawn
+    // Stale slot — process died without onExit; reset before kill/spawn
+    if (slot.state === 'running' && slot.pid && !isProcessAlive(this.deps.processes.kill, slot.pid)) {
+      slot.state = 'idle';
+      slot.pid = undefined;
+      slot.harness = undefined;
+      slot.harnessSessionId = undefined;
+      slot.model = undefined;
+      slot.workingDir = undefined;
+      slot.startedAt = undefined;
+      slot.pendingOperation = undefined;
     }
 
-    // Create the spawn operation promise
-    const operation = this.doEnsureRunning(key, slot, opts);
+    if (slot.pendingOperation) {
+      if (slot.state === 'stopping') {
+        await slot.pendingOperation;
+      } else {
+        return slot.pendingOperation;
+      }
+    }
+
+    const operation = this.executeEnsureRunning(key, slot, opts);
     slot.pendingOperation = operation;
 
     return operation;
@@ -504,6 +496,106 @@ export class AgentProcessManager {
   }
 
   /**
+   * Kill any live agent process for this chatroom+role before spawning.
+   * Covers in-memory slot PIDs and persisted PIDs (orphans after restart).
+   */
+  private async killExistingBeforeSpawn(chatroomId: string, role: string): Promise<void> {
+    const key = agentKey(chatroomId, role);
+    const slot = this.slots.get(key);
+
+    if (
+      slot?.pid &&
+      isProcessAlive(this.deps.processes.kill, slot.pid) &&
+      (slot.state === 'running' || slot.state === 'spawning')
+    ) {
+      const pid = slot.pid;
+      slot.state = 'stopping';
+      await this.doStop(key, slot, pid, { chatroomId, role, reason: 'daemon.respawn' });
+    }
+
+    let entries: {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness };
+    }[] = [];
+    try {
+      entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
+    } catch {
+      return;
+    }
+
+    const persisted = entries.find(
+      (e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase()
+    );
+    if (!persisted) {
+      return;
+    }
+
+    const { pid, harness } = persisted.entry;
+    if (!isProcessAlive(this.deps.processes.kill, pid)) {
+      try {
+        await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+      } catch {
+        // Non-critical
+      }
+      return;
+    }
+
+    const currentSlot = this.slots.get(key);
+    if (currentSlot?.pid === pid && currentSlot.state !== 'idle') {
+      return;
+    }
+
+    try {
+      this.deps.processes.kill(-pid, 'SIGTERM');
+    } catch {
+      // Process may already be dead
+    }
+    untrackChildPid(pid);
+
+    const exitArgs = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId,
+      role,
+      pid,
+      stopReason: 'daemon.respawn' as const,
+      exitCode: undefined as number | undefined,
+      signal: undefined as string | undefined,
+      agentHarness: harness,
+    };
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit before respawn: ${err.message}`);
+      this.queueExitRetry({ role, args: exitArgs });
+    });
+
+    try {
+      await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+    } catch {
+      // Non-critical
+    }
+
+    for (const service of this.deps.agentServices.values()) {
+      service.untrack(pid);
+    }
+  }
+
+  private async executeEnsureRunning(
+    key: string,
+    slot: AgentSlot,
+    opts: EnsureRunningOpts
+  ): Promise<OperationResult> {
+    try {
+      await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
+      return await this.doEnsureRunning(key, slot, opts);
+    } finally {
+      if (slot.pendingOperation) {
+        slot.pendingOperation = undefined;
+      }
+    }
+  }
+
+  /**
    * Queue a failed recordAgentExited call for retry.
    * Starts the retry interval timer if not already running.
    */
@@ -635,16 +727,6 @@ export class AgentProcessManager {
         slot.state = 'idle';
         slot.pendingOperation = undefined;
         return { success: false, error: `Working directory does not exist: ${opts.workingDir}` };
-      }
-
-      // Gate 4: Kill stale process (defensive)
-      if (slot.pid) {
-        try {
-          this.deps.processes.kill(-slot.pid, 'SIGTERM');
-        } catch {
-          // Process may already be dead
-        }
-        slot.pid = undefined;
       }
 
       // Step 5: Fetch init prompt

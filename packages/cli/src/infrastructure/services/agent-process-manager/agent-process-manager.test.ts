@@ -264,18 +264,61 @@ describe('AgentProcessManager', () => {
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
-    test('already running: returns immediately with existing PID', async () => {
-      // First call: spawn
+    test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
 
       const service = deps.agentServices.get('opencode')!;
+      const NEW_PID = 99;
+      (service.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
+        pid: NEW_PID,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      (service.stop as ReturnType<typeof vi.fn>).mockClear();
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
 
-      // Second call: should return immediately
+      const result = await manager.ensureRunning(createOpts());
+
+      expect(result).toEqual({ success: true, pid: NEW_PID });
+      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.spawn).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          pid: PID,
+          stopReason: 'daemon.respawn',
+        })
+      );
+    });
+
+    test('persisted live PID without slot is killed before spawn', async () => {
+      const ORPHAN_PID = 7777;
+      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: ORPHAN_PID, harness: 'opencode' } },
+      ]);
+      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: PID });
-      expect(service.spawn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-ORPHAN_PID, 'SIGTERM');
+      expect(untrackChildPid).toHaveBeenCalledWith(ORPHAN_PID);
+      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
+        'test-machine',
+        CHATROOM_ID,
+        ROLE
+      );
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          pid: ORPHAN_PID,
+          stopReason: 'daemon.respawn',
+        })
+      );
     });
 
     test('running slot with dead PID: resets to idle and spawns', async () => {
