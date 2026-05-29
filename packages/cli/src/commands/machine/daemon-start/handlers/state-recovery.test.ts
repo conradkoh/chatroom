@@ -136,6 +136,34 @@ describe('recoverAgentState', () => {
     expect(registerCalls).toHaveLength(0);
   });
 
+  it('re-registers spawnedAgentPid for recovered active agents', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        {
+          chatroomId: 'room-1',
+          role: 'builder',
+          slot: { state: 'running', pid: 4242, model: 'gpt-4' },
+        },
+      ],
+      configs: [],
+    });
+
+    await recoverAgentState(ctx);
+
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        machineId: 'test-machine-id',
+        chatroomId: 'room-1',
+        role: 'builder',
+        pid: 4242,
+        model: 'gpt-4',
+        reason: 'daemon.recovery',
+      })
+    );
+  });
+
   it('handles no active agents after recovery', async () => {
     const ctx = createMockContext({ activeSlots: [] });
 

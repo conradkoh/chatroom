@@ -334,20 +334,25 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
     console.log(`   Continuing with fresh state`);
   }
 
-  // Clear all stale spawnedAgentPid values for this machine.
-  // Since the daemon just started, no agents are running yet — any PIDs in the
-  // backend are stale from before the restart and must be cleared to prevent
-  // the UI from showing dead agents as "running" or "starting".
-  try {
-    const result = await ctx.deps.backend.mutation(api.machines.clearAllSpawnedPids, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
-    if (result.clearedCount > 0) {
-      console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
+  // Clear stale spawnedAgentPid values only when no agents were recovered locally.
+  // When recover() restores still-alive agents, state-recovery re-registers their PIDs.
+  const recoveredActive = ctx.deps.agentProcessManager.listActive();
+  if (recoveredActive.length === 0) {
+    try {
+      const result = await ctx.deps.backend.mutation(api.machines.clearAllSpawnedPids, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+      });
+      if (result.clearedCount > 0) {
+        console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
+      }
+    } catch (e) {
+      console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
     }
-  } catch (e) {
-    console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
+  } else {
+    console.log(
+      `   Skipping clearAllSpawnedPids — ${recoveredActive.length} agent(s) recovered with live PIDs`
+    );
   }
 
   // Reap any pending/running command runs left from before the restart.

@@ -70,6 +70,8 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
     if (registeredCount > 0) {
       console.log(`   🔀 Registered ${registeredCount} workspace(s) on recovery`);
     }
+
+    await restoreRecoveredAgentPids(ctx, activeSlots);
   }
 
   // ─── Orphan turn cleanup ──────────────────────────────────────────────────
@@ -121,5 +123,42 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
   } catch (err) {
     // Non-critical — orphan cleanup failure should not block daemon startup
     console.warn(`[daemon] ⚠️ Orphan turn cleanup failed: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Re-register spawnedAgentPid in the backend for agents that survived daemon restart.
+ * recover() may restore local slots for still-alive processes; without this step,
+ * recoverState()'s clearAllSpawnedPids would leave the UI showing them as offline.
+ */
+export async function restoreRecoveredAgentPids(
+  ctx: DaemonContext,
+  activeSlots: { chatroomId: string; role: string; slot: { pid?: number; model?: string } }[]
+): Promise<void> {
+  let restoredCount = 0;
+
+  for (const { chatroomId, role, slot } of activeSlots) {
+    if (!slot.pid) continue;
+
+    try {
+      await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        pid: slot.pid,
+        model: slot.model,
+        reason: 'daemon.recovery',
+      });
+      restoredCount++;
+    } catch (err) {
+      console.warn(
+        `[daemon] ⚠️ Failed to re-register PID for ${role}@${chatroomId.slice(-6)}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  if (restoredCount > 0) {
+    console.log(`   ✅ Re-registered ${restoredCount} recovered agent PID(s) in backend`);
   }
 }
