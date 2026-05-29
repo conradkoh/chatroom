@@ -21,6 +21,7 @@ import { createTask as createTaskUsecase } from '../src/domain/usecase/task/crea
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
+import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   transitionTask,
   type TransitionTaskOptions,
@@ -102,6 +103,12 @@ export const claimTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Release orphaned in-flight tasks when agent PID was cleared without recordAgentExited
+    await releaseOrphanedTasksForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) {
       throw new Error('Chatroom not found');
@@ -177,6 +184,23 @@ export const claimTask = mutation({
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 
     return { taskId: pendingTask._id, content: pendingTask.content };
+  },
+});
+
+/** Releases in-flight tasks for a role when the agent process is gone but exit was not recorded. */
+export const sweepOrphanedTasks = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const released = await releaseOrphanedTasksForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    return { released };
   },
 });
 

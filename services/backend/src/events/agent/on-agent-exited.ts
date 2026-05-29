@@ -1,4 +1,5 @@
 import {
+  reassignTasksOnTeamSwitch,
   releaseTasksOnAgentExit,
   shouldReleaseTasksOnAgentExit,
 } from '../../domain/usecase/task/release-tasks-on-agent-exit';
@@ -18,10 +19,18 @@ export interface OnAgentExitedArgs {
  * Crash recovery restarts are owned by the daemon. On unexpected exit, release
  * in-flight tasks for this role so get-next-task can reclaim them immediately.
  *
- * Intentional stops (`user.stop`, `platform.team_switch`, `daemon.shutdown`)
- * keep tasks claimed.
+ * `platform.team_switch` reassigns tasks to the new team entry point instead of
+ * releasing them unassigned. `user.stop` and `daemon.shutdown` release to pending.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
+  if (args.stopReason === 'platform.team_switch') {
+    await reassignTasksOnTeamSwitch(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    return;
+  }
+
   if (!shouldReleaseTasksOnAgentExit(args.stopReason)) {
     return;
   }

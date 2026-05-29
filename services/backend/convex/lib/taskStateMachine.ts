@@ -177,6 +177,32 @@ const TRANSITIONS: TransitionRule[] = [
     trigger: 'releaseTaskOnAgentExit',
     clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
   },
+
+  // ==========================================================================
+  // TEAM SWITCH: reassign in-flight tasks to new entry point
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'reassignTaskOnTeamSwitch',
+    requiredFields: ['assignedTo'],
+    setFields: {
+      assignedTo: 'PROVIDED',
+    },
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'reassignTaskOnTeamSwitch',
+    requiredFields: ['assignedTo'],
+    setFields: {
+      assignedTo: 'PROVIDED',
+    },
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
 ];
 
 // ============================================================================
