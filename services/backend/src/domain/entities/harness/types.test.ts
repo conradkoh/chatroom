@@ -14,8 +14,8 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('opencode-sdk and pi support session resume', () => {
-    for (const harness of ['opencode-sdk', 'pi'] as const) {
+  test('opencode-sdk, pi, and cursor-sdk support session resume', () => {
+    for (const harness of ['opencode-sdk', 'pi', 'cursor-sdk'] as const) {
       expect(getHarnessCapabilities(harness)).toEqual({
         supportsSessionResume: true,
       });
@@ -23,7 +23,9 @@ describe('getHarnessCapabilities', () => {
   });
 
   test('all other harnesses do not support session resume', () => {
-    const nonResumable = AGENT_HARNESSES.filter((h) => h !== 'opencode-sdk' && h !== 'pi');
+    const nonResumable = AGENT_HARNESSES.filter(
+      (h) => h !== 'opencode-sdk' && h !== 'pi' && h !== 'cursor-sdk'
+    );
     for (const harness of nonResumable) {
       expect(getHarnessCapabilities(harness)).toEqual({
         supportsSessionResume: false,

@@ -218,4 +218,111 @@ describe('CursorSdkAgentService', () => {
       );
     });
   });
+
+  describe('resumeTurn', () => {
+    it('delivers prompt and continues with the next agent.send turn', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild(8888);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+
+      const waitingForResume = new Promise<void>((resolve) => {
+        result.onAgentEnd!(resolve);
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
+      await waitingForResume;
+
+      await service.resumeTurn(result.pid, 'resume prompt');
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(2));
+      expect(sharedAgentSendFn.mock.calls[1][0]).toBe('resume prompt');
+    });
+
+    it('throws when session is not waiting for resume', async () => {
+      const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
+      const run = {
+        id: 'run-1',
+        stream: async function* () {
+          yield { type: 'assistant', message: { content: [{ type: 'text', text: 'hi' }] } };
+          while (true) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        },
+        wait: runWait,
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(9999);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      await expect(service.resumeTurn(9999, 'prompt')).rejects.toThrow('No cursor-sdk session');
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
+
+      await expect(service.resumeTurn(result.pid, 'prompt')).rejects.toThrow(
+        'not waiting for resume'
+      );
+
+      await service.stop(result.pid);
+    });
+
+    it('stop while waiting for resume exits the session', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild(6666);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const exitInfo = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+      result.onExit(exitInfo);
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
+
+      await service.stop(result.pid);
+
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+      expect(sharedAgentCloseFn).toHaveBeenCalled();
+    });
+  });
 });
