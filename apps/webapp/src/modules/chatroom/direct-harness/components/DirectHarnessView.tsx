@@ -3,8 +3,10 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { MonitorOff, Plus, SquarePen } from 'lucide-react';
+import { ChevronLeft, MonitorOff, Plus, SquarePen } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
+
+import { cn } from '@/lib/utils';
 
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -141,11 +143,11 @@ export const DirectHarnessView = memo(function DirectHarnessView({
     }
   };
 
-  return (
-    <>
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-        <div className="w-64 shrink-0 border-r-2 border-border flex flex-col min-h-0 bg-card">
+  const showMobileDetail =
+    selectedWorkspaceId != null && selectedSessionId !== null;
+
+  const sidebar = (
+        <div className="w-full flex flex-col min-h-0 flex-1">
           {/* Workspace picker + new button */}
           <div className="shrink-0 p-2 border-b-2 border-border flex items-center gap-1.5">
             <div className="flex-1 min-w-0">
@@ -200,29 +202,67 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             </div>
           )}
         </div>
+  );
 
-        {/* ── Right pane ──────────────────────────────────────────────────── */}
+  const detailPane = (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {selectedSessionId ? (
-            /* Existing session */
             <SelectedSessionDetail
               selectedSessionId={selectedSessionId}
               workspaceId={selectedWorkspaceId}
             />
           ) : selectedSessionId === undefined && selectedWorkspaceId ? (
-            /* New session pane */
             <NewSessionComposer
               workspaceId={selectedWorkspaceId}
               onSessionCreated={(id) => setSelectedSessionId(id)}
             />
           ) : (
-            /* Nothing selected */
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground select-none">
               {selectedWorkspaceId
                 ? 'Select a session or start a new one.'
                 : 'Select a workspace to begin.'}
             </div>
           )}
+        </div>
+  );
+
+  return (
+    <>
+      <div className="@container flex-1 flex min-h-0 overflow-hidden">
+        <div
+          className={cn(
+            'shrink-0 flex flex-col min-h-0 overflow-hidden bg-card border-border',
+            showMobileDetail ? 'hidden @md:flex' : 'flex flex-1 @md:flex-none',
+            '@md:w-64 @md:border-r-2'
+          )}
+        >
+          {sidebar}
+        </div>
+
+        <div
+          className={cn(
+            'flex-1 flex flex-col min-h-0 overflow-hidden',
+            showMobileDetail ? 'flex' : 'hidden @md:flex'
+          )}
+        >
+          {showMobileDetail ? (
+            <div className="shrink-0 border-b-2 border-border px-2 py-1.5 flex items-center gap-1 bg-card @md:hidden">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                aria-label="Back to sessions"
+                onClick={() => setSelectedSessionId(null)}
+              >
+                <ChevronLeft size={16} />
+              </Button>
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Sessions
+              </span>
+            </div>
+          ) : null}
+          {detailPane}
         </div>
       </div>
 
