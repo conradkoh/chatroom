@@ -351,13 +351,18 @@ const TaskHeader = function TaskHeader({
               </>
             )}
 
-            {/* Right: Status badge */}
-            {taskStatusBadge && (
-              <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-                {taskStatusBadge.icon}
-                {taskStatusBadge.label}
+            {/* Right: Timestamp + status badge */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+                {formatTime(message._creationTime)}
               </span>
-            )}
+              {taskStatusBadge && (
+                <span className={taskStatusBadge.className}>
+                  {taskStatusBadge.icon}
+                  {taskStatusBadge.label}
+                </span>
+              )}
+            </div>
           </div>
         </button>
 
@@ -996,8 +1001,8 @@ const MessageItem = memo(function MessageItem({
             </button>
           )}
         </div>
-        {/* Right: Timestamp (non-user messages only; user message status/time is in TaskHeader) */}
-        {!isUserMessage && (
+        {/* Right: Timestamp (user messages with TaskHeader show time in header; queued user messages show here) */}
+        {(!isUserMessage || message.isQueued) && (
           <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
             {formatTime(message._creationTime)}
           </span>
