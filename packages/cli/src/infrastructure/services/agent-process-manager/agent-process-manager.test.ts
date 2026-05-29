@@ -126,6 +126,57 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('onAgentEnd calls resumeTurn instead of kill for resumable harness', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            cb();
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(resumeTurn.mock.calls[0][0]).toBe(PID);
+      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
+      expect(deps.processes.kill).not.toHaveBeenCalled();
+    });
+
+    test('onAgentEnd kills process for non-resumable harness', async () => {
+      const onAgentEndRegistrar = vi.fn();
+      const service = {
+        ...createMockService(),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: onAgentEndRegistrar,
+        }),
+      };
+      deps.agentServices = new Map([['opencode', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
+
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      agentEndCb();
+
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+    });
+
     test('substitutes DEFAULT_TRIGGER_PROMPT when backend returns empty initialMessage', async () => {
       // Use case-level regression guard: composeInitMessage in the backend currently
       // returns '' for every role. The manager must wrap that via createSpawnPrompt

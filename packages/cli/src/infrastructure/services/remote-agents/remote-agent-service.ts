@@ -55,6 +55,8 @@ export interface SpawnResult {
    * Not all agent runtimes support this — implemented by PiAgentService and CursorAgentService.
    */
   onAgentEnd?: (cb: () => void) => void;
+  /** Session ID for harnesses that support session resume. Undefined if not applicable. */
+  harnessSessionId?: string;
 }
 
 export interface ProcessInfo {
@@ -90,6 +92,13 @@ export interface RemoteAgentService {
 
   /** Spawn an agent process. Returns PID + lifecycle callbacks. */
   spawn(options: SpawnOptions): Promise<SpawnResult>;
+
+  /**
+   * Resume an ongoing session after an agent_end turn.
+   * Only implement on harnesses where supportsSessionResume = true.
+   * Called by AgentProcessManager instead of killing and re-spawning.
+   */
+  resumeTurn?(pid: number, prompt: string): Promise<void>;
 
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
   stop(pid: number): Promise<void>;

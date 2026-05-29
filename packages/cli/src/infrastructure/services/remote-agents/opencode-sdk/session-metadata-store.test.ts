@@ -15,6 +15,7 @@ const SAMPLE_META: SessionMetadata = {
   machineId: 'm1',
   chatroomId: 'c1',
   role: 'builder',
+  agentName: 'build',
   pid: 1234,
   createdAt: '2026-04-25T00:00:00.000Z',
   baseUrl: 'http://127.0.0.1:5678',
