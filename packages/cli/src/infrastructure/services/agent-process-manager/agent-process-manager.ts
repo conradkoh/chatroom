@@ -13,6 +13,7 @@
  */
 
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import { isProcessAlive } from '../../deps/process.js';
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
@@ -172,14 +173,7 @@ export class AgentProcessManager {
     // Check current state
     if (slot.state === 'running') {
       if (slot.pid) {
-        let alive = false;
-        try {
-          this.deps.processes.kill(slot.pid, 0);
-          alive = true;
-        } catch {
-          alive = false;
-        }
-        if (alive) {
+        if (isProcessAlive(this.deps.processes.kill, slot.pid)) {
           return { success: true, pid: slot.pid };
         }
         // Stale slot — process died without onExit; reset and spawn
@@ -453,15 +447,7 @@ export class AgentProcessManager {
     let cleaned = 0;
 
     for (const { chatroomId, role, entry } of entries) {
-      let alive = false;
-      try {
-        this.deps.processes.kill(entry.pid, 0); // Signal 0 = check if alive
-        alive = true;
-      } catch {
-        alive = false;
-      }
-
-      if (alive) {
+      if (isProcessAlive(this.deps.processes.kill, entry.pid)) {
         // Stale process from a previous daemon — kill the process group and clear
         // backend state instead of adopting as "running" (no onExit handlers).
         try {
@@ -830,9 +816,7 @@ export class AgentProcessManager {
         let dead = false;
         for (let i = 0; i < 20; i++) {
           await this.deps.clock.delay(500);
-          try {
-            this.deps.processes.kill(pid, 0);
-          } catch {
+          if (!isProcessAlive(this.deps.processes.kill, pid)) {
             dead = true;
             break;
           }
@@ -847,9 +831,7 @@ export class AgentProcessManager {
 
           for (let i = 0; i < 10; i++) {
             await this.deps.clock.delay(500);
-            try {
-              this.deps.processes.kill(pid, 0);
-            } catch {
+            if (!isProcessAlive(this.deps.processes.kill, pid)) {
               dead = true;
               break;
             }
