@@ -14,6 +14,7 @@ import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { emitConfigRemoval } from '../agent/config-removal';
+import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,9 @@ export async function updateTeam(
     teamRoles,
     teamEntryPoint,
   });
+
+  // Reassign in-flight tasks to the new team entry point before stopping agents.
+  await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
 
   // ── Step 2: Stop running agents and delete team configs ────────────────
 

@@ -1,3 +1,8 @@
+import {
+  reassignTasksOnTeamSwitch,
+  releaseTasksOnAgentExit,
+  shouldReleaseTasksOnAgentExit,
+} from '../../domain/usecase/task/release-tasks-on-agent-exit';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
 
@@ -11,14 +16,27 @@ export interface OnAgentExitedArgs {
 /**
  * Handles the `agent.exited` event (backend side).
  *
- * Crash recovery is now fully owned by the daemon's `onAgentExited` handler:
- *   - On any unexpected exit, the daemon restarts the agent automatically.
- *   - Crash loop protection (max 3 restarts / 5 min) is enforced in the daemon.
- *   - Intentional stops (`user.stop`, `platform.team_switch`) skip restart.
+ * Crash recovery restarts are owned by the daemon. On unexpected exit, release
+ * in-flight tasks for this role so get-next-task can reclaim them immediately.
  *
- * This backend function is a no-op kept as a hook for future observability needs.
+ * `platform.team_switch` reassigns tasks to the new team entry point instead of
+ * releasing them unassigned. `user.stop` and `daemon.shutdown` release to pending.
  */
- 
-export async function onAgentExited(_ctx: MutationCtx, _args: OnAgentExitedArgs): Promise<void> {
-  // No-op: daemon owns restart logic.
+export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
+  if (args.stopReason === 'platform.team_switch') {
+    await reassignTasksOnTeamSwitch(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    return;
+  }
+
+  if (!shouldReleaseTasksOnAgentExit(args.stopReason)) {
+    return;
+  }
+
+  await releaseTasksOnAgentExit(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
 }

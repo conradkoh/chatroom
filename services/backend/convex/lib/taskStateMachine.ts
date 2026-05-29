@@ -159,6 +159,50 @@ const TRANSITIONS: TransitionRule[] = [
       completedAt: 'NOW',
     },
   },
+
+  // ==========================================================================
+  // AGENT EXIT: release in-flight tasks back to pending (bypass grace period)
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'releaseTaskOnAgentExit',
+    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'releaseTaskOnAgentExit',
+    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+  },
+
+  // ==========================================================================
+  // TEAM SWITCH: reassign in-flight tasks to new entry point
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'reassignTaskOnTeamSwitch',
+    requiredFields: ['assignedTo'],
+    setFields: {
+      assignedTo: 'PROVIDED',
+    },
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'reassignTaskOnTeamSwitch',
+    requiredFields: ['assignedTo'],
+    setFields: {
+      assignedTo: 'PROVIDED',
+    },
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
 ];
 
 // ============================================================================
