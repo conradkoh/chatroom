@@ -155,6 +155,38 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
+    test('onAgentEnd kills instead of resumeTurn when wantResume is false', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      const onAgentEndRegistrar = vi.fn();
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: onAgentEndRegistrar,
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({
+          agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'],
+          wantResume: false,
+        })
+      );
+
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      agentEndCb();
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+    });
+
     test('onAgentEnd kills process for non-resumable harness', async () => {
       const onAgentEndRegistrar = vi.fn();
       const service = {

@@ -33,6 +33,8 @@ export interface AgentSlot {
   harness?: AgentHarness;
   /** Harness-native session ID when supportsSessionResume is true. */
   harnessSessionId?: string;
+  /** When false, onAgentEnd kills instead of resumeTurn even for resumable harnesses. */
+  wantResume: boolean;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -53,6 +55,8 @@ export interface EnsureRunningOpts {
   model?: string;
   workingDir: string;
   reason: string;
+  /** When false, onAgentEnd kills instead of resumeTurn. Defaults to true. */
+  wantResume?: boolean;
 }
 
 export interface StopOpts {
@@ -247,10 +251,11 @@ export class AgentProcessManager {
     pid: number;
     harness: AgentHarness;
     harnessSessionId?: string;
+    wantResume: boolean;
   }): Promise<void> {
     const capabilities = getHarnessCapabilities(opts.harness);
 
-    if (capabilities.supportsSessionResume && opts.harnessSessionId) {
+    if (capabilities.supportsSessionResume && opts.harnessSessionId && opts.wantResume) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
         try {
@@ -436,6 +441,7 @@ export class AgentProcessManager {
           state: 'running',
           pid: entry.pid,
           harness: entry.harness,
+          wantResume: true,
         });
         recovered++;
       } else {
@@ -452,7 +458,7 @@ export class AgentProcessManager {
   private getOrCreateSlot(key: string): AgentSlot {
     let slot = this.slots.get(key);
     if (!slot) {
-      slot = { state: 'idle' };
+      slot = { state: 'idle', wantResume: true };
       this.slots.set(key, slot);
     }
     return slot;
@@ -521,6 +527,7 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     // Transition: idle → spawning
     slot.state = 'spawning';
+    slot.wantResume = opts.wantResume ?? true;
 
     try {
       // Gate 1: Rate limit check
@@ -708,6 +715,7 @@ export class AgentProcessManager {
             pid,
             harness: opts.agentHarness,
             harnessSessionId: slot.harnessSessionId,
+            wantResume: slot.wantResume,
           });
         });
       }
