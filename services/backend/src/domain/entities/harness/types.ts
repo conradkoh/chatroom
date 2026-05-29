@@ -5,16 +5,16 @@
  * Use `getHarnessCapabilities()` for runtime lookup by `AgentHarness`.
  */
 
-import type { AgentHarness } from '../agent.js';
+import type { AgentHarness } from '../agent';
 
-import { claudeCapabilities } from './claude.config.js';
-import { commandcodeCapabilities } from './commandcode.config.js';
-import { copilotCapabilities } from './copilot.config.js';
-import { cursorCapabilities } from './cursor.config.js';
-import { cursorSdkCapabilities } from './cursor-sdk.config.js';
-import { opencodeCapabilities } from './opencode.config.js';
-import { opencodeSdkCapabilities } from './opencode-sdk.config.js';
-import { piCapabilities } from './pi.config.js';
+import { claudeCapabilities } from './claude.config';
+import { commandcodeCapabilities } from './commandcode.config';
+import { copilotCapabilities } from './copilot.config';
+import { cursorCapabilities } from './cursor.config';
+import { cursorSdkCapabilities } from './cursor-sdk.config';
+import { opencodeCapabilities } from './opencode.config';
+import { opencodeSdkCapabilities } from './opencode-sdk.config';
+import { piCapabilities } from './pi.config';
 
 export interface HarnessCapabilities {
   /**
