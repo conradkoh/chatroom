@@ -16,7 +16,7 @@ export { CreateChatroomForm } from './components/CreateChatroomForm';
 export { ErrorBoundary } from './components/ErrorBoundary';
 export { FeatureDetailModal } from './components/FeatureDetailModal';
 export { MessageDetailModal } from './components/MessageDetailModal';
-export { MessageFeed } from './components/MessageFeed';
+export { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 export { PromptModal } from './components/PromptModal';
 export { MessageInput } from './components/MessageInput';
 export { SetupChecklist } from './components/SetupChecklist';

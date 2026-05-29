@@ -4,6 +4,9 @@
 import { render } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type React from 'react';
+
+import type { ScrollController } from '../../hooks/useScrollController';
 import type { TimelineEvent } from '../../timeline/types';
 
 const virtualizerOptions: Array<{
@@ -26,15 +29,46 @@ vi.mock('@tanstack/react-virtual', () => ({
   },
 }));
 
-vi.mock('../../hooks/useScrollController', () => ({
-  useScrollController: () => ({
-    controller: { current: { attach: vi.fn(), detach: vi.fn(), isPinned: true, scrollToBottom: vi.fn() } },
-    isPinned: true,
-    scrollToBottom: vi.fn(),
-    beginResize: vi.fn(),
-    endResize: vi.fn(),
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => [],
+  useSessionId: () => ['session-1'],
+}));
+
+vi.mock('convex/react', () => ({
+  usePaginatedQuery: () => ({
+    results: [],
+    status: 'Exhausted',
+    loadMore: vi.fn(),
   }),
 }));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    events: {
+      listLatestEvents: 'listLatestEvents',
+      listLatestEventsPaginated: 'listLatestEventsPaginated',
+    },
+  },
+}));
+
+vi.mock('../QueuedMessagesIndicator', () => ({
+  QueuedMessagesIndicator: () => null,
+}));
+
+vi.mock('../EventStreamModal', () => ({
+  EventStreamModal: () => null,
+}));
+
+vi.mock('../../hooks/useHandoffNotification', () => ({
+  useHandoffNotification: vi.fn(),
+}));
+
+const scrollController = {
+  attach: vi.fn(),
+  detach: vi.fn(),
+  isPinned: true,
+  scrollToBottom: vi.fn(),
+};
 
 const mockEvents: TimelineEvent[] = [
   {
@@ -76,6 +110,13 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 
+const defaultProps = {
+  chatroomId: 'room-1',
+  controller: { current: scrollController } as unknown as React.MutableRefObject<ScrollController>,
+  isPinned: true,
+  scrollToBottom: vi.fn(),
+};
+
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
@@ -83,14 +124,14 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 
   it('uses stable getItemKey across parent re-renders', () => {
-    const { rerender } = render(<ChatroomTimelineFeed chatroomId="room-1" />);
+    const { rerender } = render(<ChatroomTimelineFeed {...defaultProps} />);
     expect(virtualizerOptions.length).toBeGreaterThan(0);
 
     const firstOptions = virtualizerOptions.at(-1)!;
     const keyBeforeRerender = firstOptions.getItemKey(0);
     const keySecondRow = firstOptions.getItemKey(1);
 
-    rerender(<ChatroomTimelineFeed chatroomId="room-1" />);
+    rerender(<ChatroomTimelineFeed {...defaultProps} />);
 
     const secondOptions = virtualizerOptions.at(-1)!;
     expect(secondOptions.getItemKey(0)).toBe(keyBeforeRerender);
@@ -99,8 +140,8 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     expect(keySecondRow).toBe('evt-2');
   });
 
-  it('configures estimateSize and overscan for ~20-row viewport', () => {
-    render(<ChatroomTimelineFeed chatroomId="room-2" />);
+  it('configures virtualizer count from timeline events', () => {
+    render(<ChatroomTimelineFeed {...defaultProps} chatroomId="room-2" />);
     const options = virtualizerOptions.at(-1)!;
     expect(options.count).toBe(mockEvents.length);
   });
