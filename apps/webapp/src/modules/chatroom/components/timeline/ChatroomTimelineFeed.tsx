@@ -1,19 +1,32 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
+import { usePaginatedQuery } from 'convex/react';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import type React from 'react';
 import {
   memo,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
+  useState,
 } from 'react';
 
 import { useChatroomTimeline } from '../../hooks/useChatroomTimeline';
-import { useScrollController } from '../../hooks/useScrollController';
+import { useHandoffNotification } from '../../hooks/useHandoffNotification';
+import type { ScrollController } from '../../hooks/useScrollController';
+import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
+
+import { EventStreamModal } from '../EventStreamModal';
+import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
 
 import { TimelineEventRow } from './TimelineEventRow';
+import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
@@ -25,11 +38,21 @@ import {
 
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
+  activeTask?: { status: string; assignedTo?: string } | null;
+  controller: React.MutableRefObject<ScrollController>;
+  isPinned: boolean;
+  scrollToBottom: () => void;
+  onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, MachineNameEntry>;
 }
 
 export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   chatroomId,
+  activeTask: _activeTask,
+  controller,
+  isPinned,
+  scrollToBottom,
+  onRegisterOpenEventStream,
   machines,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
@@ -38,7 +61,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const loadAnchorIdRef = useRef<string | null>(null);
   const hasInitialScrollRef = useRef(false);
 
-  const { controller, isPinned, scrollToBottom } = useScrollController();
+  const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
   const {
     events,
@@ -48,6 +71,30 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     loadOlderEvents,
     purgeOldMessages,
   } = useChatroomTimeline(chatroomId);
+
+  const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
+  useHandoffNotification(messagesForNotify, chatroomId);
+
+  useEffect(() => {
+    onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
+  }, [onRegisterOpenEventStream]);
+
+  const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    limit: 1,
+  });
+
+  const [eventSessionId] = useSessionId();
+  const eventsPaginated = usePaginatedQuery(
+    api.events.listLatestEventsPaginated,
+    isEventStreamOpen && eventSessionId
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
+      : 'skip',
+    { initialNumItems: 20 }
+  );
+
+  const latestEvent: EventStreamEvent | null =
+    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
   const virtualizer = useVirtualizer({
     count: events.length,
@@ -72,10 +119,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const scrollToLatest = useCallback(() => {
     if (events.length === 0) return;
     virtualizer.scrollToIndex(events.length - 1, { align: 'end' });
-    controller.current.scrollToBottom();
-  }, [controller, events.length, virtualizer]);
+    scrollToBottom();
+  }, [events.length, scrollToBottom, virtualizer]);
 
-  // Bottom-pinned on first data paint
   useLayoutEffect(() => {
     if (events.length > 0 && !hasInitialScrollRef.current) {
       hasInitialScrollRef.current = true;
@@ -83,7 +129,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     }
   }, [events.length, scrollToLatest]);
 
-  // Snap to bottom when new events arrive while pinned
   useLayoutEffect(() => {
     const prevCount = prevEventCountRef.current;
     const added = events.length > prevCount;
@@ -92,7 +137,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       scrollToLatest();
     }
 
-    // Restore scroll anchor after prepending older events
     if (added && wasLoadingOlderRef.current && loadAnchorIdRef.current) {
       const anchorIndex = events.findIndex((e) => e.id === loadAnchorIdRef.current);
       if (anchorIndex >= 0) {
@@ -118,7 +162,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     loadOlderEvents();
   }, [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]);
 
-  // Load older when scrolled near the top of the list
   useEffect(() => {
     const firstVisible = virtualizer.getVirtualItems()[0];
     if (!firstVisible) return;
@@ -140,7 +183,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     }
   }, [controller, purgeOldMessages, tryLoadOlder, virtualizer]);
 
-  // Fill short viewports by loading until scrollable or exhausted
   useEffect(() => {
     const el = scrollParentRef.current;
     if (!el || !hasMoreOlder || isLoadingOlder) return;
@@ -149,24 +191,59 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     }
   }, [events.length, hasMoreOlder, isLoadingOlder, tryLoadOlder]);
 
+  const footer = (
+    <>
+      <EventStreamModal
+        isOpen={isEventStreamOpen}
+        onClose={() => setIsEventStreamOpen(false)}
+        events={(eventsPaginated.results as EventStreamEvent[] | undefined) ?? []}
+        isLoading={
+          isEventStreamOpen &&
+          (eventsPaginated.results === undefined ||
+            eventsPaginated.status === 'LoadingFirstPage')
+        }
+        onLoadMore={() => eventsPaginated.loadMore(20)}
+        hasMore={eventsPaginated.status === 'CanLoadMore'}
+        machines={machines}
+      />
+      <QueuedMessagesIndicator chatroomId={chatroomId as Id<'chatroom_rooms'>} />
+      <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
+        <TimelineLatestEventTicker
+          key={latestEvent?._id}
+          event={latestEvent}
+          onClick={() => setIsEventStreamOpen((prev) => !prev)}
+        />
+        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+          {events.length} EVENTS
+        </span>
+      </div>
+    </>
+  );
+
   if (isLoading && events.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto p-4 min-h-0">
-        <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
-          <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
+            <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+          </div>
         </div>
+        {footer}
       </div>
     );
   }
 
   if (events.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto p-4 min-h-0">
-        <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
-          <MessageSquare size={32} className="mb-4" />
-          <div>No messages yet</div>
-          <div className="text-muted-foreground mt-2">Send a message to get started</div>
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
+            <MessageSquare size={32} className="mb-4" />
+            <div>No messages yet</div>
+            <div className="text-chatroom-text-muted mt-2">Send a message to get started</div>
+          </div>
         </div>
+        {footer}
       </div>
     );
   }
@@ -238,13 +315,15 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
         <button
           type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >
           <ChevronDown size={16} />
           <span className="text-xs font-medium">Jump to new messages</span>
         </button>
       )}
+
+      {footer}
     </div>
   );
 });

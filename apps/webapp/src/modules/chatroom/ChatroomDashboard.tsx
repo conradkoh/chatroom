@@ -36,7 +36,7 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { MessageFeed } from './components/MessageFeed';
+import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 import { ProcessesPanel } from './workspace/components/panels/ProcessesPanel';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
@@ -378,7 +378,7 @@ export function ChatroomDashboard({
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
-  // ─── Scroll controller (shared between MessageFeed and SendForm) ───
+  // ─── Scroll controller (shared between timeline feed and SendForm) ───
   const {
     controller: scrollController,
     isPinned,
@@ -1527,7 +1527,7 @@ export function ChatroomDashboard({
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <MessageFeed
+                    <ChatroomTimelineFeed
                       chatroomId={chatroomId}
                       activeTask={activeTask}
                       controller={scrollController}

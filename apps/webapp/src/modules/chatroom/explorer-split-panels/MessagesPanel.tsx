@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * MessagesPanel — thin wrapper that renders the MessageFeed + SendForm block
+ * MessagesPanel — thin wrapper that renders the timeline feed + SendForm block
  * that appears in the explorer-split right panel.
  *
- * Props mirror the exact props passed to MessageFeed + SendForm in
+ * Props mirror the exact props passed to ChatroomTimelineFeed + SendForm in
  * ChatroomDashboard.tsx's explorer-split branch, grouped into a single typed
  * interface so they can be threaded cleanly through RightSplitPanel.
  */
@@ -14,7 +14,7 @@ import type React from 'react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 
-import { MessageFeed } from '../components/MessageFeed';
+import { ChatroomTimelineFeed } from '../components/timeline/ChatroomTimelineFeed';
 import { MessageInput } from '../components/MessageInput';
 import type { ScrollController } from '../hooks/useScrollController';
 
@@ -56,7 +56,7 @@ export function MessagesPanel({
 }: MessagesPanelProps) {
   return (
     <>
-      <MessageFeed
+      <ChatroomTimelineFeed
         chatroomId={chatroomId}
         activeTask={activeTask}
         controller={controller}
