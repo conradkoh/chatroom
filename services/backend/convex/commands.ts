@@ -226,11 +226,15 @@ export const updateRunTailV2 = mutation({
   },
 });
 
-export const setRunLogObserver = mutation({
+export const controlRunOutputV2 = mutation({
   args: {
     ...SessionIdArg,
     runId: v.id('chatroom_commandRuns'),
-    observing: v.boolean(),
+    action: v.union(
+      v.literal('observe'),
+      v.literal('unobserve'),
+      v.literal('requestFull')
+    ),
   },
   handler: async (ctx, args) => {
     const auth = await requireAuthenticatedUser(ctx, args.sessionId);
@@ -243,27 +247,15 @@ export const setRunLogObserver = mutation({
       permission: 'write-access',
     });
 
-    return await handleSetRunLogObserver(ctx, args);
-  },
-});
-
-export const requestRunOutputFullSync = mutation({
-  args: {
-    ...SessionIdArg,
-    runId: v.id('chatroom_commandRuns'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
-    if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
-
-    await requireAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: run.machineId },
-      permission: 'write-access',
-    });
-
-    await handleRequestRunOutputFullSync(ctx, args);
+    switch (args.action) {
+      case 'observe':
+        return await handleSetRunLogObserver(ctx, { runId: args.runId, observing: true });
+      case 'unobserve':
+        return await handleSetRunLogObserver(ctx, { runId: args.runId, observing: false });
+      case 'requestFull':
+        await handleRequestRunOutputFullSync(ctx, { runId: args.runId });
+        return;
+    }
   },
 });
 

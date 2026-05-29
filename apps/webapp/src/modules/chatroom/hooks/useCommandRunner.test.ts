@@ -3,7 +3,7 @@
  *
  * Covers:
  * - runCommand always dispatches a fresh mutation (no "focus existing" branch)
- * - activeRunOutput is no longer returned (moved to useActiveRunOutput)
+ * - activeRunOutput is no longer returned (moved to useCommandRunOutputV2)
  */
 
 import { act, renderHook } from '@testing-library/react';
@@ -118,7 +118,7 @@ describe('useCommandRunner', () => {
   });
 
   describe('return contract', () => {
-    it('does not include activeRunOutput (moved to useActiveRunOutput)', () => {
+    it('does not include activeRunOutput (moved to useCommandRunOutputV2)', () => {
       const { result } = renderHook(() => useCommandRunner(props));
       expect(result.current).not.toHaveProperty('activeRunOutput');
     });

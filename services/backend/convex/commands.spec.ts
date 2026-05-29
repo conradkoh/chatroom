@@ -389,6 +389,59 @@ describe('reapOrphansForDaemonRestart', () => {
   });
 });
 
+// ─── controlRunOutputV2 tests ───────────────────────────────────────────────
+
+describe('controlRunOutputV2', () => {
+  test('observe increments logObserverCount', async () => {
+    const { sessionId, machineId } = await setupMachine('cro-observe');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    const result = await t.mutation(api.commands.controlRunOutputV2, {
+      sessionId,
+      runId,
+      action: 'observe',
+    });
+
+    expect(result).toEqual({ logObserverCount: 1 });
+
+    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRuns', runId));
+    expect(run?.logObserverCount).toBe(1);
+  });
+
+  test('unobserve decrements logObserverCount', async () => {
+    const { sessionId, machineId } = await setupMachine('cro-unobserve');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.mutation(api.commands.controlRunOutputV2, {
+      sessionId,
+      runId,
+      action: 'observe',
+    });
+
+    const result = await t.mutation(api.commands.controlRunOutputV2, {
+      sessionId,
+      runId,
+      action: 'unobserve',
+    });
+
+    expect(result).toEqual({ logObserverCount: 0 });
+  });
+
+  test('requestFull sets pendingFullOutputSync', async () => {
+    const { sessionId, machineId } = await setupMachine('cro-full');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.mutation(api.commands.controlRunOutputV2, {
+      sessionId,
+      runId,
+      action: 'requestFull',
+    });
+
+    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRuns', runId));
+    expect(run?.pendingFullOutputSync).toBe(true);
+  });
+});
+
 // ─── getRunOutput tests ─────────────────────────────────────────────────────
 
 describe('getRunOutputV2', () => {
