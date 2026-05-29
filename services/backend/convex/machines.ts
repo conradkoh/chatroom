@@ -9,7 +9,6 @@ import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 import { agentHarnessValidator } from './schema';
-import { dedupeRequestStartEvents } from './utils/dedupeRequestStartEvents';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
 import { OBSERVATION_TTL_MS } from '../config/reliability';
@@ -781,7 +780,6 @@ export const getCommandEvents = query({
       .collect();
 
     const requestStartEvents = startEvents.filter((e) => e.type === 'agent.requestStart');
-    const dedupedStartEvents = dedupeRequestStartEvents(requestStartEvents);
 
     // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
     const stopEvents = await ctx.db
@@ -864,7 +862,7 @@ export const getCommandEvents = query({
 
     // 7. Merge and sort by _creationTime ascending
     const all = [
-      ...dedupedStartEvents,
+      ...requestStartEvents,
       ...stopEvents,
       ...pingEvents,
       ...gitRefreshEvents,
