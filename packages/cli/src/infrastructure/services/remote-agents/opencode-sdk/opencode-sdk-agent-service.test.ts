@@ -343,6 +343,7 @@ describe('OpenCodeSdkAgentService', () => {
       expect(abort).toHaveBeenCalledWith({ path: { id: 'sess-1' } });
       expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
       expect(abort.mock.invocationCallOrder[0]).toBeLessThan(kill.mock.invocationCallOrder[0]);
+      expect(store.get('sess-1')).toBeUndefined();
     });
 
     it('proceeds with SIGTERM even if session.abort throws', async () => {
@@ -372,6 +373,7 @@ describe('OpenCodeSdkAgentService', () => {
 
       await expect(service.stop(4321)).resolves.toBeUndefined();
       expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
+      expect(store.get('sess-1')).toBeUndefined();
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });

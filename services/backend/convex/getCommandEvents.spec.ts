@@ -187,8 +187,9 @@ test('getCommandEvents — filters out non-command events (agent.started, task.a
   expect(result.events).toHaveLength(0);
 });
 
-// Test 5b: Dedupes multiple agent.requestStart events per chatroom+role
-test('getCommandEvents — dedupes multiple agent.requestStart events per chatroom+role', async () => {
+// Test 5b: Returns all deadline-valid agent.requestStart events per chatroom+role
+// (daemon kill-then-spawn handles duplicates; backend does not collapse)
+test('getCommandEvents — returns all agent.requestStart events for same chatroom+role', async () => {
   const { sessionId } = await createTestSession('gce-5b');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-5b';
@@ -230,9 +231,9 @@ test('getCommandEvents — dedupes multiple agent.requestStart events per chatro
   });
 
   const startEvents = result.events.filter((e) => e.type === 'agent.requestStart');
-  expect(startEvents).toHaveLength(1);
-  expect(startEvents[0]._id).toBe(newerId);
-  expect(startEvents[0]._id).not.toBe(olderId);
+  expect(startEvents).toHaveLength(2);
+  expect(startEvents.map((e) => e._id)).toContain(olderId);
+  expect(startEvents.map((e) => e._id)).toContain(newerId);
 });
 
 // Test 6: Multiple command events — all returned together
