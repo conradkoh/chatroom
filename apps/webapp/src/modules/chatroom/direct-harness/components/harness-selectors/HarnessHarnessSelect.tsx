@@ -1,5 +1,8 @@
 'use client';
 
+import { SessionResumeBadge } from '../../../components/SessionResumeBadge';
+import { harnessSupportsSessionResume } from '../../../types/machine';
+import type { AgentHarness } from '../../../types/machine';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
 
@@ -27,7 +30,10 @@ export function HarnessHarnessSelect({
         {harnesses.length > 0 ? (
           harnesses.map((h) => (
             <SelectItem key={h.name} value={h.name} className="text-xs">
-              {h.displayName}
+              <span className="flex items-center min-w-0">
+                {h.displayName}
+                {harnessSupportsSessionResume(h.name as AgentHarness) && <SessionResumeBadge />}
+              </span>
             </SelectItem>
           ))
         ) : (
