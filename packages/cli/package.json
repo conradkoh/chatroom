@@ -7,7 +7,7 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun run typecheck && rm -rf dist && bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
+    "build": "bun run typecheck && bun run build.config.ts",
     "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -15,6 +15,7 @@
     "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
+    "@cursor/sdk": "^1.0.15",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",

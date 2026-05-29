@@ -1,6 +1,8 @@
 /**
  * CursorAgentService — concrete RemoteAgentService for the Cursor Agent CLI.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Spawns agents using:
  *   agent -p --force --output-format stream-json [--model <model>]
  *

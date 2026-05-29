@@ -32,6 +32,7 @@ export const AGENT_HARNESSES = [
   'opencode-sdk',
   'pi',
   'cursor',
+  'cursor-sdk',
   'claude',
   'copilot',
   'commandcode',

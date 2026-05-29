@@ -1,6 +1,8 @@
 /**
  * PiAgentService — concrete RemoteAgentService for the Pi CLI runtime.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Encapsulates all interactions with the `pi` CLI: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
  *

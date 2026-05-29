@@ -25,7 +25,16 @@ describe('initHarnessRegistry', () => {
       .map((s) => s.id)
       .sort();
     expect(ids).toEqual(
-      ['claude', 'commandcode', 'copilot', 'cursor', 'opencode', 'opencode-sdk', 'pi'].sort()
+      [
+        'claude',
+        'commandcode',
+        'copilot',
+        'cursor',
+        'cursor-sdk',
+        'opencode',
+        'opencode-sdk',
+        'pi',
+      ].sort()
     );
   });
 });
