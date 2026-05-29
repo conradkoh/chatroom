@@ -1,6 +1,8 @@
 /**
  * CursorSdkAgentService — concrete RemoteAgentService using @cursor/sdk.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Spawns a local Cursor agent via Agent.create + agent.send, streams SDKMessage
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.

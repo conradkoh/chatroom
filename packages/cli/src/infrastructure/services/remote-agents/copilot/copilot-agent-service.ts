@@ -1,6 +1,8 @@
 /**
  * CopilotAgentService — concrete RemoteAgentService for GitHub Copilot CLI.
  *
+ * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
+ *
  * Encapsulates all interactions with GitHub Copilot CLI: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
