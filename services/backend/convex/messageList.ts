@@ -25,7 +25,9 @@ import { enrichMessages } from './messages';
  * The frontend should reverse each page for chronological display.
  *
  * Filters out 'join' and 'progress' message types (display-only types not
- * included in the feed).
+ * included in the feed). Includes `message`, `handoff`, and `new-context` rows —
+ * sufficient for the timeline feed (`useChatroomTimeline`); no separate
+ * listTimelineEvents API is required unless we add non-message event types later.
  *
  * Use with Convex's usePaginatedQuery hook:
  *   usePaginatedQuery(api.messageList.listMessages, { chatroomId, ... }, { initialNumItems: 20 })
