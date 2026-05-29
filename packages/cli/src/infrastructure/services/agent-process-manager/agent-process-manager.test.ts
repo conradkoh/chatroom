@@ -1,10 +1,16 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
+import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
+
+vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
+  trackChildPid: vi.fn(),
+  untrackChildPid: vi.fn(),
+}));
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
@@ -270,6 +276,27 @@ describe('AgentProcessManager', () => {
 
       expect(result).toEqual({ success: true, pid: PID });
       expect(service.spawn).not.toHaveBeenCalled();
+    });
+
+    test('running slot with dead PID: resets to idle and spawns', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+
+      // First kill(pid, 0) in ensureRunning liveness check throws → dead
+      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
+        (_pid: number, signal?: number | string) => {
+          if (signal === 0) {
+            throw new Error('ESRCH');
+          }
+        }
+      );
+
+      const result = await manager.ensureRunning(createOpts());
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(service.spawn).toHaveBeenCalledOnce();
     });
 
     test('concurrent calls: second call awaits the first, does not spawn twice', async () => {
@@ -763,7 +790,7 @@ describe('AgentProcessManager', () => {
   // ── recover ───────────────────────────────────────────────────────────
 
   describe('recover', () => {
-    test('alive PIDs are restored to running state', async () => {
+    test('alive PIDs are killed and cleaned up (not restored as running)', async () => {
       (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 1234, harness: 'opencode' } },
       ]);
@@ -773,11 +800,29 @@ describe('AgentProcessManager', () => {
 
       await manager.recover();
 
+      expect(deps.processes.kill).toHaveBeenCalledWith(1234, 0);
+      expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
+      expect(untrackChildPid).toHaveBeenCalledWith(1234);
+
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot).toBeDefined();
-      expect(slot!.state).toBe('running');
-      expect(slot!.pid).toBe(1234);
-      expect(slot!.harness).toBe('opencode');
+      expect(slot).toBeUndefined();
+
+      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
+        'test-machine',
+        CHATROOM_ID,
+        ROLE
+      );
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          pid: 1234,
+          stopReason: 'daemon.shutdown',
+          agentHarness: 'opencode',
+        })
+      );
     });
 
     test('dead PIDs are cleaned up', async () => {
