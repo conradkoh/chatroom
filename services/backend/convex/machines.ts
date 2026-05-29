@@ -779,6 +779,8 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    const requestStartEvents = startEvents.filter((e) => e.type === 'agent.requestStart');
+
     // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
     const stopEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -860,7 +862,7 @@ export const getCommandEvents = query({
 
     // 7. Merge and sort by _creationTime ascending
     const all = [
-      ...startEvents,
+      ...requestStartEvents,
       ...stopEvents,
       ...pingEvents,
       ...gitRefreshEvents,
@@ -1442,7 +1444,7 @@ export const recordAgentExited = mutation({
       agentHarness: args.agentHarness,
     });
 
-    // 3. Trigger crash recovery (no-op hook for future observability)
+    // 3. Release in-flight tasks on unexpected exit (daemon owns agent restarts)
     await onAgentExited(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,

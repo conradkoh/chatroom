@@ -187,6 +187,55 @@ test('getCommandEvents — filters out non-command events (agent.started, task.a
   expect(result.events).toHaveLength(0);
 });
 
+// Test 5b: Returns all deadline-valid agent.requestStart events per chatroom+role
+// (daemon kill-then-spawn handles duplicates; backend does not collapse)
+test('getCommandEvents — returns all agent.requestStart events for same chatroom+role', async () => {
+  const { sessionId } = await createTestSession('gce-5b');
+  const chatroomId = await createChatroom(sessionId);
+  const machineId = 'machine-gce-5b';
+  await registerMachine(sessionId, machineId);
+
+  const olderId = await t.run(async (ctx) => {
+    return await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStart',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-sonnet-4',
+      workingDir: '/tmp/test',
+      reason: 'test',
+      deadline: Date.now() + 120_000,
+      timestamp: Date.now() - 10_000,
+    });
+  });
+
+  const newerId = await t.run(async (ctx) => {
+    return await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStart',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-sonnet-4',
+      workingDir: '/tmp/test-2',
+      reason: 'test',
+      deadline: Date.now() + 120_000,
+      timestamp: Date.now(),
+    });
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  const startEvents = result.events.filter((e) => e.type === 'agent.requestStart');
+  expect(startEvents).toHaveLength(2);
+  expect(startEvents.map((e) => e._id)).toContain(olderId);
+  expect(startEvents.map((e) => e._id)).toContain(newerId);
+});
+
 // Test 6: Multiple command events — all returned together
 test('getCommandEvents — returns both agent.requestStart and agent.requestStop events together', async () => {
   const { sessionId } = await createTestSession('gce-6');

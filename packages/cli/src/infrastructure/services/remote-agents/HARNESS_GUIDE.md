@@ -302,3 +302,24 @@ Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation t
 | `pi` | CLI (RPC) | `pi/pi-agent-service.ts`, `pi-rpc-reader.ts` |
 | `cursor-sdk` | SDK | `cursor-sdk/cursor-sdk-agent-service.ts`, `cursor-sdk-stream-adapter.ts` |
 | `opencode-sdk` | SDK (server) | `opencode-sdk/opencode-sdk-agent-service.ts`, `session-event-forwarder.ts` |
+
+---
+
+## 9. Kill / replace matrix (requestStart & daemon recovery)
+
+When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProcessManager.killExistingBeforeSpawn` tears down any live agent before spawning. In-memory slots use `doStop` → harness `stop(pid)`; persisted orphans (daemon restart) use `stopPersistedProcess` → harness `stop(pid)` when the harness is known.
+
+| Harness | Tracked PID | Process model | `stop()` behavior | requestStart replace | Persisted orphan |
+|---------|-------------|---------------|-------------------|----------------------|------------------|
+| `opencode` | Direct `opencode` child | Single-shot CLI, detached PG | Base: SIGTERM/SIGKILL group | `doStop` → base stop | `stopPersistedProcess` → base stop |
+| `opencode-sdk` | `opencode serve` server | SDK client in-process + server PG | Override: forwarder stop → `session.abort` → base stop; removes session metadata | `doStop` → override stop | `stopPersistedProcess` → override stop |
+| `pi` | Direct `pi` child | Long-lived RPC, stdin resume | Base group kill; `untrack` clears `childProcesses` | `doStop` → base stop + untrack | `stopPersistedProcess` → base stop |
+| `cursor` | Direct `agent` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
+| `cursor-sdk` | Keeper `node -e …` child | SDK in-process + keeper PG | Override: abort resume wait → `run.cancel` → `agent.close` → base stop | `doStop` → override stop | `stopPersistedProcess` → override stop |
+| `claude` | Direct `claude` child | Single-shot CLI (agentic turns) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
+| `commandcode` | Direct `cmd` child | Long-lived headless (`--max-turns`) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
+| `copilot` | Direct `copilot` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
+
+**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` calls `resumeTurn` instead of kill when `wantResume` is true. A **requestStart replace** always kills via `doStop` regardless of resume state.
+
+**Residual risk (all CLI harnesses):** tool subprocesses that call `setsid` and leave the agent PG may survive group kill — upstream CLI behavior, not fixable in Chatroom alone.

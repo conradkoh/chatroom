@@ -12,6 +12,8 @@
  * Phase 1: standalone, no caller changes. Built and tested in isolation.
  */
 
+import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import { isProcessAlive } from '../../deps/process.js';
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
@@ -168,20 +170,27 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
 
-    // Check current state
-    if (slot.state === 'running') {
-      return { success: true, pid: slot.pid };
-    }
-    if (slot.state === 'spawning' && slot.pendingOperation) {
-      return slot.pendingOperation;
-    }
-    if (slot.state === 'stopping' && slot.pendingOperation) {
-      await slot.pendingOperation;
-      // After stopping completes, proceed to spawn
+    // Stale slot — process died without onExit; reset before kill/spawn
+    if (slot.state === 'running' && slot.pid && !isProcessAlive(this.deps.processes.kill, slot.pid)) {
+      slot.state = 'idle';
+      slot.pid = undefined;
+      slot.harness = undefined;
+      slot.harnessSessionId = undefined;
+      slot.model = undefined;
+      slot.workingDir = undefined;
+      slot.startedAt = undefined;
+      slot.pendingOperation = undefined;
     }
 
-    // Create the spawn operation promise
-    const operation = this.doEnsureRunning(key, slot, opts);
+    if (slot.pendingOperation) {
+      if (slot.state === 'stopping') {
+        await slot.pendingOperation;
+      } else {
+        return slot.pendingOperation;
+      }
+    }
+
+    const operation = this.executeEnsureRunning(key, slot, opts);
     slot.pendingOperation = operation;
 
     return operation;
@@ -426,34 +435,48 @@ export class AgentProcessManager {
       );
     }
 
-    let recovered = 0;
+    let killed = 0;
     let cleaned = 0;
 
     for (const { chatroomId, role, entry } of entries) {
-      const key = agentKey(chatroomId, role);
-      let alive = false;
-      try {
-        this.deps.processes.kill(entry.pid, 0); // Signal 0 = check if alive
-        alive = true;
-      } catch {
-        alive = false;
-      }
+      if (isProcessAlive(this.deps.processes.kill, entry.pid)) {
+        // Stale process from a previous daemon — kill the process group and clear
+        // backend state instead of adopting as "running" (no onExit handlers).
+        await this.stopPersistedProcess(entry.pid, entry.harness);
 
-      if (alive) {
-        this.slots.set(key, {
-          state: 'running',
+        const exitArgs = {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId,
+          role,
           pid: entry.pid,
-          harness: entry.harness,
-          wantResume: true,
+          stopReason: 'daemon.shutdown' as const,
+          exitCode: undefined as number | undefined,
+          signal: undefined as string | undefined,
+          agentHarness: entry.harness,
+        };
+        this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
+          console.log(`   ⚠️  Failed to record agent exit on recovery: ${err.message}`);
+          this.queueExitRetry({ role, args: exitArgs });
         });
-        recovered++;
+
+        try {
+          await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        } catch {
+          // Non-critical
+        }
+        killed++;
       } else {
-        this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        try {
+          await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        } catch {
+          // Non-critical
+        }
         cleaned++;
       }
     }
 
-    console.log(`[AgentProcessManager] Recovery: ${recovered} alive, ${cleaned} cleaned up`);
+    console.log(`[AgentProcessManager] Recovery: ${killed} killed, ${cleaned} cleaned up`);
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -465,6 +488,121 @@ export class AgentProcessManager {
       this.slots.set(key, slot);
     }
     return slot;
+  }
+
+  private async stopPersistedProcess(pid: number, harness: AgentHarness): Promise<void> {
+    const service = this.deps.agentServices.get(harness);
+    if (service) {
+      try {
+        await service.stop(pid);
+        service.untrack(pid);
+      } catch {
+        // Process cleanup is best-effort
+      }
+    } else {
+      try {
+        this.deps.processes.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process may already be dead
+      }
+
+      for (const svc of this.deps.agentServices.values()) {
+        svc.untrack(pid);
+      }
+    }
+
+    untrackChildPid(pid);
+  }
+
+  /**
+   * Kill any live agent process for this chatroom+role before spawning.
+   * Covers in-memory slot PIDs and persisted PIDs (orphans after restart).
+   */
+  private async killExistingBeforeSpawn(chatroomId: string, role: string): Promise<void> {
+    const key = agentKey(chatroomId, role);
+    const slot = this.slots.get(key);
+
+    if (
+      slot?.pid &&
+      isProcessAlive(this.deps.processes.kill, slot.pid) &&
+      (slot.state === 'running' || slot.state === 'spawning')
+    ) {
+      const pid = slot.pid;
+      slot.state = 'stopping';
+      await this.doStop(key, slot, pid, { chatroomId, role, reason: 'daemon.respawn' });
+    }
+
+    let entries: {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness };
+    }[] = [];
+    try {
+      entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
+    } catch {
+      return;
+    }
+
+    const persisted = entries.find(
+      (e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase()
+    );
+    if (!persisted) {
+      return;
+    }
+
+    const { pid, harness } = persisted.entry;
+    if (!isProcessAlive(this.deps.processes.kill, pid)) {
+      try {
+        await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+      } catch {
+        // Non-critical
+      }
+      return;
+    }
+
+    const currentSlot = this.slots.get(key);
+    if (currentSlot?.pid === pid && currentSlot.state !== 'idle') {
+      return;
+    }
+
+    await this.stopPersistedProcess(pid, harness);
+
+    const exitArgs = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId,
+      role,
+      pid,
+      stopReason: 'daemon.respawn' as const,
+      exitCode: undefined as number | undefined,
+      signal: undefined as string | undefined,
+      agentHarness: harness,
+    };
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit before respawn: ${err.message}`);
+      this.queueExitRetry({ role, args: exitArgs });
+    });
+
+    try {
+      await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+    } catch {
+      // Non-critical
+    }
+  }
+
+  private async executeEnsureRunning(
+    key: string,
+    slot: AgentSlot,
+    opts: EnsureRunningOpts
+  ): Promise<OperationResult> {
+    try {
+      await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
+      return await this.doEnsureRunning(key, slot, opts);
+    } finally {
+      if (slot.pendingOperation) {
+        slot.pendingOperation = undefined;
+      }
+    }
   }
 
   /**
@@ -599,16 +737,6 @@ export class AgentProcessManager {
         slot.state = 'idle';
         slot.pendingOperation = undefined;
         return { success: false, error: `Working directory does not exist: ${opts.workingDir}` };
-      }
-
-      // Gate 4: Kill stale process (defensive)
-      if (slot.pid) {
-        try {
-          this.deps.processes.kill(-slot.pid, 'SIGTERM');
-        } catch {
-          // Process may already be dead
-        }
-        slot.pid = undefined;
       }
 
       // Step 5: Fetch init prompt
@@ -780,9 +908,7 @@ export class AgentProcessManager {
         let dead = false;
         for (let i = 0; i < 20; i++) {
           await this.deps.clock.delay(500);
-          try {
-            this.deps.processes.kill(pid, 0);
-          } catch {
+          if (!isProcessAlive(this.deps.processes.kill, pid)) {
             dead = true;
             break;
           }
@@ -797,9 +923,7 @@ export class AgentProcessManager {
 
           for (let i = 0; i < 10; i++) {
             await this.deps.clock.delay(500);
-            try {
-              this.deps.processes.kill(pid, 0);
-            } catch {
+            if (!isProcessAlive(this.deps.processes.kill, pid)) {
               dead = true;
               break;
             }

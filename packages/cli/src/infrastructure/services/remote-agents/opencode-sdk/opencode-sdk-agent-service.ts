@@ -119,6 +119,9 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
           err instanceof Error ? err.message : err
         );
       }
+      // Eager cleanup: doStop may kill before the child exit handler runs; stale
+      // metadata would otherwise block resumeTurn and accumulate on disk.
+      this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }
