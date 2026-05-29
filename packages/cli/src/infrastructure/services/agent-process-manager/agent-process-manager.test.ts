@@ -300,12 +300,12 @@ describe('AgentProcessManager', () => {
       (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: ORPHAN_PID, harness: 'opencode' } },
       ]);
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {});
 
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: PID });
-      expect(deps.processes.kill).toHaveBeenCalledWith(-ORPHAN_PID, 'SIGTERM');
+      const service = deps.agentServices.get('opencode')!;
+      expect(service.stop).toHaveBeenCalledWith(ORPHAN_PID);
       expect(untrackChildPid).toHaveBeenCalledWith(ORPHAN_PID);
       expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
         'test-machine',
@@ -844,7 +844,8 @@ describe('AgentProcessManager', () => {
       await manager.recover();
 
       expect(deps.processes.kill).toHaveBeenCalledWith(1234, 0);
-      expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
+      const service = deps.agentServices.get('opencode')!;
+      expect(service.stop).toHaveBeenCalledWith(1234);
       expect(untrackChildPid).toHaveBeenCalledWith(1234);
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);

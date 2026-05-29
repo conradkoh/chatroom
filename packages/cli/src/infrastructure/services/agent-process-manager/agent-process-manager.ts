@@ -442,12 +442,7 @@ export class AgentProcessManager {
       if (isProcessAlive(this.deps.processes.kill, entry.pid)) {
         // Stale process from a previous daemon — kill the process group and clear
         // backend state instead of adopting as "running" (no onExit handlers).
-        try {
-          this.deps.processes.kill(-entry.pid, 'SIGTERM');
-        } catch {
-          // Process may already be dead
-        }
-        untrackChildPid(entry.pid);
+        await this.stopPersistedProcess(entry.pid, entry.harness);
 
         const exitArgs = {
           sessionId: this.deps.sessionId,
@@ -493,6 +488,30 @@ export class AgentProcessManager {
       this.slots.set(key, slot);
     }
     return slot;
+  }
+
+  private async stopPersistedProcess(pid: number, harness: AgentHarness): Promise<void> {
+    const service = this.deps.agentServices.get(harness);
+    if (service) {
+      try {
+        await service.stop(pid);
+        service.untrack(pid);
+      } catch {
+        // Process cleanup is best-effort
+      }
+    } else {
+      try {
+        this.deps.processes.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process may already be dead
+      }
+
+      for (const svc of this.deps.agentServices.values()) {
+        svc.untrack(pid);
+      }
+    }
+
+    untrackChildPid(pid);
   }
 
   /**
@@ -546,12 +565,7 @@ export class AgentProcessManager {
       return;
     }
 
-    try {
-      this.deps.processes.kill(-pid, 'SIGTERM');
-    } catch {
-      // Process may already be dead
-    }
-    untrackChildPid(pid);
+    await this.stopPersistedProcess(pid, harness);
 
     const exitArgs = {
       sessionId: this.deps.sessionId,
@@ -573,10 +587,6 @@ export class AgentProcessManager {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
     } catch {
       // Non-critical
-    }
-
-    for (const service of this.deps.agentServices.values()) {
-      service.untrack(pid);
     }
   }
 
