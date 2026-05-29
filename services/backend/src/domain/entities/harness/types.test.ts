@@ -14,14 +14,16 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('opencode-sdk supports session resume', () => {
-    expect(getHarnessCapabilities('opencode-sdk')).toEqual({
-      supportsSessionResume: true,
-    });
+  test('opencode-sdk and pi support session resume', () => {
+    for (const harness of ['opencode-sdk', 'pi'] as const) {
+      expect(getHarnessCapabilities(harness)).toEqual({
+        supportsSessionResume: true,
+      });
+    }
   });
 
   test('all other harnesses do not support session resume', () => {
-    const nonResumable = AGENT_HARNESSES.filter((h) => h !== 'opencode-sdk');
+    const nonResumable = AGENT_HARNESSES.filter((h) => h !== 'opencode-sdk' && h !== 'pi');
     for (const harness of nonResumable) {
       expect(getHarnessCapabilities(harness)).toEqual({
         supportsSessionResume: false,
