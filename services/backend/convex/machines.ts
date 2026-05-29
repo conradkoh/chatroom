@@ -1446,7 +1446,7 @@ export const recordAgentExited = mutation({
       agentHarness: args.agentHarness,
     });
 
-    // 3. Trigger crash recovery (no-op hook for future observability)
+    // 3. Release in-flight tasks on unexpected exit (daemon owns agent restarts)
     await onAgentExited(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,

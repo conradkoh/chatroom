@@ -159,6 +159,24 @@ const TRANSITIONS: TransitionRule[] = [
       completedAt: 'NOW',
     },
   },
+
+  // ==========================================================================
+  // AGENT EXIT: release in-flight tasks back to pending (bypass grace period)
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'releaseTaskOnAgentExit',
+    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'releaseTaskOnAgentExit',
+    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+  },
 ];
 
 // ============================================================================
