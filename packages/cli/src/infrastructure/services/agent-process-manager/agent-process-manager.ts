@@ -255,6 +255,10 @@ export class AgentProcessManager {
   }): Promise<void> {
     const capabilities = getHarnessCapabilities(opts.harness);
 
+    console.log(
+      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResume=${opts.wantResume} supportsResume=${capabilities.supportsSessionResume}`
+    );
+
     if (capabilities.supportsSessionResume && opts.harnessSessionId && opts.wantResume) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
@@ -528,6 +532,10 @@ export class AgentProcessManager {
     // Transition: idle → spawning
     slot.state = 'spawning';
     slot.wantResume = opts.wantResume ?? true;
+
+    console.log(
+      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResume=${slot.wantResume} reason=${opts.reason}`
+    );
 
     try {
       // Gate 1: Rate limit check
