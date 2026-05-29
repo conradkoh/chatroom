@@ -7,6 +7,10 @@ export interface SessionMetadata {
   machineId: string;
   chatroomId: string;
   role: string;
+  /** OpenCode agent name used for session.promptAsync (required for resumeTurn). */
+  agentName: string;
+  /** Model id string passed at spawn, if any (e.g. provider/model). */
+  model?: string;
   /** Display title synced from the harness (e.g. opencode session title). */
   title?: string;
   pid: number;

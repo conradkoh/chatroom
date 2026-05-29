@@ -19,6 +19,8 @@ import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -29,6 +31,10 @@ export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
   harness?: AgentHarness;
+  /** Harness-native session ID when supportsSessionResume is true. */
+  harnessSessionId?: string;
+  /** When false, onAgentEnd kills instead of resumeTurn even for resumable harnesses. */
+  wantResume: boolean;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -49,6 +55,8 @@ export interface EnsureRunningOpts {
   model?: string;
   workingDir: string;
   reason: string;
+  /** When false, onAgentEnd kills instead of resumeTurn. Defaults to true. */
+  wantResume?: boolean;
 }
 
 export interface StopOpts {
@@ -237,6 +245,45 @@ export class AgentProcessManager {
     return { success: true };
   }
 
+  private async handleAgentEnd(opts: {
+    chatroomId: string;
+    role: string;
+    pid: number;
+    harness: AgentHarness;
+    wantResume: boolean;
+  }): Promise<void> {
+    const capabilities = getHarnessCapabilities(opts.harness);
+
+    console.log(
+      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResume=${opts.wantResume} supportsResume=${capabilities.supportsSessionResume}`
+    );
+
+    if (capabilities.supportsSessionResume && opts.wantResume) {
+      const service = this.deps.agentServices.get(opts.harness);
+      if (service?.resumeTurn) {
+        try {
+          const resumePrompt = composeResumeMessage({
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            convexUrl: this.deps.convexUrl,
+          });
+          await service.resumeTurn(opts.pid, resumePrompt);
+          return;
+        } catch (err) {
+          console.log(
+            `[AgentProcessManager] ⚠️  resumeTurn failed for ${opts.role} (pid ${opts.pid}): ${(err as Error).message} — falling back to kill`
+          );
+        }
+      }
+    }
+
+    try {
+      this.deps.processes.kill(-opts.pid, 'SIGTERM');
+    } catch {
+      // Process may already be dead
+    }
+  }
+
   async handleExit(opts: HandleExitOpts): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -397,6 +444,7 @@ export class AgentProcessManager {
           state: 'running',
           pid: entry.pid,
           harness: entry.harness,
+          wantResume: true,
         });
         recovered++;
       } else {
@@ -413,7 +461,7 @@ export class AgentProcessManager {
   private getOrCreateSlot(key: string): AgentSlot {
     let slot = this.slots.get(key);
     if (!slot) {
-      slot = { state: 'idle' };
+      slot = { state: 'idle', wantResume: true };
       this.slots.set(key, slot);
     }
     return slot;
@@ -482,6 +530,11 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     // Transition: idle → spawning
     slot.state = 'spawning';
+    slot.wantResume = opts.wantResume ?? true;
+
+    console.log(
+      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResume=${slot.wantResume} reason=${opts.reason}`
+    );
 
     try {
       // Gate 1: Rate limit check
@@ -615,6 +668,7 @@ export class AgentProcessManager {
       slot.state = 'running';
       slot.pid = pid;
       slot.harness = opts.agentHarness;
+      slot.harnessSessionId = spawnResult.harnessSessionId;
       slot.model = opts.model;
       slot.workingDir = opts.workingDir;
       slot.startedAt = this.deps.clock.now();
@@ -662,11 +716,13 @@ export class AgentProcessManager {
       // Register agent-end handler
       if (spawnResult.onAgentEnd) {
         spawnResult.onAgentEnd(() => {
-          try {
-            this.deps.processes.kill(-pid, 'SIGTERM');
-          } catch {
-            // Process may already be dead
-          }
+          void this.handleAgentEnd({
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+            wantResume: slot.wantResume,
+          });
         });
       }
 

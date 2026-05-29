@@ -41,8 +41,27 @@ export class PiAgentService extends BaseCLIAgentService {
   readonly displayName = 'Pi';
   readonly command = PI_COMMAND;
 
+  /** Child processes by PID — needed for resumeTurn stdin writes. */
+  private readonly childProcesses = new Map<number, ChildProcess>();
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
+  }
+
+  override untrack(pid: number): void {
+    this.childProcesses.delete(pid);
+    super.untrack(pid);
+  }
+
+  async resumeTurn(pid: number, prompt: string): Promise<void> {
+    const child = this.childProcesses.get(pid);
+    if (!child?.stdin) {
+      throw new Error(`No tracked pi process or stdin for pid=${pid}`);
+    }
+    const message = JSON.stringify({ type: 'prompt', message: prompt }) + '\n';
+    await new Promise<void>((resolve, reject) => {
+      child.stdin!.write(message, (err) => (err ? reject(err) : resolve()));
+    });
   }
 
   async isInstalled(): Promise<boolean> {
@@ -127,6 +146,8 @@ export class PiAgentService extends BaseCLIAgentService {
 
     const pid = childProcess.pid;
     const context = options.context;
+
+    this.childProcesses.set(pid, childProcess);
 
     // Register in process registry
     const entry = this.registerProcess(pid, context);
@@ -226,6 +247,7 @@ export class PiAgentService extends BaseCLIAgentService {
         pid,
         onExit: (cb) => {
           childProcess.on('exit', (code, signal) => {
+            this.childProcesses.delete(pid);
             this.deleteProcess(pid);
             cb({ code, signal, context });
           });
@@ -251,6 +273,7 @@ export class PiAgentService extends BaseCLIAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
+          this.childProcesses.delete(pid);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });

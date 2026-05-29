@@ -15,8 +15,10 @@ export {
   composeSystemPrompt,
   composeInitMessage,
   composeInitPrompt,
+  composeResumeMessage,
   // Types
   type GeneralInstructionsInput,
+  type ComposeResumeMessageParams,
   type RolePromptContext,
   type InitPromptInput,
   type ComposedInitPrompt,

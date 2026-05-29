@@ -414,6 +414,39 @@ describe('PiAgentService', () => {
       expect(parsed.message.trim()).toBeTruthy();
     });
 
+    it('resumeTurn writes prompt JSON to stdin', async () => {
+      const child = makeChildProcess(77);
+      const writeWithCallback = vi.fn((_data: string, cb?: (err?: Error | null) => void) => {
+        cb?.();
+      });
+      child.stdin.write = writeWithCallback;
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('initial'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      writeWithCallback.mockClear();
+      await service.resumeTurn(77, 'resume message');
+
+      expect(writeWithCallback).toHaveBeenCalledOnce();
+      const written = writeWithCallback.mock.calls[0][0] as string;
+      const parsed = JSON.parse(written.trim()) as { type: string; message: string };
+      expect(parsed).toEqual({ type: 'prompt', message: 'resume message' });
+    });
+
+    it('resumeTurn throws when no tracked process', async () => {
+      const service = new PiAgentService(createMockDeps());
+      await expect(service.resumeTurn(999, 'prompt')).rejects.toThrow(
+        'No tracked pi process or stdin for pid=999'
+      );
+    });
+
     it('passes system prompt as CLI flag (no shell escaping needed)', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);

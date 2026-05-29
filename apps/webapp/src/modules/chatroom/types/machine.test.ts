@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   HARNESS_DISPLAY_NAMES,
   getHarnessDisplayName,
+  harnessSupportsSessionResume,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
 } from './machine';
@@ -66,4 +67,20 @@ describe('isCursorSdkHarness', () => {
     expect(isCursorSdkHarness('cursor')).toBe(false);
     expect(isCursorSdkHarness('opencode-sdk')).toBe(false);
   });
+});
+
+describe('harnessSupportsSessionResume', () => {
+  it.each(['opencode-sdk', 'cursor-sdk', 'pi'] as const)(
+    'returns true for resumable harness "%s"',
+    (harness) => {
+      expect(harnessSupportsSessionResume(harness)).toBe(true);
+    }
+  );
+
+  it.each(['opencode', 'cursor', 'commandcode'] as const)(
+    'returns false for non-resumable harness "%s"',
+    (harness) => {
+      expect(harnessSupportsSessionResume(harness)).toBe(false);
+    }
+  );
 });

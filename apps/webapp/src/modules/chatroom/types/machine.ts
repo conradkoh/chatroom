@@ -17,6 +17,7 @@ import type {
   AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
+import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
 
 export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
 
@@ -93,6 +94,11 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
 /** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
 export function getHarnessDisplayName(harness: string): string {
   return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
+}
+
+/** Whether the harness supports resuming the agent session after agent_end. */
+export function harnessSupportsSessionResume(harness: AgentHarness): boolean {
+  return getHarnessCapabilities(harness).supportsSessionResume;
 }
 
 /** Check if a harness is the OpenCode SDK harness. */
