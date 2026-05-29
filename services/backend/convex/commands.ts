@@ -13,13 +13,22 @@ import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
 
-import { handleRunCommand, handleStopCommand, handleAppendOutput, handleUpdateRunTail } from './commands/mutations';
+import {
+  handleRunCommand,
+  handleStopCommand,
+  handleAppendOutput,
+  handleUpdateRunTailV2,
+  handleSetRunLogObserver,
+  handleRequestRunOutputFullSync,
+  handleClearPendingFullOutputSync,
+} from './commands/mutations';
 import {
   handleListCommands,
   handleListActiveRuns,
-  handleListRuns,
-  handleGetRunOutput,
+  handleListRunsV2,
+  handleGetRunOutputV2,
   handleGetRunStatus,
+  handleListRunsWithLogObservers,
 } from './commands/queries';
 import { syncCommands as handleSyncCommands } from './commands/process/sync';
 import {
@@ -83,7 +92,6 @@ export const runCommand = mutation({
       permission: 'write-access',
     });
 
-    // Security: Verify the command exists in the synced commands for this workspace.
     const existingCmd = await ctx.db
       .query('chatroom_runnableCommands')
       .withIndex('by_machine_workingDir', (q) =>
@@ -187,7 +195,7 @@ export const appendOutput = mutation({
   },
 });
 
-export const updateRunTail = mutation({
+export const updateRunTailV2 = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -198,6 +206,7 @@ export const updateRunTail = mutation({
       byteLength: v.number(),
       totalBytesWritten: v.number(),
       updatedAt: v.number(),
+      lineCount: v.number(),
     }),
   },
   handler: async (ctx, args) => {
@@ -213,7 +222,71 @@ export const updateRunTail = mutation({
         message: 'Not authorized for this machine',
       });
 
-    await handleUpdateRunTail(ctx, args);
+    await handleUpdateRunTailV2(ctx, args);
+  },
+});
+
+export const setRunLogObserver = mutation({
+  args: {
+    ...SessionIdArg,
+    runId: v.id('chatroom_commandRuns'),
+    observing: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: run.machineId },
+      permission: 'write-access',
+    });
+
+    return await handleSetRunLogObserver(ctx, args);
+  },
+});
+
+export const requestRunOutputFullSync = mutation({
+  args: {
+    ...SessionIdArg,
+    runId: v.id('chatroom_commandRuns'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: run.machineId },
+      permission: 'write-access',
+    });
+
+    await handleRequestRunOutputFullSync(ctx, args);
+  },
+});
+
+export const clearPendingFullOutputSync = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    runId: v.id('chatroom_commandRuns'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
+
+    await handleClearPendingFullOutputSync(ctx, args);
   },
 });
 
@@ -257,7 +330,7 @@ export const listActiveRuns = query({
   },
 });
 
-export const listRuns = query({
+export const listRunsV2 = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -272,21 +345,22 @@ export const listRuns = query({
       permission: 'write-access',
     });
 
-    return await handleListRuns(ctx, args);
+    return await handleListRunsV2(ctx, args);
   },
 });
 
-export const getRunOutput = query({
+export const getRunOutputV2 = query({
   args: {
     ...SessionIdArg,
     runId: v.id('chatroom_commandRuns'),
+    loadFull: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { chunks: [], run: null };
+    if (!auth.ok) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
     const run = await ctx.db.get('chatroom_commandRuns', args.runId);
-    if (!run) return { chunks: [], run: null };
+    if (!run) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -294,7 +368,7 @@ export const getRunOutput = query({
       permission: 'write-access',
     });
 
-    return await handleGetRunOutput(ctx, args);
+    return await handleGetRunOutputV2(ctx, args);
   },
 });
 
@@ -319,6 +393,28 @@ export const getRunStatus = query({
     });
 
     return await handleGetRunStatus(ctx, args);
+  },
+});
+
+export const listRunsWithLogObservers = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const ownerCheck = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+    if (!ownerCheck.ok)
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED_MACHINE',
+        message: 'Not authorized for this machine',
+      });
+
+    return await handleListRunsWithLogObservers(ctx, args);
   },
 });
 

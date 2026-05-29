@@ -89,6 +89,9 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
               onStop={handleStop}
               onRunAgain={handleRunAgain}
               onClose={handleClose}
+              onLoadMore={inlineCommand.loadMore}
+              canLoadMore={inlineCommand.canLoadMore}
+              fullOutputPending={inlineCommand.fullOutputPending}
             />
           )}
         </DialogPrimitive.Content>

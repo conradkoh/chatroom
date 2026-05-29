@@ -16,17 +16,25 @@ import { useInlineCommandOutput } from './useInlineCommandOutput';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: vi.fn(() => vi.fn().mockResolvedValue(undefined)),
+}));
+
 vi.mock('./useActiveRunOutput', () => ({
   useActiveRunOutput: vi.fn((activeRunId: string | null) => {
-    if (!activeRunId) return { chunks: [], run: null };
+    if (!activeRunId) {
+      return { chunks: [], run: null, canLoadMore: false, fullOutputPending: false };
+    }
     return {
-      chunks: [{ content: 'hello' }],
+      chunks: [{ content: 'hello', chunkIndex: 0, timestamp: 0 }],
       run: {
         _id: activeRunId,
         commandName: 'test',
         status: 'running',
         script: 'pnpm test',
       },
+      canLoadMore: true,
+      fullOutputPending: false,
     };
   }),
 }));
@@ -148,7 +156,7 @@ describe('useInlineCommandOutput', () => {
 
       // No modal visible initially
       expect(result.current.commandName).toBeNull();
-      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null);
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null, { loadFull: false });
     });
 
     it('subscribes to useActiveRunOutput when modal is visible', async () => {
@@ -161,7 +169,7 @@ describe('useInlineCommandOutput', () => {
       expect(result.current.commandName).toBe('dev');
       // After run(), commandName is non-null so the hook passes
       // commandRunner.activeRunId (which is 'run-id-123') to useActiveRunOutput
-      expect(useActiveRunOutput).toHaveBeenLastCalledWith('run-id-123');
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith('run-id-123', { loadFull: false });
     });
 
     it('unsubscribes when modal is detached', async () => {
@@ -176,7 +184,7 @@ describe('useInlineCommandOutput', () => {
       });
 
       expect(result.current.commandName).toBeNull();
-      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null);
+      expect(useActiveRunOutput).toHaveBeenLastCalledWith(null, { loadFull: false });
     });
   });
 });

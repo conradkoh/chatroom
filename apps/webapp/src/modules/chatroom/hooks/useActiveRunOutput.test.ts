@@ -19,7 +19,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     commands: {
-      getRunOutput: 'getRunOutput',
+      getRunOutputV2: 'getRunOutputV2',
     },
   },
 }));
@@ -57,7 +57,7 @@ describe('useActiveRunOutput', () => {
 
   it('skips query when activeRunId is null', () => {
     renderHook(() => useActiveRunOutput(null));
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getRunOutput', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('getRunOutputV2', 'skip');
   });
 
   it('returns empty chunks while decoding in progress (no flash)', async () => {
@@ -65,6 +65,7 @@ describe('useActiveRunOutput', () => {
       run: { status: 'running', _id: 'run-1' },
       tail: { compression: 'gzip', content: 'H4sIAAAAAAAA...', updatedAt: 1000, totalBytesWritten: 500 },
       chunks: [],
+      fullOutputPending: false,
     });
 
     const { result } = renderHook(() => useActiveRunOutput('run-1'));
@@ -82,6 +83,7 @@ describe('useActiveRunOutput', () => {
         run: { status: 'running', _id: 'run-1' },
         tail: { compression: 'gzip', content: 'H4sIAAAAAAAAE8tIzcnJVyjPL8pJAQCFEUoNCwAAAA==', updatedAt: 1000, totalBytesWritten: 500 },
         chunks: [],
+        fullOutputPending: false,
       });
 
       const { result } = renderHook(() => useActiveRunOutput('run-1'));
@@ -102,6 +104,7 @@ describe('useActiveRunOutput', () => {
         run: { status: 'running', _id: 'run-1' },
         tail: tail1,
         chunks: [],
+        fullOutputPending: false,
       });
 
       const { result, rerender } = renderHook(() => useActiveRunOutput('run-1'));
@@ -116,6 +119,7 @@ describe('useActiveRunOutput', () => {
         run: { status: 'running', _id: 'run-1' },
         tail: { ...tail1, updatedAt: 2000, content: 'H4sIAAAAAAAAE8tIzcnJVyjPz0nJqQQAj6bk/g8AAAA==' },
         chunks: [],
+        fullOutputPending: false,
       });
 
       rerender();
@@ -135,6 +139,7 @@ describe('useActiveRunOutput', () => {
           { content: encodedHello, chunkIndex: 0, timestamp: 1000 },
           { content: encodedWorld, chunkIndex: 1, timestamp: 1001 },
         ],
+        fullOutputPending: false,
       });
 
       const { result } = renderHook(() => useActiveRunOutput('run-2'));
@@ -157,6 +162,7 @@ describe('useActiveRunOutput', () => {
         chunks: [
           { content: 'legacy plain text', chunkIndex: 0, timestamp: 1000 },
         ],
+        fullOutputPending: false,
       });
 
       const { result } = renderHook(() => useActiveRunOutput('run-3'));

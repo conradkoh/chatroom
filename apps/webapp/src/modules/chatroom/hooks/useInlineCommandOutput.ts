@@ -1,6 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 
 import type { CommandRun } from '../features/run-command/types/run';
 import { useActiveRunOutput } from './useActiveRunOutput';
@@ -11,95 +14,92 @@ const MAX_OUTPUT_LINES = 1000;
 
 /** Reactive state for an inline command output panel (lifted from parent) */
 export interface InlineCommandState {
-  /** The command name currently showing output (null if no output panel is visible) */
   commandName: string | null;
-  /** The script of the current command (needed for "run again") */
   script: string | null;
-  /** Whether the command is currently running */
   isRunning: boolean;
-  /** The status of the active run (null if no active run) */
   status: CommandRun['status'] | null;
-  /** The termination reason if the run was killed (null if not applicable) */
   terminationReason: string | null;
-  /** Output lines from the active run */
   output: string[];
-  /** Start or restart a command by name and script */
   run: (commandName: string, script: string) => void;
-  /** Stop the currently running command (explicit kill — for Stop button only) */
   stop: () => void;
-  /**
-   * Attach the UI panel to an existing run (e.g. after page reload or panel detach).
-   * Sets the active run WITHOUT dispatching a new mutation.
-   */
   attach: (runId: string, commandName: string, script: string) => void;
-  /**
-   * Detach the UI panel from the current command WITHOUT stopping the process.
-   * Use for dialog/panel close gestures. The command continues running in the background.
-   */
   detach: () => void;
-  /** Close the output panel (stop + clear state). Kept for backward compatibility — prefer detach() for panel-close gestures. */
   close: () => void;
+  /** Request full log file sync from daemon (active runs only). */
+  loadMore: () => Promise<void>;
+  canLoadMore: boolean;
+  fullOutputPending: boolean;
 }
 
-/**
- * Hook that manages inline command output state directly from reactive Convex data.
- *
- * The `getRunOutput` subscription is demand-driven: it's skipped when no output
- * modal is visible (`commandName === null`). Convex's client-side query dedup
- * means multiple consumers of the same `runId` share one backend subscription.
- *
- * @param commandRunner - The command runner hook return value from useCommandRunner
- */
 export function useInlineCommandOutput(
   commandRunner: ReturnType<typeof useCommandRunner>
 ): InlineCommandState {
   const [commandName, setCommandName] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
+  const [loadFull, setLoadFull] = useState(false);
 
-  // Subscribe only when the output modal is actually visible (commandName non-null)
-  const activeRunOutput = useActiveRunOutput(
-    commandName !== null ? commandRunner.activeRunId : null
-  );
+  const activeRunId = commandName !== null ? commandRunner.activeRunId : null;
 
-  // Derive isRunning, status, terminationReason, and output directly from reactive Convex state (no closures)
+  const activeRunOutput = useActiveRunOutput(activeRunId, { loadFull });
+  const setLogObserver = useSessionMutation(api.commands.setRunLogObserver);
+  const requestFullSync = useSessionMutation(api.commands.requestRunOutputFullSync);
+
+  useEffect(() => {
+    if (!activeRunId || commandName === null) return;
+
+    void setLogObserver({ runId: activeRunId as any, observing: true });
+    return () => {
+      void setLogObserver({ runId: activeRunId as any, observing: false });
+    };
+  }, [activeRunId, commandName, setLogObserver]);
+
+  useEffect(() => {
+    if (commandName === null) {
+      setLoadFull(false);
+    }
+  }, [commandName]);
+
   const isRunning = activeRunOutput.run?.status === 'running';
   const status = activeRunOutput.run?.status ?? null;
   const terminationReason = activeRunOutput.run?.terminationReason ?? null;
   const output = activeRunOutput.chunks
     .map((c) => c.content)
+    .join('')
+    .split('\n')
     .slice(-MAX_OUTPUT_LINES);
+
+  const loadMore = useCallback(async () => {
+    if (!activeRunId) return;
+    setLoadFull(true);
+    await requestFullSync({ runId: activeRunId as any });
+  }, [activeRunId, requestFullSync]);
 
   const run = useCallback(
     (name: string, scriptStr: string) => {
       setCommandName(name);
       setScript(scriptStr);
-      // runCommand handles "already running" case by reusing the existing run
+      setLoadFull(false);
       commandRunner.runCommand(name, scriptStr);
     },
     [commandRunner.runCommand]
   );
 
   const stop = useCallback(() => {
-    // Use CURRENT activeRunId (not closure-captured) to avoid targeting stale runs
     if (commandRunner.activeRunId) {
       commandRunner.stopCommand(commandRunner.activeRunId);
     }
   }, [commandRunner.activeRunId, commandRunner.stopCommand]);
 
-  /** Detach the UI panel without killing the process. */
   const detach = useCallback(() => {
     setCommandName(null);
     setScript(null);
   }, []);
 
-  /**
-   * Attach the UI panel to an existing run (e.g. after page reload or detach).
-   * Does NOT dispatch a new mutation — just rehydrates the panel state.
-   */
   const attach = useCallback(
     (runId: string, cmdName: string, scriptStr: string) => {
       setCommandName(cmdName);
       setScript(scriptStr);
+      setLoadFull(false);
       commandRunner.setActiveRunId(runId);
     },
     [commandRunner.setActiveRunId]
@@ -123,5 +123,8 @@ export function useInlineCommandOutput(
     attach,
     detach,
     close,
+    loadMore,
+    canLoadMore: activeRunOutput.canLoadMore || (!loadFull && isRunning),
+    fullOutputPending: activeRunOutput.fullOutputPending,
   };
 }

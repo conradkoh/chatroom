@@ -4,7 +4,9 @@ vi.mock('../../../../../api.js', () => ({
   api: {
     commands: {
       appendOutput: 'mock-appendOutput',
-      updateRunTail: 'mock-updateRunTail',
+      updateRunTailV2: 'mock-updateRunTailV2',
+      listRunsWithLogObservers: 'mock-listRunsWithLogObservers',
+      clearPendingFullOutputSync: 'mock-clearPendingFullOutputSync',
       updateRunStatus: 'mock-updateRunStatus',
     },
   },
@@ -21,6 +23,12 @@ vi.mock('./output-store.js', () => ({
   createOutputStore: vi.fn(),
   ensureTempDir: vi.fn().mockResolvedValue(undefined),
   TAIL_WINDOW_BYTES: 32 * 1024,
+  MAX_TAIL_LINES_V2: 50,
+}));
+
+vi.mock('./log-observer-sync.js', () => ({
+  isRunLogObserved: vi.fn(() => true),
+  consumePendingFullSync: vi.fn(() => false),
 }));
 
 import type { DaemonContext } from '../../types.js';
@@ -90,6 +98,12 @@ function createMockStore(initialContent = '') {
       content: inMemory,
       totalBytes,
     })),
+    getLastNLines: vi.fn().mockImplementation(async (n: number) => {
+      const lines = inMemory.split('\n');
+      const slice = lines.slice(-n);
+      const content = slice.join('\n');
+      return { content, totalBytes: content.length, lineCount: slice.length };
+    }),
     getFullOutput: vi.fn().mockImplementation(async () => inMemory),
     destroy: vi.fn().mockResolvedValue(undefined),
     _setContent: (content: string) => {
@@ -156,7 +170,7 @@ describe('spawnCommandProcess — new output flow', () => {
     };
   }
 
-  it('calls updateRunTail on every flush interval, not appendOutput during run', async () => {
+  it('calls updateRunTailV2 on flush when observed, not appendOutput during run', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
@@ -172,7 +186,7 @@ describe('spawnCommandProcess — new output flow', () => {
     await vi.advanceTimersByTimeAsync(3_500);
 
     const tailCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
-      (c: any) => c[0] === 'mock-updateRunTail'
+      (c: any) => c[0] === 'mock-updateRunTailV2'
     );
     expect(tailCalls.length).toBeGreaterThanOrEqual(1);
 

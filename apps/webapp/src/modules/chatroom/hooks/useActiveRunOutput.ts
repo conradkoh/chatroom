@@ -1,10 +1,8 @@
 /**
- * useActiveRunOutput — demand-driven subscription for command run output.
+ * useActiveRunOutput — demand-driven subscription for command run output (V2).
  *
- * Each consumer independently calls this hook when it needs live output.
- * Convex deduplicates identical queries client-side, so multiple consumers
- * subscribing to the same `runId` cause only one backend subscription.
- * When all consumers unmount (or pass `null`), the query unsubscribes.
+ * Tail sync is observer-gated on the daemon; this hook pairs with setRunLogObserver.
+ * Pass loadFull: true after requestRunOutputFullSync to receive flushed chunks.
  */
 
 'use client';
@@ -34,13 +32,20 @@ interface DecodedChunk {
   timestamp: number;
 }
 
-export function useActiveRunOutput(activeRunId: string | null) {
-  const raw = useSessionQuery(
-    api.commands.getRunOutput,
-    activeRunId ? { runId: activeRunId as any } : 'skip'
-  ) as { run: any; tail: any; chunks: any[] } | undefined;
+export function useActiveRunOutput(
+  activeRunId: string | null,
+  options?: { loadFull?: boolean }
+) {
+  const loadFull = options?.loadFull ?? false;
 
-  const result = raw ?? { run: null, tail: null, chunks: [] };
+  const raw = useSessionQuery(
+    api.commands.getRunOutputV2,
+    activeRunId ? { runId: activeRunId as any, loadFull } : 'skip'
+  ) as
+    | { run: any; tail: any; chunks: any[]; fullOutputPending: boolean }
+    | undefined;
+
+  const result = raw ?? { run: null, tail: null, chunks: [], fullOutputPending: false };
 
   const [decodedChunks, setDecodedChunks] = useState<DecodedChunk[]>([]);
   const decodeIdRef = useRef(0);
@@ -62,16 +67,8 @@ export function useActiveRunOutput(activeRunId: string | null) {
     (async () => {
       const decoded: DecodedChunk[] = [];
 
-      const t = result.tail as RawTail | null;
-      if (t) {
-        try {
-          const text = await decodeOutputBrowser(t);
-          decoded.push({ chunkIndex: 0, content: text, timestamp: t.updatedAt });
-        } catch {
-          decoded.push({ chunkIndex: 0, content: t.content, timestamp: t.updatedAt });
-        }
-      } else {
-        const rc = result.chunks as RawChunk[];
+      const rc = result.chunks as RawChunk[];
+      if (rc.length > 0) {
         for (const c of rc) {
           try {
             const text = await decodeOutputBrowser(c.content);
@@ -81,6 +78,16 @@ export function useActiveRunOutput(activeRunId: string | null) {
             decoded.push({ chunkIndex: c.chunkIndex, content: fallback, timestamp: c.timestamp });
           }
         }
+      } else {
+        const t = result.tail as RawTail | null;
+        if (t) {
+          try {
+            const text = await decodeOutputBrowser(t);
+            decoded.push({ chunkIndex: 0, content: text, timestamp: t.updatedAt });
+          } catch {
+            decoded.push({ chunkIndex: 0, content: t.content, timestamp: t.updatedAt });
+          }
+        }
       }
 
       if (!cancelled && id === decodeIdRef.current) {
@@ -88,8 +95,23 @@ export function useActiveRunOutput(activeRunId: string | null) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [decodeKey]);
 
-  return { run: result.run, chunks: decodedChunks };
+  const isActive =
+    result.run?.status === 'running' || result.run?.status === 'pending';
+
+  const canLoadMore =
+    isActive &&
+    !loadFull &&
+    (result.run?.tailOutput?.totalBytesWritten ?? result.tail?.totalBytesWritten ?? 0) > 0;
+
+  return {
+    run: result.run,
+    chunks: decodedChunks,
+    fullOutputPending: result.fullOutputPending,
+    canLoadMore,
+  };
 }
