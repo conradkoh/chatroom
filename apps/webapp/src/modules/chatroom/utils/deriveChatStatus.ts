@@ -7,7 +7,7 @@ export interface AgentPresence {
 
 /**
  * Derives sidebar chat status from chatroom lifecycle and agent presence.
- * Agents blocked on get-next-task with no other activity are treated as idle.
+ * Online alive agents blocked on get-next-task are active (running), not idle.
  */
 export function deriveChatStatus(
   chatroomStatus: 'active' | 'completed',
@@ -25,9 +25,7 @@ export function deriveChatStatus(
   const hasWorking = onlineAgents.some(
     (a) => a.lastSeenAction && a.lastSeenAction !== 'get-next-task:started'
   );
-  const allWaiting = onlineAgents.every((a) => a.lastSeenAction === 'get-next-task:started');
 
   if (hasWorking) return 'working';
-  if (allWaiting) return 'idle';
   return 'active';
 }

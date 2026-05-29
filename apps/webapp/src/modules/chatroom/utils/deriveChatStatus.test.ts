@@ -22,13 +22,13 @@ describe('deriveChatStatus', () => {
     );
   });
 
-  it('returns idle when all online agents are waiting on get-next-task', () => {
+  it('returns active when all online agents are waiting on get-next-task', () => {
     expect(
       deriveChatStatus('active', [
         agent({ lastSeenAction: 'get-next-task:started' }),
         agent({ lastSeenAction: 'get-next-task:started' }),
       ])
-    ).toBe('idle');
+    ).toBe('active');
   });
 
   it('returns working when an agent has a non-wait action', () => {
