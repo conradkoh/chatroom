@@ -8,8 +8,6 @@ import type { SDKMessage } from '@cursor/sdk';
 type AgentEndCallback = () => void;
 type OutputCallback = () => void;
 
-const TERMINAL_STATUS = new Set(['FINISHED', 'ERROR', 'CANCELLED']);
-
 export class CursorSdkStreamAdapter {
   private readonly agentEndCallbacks: AgentEndCallback[] = [];
   private readonly outputCallbacks: OutputCallback[] = [];
@@ -41,9 +39,8 @@ export class CursorSdkStreamAdapter {
         break;
       case 'status':
         process.stdout.write(`${this.logPrefix} status: ${message.status}]\n`);
-        if (TERMINAL_STATUS.has(message.status)) {
-          this.emitAgentEnd();
-        }
+        // Terminal statuses are logged only; agent_end is emitted from finish()
+        // after run.wait() so resumeTurn is not invoked mid-stream.
         break;
       case 'thinking':
         process.stdout.write(`${this.logPrefix} thinking] ${message.text}\n`);
@@ -58,7 +55,12 @@ export class CursorSdkStreamAdapter {
     }
   }
 
-  /** Call when the run completes (after stream + wait). */
+  /** Flush buffered assistant text without emitting agent_end. */
+  flushPendingOutput(): void {
+    this.flushText();
+  }
+
+  /** Call when the run completes successfully (after stream + wait). */
   finish(): void {
     this.flushText();
     this.emitAgentEnd();
