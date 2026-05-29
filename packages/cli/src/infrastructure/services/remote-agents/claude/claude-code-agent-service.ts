@@ -21,6 +21,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from './claude-models.js';
 import { ClaudeStreamReader } from './claude-stream-reader.js';
 
 export type ClaudeCodeAgentServiceDeps = CLIAgentServiceDeps;
@@ -56,10 +57,9 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    // Claude Code doesn't have a built-in model listing command.
-    // Return the known supported models.
-    // Full list: https://docs.anthropic.com/en/docs/about-claude/models/overview
-    return ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-opus-4-6'];
+    const dynamic = await fetchClaudeModels();
+    if (dynamic) return dynamic;
+    return [...CLAUDE_FALLBACK_MODELS];
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
