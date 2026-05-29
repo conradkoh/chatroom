@@ -13,10 +13,10 @@ import type { DaemonContext } from '../types.js';
  * Delegates to AgentProcessManager.recover() which:
  * - Reads locally persisted PIDs from disk
  * - Verifies each is still alive (kill(pid, 0))
- * - Creates running slots for alive agents
+ * - Kills alive stale process groups (SIGTERM to -pid) and records exit
  * - Clears dead agent PIDs from disk
  *
- * After recovery, registers workspaces for alive agents via the backend
+ * After recovery, registers workspaces for any active agents via the backend
  * workspace registry (fire-and-forget mutations).
  *
  * Finally, performs orphan turn cleanup: any harness sessions owned by

@@ -22,6 +22,7 @@ import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-ag
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
+import { trackChildPid, untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -342,7 +343,8 @@ export class AgentProcessManager {
       // Non-critical
     }
 
-    // Untrack in agent services
+    // Untrack in agent services and orphan tracker
+    untrackChildPid(opts.pid);
     for (const service of this.deps.agentServices.values()) {
       service.untrack(opts.pid);
     }
@@ -426,11 +428,10 @@ export class AgentProcessManager {
       );
     }
 
-    let recovered = 0;
+    let killed = 0;
     let cleaned = 0;
 
     for (const { chatroomId, role, entry } of entries) {
-      const key = agentKey(chatroomId, role);
       let alive = false;
       try {
         this.deps.processes.kill(entry.pid, 0); // Signal 0 = check if alive
@@ -440,20 +441,48 @@ export class AgentProcessManager {
       }
 
       if (alive) {
-        this.slots.set(key, {
-          state: 'running',
+        // Stale process from a previous daemon — kill the process group and clear
+        // backend state instead of adopting as "running" (no onExit handlers).
+        try {
+          this.deps.processes.kill(-entry.pid, 'SIGTERM');
+        } catch {
+          // Process may already be dead
+        }
+        untrackChildPid(entry.pid);
+
+        const exitArgs = {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId,
+          role,
           pid: entry.pid,
-          harness: entry.harness,
-          wantResume: true,
+          stopReason: 'daemon.shutdown' as const,
+          exitCode: undefined as number | undefined,
+          signal: undefined as string | undefined,
+          agentHarness: entry.harness,
+        };
+        this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
+          console.log(`   ⚠️  Failed to record agent exit on recovery: ${err.message}`);
+          this.queueExitRetry({ role, args: exitArgs });
         });
-        recovered++;
+
+        try {
+          await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        } catch {
+          // Non-critical
+        }
+        killed++;
       } else {
-        this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        try {
+          await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        } catch {
+          // Non-critical
+        }
         cleaned++;
       }
     }
 
-    console.log(`[AgentProcessManager] Recovery: ${recovered} alive, ${cleaned} cleaned up`);
+    console.log(`[AgentProcessManager] Recovery: ${killed} killed, ${cleaned} cleaned up`);
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -661,6 +690,8 @@ export class AgentProcessManager {
 
       const { pid } = spawnResult;
 
+      trackChildPid(pid);
+
       // Track spawn
       this.deps.spawning.recordSpawn(opts.chatroomId);
 
@@ -819,6 +850,8 @@ export class AgentProcessManager {
     slot.pid = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
+
+    untrackChildPid(pid);
 
     // Emit agent.exited to backend (fire-and-forget)
     const exitArgs3 = {

@@ -1,10 +1,19 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
+  trackChildPid,
+  untrackChildPid,
+} from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
+
+vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
+  trackChildPid: vi.fn(),
+  untrackChildPid: vi.fn(),
+}));
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
@@ -124,6 +133,7 @@ describe('AgentProcessManager', () => {
         PID,
         'opencode'
       );
+      expect(trackChildPid).toHaveBeenCalledWith(PID);
     });
 
     test('onAgentEnd calls resumeTurn instead of kill for resumable harness', async () => {
@@ -621,6 +631,8 @@ describe('AgentProcessManager', () => {
         expect(service.spawn).toHaveBeenCalledTimes(2); // original + restart
       });
 
+      expect(untrackChildPid).toHaveBeenCalledWith(PID);
+
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('running');
       expect(slot!.pid).toBe(100);
@@ -763,7 +775,7 @@ describe('AgentProcessManager', () => {
   // ── recover ───────────────────────────────────────────────────────────
 
   describe('recover', () => {
-    test('alive PIDs are restored to running state', async () => {
+    test('alive PIDs are killed and cleaned up (not restored as running)', async () => {
       (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 1234, harness: 'opencode' } },
       ]);
@@ -773,11 +785,29 @@ describe('AgentProcessManager', () => {
 
       await manager.recover();
 
+      expect(deps.processes.kill).toHaveBeenCalledWith(1234, 0);
+      expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
+      expect(untrackChildPid).toHaveBeenCalledWith(1234);
+
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot).toBeDefined();
-      expect(slot!.state).toBe('running');
-      expect(slot!.pid).toBe(1234);
-      expect(slot!.harness).toBe('opencode');
+      expect(slot).toBeUndefined();
+
+      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
+        'test-machine',
+        CHATROOM_ID,
+        ROLE
+      );
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          pid: 1234,
+          stopReason: 'daemon.shutdown',
+          agentHarness: 'opencode',
+        })
+      );
     });
 
     test('dead PIDs are cleaned up', async () => {
