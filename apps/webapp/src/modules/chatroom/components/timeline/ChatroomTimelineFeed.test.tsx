@@ -68,6 +68,7 @@ const scrollController = {
   attach: vi.fn(),
   detach: vi.fn(),
   isPinned: true,
+  isAtBottom: vi.fn(() => false),
   onNewMessages: vi.fn(),
   scrollToBottom: vi.fn(),
   snapToBottom: vi.fn(),
@@ -141,14 +142,20 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     timelineIsLoadingOlder = false;
   });
 
-  it('enables end-anchored chat virtualizer options without followOnAppend', () => {
+  it('enables end-anchored chat virtualizer with followOnAppend only when pinned', () => {
     renderFeed(true);
-    const options = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
+    const pinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
-      followOnAppend?: boolean;
+      followOnAppend?: boolean | 'auto';
     };
-    expect(options.anchorTo).toBe('end');
-    expect(options.followOnAppend).toBe(false);
+    expect(pinnedOptions.anchorTo).toBe('end');
+    expect(pinnedOptions.followOnAppend).toBe('auto');
+
+    renderFeed(false);
+    const unpinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
+      followOnAppend?: boolean | 'auto';
+    };
+    expect(unpinnedOptions.followOnAppend).toBe(false);
   });
 
   it('uses stable getItemKey across parent re-renders', () => {
@@ -230,7 +237,52 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
 
+  it('follows tail on append when at bottom even if isPinned prop is false', () => {
+    vi.mocked(scrollController.isAtBottom).mockReturnValue(true);
+    Object.defineProperty(scrollController, 'isPinned', { value: false, configurable: true });
+
+    const { rerender } = renderFeed(false);
+
+    mockScrollToEnd.mockClear();
+    scrollController.snapToBottom.mockClear();
+
+    timelineEvents = [
+      ...baseEvents,
+      {
+        id: 'evt-3',
+        kind: 'team_message',
+        creationTime: 300,
+        message: {
+          _id: 'evt-3',
+          type: 'message',
+          senderRole: 'builder',
+          content: 'New reply',
+          _creationTime: 300,
+        },
+      },
+    ];
+
+    rerender(
+      <ChatroomTimelineFeed
+        chatroomId="room-1"
+        controller={
+          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
+        }
+        isPinned={false}
+      />
+    );
+
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    expect(scrollController.snapToBottom).toHaveBeenCalled();
+
+    Object.defineProperty(scrollController, 'isPinned', { value: true, configurable: true });
+    vi.mocked(scrollController.isAtBottom).mockReturnValue(false);
+  });
+
   it('does not auto-scroll when scrolled up and shows jump chip', () => {
+    vi.mocked(scrollController.isAtBottom).mockReturnValue(false);
+    Object.defineProperty(scrollController, 'isPinned', { value: false, configurable: true });
+
     const { rerender } = renderFeed(false);
 
     mockScrollToEnd.mockClear();

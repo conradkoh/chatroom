@@ -113,6 +113,11 @@ export class ScrollController {
     return this.pinned;
   }
 
+  /** Whether the scroll container is within the bottom threshold. */
+  isAtBottom(): boolean {
+    return this.computeIsAtBottom();
+  }
+
   /**
    * Called when new messages arrive (from useLayoutEffect).
    *
@@ -246,7 +251,7 @@ export class ScrollController {
   }
 
   /** Check whether the scroll container is at the bottom (within threshold) */
-  private isAtBottom(): boolean {
+  private computeIsAtBottom(): boolean {
     if (!this.el) return false;
     const { scrollTop, scrollHeight, clientHeight } = this.el;
     return scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
@@ -269,7 +274,7 @@ export class ScrollController {
       this.userScrollTimeout = null;
 
       // After the user stops scrolling, sync pinned state with position
-      const atBottom = this.isAtBottom();
+      const atBottom = this.computeIsAtBottom();
       if (!atBottom && this.pinned) {
         this.pinned = false;
         this.onPinnedChange(false);
@@ -284,13 +289,20 @@ export class ScrollController {
    * Handle scroll event — sync pin state from position (scrollbar drags, smooth scroll end).
    */
   private handleScrollEvent = (): void => {
-    if (this.userScrolling || this.programmaticScroll) return;
+    if (this.programmaticScroll) return;
 
-    const atBottom = this.isAtBottom();
+    const atBottom = this.computeIsAtBottom();
+
+    // Re-pin as soon as the user reaches the bottom (including during wheel/touch scroll).
     if (atBottom && !this.pinned) {
       this.pinned = true;
       this.onPinnedChange(true);
-    } else if (!atBottom && this.pinned) {
+      return;
+    }
+
+    if (this.userScrolling) return;
+
+    if (!atBottom && this.pinned) {
       this.pinned = false;
       this.onPinnedChange(false);
     }

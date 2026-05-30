@@ -99,9 +99,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     overscan: TIMELINE_OVERSCAN,
     scrollMargin: topChromeHeight,
     getItemKey: (index) => getTimelineItemKey(index, events),
-    // Chat-style anchoring: stable scroll when prepending history; pinned append handled below.
+    // Chat-style anchoring: stable scroll when prepending history; tail follow when pinned.
     anchorTo: 'end',
-    followOnAppend: false,
+    followOnAppend: isPinned ? 'auto' : false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
 
@@ -176,7 +176,11 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
             scrollToLatest('auto');
             loadOlderIntentRef.current = 'preserve_position';
           }
-        } else if (isPinned) {
+        } else if (
+          isPinned ||
+          controller.current.isPinned ||
+          controller.current.isAtBottom()
+        ) {
           scrollToLatest('auto');
         }
       }
