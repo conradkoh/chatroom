@@ -117,9 +117,24 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     [controller]
   );
 
+  /**
+   * Scroll to the latest events.
+   * - `follow` — pinned tail follow / initial load (DOM snap + virtualizer; stable as rows measure in).
+   * - `jump` — user clicked "Jump to new messages" while scrolled up (virtualizer only; avoids desync).
+   */
   const scrollToLatest = useCallback(
-    (behavior: 'auto' | 'smooth' = 'auto') => {
+    (behavior: 'auto' | 'smooth' = 'auto', mode: 'follow' | 'jump' = 'follow') => {
       if (events.length === 0) return;
+
+      if (mode === 'jump') {
+        controller.current.pinToEnd();
+        virtualizer.scrollToEnd({ behavior });
+        requestAnimationFrame(() => {
+          virtualizer.scrollToEnd({ behavior: 'auto' });
+        });
+        return;
+      }
+
       controller.current.snapToBottom();
       virtualizer.scrollToEnd({ behavior });
       requestAnimationFrame(() => {
@@ -358,7 +373,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       {!isPinned && (
         <button
           type="button"
-          onClick={() => scrollToLatest('smooth')}
+          onClick={() => scrollToLatest('smooth', 'jump')}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >

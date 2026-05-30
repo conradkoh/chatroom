@@ -139,7 +139,19 @@ export class ScrollController {
     }
   }
 
-  /** Pin the feed and snap to the bottom immediately (for virtualized feeds). */
+  /**
+   * Mark the feed as pinned without changing scroll position.
+   * Use with a virtualizer-owned scroll (e.g. `scrollToEnd`) so DOM scroll and
+   * virtual item range stay in sync.
+   */
+  pinToEnd(): void {
+    if (!this.pinned) {
+      this.pinned = true;
+      this.onPinnedChange(true);
+    }
+  }
+
+  /** Pin the feed and snap to the bottom immediately (non-virtualized feeds). */
   snapToBottom(): void {
     this.pinned = true;
     this.onPinnedChange(true);
@@ -204,7 +216,7 @@ export class ScrollController {
   /** Process the pending action (called via rAF) */
   private processQueue(): void {
     if (this.pendingSnap && this.pinned && this.el) {
-      this.el.scrollTop = this.el.scrollHeight;
+      this.el.scrollTop = this.getMaxScrollTop();
     }
 
     this.pendingSnap = false;
@@ -214,8 +226,13 @@ export class ScrollController {
   /** Immediately set scrollTop to bottom (synchronous, for useLayoutEffect) */
   private snapImmediate(): void {
     if (this.el) {
-      this.el.scrollTop = this.el.scrollHeight;
+      this.el.scrollTop = this.getMaxScrollTop();
     }
+  }
+
+  private getMaxScrollTop(): number {
+    if (!this.el) return 0;
+    return Math.max(0, this.el.scrollHeight - this.el.clientHeight);
   }
 
   private runProgrammaticScroll(action: () => void): void {

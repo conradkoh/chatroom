@@ -71,6 +71,7 @@ const scrollController = {
   onNewMessages: vi.fn(),
   scrollToBottom: vi.fn(),
   snapToBottom: vi.fn(),
+  pinToEnd: vi.fn(),
 };
 
 const baseEvents: TimelineEvent[] = [
@@ -135,7 +136,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     scrollController.attach.mockClear();
     scrollController.detach.mockClear();
     scrollController.onNewMessages.mockClear();
-    scrollController.snapToBottom.mockClear();
+    scrollController.pinToEnd.mockClear();
     timelineEvents = [...baseEvents];
     timelineIsLoadingOlder = false;
   });
@@ -187,7 +188,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();
     scrollController.onNewMessages.mockClear();
-    scrollController.snapToBottom.mockClear();
+    scrollController.pinToEnd.mockClear();
     timelineEvents = [...baseEvents];
     timelineIsLoadingOlder = false;
   });
@@ -268,13 +269,24 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     const user = userEvent.setup();
     renderFeed(false);
 
+    // Flush initial `follow` scroll rAFs so they do not count toward the jump assertion.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
     mockScrollToEnd.mockClear();
+    scrollController.pinToEnd.mockClear();
     scrollController.snapToBottom.mockClear();
 
     await user.click(screen.getByRole('button', { name: 'Jump to new messages' }));
 
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(scrollController.pinToEnd).toHaveBeenCalled();
+    expect(scrollController.snapToBottom).not.toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
-    expect(scrollController.snapToBottom).toHaveBeenCalled();
   });
 
   it('preserves scroll position when loading older messages near top', () => {
