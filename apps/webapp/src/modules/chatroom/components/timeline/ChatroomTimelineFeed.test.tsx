@@ -308,6 +308,40 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 });
 
+describe('ChatroomTimelineFeed purge behavior', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
+    timelineEvents = buildEvents(80);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('re-snaps tail after prepended history is purged while pinned', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    setScrollPinned(true);
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
+    mockScrollToEnd.mockClear();
+
+    timelineEvents = buildEvents(80).slice(35);
+
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(followTail).toHaveBeenCalled();
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    followTail.mockRestore();
+  });
+});
+
 describe('ChatroomTimelineFeed tail follow on send', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;

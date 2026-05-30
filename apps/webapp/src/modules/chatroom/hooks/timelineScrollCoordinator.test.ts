@@ -103,6 +103,27 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
+  it('re-snaps tail after purge shrinks the list while pinned', () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 80,
+      tailKey: 'evt-79',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+    Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 45,
+      tailKey: 'evt-79',
+      isLoadingOlder: false,
+    });
+
+    expect(scrollToEnd).toHaveBeenCalled();
+    expect(el.scrollTop).toBe(maxScrollTop());
+  });
+
   it('does not follow when count grows from prepend while loading older', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,

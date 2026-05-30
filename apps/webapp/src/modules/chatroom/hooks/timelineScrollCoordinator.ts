@@ -201,9 +201,16 @@ export class TimelineScrollCoordinator {
     };
 
     const countIncreased = eventCount > this.prevEventCount;
+    const countDecreased = eventCount < this.prevEventCount;
     const tailChanged =
       tailKey !== null && tailKey !== this.prevTailKey && this.prevTailKey !== null;
     const isPrependWhileLoadingOlder = countIncreased && this.wasLoadingOlder;
+    const isPurgeShrink =
+      countDecreased &&
+      !tailChanged &&
+      tailKey !== null &&
+      tailKey === this.prevTailKey &&
+      this.pinned;
 
     if (eventCount > 0 && !this.hasInitialScroll) {
       this.hasInitialScroll = true;
@@ -226,6 +233,10 @@ export class TimelineScrollCoordinator {
         this.followTail('auto');
       }
 
+      this.prevScrollHeight = scrollEl.scrollHeight;
+    } else if (scrollEl && isPurgeShrink) {
+      // Dropping prepended rows leaves scroll offset past the new range — re-pin tail.
+      this.followTail('auto');
       this.prevScrollHeight = scrollEl.scrollHeight;
     } else if (scrollEl) {
       this.prevScrollHeight = scrollEl.scrollHeight;
