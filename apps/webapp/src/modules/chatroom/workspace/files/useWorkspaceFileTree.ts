@@ -14,6 +14,8 @@ export interface UseWorkspaceFileTreeArgs {
   machineId: string;
   workingDir: string;
   enabled?: boolean;
+  /** Include directories in entries (for @ autocomplete). Default false. */
+  includeDirectories?: boolean;
 }
 
 export interface UseWorkspaceFileTreeResult {
@@ -28,12 +30,13 @@ export function useWorkspaceFileTree({
   machineId,
   workingDir,
   enabled = true,
+  includeDirectories = false,
 }: UseWorkspaceFileTreeArgs): UseWorkspaceFileTreeResult {
   const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
   const lastRefreshAtRef = useRef<number | null>(null);
 
   const treeResult = useFileTree(enabled ? { machineId, workingDir } : 'skip');
-  const entries = useFileEntries(enabled ? treeResult : null);
+  const entries = useFileEntries(enabled ? treeResult : null, { includeDirectories });
 
   const refresh = useCallback(() => {
     if (!enabled) return;

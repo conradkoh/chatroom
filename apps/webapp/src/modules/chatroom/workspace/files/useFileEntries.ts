@@ -7,15 +7,22 @@ interface TreeResult {
   treeJson: string | null;
 }
 
-/** Parse a file tree result into an array of FileEntry items (files only). */
-export function useFileEntries(treeResult: TreeResult | null | undefined): FileEntry[] {
+/** Parse a file tree result into FileEntry items. */
+export function useFileEntries(
+  treeResult: TreeResult | null | undefined,
+  options?: { includeDirectories?: boolean }
+): FileEntry[] {
   return useMemo(() => {
     if (!treeResult?.treeJson) return [];
     try {
       const tree = JSON.parse(treeResult.treeJson);
-      return ((tree.entries ?? []) as FileEntry[]).filter((e) => e.type === 'file');
+      const entries = (tree.entries ?? []) as FileEntry[];
+      if (options?.includeDirectories) {
+        return entries.filter((e) => e.type === 'file' || e.type === 'directory');
+      }
+      return entries.filter((e) => e.type === 'file');
     } catch {
       return [];
     }
-  }, [treeResult?.treeJson]);
+  }, [treeResult?.treeJson, options?.includeDirectories]);
 }
