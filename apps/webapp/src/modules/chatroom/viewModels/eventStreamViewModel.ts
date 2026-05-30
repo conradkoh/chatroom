@@ -1,6 +1,6 @@
 /**
  * Shared types and utilities for the event stream feature.
- * Used by both MessageFeed and EventStreamModal.
+ * Used by ChatroomTimelineFeed and EventStreamModal.
  */
 
 // ─── Event Type Name Union ───────────────────────────────────────────────────

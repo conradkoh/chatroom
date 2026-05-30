@@ -4,7 +4,7 @@
  * RightSplitPanel — the right side of the explorer-split view.
  *
  * Contains a header with a mode dropdown that switches between:
- *   • Messages (MessageFeed + SendForm)
+ *   • Messages (ChatroomTimelineFeed + SendForm)
  *   • Direct Harness (session browser/composer)
  *
  * Mode is persisted per chatroom via useExplorerSplitPanelMode.

@@ -36,7 +36,7 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { MessageFeed } from './components/MessageFeed';
+import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 import { ProcessesPanel } from './workspace/components/panels/ProcessesPanel';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
@@ -378,11 +378,10 @@ export function ChatroomDashboard({
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
-  // ─── Scroll controller (shared between MessageFeed and SendForm) ───
+  // ─── Scroll controller (shared between timeline feed and SendForm) ───
   const {
     controller: scrollController,
     isPinned,
-    scrollToBottom,
     beginResize,
     endResize,
   } = useScrollController();
@@ -651,10 +650,6 @@ export function ChatroomDashboard({
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamLifecycle | null | undefined;
-
-  const activeTask = useSessionQuery(api.tasks.getActiveTask, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId);
@@ -1506,10 +1501,8 @@ export function ChatroomDashboard({
                         chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
                       }
                       messagesPanelProps={{
-                        activeTask,
                         controller: scrollController,
                         isPinned,
-                        scrollToBottom,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
@@ -1527,12 +1520,10 @@ export function ChatroomDashboard({
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <MessageFeed
+                    <ChatroomTimelineFeed
                       chatroomId={chatroomId}
-                      activeTask={activeTask}
                       controller={scrollController}
                       isPinned={isPinned}
-                      scrollToBottom={scrollToBottom}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       machines={machineNameMap}
                     />

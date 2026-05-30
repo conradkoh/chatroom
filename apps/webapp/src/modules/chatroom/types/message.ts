@@ -3,7 +3,7 @@ import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine'
 import type { ArtifactMeta } from '../components/ArtifactRenderer';
 
 // ─── Shared message types ──────────────────────────────────────────────────────
-// Used by both useMessageStore (hook) and MessageFeed (component) to ensure a
+// Used by useMessages and ChatroomTimelineFeed to ensure a
 // single source of truth for message shapes flowing through the cursor-based
 // loading pipeline.
 
