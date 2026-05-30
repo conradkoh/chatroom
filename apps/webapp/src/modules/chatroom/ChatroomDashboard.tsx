@@ -51,9 +51,8 @@ import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
-import { useActiveRunOutput } from './hooks/useActiveRunOutput';
+import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useCommandRunner } from './hooks/useCommandRunner';
-import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
@@ -738,13 +737,10 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  // Demand-driven: subscribe to output only when a UI surface is showing it.
-  // Convex deduplicates identical queries, so multiple consumers of the same
-  // `runId` share one backend subscription.  When neither surface is visible,
-  // the query is skipped entirely — no reactive push from the backend.
-  const activeRunOutput = useActiveRunOutput(
-    activeView === 'processes' || terminalOpen ? commandRunner.activeRunId : null
-  );
+  // Single demand-driven output subscription for processes panel, terminal, and palette.
+  const { activeRunOutput, palette: inlineCommand } = useCommandRunOutputV2(commandRunner, {
+    panelOutputVisible: activeView === 'processes' || terminalOpen,
+  });
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
@@ -1071,11 +1067,7 @@ export function ChatroomDashboard({
     [commandRunner]
   );
 
-  // Ref to store output subscriber callback for inline command output
-  // Inline command output — direct reactive state (no closures, no stale refs)
-  const inlineCommand = useInlineCommandOutput(commandRunner);
-
-  // Detach inline command output when switching chatrooms (don't kill the process).
+  // Detach palette output when switching chatrooms (don't kill the process).
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {

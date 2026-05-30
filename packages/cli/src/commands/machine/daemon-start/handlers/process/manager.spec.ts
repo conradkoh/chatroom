@@ -10,6 +10,7 @@ function makeMockProcess(overrides: Partial<RunningProcess> = {}): RunningProces
     store: {
       append: vi.fn().mockResolvedValue(undefined),
       getTail: vi.fn().mockReturnValue({ content: '', totalBytes: 0 }),
+      getLastNLines: vi.fn().mockResolvedValue({ content: '', totalBytes: 0, lineCount: 0 }),
       getFullOutput: vi.fn().mockResolvedValue(''),
       destroy: vi.fn().mockResolvedValue(undefined),
     },

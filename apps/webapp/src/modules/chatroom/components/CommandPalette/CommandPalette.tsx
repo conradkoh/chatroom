@@ -21,14 +21,14 @@ import {
 } from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
-import type { InlineCommandState } from '@/modules/chatroom/hooks/useInlineCommandOutput';
+import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import type { CommandItem } from './types';
 import { CommandOutputModal } from './CommandOutputModal';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
-  /** Inline command output state (lifted from parent via useInlineCommandOutput) */
-  inlineCommand: InlineCommandState;
+  /** Command palette output state (lifted from parent via useCommandRunOutputV2) */
+  inlineCommand: CommandPaletteOutputState;
 }
 
 /**
