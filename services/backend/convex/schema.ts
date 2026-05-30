@@ -1999,6 +1999,7 @@ export default defineSchema({
       byteLength: v.number(),        // decompressed byte length of the tail window
       totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
       updatedAt: v.number(),
+      lineCount: v.optional(v.number()), // V2: lines included in tail (max 50) — optional for backward compat
     })),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
