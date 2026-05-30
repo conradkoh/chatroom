@@ -68,6 +68,7 @@ const scrollController = {
   detach: vi.fn(),
   isPinned: true,
   scrollToBottom: vi.fn(),
+  snapToBottom: vi.fn(),
 };
 
 const mockEvents: TimelineEvent[] = [
@@ -104,7 +105,6 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
     hasMoreOlder: false,
     isLoadingOlder: false,
     loadOlderEvents: vi.fn(),
-    purgeOldMessages: vi.fn(),
   }),
 }));
 

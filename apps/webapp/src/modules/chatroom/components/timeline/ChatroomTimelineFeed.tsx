@@ -33,7 +33,6 @@ import {
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
-  TIMELINE_PURGE_INDEX_THRESHOLD,
 } from './timelineVirtualizerConfig';
 
 export interface ChatroomTimelineFeedProps {
@@ -51,29 +50,22 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   activeTask: _activeTask,
   controller,
   isPinned,
-  scrollToBottom,
+  scrollToBottom: _scrollToBottomUnused,
   onRegisterOpenEventStream,
   machines,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
+  const topChromeRef = useRef<HTMLDivElement>(null);
   const prevEventCountRef = useRef(0);
   const wasLoadingOlderRef = useRef(false);
   const loadAnchorIdRef = useRef<string | null>(null);
   const hasInitialScrollRef = useRef(false);
-  // Tracks the previous isLoadingOlder value to detect load completion and
-  // suppress auto-load for one render cycle while the virtualizer settles.
-  const prevIsLoadingOlderRef = useRef(false);
+  const [topChromeHeight, setTopChromeHeight] = useState(0);
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
-  const {
-    events,
-    isLoading,
-    hasMoreOlder,
-    isLoadingOlder,
-    loadOlderEvents,
-    purgeOldMessages,
-  } = useChatroomTimeline(chatroomId);
+  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
+    useChatroomTimeline(chatroomId);
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
   useHandoffNotification(messagesForNotify, chatroomId);
@@ -104,6 +96,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => TIMELINE_ESTIMATE_SIZE,
     overscan: TIMELINE_OVERSCAN,
+    scrollMargin: topChromeHeight,
     getItemKey: (index) => getTimelineItemKey(index, events),
   });
 
@@ -121,9 +114,26 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
 
   const scrollToLatest = useCallback(() => {
     if (events.length === 0) return;
-    virtualizer.scrollToIndex(events.length - 1, { align: 'end' });
-    scrollToBottom();
-  }, [events.length, scrollToBottom, virtualizer]);
+    const lastIndex = events.length - 1;
+    controller.current.snapToBottom();
+    virtualizer.scrollToIndex(lastIndex, { align: 'end' });
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(lastIndex, { align: 'end' });
+      controller.current.snapToBottom();
+    });
+  }, [controller, events.length, virtualizer]);
+
+  const scrollToAnchor = useCallback(
+    (anchorId: string) => {
+      const anchorIndex = events.findIndex((e) => e.id === anchorId);
+      if (anchorIndex < 0) return;
+      virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      });
+    },
+    [events, virtualizer]
+  );
 
   useLayoutEffect(() => {
     if (events.length > 0 && !hasInitialScrollRef.current) {
@@ -135,22 +145,20 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   useLayoutEffect(() => {
     const prevCount = prevEventCountRef.current;
     const added = events.length > prevCount;
+    const wasLoadingOlder = wasLoadingOlderRef.current;
 
-    if (added && isPinned && !wasLoadingOlderRef.current) {
+    if (added && isPinned && !wasLoadingOlder) {
       scrollToLatest();
     }
 
-    if (added && wasLoadingOlderRef.current && loadAnchorIdRef.current) {
-      const anchorIndex = events.findIndex((e) => e.id === loadAnchorIdRef.current);
-      if (anchorIndex >= 0) {
-        virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
-      }
+    if (added && wasLoadingOlder && loadAnchorIdRef.current) {
+      scrollToAnchor(loadAnchorIdRef.current);
       loadAnchorIdRef.current = null;
     }
 
     prevEventCountRef.current = events.length;
     wasLoadingOlderRef.current = isLoadingOlder;
-  }, [events, isLoadingOlder, isPinned, scrollToLatest, virtualizer]);
+  }, [events, isLoadingOlder, isPinned, scrollToAnchor, scrollToLatest]);
 
   useEffect(() => {
     wasLoadingOlderRef.current = isLoadingOlder;
@@ -159,27 +167,13 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const tryLoadOlder = useCallback(() => {
     if (!hasMoreOlder || isLoadingOlder) return;
     const firstVisible = virtualizer.getVirtualItems()[0];
-    if (firstVisible) {
-      loadAnchorIdRef.current = events[firstVisible.index]?.id ?? null;
-    }
+    const anchorId =
+      firstVisible !== undefined
+        ? events[firstVisible.index]?.id
+        : (events[0]?.id ?? null);
+    loadAnchorIdRef.current = anchorId;
     loadOlderEvents();
   }, [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]);
-
-  useEffect(() => {
-    // After a load completes the virtualizer hasn't re-measured scroll position yet
-    // (scrollToIndex runs in useLayoutEffect but virtualizer.getVirtualItems() reflects
-    // the pre-scroll state in this render).  Skip this one cycle so we don't
-    // immediately queue another load while the anchor scroll is still settling.
-    const justCompletedLoad = prevIsLoadingOlderRef.current && !isLoadingOlder;
-    prevIsLoadingOlderRef.current = isLoadingOlder;
-    if (justCompletedLoad) return;
-
-    const firstVisible = virtualizer.getVirtualItems()[0];
-    if (!firstVisible) return;
-    if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
-      tryLoadOlder();
-    }
-  }, [isLoadingOlder, tryLoadOlder, virtualizer.range, virtualizer]);
 
   const handleScroll = useCallback(() => {
     const firstVisible = virtualizer.getVirtualItems()[0];
@@ -188,11 +182,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
       tryLoadOlder();
     }
-
-    if (controller.current.isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
-      purgeOldMessages(firstVisible.index);
-    }
-  }, [controller, purgeOldMessages, tryLoadOlder, virtualizer]);
+  }, [tryLoadOlder, virtualizer]);
 
   useEffect(() => {
     const el = scrollParentRef.current;
@@ -201,6 +191,17 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       tryLoadOlder();
     }
   }, [events.length, hasMoreOlder, isLoadingOlder, tryLoadOlder]);
+
+  const canLoadMore = hasMoreOlder && !isLoadingOlder;
+
+  useLayoutEffect(() => {
+    const chrome = topChromeRef.current;
+    if (!chrome) {
+      setTopChromeHeight(0);
+      return;
+    }
+    setTopChromeHeight(chrome.offsetHeight);
+  }, [canLoadMore, hasMoreOlder, isLoadingOlder]);
 
   const footer = (
     <>
@@ -260,7 +261,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   }
 
   const virtualItems = virtualizer.getVirtualItems();
-  const canLoadMore = hasMoreOlder && !isLoadingOlder;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
@@ -270,27 +270,29 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         data-testid="chatroom-timeline-scroll"
       >
-        {canLoadMore && (
-          <button
-            type="button"
-            onClick={tryLoadOlder}
-            className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors"
-          >
-            <ChevronUp size={12} />
-            Load older messages
-          </button>
-        )}
-        {!hasMoreOlder && (
-          <div className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
-            Beginning of conversation
-          </div>
-        )}
-        {isLoadingOlder && (
-          <div className="w-full py-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
-            Loading...
-          </div>
-        )}
+        <div ref={topChromeRef}>
+          {canLoadMore && (
+            <button
+              type="button"
+              onClick={tryLoadOlder}
+              className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors"
+            >
+              <ChevronUp size={12} />
+              Load older messages
+            </button>
+          )}
+          {!hasMoreOlder && (
+            <div className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
+              Beginning of conversation
+            </div>
+          )}
+          {isLoadingOlder && (
+            <div className="w-full py-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+              Loading...
+            </div>
+          )}
+        </div>
 
         <div
           style={{
@@ -325,7 +327,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       {!isPinned && (
         <button
           type="button"
-          onClick={scrollToBottom}
+          onClick={scrollToLatest}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >

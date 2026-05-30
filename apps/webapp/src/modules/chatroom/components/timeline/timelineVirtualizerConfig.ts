@@ -8,9 +8,6 @@ export const TIMELINE_OVERSCAN = 5;
 /** Load older history when the first visible row is within this index of the top. */
 export const TIMELINE_LOAD_OLDER_INDEX_THRESHOLD = 2;
 
-/** Purge distant history when the first visible index exceeds this (while pinned). */
-export const TIMELINE_PURGE_INDEX_THRESHOLD = 50;
-
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);
 }
