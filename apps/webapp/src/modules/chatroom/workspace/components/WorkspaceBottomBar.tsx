@@ -31,7 +31,7 @@ import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { InlineDiffStat } from './shared';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
-import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
+import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
 import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
 
 import {
@@ -155,6 +155,8 @@ interface DerivedGitInfo {
   diffStat: { filesChanged: number; insertions: number; deletions: number };
   /** CI/CD status for the current branch head commit. */
   headCommitStatus: CommitStatusSummary | null;
+  commitsAhead: number;
+  commitsBehind: number;
 }
 
 function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): DerivedGitInfo {
@@ -169,6 +171,8 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
     ? gitState.diffStat
     : { filesChanged: 0, insertions: 0, deletions: 0 };
   const headCommitStatus = (isAvailable ? gitState.headCommitStatus : null) ?? null;
+  const commitsAhead = isAvailable ? gitState.commitsAhead : 0;
+  const commitsBehind = isAvailable ? gitState.commitsBehind : 0;
 
   const hasPR = openPullRequests.length > 0;
   const branchDisplay = isAvailable
@@ -196,6 +200,8 @@ function useDerivedGitInfo(workspace: WorkspaceWithMachine, isLocal: boolean): D
     openPullRequests,
     diffStat,
     headCommitStatus,
+    commitsAhead,
+    commitsBehind,
   };
 }
 
@@ -313,7 +319,23 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
     openPullRequests,
     diffStat,
     headCommitStatus,
+    commitsAhead,
+    commitsBehind,
   } = useDerivedGitInfo(workspace, isLocal);
+
+  const { refresh: refreshGitState } = useGitRefresh(workspace.machineId, workspace.workingDir);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = useCallback(async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await sendAction(workspace.machineId, 'git-sync', workspace.workingDir);
+      refreshGitState();
+    } finally {
+      setTimeout(() => setIsSyncing(false), 1500);
+    }
+  }, [isSyncing, sendAction, workspace.machineId, workspace.workingDir, refreshGitState]);
 
   // Show the popover if there's anything to show (local actions or repo link)
   const hasPopoverContent = isLocal || repoHttpsUrl;
@@ -430,7 +452,15 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-none transition-colors cursor-pointer flex items-center"
             title="Open workspace details"
           >
-            <InlineDiffStat diffStat={diffStat} showFileCount={true} />
+            <InlineDiffStat
+              diffStat={diffStat}
+              showFileCount={true}
+              commitsAhead={commitsAhead}
+              commitsBehind={commitsBehind}
+              syncEnabled={isLocal}
+              isSyncing={isSyncing}
+              onSync={handleSync}
+            />
           </button>
         </>
       )}
@@ -460,6 +490,8 @@ const MobileStatusContent = memo(function MobileStatusContent({
     openPullRequests,
     diffStat,
     headCommitStatus,
+    commitsAhead,
+    commitsBehind,
   } = useDerivedGitInfo(workspace, false);
 
   return (
@@ -485,7 +517,12 @@ const MobileStatusContent = memo(function MobileStatusContent({
 
           {/* Diff stats */}
           <div className="shrink-0">
-            <InlineDiffStat diffStat={diffStat} showFileCount={false} />
+            <InlineDiffStat
+              diffStat={diffStat}
+              showFileCount={false}
+              commitsAhead={commitsAhead}
+              commitsBehind={commitsBehind}
+            />
           </div>
 
           {/* Commit status */}
@@ -545,6 +582,8 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
     diffStat,
     primaryRemote,
     headCommitStatus,
+    commitsAhead,
+    commitsBehind,
   } = useDerivedGitInfo(workspace, isLocal);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [remoteExpanded, setRemoteExpanded] = useState(false);
@@ -878,7 +917,12 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                   className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full"
                   title="Open workspace details"
                 >
-                  <InlineDiffStat diffStat={diffStat} showFileCount={true} />
+                  <InlineDiffStat
+                    diffStat={diffStat}
+                    showFileCount={true}
+                    commitsAhead={commitsAhead}
+                    commitsBehind={commitsBehind}
+                  />
                 </button>
               </>
             )}

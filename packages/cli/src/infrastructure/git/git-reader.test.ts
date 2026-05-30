@@ -20,6 +20,7 @@ import {
   getCommitMetadata,
   getOpenPRsForBranch,
   getCommitsAhead,
+  getCommitsBehind,
   getCommitStatusChecks,
   getDefaultBranch,
   parseDiffStatLine,
@@ -637,6 +638,22 @@ describe('getCommitsAhead', () => {
   test('returns 0 for non-numeric output', async () => {
     mockSuccess('not-a-number\n');
     const result = await getCommitsAhead('/repo');
+    expect(result).toBe(0);
+  });
+});
+
+// ─── getCommitsBehind ────────────────────────────────────────────────────────
+
+describe('getCommitsBehind', () => {
+  test('returns count of commits behind upstream', async () => {
+    mockSuccess('4\n');
+    const result = await getCommitsBehind('/repo');
+    expect(result).toBe(4);
+  });
+
+  test('returns 0 when no upstream is configured', async () => {
+    mockFailure("fatal: no upstream configured for branch 'main'");
+    const result = await getCommitsBehind('/repo');
     expect(result).toBe(0);
   });
 });

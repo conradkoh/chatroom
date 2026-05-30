@@ -9,7 +9,7 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import type { GitDiscardResult, GitPullResult } from './types.js';
+import type { GitDiscardResult, GitPullResult, GitPushResult } from './types.js';
 
 const execAsync = promisify(exec);
 
@@ -144,4 +144,46 @@ export async function gitPull(workingDir: string): Promise<GitPullResult> {
   }
 
   return { status: 'available' };
+}
+
+/**
+ * Perform a git push to the upstream tracking branch.
+ */
+export async function gitPush(workingDir: string): Promise<GitPushResult> {
+  const result = await runGit('push', workingDir);
+
+  if ('error' in result) {
+    const message = result.error.message;
+    if (message.includes('no upstream branch')) {
+      return {
+        status: 'error',
+        message: 'No upstream branch configured. Set upstream with `git push -u`.',
+      };
+    }
+    if (message.includes('Authentication failed') || message.includes('could not read')) {
+      return {
+        status: 'error',
+        message: 'Authentication failed. Run `gh auth status` to check your GitHub credentials.',
+      };
+    }
+    return classifyError(message);
+  }
+
+  const stderr = result.stderr.trim();
+  if (stderr && !stderr.includes('Everything up-to-date')) {
+    return { status: 'available', message: stderr };
+  }
+
+  return { status: 'available' };
+}
+
+/**
+ * Pull then push — sync local branch with upstream.
+ */
+export async function gitSync(workingDir: string): Promise<GitPushResult> {
+  const pullResult = await gitPull(workingDir);
+  if (pullResult.status === 'error') {
+    return pullResult;
+  }
+  return gitPush(workingDir);
 }

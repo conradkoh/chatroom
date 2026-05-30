@@ -12,6 +12,8 @@ import {
   discardFile as gitDiscardFile,
   discardAllChanges as gitDiscardAll,
   gitPull,
+  gitPush,
+  gitSync,
 } from '../git/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -168,6 +170,22 @@ export async function executeLocalAction(
         return { success: false, error: result.message };
       }
       return { success: true, message: result.message ?? 'Pull successful' };
+    }
+
+    case 'git-push': {
+      const result = await gitPush(workingDir);
+      if (result.status === 'error') {
+        return { success: false, error: result.message };
+      }
+      return { success: true, message: result.message ?? 'Push successful' };
+    }
+
+    case 'git-sync': {
+      const result = await gitSync(workingDir);
+      if (result.status === 'error') {
+        return { success: false, error: result.message };
+      }
+      return { success: true, message: result.message ?? 'Sync successful' };
     }
 
     default: {

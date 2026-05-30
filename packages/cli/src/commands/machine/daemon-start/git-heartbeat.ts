@@ -82,6 +82,14 @@ const GIT_STATE_FIELDS: GitStateFieldDef<unknown, unknown, Record<string, unknow
     defaultValue: 0,
   },
   {
+    key: 'commitsBehind',
+    includeInSlim: false,
+    collect: (wd) => gitReader.getCommitsBehind(wd),
+    toHashable: (raw) => raw,
+    toMutationPartial: (raw) => ({ commitsBehind: raw as number }),
+    defaultValue: 0,
+  },
+  {
     key: 'remotes',
     includeInSlim: false,
     collect: (wd) => gitReader.getRemotes(wd),

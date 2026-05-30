@@ -1,5 +1,6 @@
 'use client';
 
+import { Loader2, RefreshCw } from 'lucide-react';
 import { memo } from 'react';
 
 import type { DiffStat } from '../types/git';
@@ -10,6 +11,37 @@ interface InlineDiffStatProps {
   diffStat: DiffStat;
   /** Whether to include file count (e.g. "3 files · +45 −12"). Default: true. */
   showFileCount?: boolean;
+  /** Unpushed commits vs upstream. */
+  commitsAhead?: number;
+  /** Unpulled commits on upstream. */
+  commitsBehind?: number;
+  /** When true, show one-click sync when ahead/behind. */
+  syncEnabled?: boolean;
+  isSyncing?: boolean;
+  onSync?: () => void;
+}
+
+function SyncStatusBadges({
+  commitsAhead,
+  commitsBehind,
+}: {
+  commitsAhead: number;
+  commitsBehind: number;
+}) {
+  return (
+    <>
+      {commitsAhead > 0 && (
+        <span className="text-chatroom-status-warning" title="Unpushed commits">
+          ↑{commitsAhead}
+        </span>
+      )}
+      {commitsBehind > 0 && (
+        <span className="text-chatroom-accent" title="Commits behind remote">
+          ↓{commitsBehind}
+        </span>
+      )}
+    </>
+  );
 }
 
 /**
@@ -18,17 +50,52 @@ interface InlineDiffStatProps {
  * Variants:
  * - With file count: "3 files · +45 −12"
  * - Without file count: "+45 −12"
- * - Clean state: "Clean"
+ * - Clean tree, in sync: "Clean"
+ * - Clean tree, ahead/behind: "↑2 ↓1" with optional Sync button
  */
 export const InlineDiffStat = memo(function InlineDiffStat({
   diffStat,
   showFileCount = true,
+  commitsAhead = 0,
+  commitsBehind = 0,
+  syncEnabled = false,
+  isSyncing = false,
+  onSync,
 }: InlineDiffStatProps) {
   const { filesChanged, insertions, deletions } = diffStat;
   const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
+  const hasSyncDelta = commitsAhead > 0 || commitsBehind > 0;
+  const showSyncButton = syncEnabled && hasSyncDelta && onSync;
 
-  if (isClean) {
+  if (isClean && !hasSyncDelta) {
     return <span className="text-[11px] text-chatroom-text-muted flex items-center">Clean</span>;
+  }
+
+  if (isClean && hasSyncDelta) {
+    return (
+      <span className="text-[11px] text-chatroom-text-muted flex items-center gap-1.5">
+        <SyncStatusBadges commitsAhead={commitsAhead} commitsBehind={commitsBehind} />
+        {showSyncButton && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSync();
+            }}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
+            title="Pull then push"
+          >
+            {isSyncing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            Sync
+          </button>
+        )}
+      </span>
+    );
   }
 
   return (
@@ -43,6 +110,34 @@ export const InlineDiffStat = memo(function InlineDiffStat({
       )}
       <span className="text-chatroom-status-success">+{insertions}</span>
       <span className="text-chatroom-status-error">−{deletions}</span>
+      {hasSyncDelta && (
+        <>
+          <span>·</span>
+          <SyncStatusBadges commitsAhead={commitsAhead} commitsBehind={commitsBehind} />
+        </>
+      )}
+      {showSyncButton && (
+        <>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSync();
+            }}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
+            title="Pull then push"
+          >
+            {isSyncing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            Sync
+          </button>
+        </>
+      )}
     </span>
   );
 });

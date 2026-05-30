@@ -14,7 +14,7 @@ import { pushCommands } from './command-sync-heartbeat.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
-import { pushGitState } from './git-heartbeat.js';
+import { pushGitState, pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import { syncCommitDetails } from './commit-detail-sync.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
@@ -311,6 +311,14 @@ export async function dispatchCommandEvent(
     const result = await executeLocalAction(event.action, event.workingDir);
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
+    } else if (
+      event.action === 'git-pull' ||
+      event.action === 'git-push' ||
+      event.action === 'git-sync' ||
+      event.action === 'git-discard-all'
+    ) {
+      ctx.lastPushedGitState.delete(makeGitStateKey(ctx.machineId, event.workingDir));
+      await pushSingleWorkspaceGitState(ctx, event.workingDir);
     }
     tracker.localActionIds.set(eventId, Date.now());
   } else if (eventType === 'command.run') {
