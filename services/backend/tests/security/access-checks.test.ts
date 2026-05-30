@@ -30,9 +30,19 @@ const SKIP_FILES = [
 const ACCESS_CHECK_PATTERNS = [
   'checkAccess',
   'requireAccess',
-  'requireAuthenticatedUser',
-  'getAuthenticatedUser',
+  // session.ts helpers (current preferred API)
+  'requireSession',
+  'getSession',
+  // machineAccess.ts helpers (current preferred API)
+  'requireMachineOwner',
+  'requireMachineWriteAccess',
+  'getMachineOwner',
+  // workspaceAccess.ts helpers
+  'requireWorkspaceOwner',
+  'requireWorkspaceWriteAccess',
+  // chatroomAccess.ts helpers
   'requireChatroomAccess',
+  'getChatroomAccess',
   // convex/backlog.ts — requireBacklogItemForChatroom → requireChatroomAccess
   'requireBacklogItemForChatroom',
   'validateSession',

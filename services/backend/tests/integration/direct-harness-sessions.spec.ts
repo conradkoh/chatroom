@@ -224,25 +224,27 @@ describe('listPendingSessionsForMachine', () => {
     expect(pending.some((s) => s._id === rowId)).toBe(false);
   });
 
-  test('does not return sessions for a different machine', async () => {
+  test('rejects queries for a machine the caller does not own', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('lpsfm-other');
-    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    await createSession(sessionId, workspaceId);
 
-    const pending = await t.query(api.daemon.directHarness.sessions.listPendingSessionsForMachine, {
-      sessionId,
-      machineId: 'other-machine',
-    });
-    expect(pending.length).toBe(0);
+    await expect(
+      t.query(api.daemon.directHarness.sessions.listPendingSessionsForMachine, {
+        sessionId,
+        machineId: 'other-machine',
+      })
+    ).rejects.toThrow(/NOT_AUTHORIZED_MACHINE/);
   });
 
-  test('returns [] on auth failure', async () => {
+  test('rejects unauthenticated callers', async () => {
     const { machineId } = await setupWorkspaceForSession('lpsfm-auth');
 
-    const pending = await t.query(api.daemon.directHarness.sessions.listPendingSessionsForMachine, {
-      sessionId: 'invalid-session' as SessionId,
-      machineId,
-    });
-    expect(pending).toEqual([]);
+    await expect(
+      t.query(api.daemon.directHarness.sessions.listPendingSessionsForMachine, {
+        sessionId: 'invalid-session' as SessionId,
+        machineId,
+      })
+    ).rejects.toThrow(/NOT_AUTHENTICATED/);
   });
 });
 

@@ -4,7 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**

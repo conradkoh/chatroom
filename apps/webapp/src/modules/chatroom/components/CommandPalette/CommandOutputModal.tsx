@@ -6,11 +6,11 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-import type { InlineCommandState } from '@/modules/chatroom/hooks/useInlineCommandOutput';
+import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import { CommandOutputPanel } from './CommandOutputPanel';
 
 interface CommandOutputModalProps {
-  inlineCommand: InlineCommandState;
+  inlineCommand: CommandPaletteOutputState;
 }
 
 /**
@@ -89,6 +89,9 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
               onStop={handleStop}
               onRunAgain={handleRunAgain}
               onClose={handleClose}
+              onLoadMore={inlineCommand.loadMore}
+              canLoadMore={inlineCommand.canLoadMore}
+              fullOutputPending={inlineCommand.fullOutputPending}
             />
           )}
         </DialogPrimitive.Content>

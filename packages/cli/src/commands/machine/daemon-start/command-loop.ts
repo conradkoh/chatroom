@@ -27,6 +27,7 @@ import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { processManager } from './handlers/process/manager.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
+import { startLogObserverPoll } from './handlers/process/log-observer-sync.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -437,6 +438,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Observed Sync Subscription ─────────────────────────────────────────
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
+  let logObserverPollHandle: ReturnType<typeof startLogObserverPoll> | null = null;
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   // Gated by directHarnessWorkers flag. All return { stop: () => void }.
@@ -475,6 +477,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
+    if (logObserverPollHandle) logObserverPollHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
@@ -518,6 +521,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   if (ctx.observedSyncEnabled) {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
   }
+
+  logObserverPollHandle = startLogObserverPoll(ctx);
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   if (featureFlags.directHarnessWorkers) {

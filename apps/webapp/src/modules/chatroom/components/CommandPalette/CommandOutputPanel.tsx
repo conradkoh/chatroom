@@ -16,6 +16,9 @@ export interface CommandOutputPanelProps {
   onStop: () => void;
   onRunAgain: () => void;
   onClose: () => void;
+  onLoadMore?: () => void;
+  canLoadMore?: boolean;
+  fullOutputPending?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -28,6 +31,9 @@ export function CommandOutputPanel({
   onStop,
   onRunAgain,
   onClose,
+  onLoadMore,
+  canLoadMore = false,
+  fullOutputPending = false,
 }: CommandOutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -120,11 +126,23 @@ export function CommandOutputPanel({
       </div>
 
       {/* Footer with scroll indicator */}
-      <div className="px-4 py-2 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center">
+      <div className="px-4 py-2 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center gap-2">
         <span className="tabular-nums">{output.length} lines</span>
-        {!isAtBottom && output.length > 0 && (
-          <span className="text-chatroom-text-muted italic">Scroll to follow</span>
-        )}
+        <div className="flex items-center gap-2 min-w-0">
+          {canLoadMore && onLoadMore && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={fullOutputPending}
+              className="text-chatroom-status-info hover:text-chatroom-accent font-medium uppercase tracking-wide disabled:opacity-50"
+            >
+              {fullOutputPending ? 'Loading…' : 'Load more'}
+            </button>
+          )}
+          {!isAtBottom && output.length > 0 && (
+            <span className="text-chatroom-text-muted italic truncate">Scroll to follow</span>
+          )}
+        </div>
       </div>
     </div>
   );

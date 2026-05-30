@@ -1,12 +1,13 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import {
   getNextTurnSeq,
   getSessionWithAccess,
   requireDirectHarnessWorkers,
+  requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers.js';
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 import type { MutationCtx, QueryCtx } from '../../_generated/server.js';
 import type { Id } from '../../_generated/dataModel.js';
@@ -76,20 +77,24 @@ export const markTurnProcessed = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
 
     const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
-    if (!harnessSession) throw new Error('Session not found');
+    if (!harnessSession) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `HarnessSession ${args.harnessSessionId} not found`,
+      });
+    }
 
     const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
-    if (!workspace) throw new Error('Workspace not found');
+    if (!workspace) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Workspace ${harnessSession.workspaceId} not found`,
+      });
+    }
 
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) throw new Error('Unauthorized');
+    await requireMachineOwner(ctx, args.sessionId, workspace.machineId);
 
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
       lastProcessedTurnSeq: args.turnSeq,
@@ -218,24 +223,12 @@ export const markOrphanTurnsFailed = mutation({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    // Auth: verify session exists and belongs to a workspace owned by args.machineId
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
-
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
-    if (!harnessSession) throw new Error('Session not found');
-
-    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
-    if (!workspace) throw new Error('Workspace not found');
-
-    if (workspace.machineId !== args.machineId)
-      throw new Error('Unauthorized: session belongs to a different machine');
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) throw new Error('Unauthorized');
+    await requireHarnessSessionOnOwnedMachine(
+      ctx,
+      args.sessionId,
+      args.machineId,
+      args.harnessSessionId
+    );
 
     const now = Date.now();
     let failedCount = 0;
@@ -307,8 +300,7 @@ export const getMachineHarnessSessions = query({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const workspaces = await ctx.db
       .query('chatroom_workspaces')

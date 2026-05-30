@@ -8,12 +8,9 @@ import {
 } from '../config/errorCodes';
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import {
-  areAllAgentsWaiting,
-  getAndIncrementQueuePosition,
-  requireChatroomAccess,
-  validateSession,
-} from './auth/cliSessionAuth';
+import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { getSession } from './auth/core/session';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
@@ -1073,9 +1070,8 @@ export const getTasksByIds = query({
     taskIds: v.array(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
-    // Validate session using the standard helper
-    const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return [];
     }
 

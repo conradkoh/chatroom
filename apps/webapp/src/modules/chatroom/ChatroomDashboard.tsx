@@ -36,7 +36,7 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { MessageFeed } from './components/MessageFeed';
+import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 import { ProcessesPanel } from './workspace/components/panels/ProcessesPanel';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
@@ -51,9 +51,8 @@ import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
-import { useActiveRunOutput } from './hooks/useActiveRunOutput';
+import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useCommandRunner } from './hooks/useCommandRunner';
-import { useInlineCommandOutput } from './hooks/useInlineCommandOutput';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useScrollController } from './hooks/useScrollController';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
@@ -379,11 +378,10 @@ export function ChatroomDashboard({
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
-  // ─── Scroll controller (shared between MessageFeed and SendForm) ───
+  // ─── Scroll controller (shared between timeline feed and SendForm) ───
   const {
     controller: scrollController,
     isPinned,
-    scrollToBottom,
     beginResize,
     endResize,
   } = useScrollController();
@@ -653,10 +651,6 @@ export function ChatroomDashboard({
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamLifecycle | null | undefined;
 
-  const activeTask = useSessionQuery(api.tasks.getActiveTask, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId);
 
@@ -738,13 +732,10 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  // Demand-driven: subscribe to output only when a UI surface is showing it.
-  // Convex deduplicates identical queries, so multiple consumers of the same
-  // `runId` share one backend subscription.  When neither surface is visible,
-  // the query is skipped entirely — no reactive push from the backend.
-  const activeRunOutput = useActiveRunOutput(
-    activeView === 'processes' || terminalOpen ? commandRunner.activeRunId : null
-  );
+  // Single demand-driven output subscription for processes panel, terminal, and palette.
+  const { activeRunOutput, palette: inlineCommand } = useCommandRunOutputV2(commandRunner, {
+    panelOutputVisible: activeView === 'processes' || terminalOpen,
+  });
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
@@ -1071,11 +1062,7 @@ export function ChatroomDashboard({
     [commandRunner]
   );
 
-  // Ref to store output subscriber callback for inline command output
-  // Inline command output — direct reactive state (no closures, no stale refs)
-  const inlineCommand = useInlineCommandOutput(commandRunner);
-
-  // Detach inline command output when switching chatrooms (don't kill the process).
+  // Detach palette output when switching chatrooms (don't kill the process).
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
@@ -1514,10 +1501,8 @@ export function ChatroomDashboard({
                         chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
                       }
                       messagesPanelProps={{
-                        activeTask,
                         controller: scrollController,
                         isPinned,
-                        scrollToBottom,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
@@ -1535,12 +1520,10 @@ export function ChatroomDashboard({
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <MessageFeed
+                    <ChatroomTimelineFeed
                       chatroomId={chatroomId}
-                      activeTask={activeTask}
                       controller={scrollController}
                       isPinned={isPinned}
-                      scrollToBottom={scrollToBottom}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       machines={machineNameMap}
                     />

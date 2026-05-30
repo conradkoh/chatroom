@@ -16,26 +16,30 @@ import {
 } from './state.js';
 import { processManager } from './manager.js';
 import { killProcess } from './killer.js';
-import { createOutputStore, ensureTempDir } from './output-store.js';
+import { createOutputStore, ensureTempDir, MAX_TAIL_LINES_V2 } from './output-store.js';
+import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
 
 let tempDirReady = false;
 
-async function flushTail(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
-  const tail = tracked.store.getTail();
+async function flushTailV2(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
+  if (!isRunLogObserved(tracked.runId)) return;
+
+  const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
   if (tail.content.length === 0) return;
 
   const compressed = encodeOutput(tail.content);
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunTail, {
+    await ctx.deps.backend.mutation(api.commands.updateRunTailV2, {
       sessionId: ctx.sessionId as SessionId,
       machineId: ctx.machineId,
       runId: tracked.runId as any,
       tailOutput: {
         compression: compressed.compression,
         content: compressed.content,
-        byteLength: tail.content.length,
+        byteLength: tail.totalBytes,
         totalBytesWritten: tail.totalBytes,
         updatedAt: Date.now(),
+        lineCount: tail.lineCount,
       },
     });
   } catch (err) {
@@ -45,13 +49,11 @@ async function flushTail(ctx: DaemonContext, tracked: RunningProcess): Promise<v
   }
 }
 
-async function flushFinalChunks(
+async function appendFullOutputChunks(
   ctx: DaemonContext,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  await flushTail(ctx, tracked);
-
   let fullOutput: string;
   try {
     fullOutput = await tracked.store.getFullOutput();
@@ -79,9 +81,51 @@ async function flushFinalChunks(
       chunkIndex++;
     } catch (err) {
       console.error(
-        `[${formatTimestamp()}] ❌ Failed to flush final chunk ${chunkIndex} for run ${tracked.runId}: ${getErrorMessage(err)}`
+        `[${formatTimestamp()}] ❌ Failed to flush chunk ${chunkIndex} for run ${tracked.runId}: ${getErrorMessage(err)}`
       );
       return;
+    }
+  }
+}
+
+async function flushFinalChunks(
+  ctx: DaemonContext,
+  tracked: RunningProcess,
+  runId: any
+): Promise<void> {
+  await flushTailV2(ctx, tracked);
+  if (consumePendingFullSync(tracked.runId)) {
+    await appendFullOutputChunks(ctx, tracked, runId);
+  }
+}
+
+/** One-shot full log sync when the webapp requests "Load more" on an active run. */
+export async function syncFullOutputOnRequest(
+  ctx: DaemonContext,
+  tracked: RunningProcess,
+  runId: any
+): Promise<void> {
+  if (!consumePendingFullSync(tracked.runId)) return;
+
+  await appendFullOutputChunks(ctx, tracked, runId);
+
+  try {
+    await ctx.deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
+      sessionId: ctx.sessionId as SessionId,
+      machineId: ctx.machineId,
+      runId,
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to clear pending full sync for ${tracked.runId}: ${getErrorMessage(err)}`
+    );
+  }
+}
+
+export async function pollPendingFullOutputSyncs(ctx: DaemonContext): Promise<void> {
+  for (const [runId, tracked] of processManager.getAll()) {
+    if (consumePendingFullSync(runId)) {
+      await syncFullOutputOnRequest(ctx, tracked, runId as any);
     }
   }
 }
@@ -120,7 +164,8 @@ export async function spawnCommandProcess(
     store,
     startedAt: Date.now(),
     flushTimer: setInterval(() => {
-      flushTail(ctx, tracked).catch(() => {});
+      flushTailV2(ctx, tracked).catch(() => {});
+      syncFullOutputOnRequest(ctx, tracked, runId).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
     terminationIntent: null,
@@ -186,11 +231,7 @@ export async function spawnCommandProcess(
     await tracked.store.destroy();
     processManager.unregister(runIdStr, commandKey);
 
-    const status = deriveTerminalStatus(
-      code,
-      signal,
-      tracked.terminationIntent
-    );
+    const status = deriveTerminalStatus(code, signal, tracked.terminationIntent);
 
     try {
       await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
@@ -209,7 +250,7 @@ export async function spawnCommandProcess(
 
   child.on('exit', (code, signal) => {
     console.log(
-      `[${formatTimestamp()}] 🏁 Command exited: ${commandName} (code=${code}, signal=${signal})`
+      `[${formatTimestamp()}] 📋 Command exited: ${commandName} (code=${code}, signal=${signal})`
     );
     finalize(code, signal as NodeJS.Signals | null).catch(() => {});
   });

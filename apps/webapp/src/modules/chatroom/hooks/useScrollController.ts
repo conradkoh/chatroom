@@ -34,6 +34,8 @@ export class ScrollController {
   // ─── Action queue (rAF-based) ───────────────
   private pendingSnap = false;
   private rafId: number | null = null;
+  /** Suppress scrollbar-driven unpin while programmatically scrolling. */
+  private programmaticScroll = false;
 
   // ─── Observers ──────────────────────────────
   private resizeObserver: ResizeObserver | null = null;
@@ -137,16 +139,25 @@ export class ScrollController {
     }
   }
 
+  /** Pin the feed and snap to the bottom immediately (for virtualized feeds). */
+  snapToBottom(): void {
+    this.pinned = true;
+    this.onPinnedChange(true);
+    this.runProgrammaticScroll(() => this.snapImmediate());
+  }
+
   /**
    * Called when user clicks "scroll to bottom" button.
-   * Re-pins and smooth-scrolls to the bottom.
+   * Re-pins and smooth-scrolls to the bottom (non-virtualized feeds).
    */
   scrollToBottom(): void {
     if (!this.el) return;
 
     this.pinned = true;
     this.onPinnedChange(true);
-    this.el.scrollTo({ top: this.el.scrollHeight, behavior: 'smooth' });
+    this.runProgrammaticScroll(() => {
+      this.el!.scrollTo({ top: this.el!.scrollHeight, behavior: 'smooth' });
+    });
   }
 
   /**
@@ -207,6 +218,16 @@ export class ScrollController {
     }
   }
 
+  private runProgrammaticScroll(action: () => void): void {
+    this.programmaticScroll = true;
+    action();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.programmaticScroll = false;
+      });
+    });
+  }
+
   /** Check whether the scroll container is at the bottom (within threshold) */
   private isAtBottom(): boolean {
     if (!this.el) return false;
@@ -243,13 +264,18 @@ export class ScrollController {
   };
 
   /**
-   * Handle scroll event — re-pin if at bottom (only when not user-scrolling).
-   * This catches programmatic scrolls (smooth scroll-to-bottom, etc.).
+   * Handle scroll event — sync pin state from position (scrollbar drags, smooth scroll end).
    */
   private handleScrollEvent = (): void => {
-    if (this.isAtBottom() && !this.userScrolling && !this.pinned) {
+    if (this.userScrolling || this.programmaticScroll) return;
+
+    const atBottom = this.isAtBottom();
+    if (atBottom && !this.pinned) {
       this.pinned = true;
       this.onPinnedChange(true);
+    } else if (!atBottom && this.pinned) {
+      this.pinned = false;
+      this.onPinnedChange(false);
     }
   };
 }

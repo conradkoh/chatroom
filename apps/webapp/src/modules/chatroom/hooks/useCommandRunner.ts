@@ -30,7 +30,7 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
   );
 
   const runs = useSessionQuery(
-    api.commands.listRuns,
+    api.commands.listRunsV2,
     machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
 

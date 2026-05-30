@@ -3,7 +3,7 @@
  *
  * Covers:
  * - runCommand always dispatches a fresh mutation (no "focus existing" branch)
- * - activeRunOutput is no longer returned (moved to useActiveRunOutput)
+ * - activeRunOutput is no longer returned (moved to useCommandRunOutputV2)
  */
 
 import { act, renderHook } from '@testing-library/react';
@@ -25,7 +25,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
   }),
   useSessionQuery: vi.fn((key: string) => {
     if (key === 'listCommands') return mockListCommandsQuery();
-    if (key === 'listRuns') return mockListRunsQuery();
+    if (key === 'listRunsV2') return mockListRunsQuery();
     return undefined;
   }),
 }));
@@ -35,7 +35,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     commands: {
       listCommands: 'listCommands',
-      listRuns: 'listRuns',
+      listRunsV2: 'listRunsV2',
       runCommand: 'runCommand',
       stopCommand: 'stopCommand',
     },
@@ -118,7 +118,7 @@ describe('useCommandRunner', () => {
   });
 
   describe('return contract', () => {
-    it('does not include activeRunOutput (moved to useActiveRunOutput)', () => {
+    it('does not include activeRunOutput (moved to useCommandRunOutputV2)', () => {
       const { result } = renderHook(() => useCommandRunner(props));
       expect(result.current).not.toHaveProperty('activeRunOutput');
     });

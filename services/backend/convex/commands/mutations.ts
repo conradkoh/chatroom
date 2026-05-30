@@ -1,6 +1,6 @@
 import { ConvexError } from 'convex/values';
 import type { MutationCtx } from '../_generated/server';
-import { MAX_OUTPUT_CHUNK_BYTES, MAX_OUTPUT_CHUNKS_PER_RUN } from './types';
+import { MAX_OUTPUT_CHUNK_BYTES, MAX_OUTPUT_CHUNKS_PER_RUN, MAX_TAIL_LINES_V2 } from './types';
 
 type RunId = any;
 
@@ -148,7 +148,7 @@ export async function handleAppendOutput(
   });
 }
 
-export async function handleUpdateRunTail(
+export async function handleUpdateRunTailV2(
   ctx: MutationCtx,
   args: {
     machineId: string;
@@ -159,6 +159,7 @@ export async function handleUpdateRunTail(
       byteLength: number;
       totalBytesWritten: number;
       updatedAt: number;
+      lineCount: number;
     };
   }
 ) {
@@ -170,7 +171,71 @@ export async function handleUpdateRunTail(
       message: 'Run does not belong to this machine',
     });
 
+  if ((run.logObserverCount ?? 0) <= 0) {
+    throw new ConvexError({
+      code: 'LOG_OBSERVER_NOT_ACTIVE',
+      message: 'Cannot sync tail without an active log observer',
+    });
+  }
+
+  if (args.tailOutput.lineCount > MAX_TAIL_LINES_V2) {
+    throw new ConvexError({
+      code: 'TAIL_TOO_LARGE',
+      message: `Tail exceeds max ${MAX_TAIL_LINES_V2} lines`,
+    });
+  }
+
   await ctx.db.patch(args.runId, {
     tailOutput: args.tailOutput,
+  });
+}
+
+export async function handleSetRunLogObserver(
+  ctx: MutationCtx,
+  args: {
+    runId: RunId;
+    observing: boolean;
+  }
+) {
+  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+
+  const current = run.logObserverCount ?? 0;
+  const next = args.observing ? current + 1 : Math.max(0, current - 1);
+
+  await ctx.db.patch(args.runId, {
+    logObserverCount: next,
+  });
+
+  return { logObserverCount: next };
+}
+
+export async function handleRequestRunOutputFullSync(
+  ctx: MutationCtx,
+  args: {
+    runId: RunId;
+  }
+) {
+  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
+
+  await ctx.db.patch(args.runId, {
+    pendingFullOutputSync: true,
+  });
+}
+
+export async function handleClearPendingFullOutputSync(
+  ctx: MutationCtx,
+  args: {
+    machineId: string;
+    runId: RunId;
+  }
+) {
+  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  if (!run) return;
+  if (run.machineId !== args.machineId) return;
+
+  await ctx.db.patch(args.runId, {
+    pendingFullOutputSync: false,
   });
 }

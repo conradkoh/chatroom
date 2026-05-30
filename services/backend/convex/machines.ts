@@ -6,8 +6,12 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from './auth/accessCheck';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { checkAccess, requireAccess } from './auth/core/accessCheck';
+import { getSession, requireSession } from './auth/core/session';
+import {
+  getMachineOwner,
+  requireMachineOwner,
+} from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
@@ -182,8 +186,8 @@ export const register = mutation({
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -253,8 +257,8 @@ export const setMachineAlias = mutation({
     alias: v.optional(v.string()), // undefined or empty string to clear
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
@@ -290,8 +294,8 @@ export const refreshCapabilities = mutation({
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -339,8 +343,8 @@ export const requestCapabilitiesRefresh = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -434,8 +438,8 @@ export const reportCapabilitiesRefreshResult = mutation({
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -517,8 +521,8 @@ export const getCapabilitiesRefreshBatch = query({
     batchId: v.id('chatroom_capabilities_refresh_batches'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     const batch = await ctx.db.get('chatroom_capabilities_refresh_batches', args.batchId);
     if (!batch) return null;
@@ -569,8 +573,8 @@ export const listMachines = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return { machines: [] };
     }
     const user = auth.user;
@@ -602,17 +606,18 @@ export const listMachines = query({
 export const getMachineModels = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { availableModels: {} as Record<string, string[]> };
+    const auth = await getMachineOwner(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return { availableModels: {} as Record<string, string[]> };
 
-    // Verify ownership
     const machine = await ctx.db
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (!machine || machine.userId !== auth.user._id) {
-      return { availableModels: {} as Record<string, string[]> };
-    }
+    if (!machine) return { availableModels: {} as Record<string, string[]> };
 
     // Prefer new table; fall back to legacy field if migration hasn't backfilled yet.
     const newRow = await ctx.db
@@ -638,17 +643,12 @@ export const getDaemonStatus = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      return { connected: false, lastSeenAt: null };
-    }
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine || machine.userId !== auth.user._id) {
+    const auth = await getMachineOwner(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) {
       return { connected: false, lastSeenAt: null };
     }
 
@@ -678,8 +678,8 @@ export const getMachineAgentConfigs = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return { configs: [] };
     }
     const user = auth.user;
@@ -755,16 +755,12 @@ export const getCommandEvents = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 1. Auth check
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { events: [] };
-
-    // 2. Machine ownership check
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) return { events: [] };
+    const auth = await getMachineOwner(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return { events: [] };
 
     const now = Date.now();
 
@@ -884,14 +880,12 @@ export const getDaemonPongEvent = query({
     afterEventId: v.optional(v.id('chatroom_eventStream')),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) return null;
+    const auth = await getMachineOwner(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return null;
 
     const pongEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -922,8 +916,8 @@ export const getLatestAgentEvent = query({
   },
   handler: async (ctx, args) => {
     // Auth check
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     // Verify chatroom access
     const accessResult = await checkAccess(ctx, {
@@ -959,8 +953,8 @@ export const getLatestAgentEventsForChatroom = query({
   },
   handler: async (ctx, args) => {
     // Auth check
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return {};
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return {};
 
     // Verify chatroom access (single lookup — also used for teamId below)
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -1018,12 +1012,8 @@ export const updateDaemonStatus = mutation({
     connected: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-    const user = auth.user;
-    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const machine = await getMachineByMachineId(ctx, args.machineId);
 
     const now = Date.now();
 
@@ -1087,12 +1077,7 @@ export const daemonHeartbeat = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-    const user = auth.user;
-    await getOwnedMachine(ctx, args.machineId, user._id); // ownership check
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const now = Date.now();
 
@@ -1161,8 +1146,8 @@ export const sendLocalAction = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -1204,8 +1189,8 @@ export const sendCommand = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -1311,8 +1296,8 @@ export const updateSpawnedAgent = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
@@ -1427,8 +1412,8 @@ export const recordAgentExited = mutation({
   },
   handler: async (ctx, args) => {
     // 1. Auth + machine ownership check
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // 2. Delegate to the agentExited use case (event insert + PID-gated cleanup + participant update)
@@ -1462,8 +1447,8 @@ async function runRecordRemoteAgentRegistered(
   ctx: MutationCtx,
   args: { sessionId: string; chatroomId: Id<'chatroom_rooms'>; role: string; machineId: string }
 ): Promise<{ success: true }> {
-  const auth = await getAuthenticatedUser(ctx, args.sessionId);
-  if (!auth.ok) {
+  const auth = await getSession(ctx, args.sessionId);
+  if (!auth) {
     throw new Error('Authentication required');
   }
 
@@ -1511,8 +1496,8 @@ async function runRecordCustomAgentRegistered(
     allowTypeChange?: boolean;
   }
 ): Promise<{ success: true }> {
-  const auth = await getAuthenticatedUser(ctx, args.sessionId);
-  if (!auth.ok) {
+  const auth = await getSession(ctx, args.sessionId);
+  if (!auth) {
     throw new Error('Authentication required');
   }
 
@@ -1598,7 +1583,7 @@ export const recordRemoteAgentRegistered = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Enforced in runRecordRemoteAgentRegistered via getAuthenticatedUser
+    // Enforced in runRecordRemoteAgentRegistered via getSession
     return runRecordRemoteAgentRegistered(ctx, {
       sessionId: args.sessionId,
       chatroomId: args.chatroomId,
@@ -1622,7 +1607,7 @@ export const recordCustomAgentRegistered = mutation({
     allowTypeChange: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Enforced in runRecordCustomAgentRegistered via getAuthenticatedUser
+    // Enforced in runRecordCustomAgentRegistered via getSession
     return runRecordCustomAgentRegistered(ctx, {
       sessionId: args.sessionId,
       chatroomId: args.chatroomId,
@@ -1651,7 +1636,7 @@ export const recordAgentRegistered = mutation({
     allowTypeChange: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Enforced in runRecord* via getAuthenticatedUser
+    // Enforced in runRecord* via getSession
     console.warn(
       '[chatroom] machines.recordAgentRegistered is deprecated; use recordRemoteAgentRegistered (remote) or recordCustomAgentRegistered (custom).'
     );
@@ -1683,8 +1668,8 @@ export const ackPing = mutation({
     pingEventId: v.id('chatroom_eventStream'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -1719,8 +1704,8 @@ export const requestGitRefresh = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     const user = auth.user;
@@ -1754,8 +1739,8 @@ export const saveTeamAgentConfig = mutation({
     workingDir: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -1837,8 +1822,8 @@ export const getTeamAgentConfigs = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
 
@@ -1863,8 +1848,8 @@ export const saveAgentPreference = mutation({
     workingDir: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -1911,8 +1896,8 @@ export const getMachineModelFilters = query({
     agentHarness: agentHarnessValidator,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -1941,7 +1926,7 @@ export const upsertMachineModelFilters = mutation({
     hiddenProviders: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1978,8 +1963,8 @@ export const upsertMachineModelFilters = mutation({
 export const listRemoteAgentRunningStatus = query({
   args: { ...SessionIdArg },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const userMachines = await ctx.db
       .query('chatroom_machines')
@@ -2043,8 +2028,8 @@ export const getAgentRestartMetrics = query({
     endTime: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const machineAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -2121,8 +2106,8 @@ export const getAgentRestartSummary = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { count3h: 0, count3d: 0 };
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { count3h: 0, count3d: 0 };
 
     const machineAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -2165,8 +2150,8 @@ export const getAgentRestartSummaryByRole = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { count3h: 0, count3d: 0 };
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { count3h: 0, count3d: 0 };
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -2211,8 +2196,8 @@ export const getAgentRestartSummariesByRoles = query({
     roles: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return args.roles.map((role) => ({ role, count3h: 0, count3d: 0 }));
     }
 
@@ -2269,8 +2254,8 @@ export const getAgentStatus = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     return getAgentStatusForChatroom(ctx, {
       chatroomId: args.chatroomId,
@@ -2288,8 +2273,8 @@ export const getAgentStartConfig = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     return getAgentConfigForStart(ctx, {
       chatroomId: args.chatroomId,
@@ -2305,8 +2290,8 @@ export const listAgentOverview = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     return listChatroomAgentOverview(ctx, {
       userId: auth.user._id,
@@ -2321,8 +2306,8 @@ export const getAgentOverviewForChatroom = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     const chatroom = await ctx.db.get("chatroom_rooms", args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
@@ -2396,8 +2381,8 @@ export const getAssignedTasks = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { tasks: [] };
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { tasks: [] };
 
     return getAssignedTasksForMachine(ctx, {
       machineId: args.machineId,
@@ -2421,8 +2406,8 @@ export const emitAgentStartFailed = mutation({
     error: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     await assertMachineBelongsToChatroom(ctx, {
@@ -2479,8 +2464,8 @@ export const emitRestartLimitReached = mutation({
     windowMs: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     await ctx.db.insert('chatroom_eventStream', {
@@ -2512,8 +2497,8 @@ export const clearAllSpawnedPids = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // Find all configs for this machine that have a spawnedAgentPid
@@ -2550,8 +2535,8 @@ export const getAgentPreferences = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return { preferences: [] };
     }
 
@@ -2586,8 +2571,8 @@ export const getObservedChatroomsForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 

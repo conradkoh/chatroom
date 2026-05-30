@@ -7,8 +7,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation } from '../../_generated/server.js';
 
 // ─── publishMachineCapabilities ───────────────────────────────────────────────
@@ -50,8 +50,7 @@ export const publishMachineCapabilities = mutation({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const existing = await ctx.db
       .query('chatroom_machineRegistry')

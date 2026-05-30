@@ -11,8 +11,12 @@ import { ConvexError } from 'convex/values';
 import { featureFlags } from '../../config/featureFlags.js';
 import type { Doc, Id } from '../_generated/dataModel.js';
 import type { MutationCtx, QueryCtx } from '../_generated/server.js';
-import type { AuthenticatedChatroomAccess } from '../auth/cliSessionAuth.js';
-import { requireChatroomAccess } from '../auth/cliSessionAuth.js';
+import type { AuthenticatedChatroomAccess } from '../auth/core/chatroomAccess.js';
+import { requireChatroomAccess } from '../auth/core/chatroomAccess.js';
+import {
+  type MachineAuth,
+  requireMachineOwner,
+} from '../auth/cli/machineAccess.js';
 
 // ─── Feature flag guard ──────────────────────────────────────────────────────
 
@@ -99,4 +103,47 @@ export async function getSessionWithAccess(
 
   const chatroomAccess = await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
   return { ...chatroomAccess, harnessSession, workspace };
+}
+
+export interface HarnessSessionOnMachineAccess {
+  auth: MachineAuth;
+  harnessSession: Doc<'chatroom_harnessSessions'>;
+  workspace: Doc<'chatroom_workspaces'>;
+}
+
+/**
+ * Layer 3 guard: session must exist and its workspace must belong to the authorized machine.
+ */
+export async function requireHarnessSessionOnOwnedMachine(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: string,
+  machineId: string,
+  harnessSessionId: Id<'chatroom_harnessSessions'>
+): Promise<HarnessSessionOnMachineAccess> {
+  const auth = await requireMachineOwner(ctx, sessionId, machineId);
+
+  const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
+  if (!harnessSession) {
+    throw new ConvexError({
+      code: 'NOT_FOUND',
+      message: `HarnessSession ${harnessSessionId} not found`,
+    });
+  }
+
+  const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
+  if (!workspace) {
+    throw new ConvexError({
+      code: 'NOT_FOUND',
+      message: `Workspace ${harnessSession.workspaceId} not found`,
+    });
+  }
+
+  if (workspace.machineId !== machineId) {
+    throw new ConvexError({
+      code: 'NOT_AUTHORIZED_MACHINE',
+      message: 'Session does not belong to this machine',
+    });
+  }
+
+  return { auth, harnessSession, workspace };
 }

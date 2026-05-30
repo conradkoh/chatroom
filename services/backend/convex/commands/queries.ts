@@ -49,53 +49,102 @@ export async function handleListActiveRuns(
     }));
 }
 
-export async function handleListRuns(
+/** Run metadata for history lists — excludes heavy tailOutput payload. */
+export async function handleListRunsV2(
   ctx: QueryCtx,
   args: {
     machineId: string;
     workingDir: string;
   }
 ) {
-  return await ctx.db
+  const runs = await ctx.db
     .query('chatroom_commandRuns')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
     )
     .order('desc')
     .take(50);
+
+  return runs.map(({ tailOutput: _tail, ...meta }) => meta);
 }
 
-export async function handleGetRunOutput(
+export async function handleListRunsWithLogObservers(
+  ctx: QueryCtx,
+  args: {
+    machineId: string;
+  }
+) {
+  const [running, pending] = await Promise.all([
+    ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'running')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .collect(),
+  ]);
+
+  return [...running, ...pending]
+    .filter((r) => (r.logObserverCount ?? 0) > 0 || r.pendingFullOutputSync === true)
+    .map((r) => ({
+      _id: r._id,
+      pendingFullOutputSync: r.pendingFullOutputSync === true,
+    }));
+}
+
+export async function handleGetRunOutputV2(
   ctx: QueryCtx,
   args: {
     runId: RunId;
+    loadFull?: boolean;
   }
 ) {
   const run = await ctx.db.get('chatroom_commandRuns', args.runId);
-  if (!run) return { run: null, tail: null, chunks: [] };
+  if (!run) return { run: null, tail: null, chunks: [], fullOutputPending: false };
 
   const isActive = run.status === 'running' || run.status === 'pending';
+  const hasObserver = (run.logObserverCount ?? 0) > 0;
 
-  if (isActive) {
+  if (isActive && !args.loadFull) {
     return {
       run,
-      tail: run.tailOutput ?? null,
+      tail: hasObserver ? (run.tailOutput ?? null) : null,
       chunks: [],
+      fullOutputPending: run.pendingFullOutputSync === true,
     };
   }
 
-  // Terminal run: return completed chunks, no tail
+  if (isActive && args.loadFull) {
+    const chunks = await ctx.db
+      .query('chatroom_commandOutput')
+      .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
+      .collect();
+    chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+
+    return {
+      run,
+      tail: hasObserver ? (run.tailOutput ?? null) : null,
+      chunks,
+      fullOutputPending: run.pendingFullOutputSync === true,
+    };
+  }
+
   const chunks = await ctx.db
     .query('chatroom_commandOutput')
     .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
     .collect();
-
   chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
   return {
     run,
     tail: null,
     chunks,
+    fullOutputPending: false,
   };
 }
 

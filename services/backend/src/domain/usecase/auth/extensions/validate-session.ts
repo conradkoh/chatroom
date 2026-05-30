@@ -1,7 +1,7 @@
 /**
  * Validate Session — pure functions for session validation.
  *
- * Extracted from convex/auth/cliSessionAuth.ts.
+ * Extracted from convex/auth/core/sessionValidation.ts.
  * Uses dependency injection for database access.
  */
 
