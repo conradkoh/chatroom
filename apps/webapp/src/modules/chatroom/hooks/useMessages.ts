@@ -1,27 +1,29 @@
 'use client';
 
 /**
- * useMessages — cursor-paginated message hook.
+ * useMessages — subscription + imperative load-older hook.
  *
  * Architecture:
- * 1. Historical — usePaginatedQuery(listMessages, initialNumItems=20)
- *    Pages are DESC by _creationTime; reversed to ASC for display.
- * 2. Tail — useSessionQuery(subscribeNewMessages, sinceCreationTime)
- *    Reactive; picks up messages strictly newer than the newest historical.
- * 3. Merge — historical (ASC) + deduped tail (ASC) → chronological order.
+ * 1. Live tail — useSessionQuery(subscribeLatestMessages, limit=40)
+ *    Reactive; always returns the latest N messages in chronological order.
+ * 2. Older pages — useState + convex.query(listMessagesBefore) on scroll-to-top
+ *    Imperative; prepended to local state.
+ * 3. Merge — older (ASC) + deduped subscription (ASC) → chronological order.
  *
  * taskStatus is resolved server-side by enrichMessages and flows through
- * both paginated and tail results via Convex query reactivity. No client-side
- * overlay is needed.
+ * both sources via Convex query reactivity.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo } from 'react';
+import { useConvex } from 'convex/react';
+import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { useSessionPaginatedQuery } from '../../../lib/useSessionPaginatedQuery';
 import type { Message } from '../types/message';
+
+const SUBSCRIPTION_LIMIT = 40;
+const LOAD_OLDER_PAGE_SIZE = 20;
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -64,53 +66,72 @@ export interface UseMessagesResult {
 
 export function useMessages(chatroomId: string): UseMessagesResult {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
+  const convex = useConvex();
+  const [sessionId] = useSessionId();
 
-  // ── 1. Historical messages (paginated, descending) ──────────────────────
-  const paginated = useSessionPaginatedQuery(
-    api.messageList.listMessages,
-    { chatroomId: typedChatroomId },
-    { initialNumItems: 20 }
-  );
+  const subscriptionResult = useSessionQuery(api.messageList.subscribeLatestMessages, {
+    chatroomId: typedChatroomId,
+    limit: SUBSCRIPTION_LIMIT,
+  });
 
-  // ── 2. Tail subscription ──────────────────────────────────────────────
-  const newestSeenCreationTime =
-    paginated.results.length > 0 ? paginated.results[0]._creationTime : 0;
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [exhaustedOlder, setExhaustedOlder] = useState(false);
+  const isLoadingOlderRef = useRef(false);
 
-  const tail = useSessionQuery(
-    api.messageList.subscribeNewMessages,
-    paginated.status !== 'LoadingFirstPage'
-      ? { chatroomId: typedChatroomId, sinceCreationTime: newestSeenCreationTime }
-      : 'skip'
-  );
-
-  // ── 3. Merge: historical (ASC) + deduped tail (ASC) ───────────────────
   const messages = useMemo(() => {
-    const historical = [...paginated.results].reverse().map(toMessage);
-    const tailMessages = (tail ?? []).map(toMessage);
+    const live = (subscriptionResult ?? []).map(toMessage);
+    const olderIds = new Set(olderMessages.map((m) => m._id));
+    const dedupedLive = live.filter((m) => !olderIds.has(m._id));
+    return [...olderMessages, ...dedupedLive];
+  }, [subscriptionResult, olderMessages]);
 
-    // Deduplicate: tail may contain messages already in paginated on the boundary
-    const seen = new Set(historical.map((m) => m._id));
-    const dedupedTail = tailMessages.filter((m) => !seen.has(m._id));
-
-    return [...historical, ...dedupedTail];
-  }, [paginated.results, tail]);
-
-  // ── Public API ────────────────────────────────────────────────────────
+  const subLen = subscriptionResult?.length ?? 0;
+  const hasMoreOlder =
+    !exhaustedOlder && (subLen >= SUBSCRIPTION_LIMIT || olderMessages.length > 0);
 
   const loadOlderMessages = useCallback(() => {
-    paginated.loadMore(20);
-  }, [paginated]);
+    if (isLoadingOlderRef.current || exhaustedOlder || !sessionId) return;
 
-  // No-op: usePaginatedQuery manages its own cache (no manual purge needed)
+    const oldest = messages[0];
+    const before = oldest ? oldest._creationTime : Date.now();
+
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+
+    void (async () => {
+      try {
+        const older = await convex.query(api.messageList.listMessagesBefore, {
+          chatroomId: typedChatroomId,
+          before,
+          limit: LOAD_OLDER_PAGE_SIZE,
+          sessionId,
+        });
+
+        if (older.length === 0) {
+          setExhaustedOlder(true);
+        } else {
+          setOlderMessages((prev) => [...older.map(toMessage), ...prev]);
+          if (older.length < LOAD_OLDER_PAGE_SIZE) {
+            setExhaustedOlder(true);
+          }
+        }
+      } finally {
+        isLoadingOlderRef.current = false;
+        setIsLoadingOlder(false);
+      }
+    })();
+  }, [convex, typedChatroomId, messages, sessionId, exhaustedOlder]);
+
   const purgeOldMessages = useCallback((_viewportTopIndex: number) => {
-    // Intentional no-op: cache managed by Convex's usePaginatedQuery
+    // no-op for now
   }, []);
 
   return {
     messages,
-    isLoading: paginated.status === 'LoadingFirstPage',
-    hasMoreOlder: paginated.status === 'CanLoadMore',
-    isLoadingOlder: paginated.status === 'LoadingMore',
+    isLoading: subscriptionResult === undefined,
+    hasMoreOlder,
+    isLoadingOlder,
     loadOlderMessages,
     purgeOldMessages,
   };
