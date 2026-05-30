@@ -12,8 +12,8 @@ import {
   areAllAgentsWaiting,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
-  validateSession,
 } from './auth/cliSessionAuth';
+import { getAuthenticatedUser } from './auth/authenticatedUser';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
@@ -1073,9 +1073,8 @@ export const getTasksByIds = query({
     taskIds: v.array(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
-    // Validate session using the standard helper
-    const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.ok) {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.ok) {
       return [];
     }
 

@@ -10,7 +10,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
+import { requireAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { insertUserTurn } from './turns.js';
 import { mutation } from '../../_generated/server.js';
@@ -25,8 +25,7 @@ export const setGenerating = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    await requireAuthenticatedUser(ctx, args.sessionId);
     const session = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
     if (!session) return;
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
@@ -52,8 +51,7 @@ export const dequeueNext = mutation({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    await requireAuthenticatedUser(ctx, args.sessionId);
 
     const item = await ctx.db
       .query('chatroom_harnessMessageQueue')

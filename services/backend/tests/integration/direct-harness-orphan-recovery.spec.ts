@@ -293,24 +293,20 @@ describe('turns.getMachineHarnessSessions', () => {
     expect(found2?.status).toBe('idle');
   });
 
-  test('does not return sessions from a different machine', async () => {
-    const { sessionId, workspaceId, machineId } =
-      await setupWorkspaceForSession('get-sessions-isolation');
+  test('rejects queries for a machine the caller does not own', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('get-sessions-isolation');
     const { sessionId: harnessSessionId } = await createSession(sessionId, workspaceId);
 
-    // Make the session idle so it would normally appear
     await t.run(async (ctx) => {
       await ctx.db.patch(harnessSessionId as Id<'chatroom_harnessSessions'>, { status: 'idle' });
     });
 
-    // Query with a different machineId
-    const sessions = await t.query(api.daemon.directHarness.turns.getMachineHarnessSessions, {
-      sessionId,
-      machineId: 'other-machine-xyz',
-    });
-
-    const found = sessions.find((s) => s.harnessSessionId === harnessSessionId);
-    expect(found).toBeUndefined();
+    await expect(
+      t.query(api.daemon.directHarness.turns.getMachineHarnessSessions, {
+        sessionId,
+        machineId: 'other-machine-xyz',
+      })
+    ).rejects.toThrow(/NOT_AUTHORIZED_MACHINE/);
   });
 
   test('does not return sessions with closed or failed status', async () => {
