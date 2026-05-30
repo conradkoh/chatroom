@@ -11,11 +11,11 @@ import { ConvexError } from 'convex/values';
 import { featureFlags } from '../../config/featureFlags.js';
 import type { Doc, Id } from '../_generated/dataModel.js';
 import type { MutationCtx, QueryCtx } from '../_generated/server.js';
-import type { AuthenticatedChatroomAccess } from '../auth/cliSessionAuth.js';
-import { requireChatroomAccess } from '../auth/cliSessionAuth.js';
+import type { AuthenticatedChatroomAccess } from '../auth/chatroomAccess.js';
+import { requireChatroomAccess } from '../auth/chatroomAccess.js';
 import {
-  type MachineScopedAuth,
-  requireAuthenticatedMachineOwner,
+  type MachineAuth,
+  requireMachineOwner,
 } from '../auth/machineAccess.js';
 
 // ─── Feature flag guard ──────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ export async function getSessionWithAccess(
 }
 
 export interface HarnessSessionOnMachineAccess {
-  auth: MachineScopedAuth;
+  auth: MachineAuth;
   harnessSession: Doc<'chatroom_harnessSessions'>;
   workspace: Doc<'chatroom_workspaces'>;
 }
@@ -120,7 +120,7 @@ export async function requireHarnessSessionOnOwnedMachine(
   machineId: string,
   harnessSessionId: Id<'chatroom_harnessSessions'>
 ): Promise<HarnessSessionOnMachineAccess> {
-  const auth = await requireAuthenticatedMachineOwner(ctx, sessionId, machineId);
+  const auth = await requireMachineOwner(ctx, sessionId, machineId);
 
   const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
   if (!harnessSession) {

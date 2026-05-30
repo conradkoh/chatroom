@@ -13,7 +13,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireChatroomAccess } from '../../auth/cliSessionAuth.js';
+import { requireChatroomAccess } from '../../auth/chatroomAccess.js';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
 import { mutation } from '../../_generated/server.js';
 

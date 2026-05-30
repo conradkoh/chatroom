@@ -2,8 +2,8 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { requireChatroomAccess } from './auth/chatroomAccess';
+import { getSession, requireSession } from './auth/session';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
@@ -19,7 +19,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Validate session
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
 
     const chatroomId = await ctx.db.insert('chatroom_rooms', {
       status: 'active',
@@ -53,8 +53,8 @@ export const listByUser = query({
   },
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const chatrooms = await ctx.db
       .query('chatroom_rooms')
@@ -79,8 +79,8 @@ export const listByUserWithStatus = query({
   },
   handler: async (ctx, args) => {
     // Validate session — return empty list for unauthenticated users
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     // Fetch chatrooms - we'll sort by lastActivityAt after fetching
     const chatrooms = await ctx.db
@@ -366,8 +366,8 @@ export const listFavoriteIds = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const favorites = await ctx.db
       .query('chatroom_favorites')
@@ -384,8 +384,8 @@ export const listUnreadStatus = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     // Try materialized unread status first (single query, no N+1)
     const materializedStatus = await ctx.db
@@ -460,8 +460,8 @@ export const listParticipantPresence = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const chatrooms = await ctx.db
       .query('chatroom_rooms')
@@ -497,8 +497,8 @@ export const getPresenceForChatroom = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const participants = await ctx.db
       .query('chatroom_participants')
@@ -524,7 +524,7 @@ export const recordChatroomObservation = mutation({
     refresh: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireSession(ctx, args.sessionId);
 
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     if (!chatroom) {

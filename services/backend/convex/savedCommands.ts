@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 
 /** The discriminated union type for a saved command (only 'prompt' variant for now). */
 const savedCommandUnion = v.union(

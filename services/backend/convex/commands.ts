@@ -11,7 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { getSession, requireSession } from './auth/session';
 
 import {
   handleRunCommand,
@@ -60,7 +60,7 @@ export const syncCommands = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -85,7 +85,7 @@ export const runCommand = mutation({
     script: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -123,7 +123,7 @@ export const stopCommand = mutation({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -151,7 +151,7 @@ export const updateRunStatus = mutation({
     terminationReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -179,7 +179,7 @@ export const appendOutput = mutation({
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -210,7 +210,7 @@ export const updateRunTailV2 = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -237,7 +237,7 @@ export const controlRunOutputV2 = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
@@ -266,7 +266,7 @@ export const clearPendingFullOutputSync = mutation({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -291,8 +291,8 @@ export const listCommands = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -310,8 +310,8 @@ export const listActiveRuns = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -329,8 +329,8 @@ export const listRunsV2 = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -348,8 +348,8 @@ export const getRunOutputV2 = query({
     loadFull: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { chunks: [], run: null, tail: null, fullOutputPending: false };
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
     const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) return { chunks: [], run: null, tail: null, fullOutputPending: false };
@@ -371,8 +371,8 @@ export const getRunStatus = query({
     runId: v.id('chatroom_commandRuns'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     const run = await ctx.db.get('chatroom_commandRuns', args.runId);
     if (!run) return null;
@@ -394,7 +394,7 @@ export const listRunsWithLogObservers = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     const ownerCheck = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -419,7 +419,7 @@ export const clearStuckCommandRuns = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -436,7 +436,7 @@ export const reapOrphansForDaemonRestart = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },

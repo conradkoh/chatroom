@@ -11,7 +11,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
-import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import { getSession, requireSession } from './auth/session';
+import { requireWorkspaceWriteAccess } from './auth/workspaceAccess';
 import { str } from './utils/types';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
@@ -50,7 +51,7 @@ export const registerWorkspace = mutation({
     registeredBy: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
 
     // Verify the user owns the machine being registered
     await requireAccess(ctx, {
@@ -87,18 +88,8 @@ export const removeWorkspace = mutation({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
-
-    // Look up the workspace to verify access
-    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
-    if (!workspace) throw new Error('Workspace not found');
-
     // Verify the user has write-access to the machine this workspace belongs to
-    await requireAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: workspace.machineId },
-      permission: 'write-access',
-    });
+    await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
 
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
@@ -115,8 +106,8 @@ export const listWorkspacesForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -137,8 +128,8 @@ export const listWorkspacesForChatroom = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
 
     const chatroomAccessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
@@ -170,8 +161,8 @@ export const getWorkspaceById = query({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
 
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) return null;
@@ -194,8 +185,8 @@ export const getWorkspaceGitState = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<WorkspaceGitState> => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { status: 'loading' };
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { status: 'loading' };
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -264,8 +255,8 @@ export const getFullDiff = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -308,8 +299,8 @@ export const getPRDiff = query({
     prNumber: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -344,8 +335,8 @@ export const getPendingRequests = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -377,7 +368,7 @@ export const resetProcessingRequests = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -514,7 +505,7 @@ export const upsertWorkspaceGitState = mutation({
     pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -591,7 +582,7 @@ export const upsertPRDiff = mutation({
     }),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -653,7 +644,7 @@ export const appendMoreCommits = mutation({
     hasMoreCommits: v.boolean(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -701,7 +692,7 @@ export const updateRequestStatus = mutation({
     ),
   },
   handler: async (ctx, args): Promise<void> => {
-    await requireAuthenticatedUser(ctx, args.sessionId);
+    await requireSession(ctx, args.sessionId);
 
     await ctx.db.patch('chatroom_workspaceDiffRequests', args.requestId, {
       status: args.status,
@@ -726,7 +717,7 @@ export const requestFullDiff = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -777,7 +768,7 @@ export const requestPRDiff = mutation({
     prNumber: v.number(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -832,7 +823,7 @@ export const requestPRAction = mutation({
     prAction: v.union(v.literal('merge_squash'), v.literal('merge_no_squash'), v.literal('close')),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -867,7 +858,7 @@ export const requestCommitDetail = mutation({
     sha: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -918,7 +909,7 @@ export const requestMoreCommits = mutation({
     offset: v.number(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -972,8 +963,8 @@ export const getPRCommits = query({
     prNumber: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1009,7 +1000,7 @@ export const requestPRCommits = mutation({
     prNumber: v.number(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1067,7 +1058,7 @@ export const upsertPRCommits = mutation({
     ),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1116,8 +1107,8 @@ export const getAllPullRequests = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1149,7 +1140,7 @@ export const requestAllPullRequests = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1213,7 +1204,7 @@ export const upsertAllPullRequests = mutation({
     ),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1258,8 +1249,8 @@ export const getRecentCommits = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1291,7 +1282,7 @@ export const requestRecentCommits = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1349,7 +1340,7 @@ export const upsertRecentCommits = mutation({
     hasMoreCommits: v.boolean(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1413,7 +1404,7 @@ export const upsertFullDiffV2 = mutation({
     }),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1459,8 +1450,8 @@ export const getFullDiffV2 = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1527,7 +1518,7 @@ export const upsertCommitDetailV2 = mutation({
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1584,8 +1575,8 @@ export const getCommitDetailV2 = query({
     sha: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1618,8 +1609,8 @@ export const getMissingCommitShasV2 = query({
     shas: v.array(v.string()),
   },
   handler: async (ctx, args): Promise<string[]> => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return [];
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
     const accessResult = await checkAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1657,7 +1648,7 @@ export const purgeFullDiffV2 = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },
@@ -1694,7 +1685,7 @@ export const purgeCommitDetailV2 = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const auth = await requireAuthenticatedUser(ctx, args.sessionId);
+    const auth = await requireSession(ctx, args.sessionId);
     await requireAccess(ctx, {
       accessor: { type: 'user', id: auth.userId },
       resource: { type: 'machine', id: args.machineId },

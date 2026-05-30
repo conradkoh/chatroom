@@ -11,7 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { requireAccess } from './auth/accessCheck';
-import { getAuthenticatedUser } from './auth/authenticatedUser';
+import { getSession } from './auth/session';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -107,8 +107,8 @@ export const getFileTree = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return null;
     }
 
@@ -151,8 +151,8 @@ export const requestFileContent = mutation({
     filePath: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -229,8 +229,8 @@ export const getFileContent = query({
     filePath: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return null;
     }
 
@@ -276,8 +276,8 @@ export const getPendingFileContentRequests = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return [];
     }
 
@@ -343,8 +343,8 @@ export const requestFileTree = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -408,8 +408,8 @@ export const getPendingFileTreeRequests = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return [];
     }
 
@@ -446,8 +446,8 @@ export const fulfillFileTreeRequest = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -482,8 +482,8 @@ export const purgeFileTree = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -563,8 +563,8 @@ export const syncFileTreeV2 = mutation({
     scannedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -617,8 +617,8 @@ export const getFileTreeV2 = query({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return null;
     }
 
@@ -668,8 +668,8 @@ export const fulfillFileContentV2 = mutation({
     truncated: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
 
@@ -746,8 +746,8 @@ export const getFileContentV2 = query({
     filePath: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       return null;
     }
 
@@ -792,8 +792,8 @@ export const purgeFileTreeV2 = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     await requireMachineAccess(ctx, args.machineId, auth.userId);
@@ -837,8 +837,8 @@ export const purgeFileContentV2 = mutation({
     workingDir: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
       throw new Error('Authentication required');
     }
     await requireMachineAccess(ctx, args.machineId, auth.userId);

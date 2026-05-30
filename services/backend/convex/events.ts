@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { query } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 
 /**
  * Returns the latest N events for a chatroom from the event stream,
