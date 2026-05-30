@@ -168,14 +168,14 @@ const TRANSITIONS: TransitionRule[] = [
     from: 'acknowledged',
     to: 'pending',
     trigger: 'releaseTaskOnAgentExit',
-    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+    clearFields: ['acknowledgedAt', 'startedAt'],
   },
 
   {
     from: 'in_progress',
     to: 'pending',
     trigger: 'releaseTaskOnAgentExit',
-    clearFields: ['assignedTo', 'acknowledgedAt', 'startedAt'],
+    clearFields: ['acknowledgedAt', 'startedAt'],
   },
 
   // ==========================================================================
