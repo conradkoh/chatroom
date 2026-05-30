@@ -55,6 +55,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
   const prevEventCountRef = useRef(0);
+  const prevScrollHeightRef = useRef(0);
   const wasLoadingOlderRef = useRef(false);
   const hasInitialScrollRef = useRef(false);
   /** Gates load-older until the first scroll-to-bottom has settled (avoids spurious top loads). */
@@ -98,9 +99,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     overscan: TIMELINE_OVERSCAN,
     scrollMargin: topChromeHeight,
     getItemKey: (index) => getTimelineItemKey(index, events),
-    // Chat-style anchoring: stable scroll when prepending history; follow tail only at end.
+    // Chat-style anchoring: stable scroll when prepending history; pinned append handled below.
     anchorTo: 'end',
-    followOnAppend: 'smooth',
+    followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
 
@@ -143,18 +144,34 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   }, [events.length, scrollToLatest]);
 
   useLayoutEffect(() => {
+    const el = scrollParentRef.current;
     const added = events.length > prevEventCountRef.current;
     const wasLoadingOlder = wasLoadingOlderRef.current;
 
-    // Prepend-for-viewport-fill while pinned — end-anchor does not apply followOnAppend here.
-    if (added && wasLoadingOlder && loadOlderIntentRef.current === 'fill_viewport') {
-      scrollToLatest('auto');
-      loadOlderIntentRef.current = 'preserve_position';
+    if (el) {
+      if (added) {
+        const heightDiff = el.scrollHeight - prevScrollHeightRef.current;
+
+        if (wasLoadingOlder) {
+          const wasNearTop = el.scrollTop < 200;
+          if (heightDiff > 0) {
+            controller.current.onNewMessages(heightDiff, true, wasNearTop);
+          }
+          if (loadOlderIntentRef.current === 'fill_viewport') {
+            scrollToLatest('auto');
+            loadOlderIntentRef.current = 'preserve_position';
+          }
+        } else if (isPinned) {
+          scrollToLatest('auto');
+        }
+      }
+
+      prevScrollHeightRef.current = el.scrollHeight;
     }
 
     prevEventCountRef.current = events.length;
     wasLoadingOlderRef.current = isLoadingOlder;
-  }, [events.length, isLoadingOlder, scrollToLatest]);
+  }, [events.length, isLoadingOlder, isPinned, controller, scrollToLatest]);
 
   useEffect(() => {
     wasLoadingOlderRef.current = isLoadingOlder;
