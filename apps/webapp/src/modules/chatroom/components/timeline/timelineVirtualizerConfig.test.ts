@@ -1,19 +1,21 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  getLoadOlderNearTopScrollMax,
   shouldTriggerLoadOlder,
   TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
+  TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION,
 } from './timelineVirtualizerConfig';
 
 describe('shouldTriggerLoadOlder', () => {
   const clientHeight = 400;
+  const scrollHeight = 2500;
+  const maxScrollTop = scrollHeight - clientHeight;
 
   it('does not trigger at the bottom even when the virtualizer reports a low index', () => {
     expect(
       shouldTriggerLoadOlder({
-        scrollTop: 2100,
-        scrollHeight: 2500,
+        scrollTop: maxScrollTop,
+        scrollHeight,
         clientHeight,
         firstVisibleIndex: 0,
         topChromeHeight: 32,
@@ -24,8 +26,8 @@ describe('shouldTriggerLoadOlder', () => {
   it('triggers when scrollTop is near the top and the sentinel row is visible', () => {
     expect(
       shouldTriggerLoadOlder({
-        scrollTop: 120,
-        scrollHeight: 2500,
+        scrollTop: maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION,
+        scrollHeight,
         clientHeight,
         firstVisibleIndex: TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
         topChromeHeight: 32,
@@ -33,14 +35,14 @@ describe('shouldTriggerLoadOlder', () => {
     ).toBe(true);
   });
 
-  it('does not trigger when scrolled up but still below the sentinel band', () => {
-    const nearTopMax = getLoadOlderNearTopScrollMax(32);
+  it('does not trigger when scrolled up moderately from the bottom', () => {
+    const moderateScrollTop = maxScrollTop - 8 * 100;
     expect(
       shouldTriggerLoadOlder({
-        scrollTop: nearTopMax + 50,
-        scrollHeight: 2500,
+        scrollTop: moderateScrollTop,
+        scrollHeight,
         clientHeight,
-        firstVisibleIndex: 2,
+        firstVisibleIndex: 12,
         topChromeHeight: 32,
       })
     ).toBe(false);
@@ -50,9 +52,22 @@ describe('shouldTriggerLoadOlder', () => {
     expect(
       shouldTriggerLoadOlder({
         scrollTop: 100,
-        scrollHeight: 2500,
+        scrollHeight,
         clientHeight,
         firstVisibleIndex: TIMELINE_LOAD_OLDER_SENTINEL_INDEX + 1,
+        topChromeHeight: 32,
+      })
+    ).toBe(false);
+  });
+
+  it('does not trigger when sentinel index is visible but scroll is below the top fraction', () => {
+    const belowTopFraction = maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION + 50;
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: belowTopFraction,
+        scrollHeight,
+        clientHeight,
+        firstVisibleIndex: TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
         topChromeHeight: 32,
       })
     ).toBe(false);

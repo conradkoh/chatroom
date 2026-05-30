@@ -268,6 +268,26 @@ describe('ChatroomTimelineFeed load-older guards', () => {
     expect(loadOlderEvents).not.toHaveBeenCalled();
   });
 
+  it('does not load older when scrolled up ~8 rows from the bottom', async () => {
+    const { coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    mockFirstVisibleIndex = 12;
+
+    act(() => {
+      scrollElProps(el, maxScrollTop - 8 * 100, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(loadOlderEvents).not.toHaveBeenCalled();
+  });
+
   it('loads older after the user scrolls near the top', async () => {
     const { coordinator } = renderFeed();
     const el = screen.getByTestId('chatroom-timeline-scroll');
@@ -568,7 +588,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     mockScrollToIndex.mockClear();
     loadOlderEvents.mockClear();
     mockHasMoreOlder = true;
-    mockFirstVisibleIndex = 4;
+    mockFirstVisibleIndex = 2;
     timelineEvents = buildEvents(25);
     timelineIsLoadingOlder = false;
   });
@@ -576,14 +596,15 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('preserves viewport when older messages arrive after load-more (no tail snap)', async () => {
     const { rerender, coordinator } = renderFeed();
     const el = screen.getByTestId('chatroom-timeline-scroll');
-    scrollElProps(el, 400, 2500);
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop * 0.08, 2500);
 
     await waitFor(() => {
       expect(coordinator.current.getAllowLoadOlder()).toBe(true);
     });
 
     act(() => {
-      scrollElProps(el, 400, 2500);
+      scrollElProps(el, maxScrollTop * 0.08, 2500);
       el.dispatchEvent(new Event('scroll'));
     });
     expect(loadOlderEvents).toHaveBeenCalledTimes(1);
@@ -604,13 +625,15 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     }));
     timelineEvents = [...olderBatch, ...buildEvents(25)];
     timelineIsLoadingOlder = false;
-    scrollElProps(el, 400, 4500);
+    const scrollTopBeforeLoad = maxScrollTop * 0.08;
+    const expectedScrollTopAfterPrepend = scrollTopBeforeLoad + 20 * 100;
+    scrollElProps(el, scrollTopBeforeLoad, 4500);
 
     act(() => {
       rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(el.scrollTop).toBe(2400);
+    expect(el.scrollTop).toBe(expectedScrollTopAfterPrepend);
     expect(followTail).not.toHaveBeenCalled();
     expect(mockScrollToEnd).not.toHaveBeenCalled();
     followTail.mockRestore();

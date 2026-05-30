@@ -7,24 +7,21 @@ export const TIMELINE_OVERSCAN = 5;
 
 /**
  * 0-based index of the oldest row that should enter view before prefetching history.
- * Index 4 = the 5th message from the top of the loaded timeline.
+ * Index 2 = the 3rd message from the top (matches release/v1.51.0 threshold).
  */
-export const TIMELINE_LOAD_OLDER_SENTINEL_INDEX = 4;
+export const TIMELINE_LOAD_OLDER_SENTINEL_INDEX = 2;
 
-/** Extra rows of slack beyond the sentinel when comparing scrollTop to estimates. */
-const LOAD_OLDER_SENTINEL_SCROLL_ROWS = 2;
-
-export function getLoadOlderNearTopScrollMax(topChromeHeight: number): number {
-  return (
-    topChromeHeight +
-    TIMELINE_ESTIMATE_SIZE * (TIMELINE_LOAD_OLDER_SENTINEL_INDEX + LOAD_OLDER_SENTINEL_SCROLL_ROWS)
-  );
-}
+/**
+ * Fraction of max scroll range (0–1) within which scroll-driven load-older may fire.
+ * Relative to loaded content height so moderate scroll-up from the tail cannot match
+ * a fixed pixel band (~600px) while the virtualizer still reports a low index.
+ */
+export const TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION = 0.1;
 
 /**
  * Whether scroll position + virtual range indicate the user has reached the load-older sentinel.
- * Requires both a low first-visible index and scrollTop near the top so a stale virtual index
- * at the bottom cannot trigger an early fetch.
+ * Requires both a low first-visible index and scrollTop in the top fraction of the range so a
+ * stale virtual index mid-list or at the bottom cannot trigger an early fetch.
  */
 export function shouldTriggerLoadOlder(input: {
   scrollTop: number;
@@ -33,17 +30,20 @@ export function shouldTriggerLoadOlder(input: {
   firstVisibleIndex: number;
   topChromeHeight: number;
 }): boolean {
-  const { scrollTop, scrollHeight, clientHeight, firstVisibleIndex, topChromeHeight } = input;
+  const { scrollTop, scrollHeight, clientHeight, firstVisibleIndex } = input;
 
   const atBottom =
     scrollHeight - scrollTop - clientHeight < TIMELINE_SCROLL_END_THRESHOLD;
   if (atBottom) return false;
 
-  const nearTop =
-    scrollTop < getLoadOlderNearTopScrollMax(topChromeHeight) &&
-    firstVisibleIndex <= TIMELINE_LOAD_OLDER_SENTINEL_INDEX;
+  const maxScrollTop = scrollHeight - clientHeight;
+  if (maxScrollTop <= 0) return false;
 
-  return nearTop;
+  const nearTop =
+    scrollTop <= maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION;
+  const sentinelVisible = firstVisibleIndex <= TIMELINE_LOAD_OLDER_SENTINEL_INDEX;
+
+  return nearTop && sentinelVisible;
 }
 
 /** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
