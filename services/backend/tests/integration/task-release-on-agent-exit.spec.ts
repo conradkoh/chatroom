@@ -78,7 +78,7 @@ test('recordAgentExited (crash) releases acknowledged task to pending — no gra
   });
   const task = tasks.find((row) => row.status === 'pending');
   expect(task).toBeDefined();
-  expect(task?.assignedTo).toBeUndefined();
+  expect(task?.assignedTo).toBe('builder');
   expect(task?.acknowledgedAt).toBeUndefined();
   expect(task?.startedAt).toBeUndefined();
 
@@ -146,7 +146,7 @@ test('recordAgentExited (user.stop) releases acknowledged task to pending', asyn
   });
   const pending = tasks.find((row) => row.status === 'pending');
   expect(pending).toBeDefined();
-  expect(pending?.assignedTo).toBeUndefined();
+  expect(pending?.assignedTo).toBe('builder');
   expect(pending?.acknowledgedAt).toBeUndefined();
 
   const pendingAfterExit = await t.query(api.tasks.getPendingTasksForRole, {
@@ -209,7 +209,7 @@ test('recordAgentExited (daemon.shutdown) releases acknowledged task to pending'
   });
   const pending = tasks.find((row) => row.status === 'pending');
   expect(pending).toBeDefined();
-  expect(pending?.assignedTo).toBeUndefined();
+  expect(pending?.assignedTo).toBe('builder');
 });
 
 test('recordAgentExited (crash) releases in_progress task to pending', async () => {
@@ -386,6 +386,6 @@ test('releaseOrphanedTasksForRole releases acknowledged task when PID cleared wi
   });
   const pending = tasks.find((row) => row.status === 'pending');
   expect(pending).toBeDefined();
-  expect(pending?.assignedTo).toBeUndefined();
+  expect(pending?.assignedTo).toBe('builder');
   expect(pending?.acknowledgedAt).toBeUndefined();
 });
