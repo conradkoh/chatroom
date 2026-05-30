@@ -8,6 +8,10 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/accessCheck';
 import { getAuthenticatedUser, requireAuthenticatedUser } from './auth/authenticatedUser';
+import {
+  getAuthenticatedMachineOwnerOrNull,
+  requireAuthenticatedMachineOwner,
+} from './auth/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
@@ -602,17 +606,18 @@ export const listMachines = query({
 export const getMachineModels = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { availableModels: {} as Record<string, string[]> };
+    const auth = await getAuthenticatedMachineOwnerOrNull(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return { availableModels: {} as Record<string, string[]> };
 
-    // Verify ownership
     const machine = await ctx.db
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (!machine || machine.userId !== auth.user._id) {
-      return { availableModels: {} as Record<string, string[]> };
-    }
+    if (!machine) return { availableModels: {} as Record<string, string[]> };
 
     // Prefer new table; fall back to legacy field if migration hasn't backfilled yet.
     const newRow = await ctx.db
@@ -638,17 +643,12 @@ export const getDaemonStatus = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      return { connected: false, lastSeenAt: null };
-    }
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine || machine.userId !== auth.user._id) {
+    const auth = await getAuthenticatedMachineOwnerOrNull(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) {
       return { connected: false, lastSeenAt: null };
     }
 
@@ -755,16 +755,12 @@ export const getCommandEvents = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 1. Auth check
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { events: [] };
-
-    // 2. Machine ownership check
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) return { events: [] };
+    const auth = await getAuthenticatedMachineOwnerOrNull(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return { events: [] };
 
     const now = Date.now();
 
@@ -884,14 +880,12 @@ export const getDaemonPongEvent = query({
     afterEventId: v.optional(v.id('chatroom_eventStream')),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return null;
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) return null;
+    const auth = await getAuthenticatedMachineOwnerOrNull(
+      ctx,
+      args.sessionId,
+      args.machineId
+    );
+    if (!auth) return null;
 
     const pongEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -1018,12 +1012,8 @@ export const updateDaemonStatus = mutation({
     connected: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-    const user = auth.user;
-    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
+    const machine = await getMachineByMachineId(ctx, args.machineId);
 
     const now = Date.now();
 
@@ -1087,12 +1077,7 @@ export const daemonHeartbeat = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) {
-      throw new Error('Authentication required');
-    }
-    const user = auth.user;
-    await getOwnedMachine(ctx, args.machineId, user._id); // ownership check
+    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
 
     const now = Date.now();
 
