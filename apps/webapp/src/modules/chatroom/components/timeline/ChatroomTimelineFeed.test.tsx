@@ -105,6 +105,7 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
     hasMoreOlder: false,
     isLoadingOlder: false,
     loadOlderEvents: vi.fn(),
+    purgeOldMessages: vi.fn(),
   }),
 }));
 

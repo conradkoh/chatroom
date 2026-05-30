@@ -27,6 +27,9 @@ import type { Message } from '../types/message';
 const SUBSCRIPTION_LIMIT = 20;
 const LOAD_OLDER_PAGE_SIZE = 20;
 
+/** Rows to keep above the viewport top when purging (scroll-back buffer). */
+const PURGE_KEEP_ABOVE_VIEWPORT = 20;
+
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +66,8 @@ export interface UseMessagesResult {
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderMessages: () => void;
+  /** Drop prepended history far above the viewport (only while pinned at bottom). */
+  purgeOldMessages: (viewportTopIndex: number) => void;
 }
 
 export function useMessages(chatroomId: string): UseMessagesResult {
@@ -80,6 +85,8 @@ export function useMessages(chatroomId: string): UseMessagesResult {
   const [exhaustedOlder, setExhaustedOlder] = useState(false);
   const isLoadingOlderRef = useRef(false);
   const prevLiveRef = useRef<Message[]>([]);
+  const olderMessagesRef = useRef<Message[]>([]);
+  olderMessagesRef.current = olderMessages;
 
   // Retain messages that slide out of the subscription window.
   useEffect(() => {
@@ -156,11 +163,24 @@ export function useMessages(chatroomId: string): UseMessagesResult {
     })();
   }, [convex, typedChatroomId, sessionId, exhaustedOlder]);
 
+  const purgeOldMessages = useCallback((viewportTopIndex: number) => {
+    const prev = olderMessagesRef.current;
+    if (prev.length === 0) return;
+
+    const keepFromIndex = Math.max(0, viewportTopIndex - PURGE_KEEP_ABOVE_VIEWPORT);
+    const dropCount = Math.min(prev.length, keepFromIndex);
+    if (dropCount <= 0) return;
+
+    setOlderMessages(prev.slice(dropCount));
+    setExhaustedOlder(false);
+  }, []);
+
   return {
     messages,
     isLoading: subscriptionResult === undefined,
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
+    purgeOldMessages,
   };
 }

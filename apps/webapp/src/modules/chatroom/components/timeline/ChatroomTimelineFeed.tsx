@@ -33,6 +33,7 @@ import {
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
+  TIMELINE_PURGE_INDEX_THRESHOLD,
 } from './timelineVirtualizerConfig';
 
 export interface ChatroomTimelineFeedProps {
@@ -64,7 +65,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
-  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
+  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents, purgeOldMessages } =
     useChatroomTimeline(chatroomId);
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
@@ -182,7 +183,11 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
       tryLoadOlder();
     }
-  }, [tryLoadOlder, virtualizer]);
+
+    if (isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
+      purgeOldMessages(firstVisible.index);
+    }
+  }, [isPinned, purgeOldMessages, tryLoadOlder, virtualizer]);
 
   useEffect(() => {
     const el = scrollParentRef.current;
