@@ -199,7 +199,7 @@ export function ChatroomTimelineFeed({
             index: firstVisible.index,
             scrollTop: el.scrollTop,
             scrollHeight: el.scrollHeight,
-            offsetInItem: el.scrollTop - firstVisible.start,
+            offsetInItem: el.scrollTop - firstVisible.start + topChromeHeight,
           };
         }
       }

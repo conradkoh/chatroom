@@ -162,6 +162,42 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
+  it('preserves scrollTop when chrome grew between anchor capture and prepend', () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 1000, writable: true, configurable: true });
+
+    coordinator.setLoadOlderIntent('preserve_position', {
+      key: 'evt-3',
+      index: 3,
+      scrollTop: 200,
+      scrollHeight: 1000,
+      offsetInItem: 0,
+    });
+
+    Object.defineProperty(el, 'scrollTop', { value: 224, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 3024, writable: true, configurable: true });
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 30,
+      tailKey: 'evt-29',
+      isLoadingOlder: false,
+    });
+
+    expect(el.scrollTop).toBe(224 + 2024);
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
   it('preserves scrollTop when prepending while loading older (preserve_position)', () => {
     const scrollToOffset = vi.fn();
     coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });

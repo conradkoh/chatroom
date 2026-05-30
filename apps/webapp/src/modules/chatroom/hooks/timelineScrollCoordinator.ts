@@ -376,13 +376,19 @@ export class TimelineScrollCoordinator {
       return;
     }
 
-    const targetTop = anchor ? anchor.scrollTop + heightDiff : this.el.scrollTop + heightDiff;
+    // Use live scrollTop so top-chrome growth (load-older spinner) between capture
+    // and prepend is not overwritten by the stale anchor snapshot.
+    const targetTop = this.el.scrollTop + heightDiff;
     this.runProgrammaticScroll(() => {
       this.applyPrependScrollTop(targetTop);
     });
 
     if (anchor) {
-      this.schedulePrependScrollSettle(scrollEl, anchor);
+      this.schedulePrependScrollSettle(scrollEl, {
+        ...anchor,
+        scrollTop: targetTop,
+        scrollHeight: scrollEl.scrollHeight,
+      });
     } else {
       this.pendingPrependPreserve = false;
     }
