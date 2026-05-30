@@ -123,6 +123,14 @@ export class TimelineScrollCoordinator {
     return this.programmaticScroll;
   }
 
+  /**
+   * When true, TanStack may adjust scrollTop as prepended rows measure in.
+   * Disabled during normal scroll-up to avoid first-unpin jumps.
+   */
+  isPrependScrollPreservationActive(): boolean {
+    return this.pendingPrependPreserve || this.prependSettleRafId !== null;
+  }
+
   isTailSettling(): boolean {
     return this.tailSettling;
   }
@@ -295,7 +303,6 @@ export class TimelineScrollCoordinator {
           this.prependAnchor = null;
         } else {
           this.applyPrependScrollPreserve(scrollEl);
-          this.pendingPrependPreserve = false;
         }
       } else if (this.shouldFollowTail()) {
         // Tail key covers subscription slide-off (same count); count covers growth without tail rotation.
@@ -364,7 +371,10 @@ export class TimelineScrollCoordinator {
       ? scrollEl.scrollHeight - anchor.scrollHeight
       : scrollEl.scrollHeight - this.prevScrollHeight;
 
-    if (heightDiff <= 0) return;
+    if (heightDiff <= 0) {
+      this.pendingPrependPreserve = false;
+      return;
+    }
 
     const targetTop = anchor ? anchor.scrollTop + heightDiff : this.el.scrollTop + heightDiff;
     this.runProgrammaticScroll(() => {
@@ -373,6 +383,8 @@ export class TimelineScrollCoordinator {
 
     if (anchor) {
       this.schedulePrependScrollSettle(scrollEl, anchor);
+    } else {
+      this.pendingPrependPreserve = false;
     }
 
     this.prependAnchor = null;
@@ -439,6 +451,7 @@ export class TimelineScrollCoordinator {
 
       if (frames >= maxFrames) {
         this.prependSettleRafId = null;
+        this.pendingPrependPreserve = false;
         return;
       }
 

@@ -335,9 +335,14 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
 
     expect(virtualizerOptions.at(-1)?.overscan).toBe(20);
     const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
-      | (() => boolean)
+      | ((item: { start: number }, delta: number, instance: { scrollOffset: number | null; scrollDirection: string | null }) => boolean)
       | undefined;
-    expect(shouldAdjust?.()).toBe(false);
+    expect(
+      shouldAdjust?.({ start: 0 }, 0, { scrollOffset: 500, scrollDirection: null })
+    ).toBe(false);
+    expect(
+      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
+    ).toBe(false);
   });
 
   it('uses default overscan for large feeds', () => {
@@ -693,7 +698,37 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     expect(el.scrollTop).toBe(expectedScrollTopAfterPrepend);
     expect(followTail).not.toHaveBeenCalled();
     expect(mockScrollToEnd).not.toHaveBeenCalled();
+    expect(coordinator.current.isPrependScrollPreservationActive()).toBe(true);
     followTail.mockRestore();
+  });
+
+  it('allows virtualizer scroll adjustment only while prepend is settling', async () => {
+    const { coordinator } = renderFeed();
+    await flushRaf();
+
+    const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
+      | ((item: { start: number }, delta: number, instance: { scrollOffset: number | null; scrollDirection: string | null }) => boolean)
+      | undefined;
+
+    expect(
+      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
+    ).toBe(false);
+
+    coordinator.current.setLoadOlderIntent('preserve_position', {
+      key: 'evt-2',
+      index: 2,
+      scrollTop: 200,
+      scrollHeight: 2500,
+      offsetInItem: 10,
+    });
+
+    expect(coordinator.current.isPrependScrollPreservationActive()).toBe(true);
+    expect(
+      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
+    ).toBe(true);
+    expect(
+      shouldAdjust?.({ start: 600 }, 0, { scrollOffset: 500, scrollDirection: 'backward' })
+    ).toBe(false);
   });
 
   it('does not jump when the loading chrome height changes while scrolled up', async () => {

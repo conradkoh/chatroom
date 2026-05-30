@@ -115,10 +115,13 @@ export function ChatroomTimelineFeed({
   });
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
-  // Default TanStack adjustment runs after scroll settles (scrollDirection null)
-  // when rows are first measured on scroll-up — visible as a first-unpin jump.
-  // Prepend preservation is coordinator-driven; tail-at-end uses wasAtEnd path.
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    if (!coordinator.current.isPrependScrollPreservationActive()) {
+      return false;
+    }
+    const scrollOffset = instance.scrollOffset ?? 0;
+    return item.start < scrollOffset && instance.scrollDirection !== 'backward';
+  };
   const eagerMeasureDoneRef = useRef(false);
 
   const scrollRefCallback = useCallback(
