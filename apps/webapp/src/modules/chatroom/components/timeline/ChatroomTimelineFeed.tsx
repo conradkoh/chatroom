@@ -61,6 +61,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const wasLoadingOlderRef = useRef(false);
   const loadAnchorIdRef = useRef<string | null>(null);
   const hasInitialScrollRef = useRef(false);
+  /** Gates load-older until the first scroll-to-bottom has settled (avoids spurious top loads). */
+  const allowLoadOlderRef = useRef(false);
+  const loadOlderIntentRef = useRef<'preserve_position' | 'fill_viewport'>('preserve_position');
   const [topChromeHeight, setTopChromeHeight] = useState(0);
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
@@ -139,7 +142,13 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   useLayoutEffect(() => {
     if (events.length > 0 && !hasInitialScrollRef.current) {
       hasInitialScrollRef.current = true;
+      allowLoadOlderRef.current = false;
       scrollToLatest();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          allowLoadOlderRef.current = true;
+        });
+      });
     }
   }, [events.length, scrollToLatest]);
 
@@ -152,9 +161,15 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       scrollToLatest();
     }
 
-    if (added && wasLoadingOlder && loadAnchorIdRef.current) {
-      scrollToAnchor(loadAnchorIdRef.current);
+    if (added && wasLoadingOlder) {
+      const intent = loadOlderIntentRef.current;
+      if (intent === 'fill_viewport' || (isPinned && !loadAnchorIdRef.current)) {
+        scrollToLatest();
+      } else if (loadAnchorIdRef.current) {
+        scrollToAnchor(loadAnchorIdRef.current);
+      }
       loadAnchorIdRef.current = null;
+      loadOlderIntentRef.current = 'preserve_position';
     }
 
     prevEventCountRef.current = events.length;
@@ -165,23 +180,34 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     wasLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
 
-  const tryLoadOlder = useCallback(() => {
-    if (!hasMoreOlder || isLoadingOlder) return;
-    const firstVisible = virtualizer.getVirtualItems()[0];
-    const anchorId =
-      firstVisible !== undefined
-        ? events[firstVisible.index]?.id
-        : (events[0]?.id ?? null);
-    loadAnchorIdRef.current = anchorId;
-    loadOlderEvents();
-  }, [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]);
+  const tryLoadOlder = useCallback(
+    (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
+      if (!allowLoadOlderRef.current || !hasMoreOlder || isLoadingOlder) return;
+
+      loadOlderIntentRef.current = intent;
+      if (intent === 'preserve_position') {
+        const firstVisible = virtualizer.getVirtualItems()[0];
+        loadAnchorIdRef.current =
+          firstVisible !== undefined
+            ? (events[firstVisible.index]?.id ?? null)
+            : (events[0]?.id ?? null);
+      } else {
+        loadAnchorIdRef.current = null;
+      }
+
+      loadOlderEvents();
+    },
+    [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]
+  );
 
   const handleScroll = useCallback(() => {
+    if (!allowLoadOlderRef.current) return;
+
     const firstVisible = virtualizer.getVirtualItems()[0];
     if (!firstVisible) return;
 
     if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
-      tryLoadOlder();
+      tryLoadOlder('preserve_position');
     }
 
     if (isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
@@ -190,12 +216,24 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   }, [isPinned, purgeOldMessages, tryLoadOlder, virtualizer]);
 
   useEffect(() => {
+    if (!allowLoadOlderRef.current || !isPinned) return;
+
     const el = scrollParentRef.current;
     if (!el || !hasMoreOlder || isLoadingOlder) return;
-    if (el.scrollHeight <= el.clientHeight) {
-      tryLoadOlder();
+
+    const contentHeight = topChromeHeight + virtualizer.getTotalSize();
+    if (contentHeight <= el.clientHeight) {
+      tryLoadOlder('fill_viewport');
     }
-  }, [events.length, hasMoreOlder, isLoadingOlder, tryLoadOlder]);
+  }, [
+    events.length,
+    hasMoreOlder,
+    isLoadingOlder,
+    isPinned,
+    topChromeHeight,
+    tryLoadOlder,
+    virtualizer,
+  ]);
 
   const canLoadMore = hasMoreOlder && !isLoadingOlder;
 
@@ -279,7 +317,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
           {canLoadMore && (
             <button
               type="button"
-              onClick={tryLoadOlder}
+              onClick={() => tryLoadOlder('preserve_position')}
               className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors"
             >
               <ChevronUp size={12} />
