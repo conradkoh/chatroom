@@ -7,7 +7,7 @@ import {
   requireDirectHarnessWorkers,
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers.js';
-import { requireAuthenticatedMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 import type { MutationCtx, QueryCtx } from '../../_generated/server.js';
 import type { Id } from '../../_generated/dataModel.js';
@@ -94,7 +94,7 @@ export const markTurnProcessed = mutation({
       });
     }
 
-    await requireAuthenticatedMachineOwner(ctx, args.sessionId, workspace.machineId);
+    await requireMachineOwner(ctx, args.sessionId, workspace.machineId);
 
     await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
       lastProcessedTurnSeq: args.turnSeq,
@@ -300,7 +300,7 @@ export const getMachineHarnessSessions = query({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const workspaces = await ctx.db
       .query('chatroom_workspaces')

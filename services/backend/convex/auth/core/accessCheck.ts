@@ -12,10 +12,10 @@ import {
   type CheckAccessParams,
   type AccessResult,
   type Permission,
-} from '../../src/domain/usecase/auth/extensions/check-access';
-import type { Id } from '../_generated/dataModel';
-import type { QueryCtx, MutationCtx } from '../_generated/server';
-import { str } from '../utils/types';
+} from '../../../src/domain/usecase/auth/extensions/check-access';
+import type { Id } from '../../_generated/dataModel';
+import type { QueryCtx, MutationCtx } from '../../_generated/server';
+import { str } from '../../utils/types';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 

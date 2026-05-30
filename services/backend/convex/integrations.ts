@@ -2,7 +2,7 @@ import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query, internalQuery } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
