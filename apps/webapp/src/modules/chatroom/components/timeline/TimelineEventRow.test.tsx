@@ -20,10 +20,12 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
   };
 }
 
+const TEST_CHATROOM_ID = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
+
 describe('TimelineEventRow', () => {
   it('renders user message cell', () => {
     const event = mapMessageToTimelineEvent(makeMessage());
-    render(<TimelineEventRow event={event} />);
+    render(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-user-message')).toBeInTheDocument();
     expect(screen.getByText('Hello timeline')).toBeInTheDocument();
   });
@@ -32,7 +34,7 @@ describe('TimelineEventRow', () => {
     const event = mapMessageToTimelineEvent(
       makeMessage({ type: 'new-context', senderRole: 'system', content: 'Context body' })
     );
-    render(<TimelineEventRow event={event} />);
+    render(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-context')).toBeInTheDocument();
     expect(screen.getByText('New Context')).toBeInTheDocument();
   });
@@ -42,7 +44,14 @@ describe('TimelineEventRow', () => {
       makeMessage({ senderRole: 'builder', content: 'Handoff note' })
     );
     const machines = new Map([['m1', { hostname: 'dev-box', alias: 'Dev' }]]);
-    render(<TimelineEventRow event={event} machines={machines} machineId="m1" />);
+    render(
+      <TimelineEventRow
+        event={event}
+        chatroomId={TEST_CHATROOM_ID}
+        machines={machines}
+        machineId="m1"
+      />
+    );
     expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();
     expect(screen.getByText('(Dev)')).toBeInTheDocument();
     expect(screen.getByText('Handoff note')).toBeInTheDocument();

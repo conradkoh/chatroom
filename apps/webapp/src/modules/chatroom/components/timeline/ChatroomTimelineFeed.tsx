@@ -304,7 +304,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <TimelineEventRow event={event} machines={machines} />
+                <TimelineEventRow event={event} chatroomId={chatroomId} machines={machines} />
               </div>
             );
           })}

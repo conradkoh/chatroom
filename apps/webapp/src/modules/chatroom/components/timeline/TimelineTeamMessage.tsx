@@ -1,9 +1,11 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo } from 'react';
 
 import type { Message } from '../../types/message';
+import { MessageAttachmentChips } from '../MessageAttachmentChips';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import {
@@ -28,6 +30,7 @@ function getMessageTypeBadge(type: string) {
 
 export interface TimelineTeamMessageProps {
   message: Message;
+  chatroomId: string;
   machines?: Map<string, MachineNameEntry>;
   /** When set, shows resolved hostname/alias beside the sender role. */
   machineId?: string;
@@ -35,6 +38,7 @@ export interface TimelineTeamMessageProps {
 
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
+  chatroomId,
   machines,
   machineId,
 }: TimelineTeamMessageProps) {
@@ -89,6 +93,12 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       )}
 
       <TimelineMarkdownBody content={message.content} />
+      <div className="mt-2 empty:hidden">
+        <MessageAttachmentChips
+          message={message}
+          chatroomId={chatroomId as Id<'chatroom_rooms'>}
+        />
+      </div>
     </div>
   );
 });

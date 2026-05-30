@@ -11,6 +11,7 @@ import type { MachineNameEntry } from './timelineRowStyles';
 
 export interface TimelineEventRowProps {
   event: TimelineEvent;
+  chatroomId: string;
   machines?: Map<string, MachineNameEntry>;
   /** Optional machine id for team rows (hostname via `machines` map). */
   machineId?: TimelineTeamMessageProps['machineId'];
@@ -18,17 +19,23 @@ export interface TimelineEventRowProps {
 
 export const TimelineEventRow = memo(function TimelineEventRow({
   event,
+  chatroomId,
   machines,
   machineId,
 }: TimelineEventRowProps) {
   switch (event.kind) {
     case 'user_message':
-      return <TimelineUserMessage message={event.message} />;
+      return <TimelineUserMessage message={event.message} chatroomId={chatroomId} />;
     case 'context':
       return <TimelineContextMessage message={event.message} />;
     case 'team_message':
       return (
-        <TimelineTeamMessage message={event.message} machines={machines} machineId={machineId} />
+        <TimelineTeamMessage
+          message={event.message}
+          chatroomId={chatroomId}
+          machines={machines}
+          machineId={machineId}
+        />
       );
     default: {
       const _exhaustive: never = event;
