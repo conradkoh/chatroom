@@ -6,9 +6,12 @@ export const TAIL_WINDOW_BYTES = 32 * 1024;
 const TEMP_DIR = join(tmpdir(), 'chatroom-cli', 'runs');
 const RUN_ID_RE = /^[a-z0-9]+$/i;
 
+export const MAX_TAIL_LINES_V2 = 50;
+
 export interface OutputStore {
   append(data: string): Promise<void>;
   getTail(): { content: string; totalBytes: number };
+  getLastNLines(maxLines: number): Promise<{ content: string; totalBytes: number; lineCount: number }>;
   getFullOutput(): Promise<string>;
   destroy(): Promise<void>;
 }
@@ -50,6 +53,27 @@ class TempFileOutputStore implements OutputStore {
     return {
       content: this.state.inMemory,
       totalBytes: this.state.totalBytes,
+    };
+  }
+
+  async getLastNLines(maxLines: number): Promise<{
+    content: string;
+    totalBytes: number;
+    lineCount: number;
+  }> {
+    let source: string;
+    try {
+      source = await readFile(this.state.filePath, 'utf-8');
+    } catch {
+      source = this.state.inMemory;
+    }
+    const lines = source.split('\n');
+    const slice = lines.length > maxLines ? lines.slice(-maxLines) : lines;
+    const content = slice.join('\n');
+    return {
+      content,
+      totalBytes: Buffer.byteLength(content, 'utf-8'),
+      lineCount: slice.length,
     };
   }
 

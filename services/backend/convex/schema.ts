@@ -1999,10 +1999,16 @@ export default defineSchema({
       byteLength: v.number(),        // decompressed byte length of the tail window
       totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
       updatedAt: v.number(),
+      lineCount: v.optional(v.number()), // V2: lines included in tail (max 50)
     })),
+    /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
+    logObserverCount: v.optional(v.number()),
+    /** V2: webapp requested one-shot full log flush from daemon temp file */
+    pendingFullOutputSync: v.optional(v.boolean()),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
+    .index('by_machineId_status', ['machineId', 'status'])
     .index('by_status', ['status']),
 
   /**

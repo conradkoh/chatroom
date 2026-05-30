@@ -4,7 +4,9 @@ vi.mock('../../../../../api.js', () => ({
   api: {
     commands: {
       appendOutput: 'mock-appendOutput',
-      updateRunTail: 'mock-updateRunTail',
+      updateRunTailV2: 'mock-updateRunTailV2',
+      listRunsWithLogObservers: 'mock-listRunsWithLogObservers',
+      clearPendingFullOutputSync: 'mock-clearPendingFullOutputSync',
       updateRunStatus: 'mock-updateRunStatus',
     },
   },
@@ -21,6 +23,12 @@ vi.mock('./output-store.js', () => ({
   createOutputStore: vi.fn(),
   ensureTempDir: vi.fn().mockResolvedValue(undefined),
   TAIL_WINDOW_BYTES: 32 * 1024,
+  MAX_TAIL_LINES_V2: 50,
+}));
+
+vi.mock('./log-observer-sync.js', () => ({
+  isRunLogObserved: vi.fn(() => true),
+  consumePendingFullSync: vi.fn(() => false),
 }));
 
 import type { DaemonContext } from '../../types.js';
@@ -90,6 +98,12 @@ function createMockStore(initialContent = '') {
       content: inMemory,
       totalBytes,
     })),
+    getLastNLines: vi.fn().mockImplementation(async (n: number) => {
+      const lines = inMemory.split('\n');
+      const slice = lines.slice(-n);
+      const content = slice.join('\n');
+      return { content, totalBytes: content.length, lineCount: slice.length };
+    }),
     getFullOutput: vi.fn().mockImplementation(async () => inMemory),
     destroy: vi.fn().mockResolvedValue(undefined),
     _setContent: (content: string) => {
@@ -156,7 +170,7 @@ describe('spawnCommandProcess — new output flow', () => {
     };
   }
 
-  it('calls updateRunTail on every flush interval, not appendOutput during run', async () => {
+  it('calls updateRunTailV2 on flush when observed, not appendOutput during run', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
@@ -172,7 +186,7 @@ describe('spawnCommandProcess — new output flow', () => {
     await vi.advanceTimersByTimeAsync(3_500);
 
     const tailCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
-      (c: any) => c[0] === 'mock-updateRunTail'
+      (c: any) => c[0] === 'mock-updateRunTailV2'
     );
     expect(tailCalls.length).toBeGreaterThanOrEqual(1);
 
@@ -182,13 +196,17 @@ describe('spawnCommandProcess — new output flow', () => {
     expect(appendCalls).toHaveLength(0);
   });
 
-  it('flushes final chunks via appendOutput on exit, then destroys store', async () => {
+  it('does not appendOutput on exit when full sync was not requested', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const fullContent = 'a'.repeat(50 * 1024);
     mockStore._setContent(fullContent);
+
+    const { isRunLogObserved, consumePendingFullSync } = await import('./log-observer-sync.js');
+    vi.mocked(isRunLogObserved).mockReturnValue(true);
+    vi.mocked(consumePendingFullSync).mockReturnValue(false);
 
     const { spawnCommandProcess } = await import('./spawner.js');
     await spawnCommandProcess(
@@ -204,17 +222,20 @@ describe('spawnCommandProcess — new output flow', () => {
     const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
       (c: any) => c[0] === 'mock-appendOutput'
     );
-    expect(appendCalls.length).toBeGreaterThanOrEqual(1);
+    expect(appendCalls).toHaveLength(0);
     expect(mockStore.destroy).toHaveBeenCalled();
   });
 
-  it('flushes final chunks with compressed content', async () => {
+  it('flushes final chunks via appendOutput on exit when full sync was requested', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const fullContent = 'hello final output';
     mockStore._setContent(fullContent);
+
+    const { consumePendingFullSync } = await import('./log-observer-sync.js');
+    vi.mocked(consumePendingFullSync).mockReturnValue(true);
 
     const { spawnCommandProcess } = await import('./spawner.js');
     await spawnCommandProcess(
