@@ -30,14 +30,14 @@ import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
+  shouldTriggerLoadOlder,
   TIMELINE_ESTIMATE_SIZE,
-  TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
-  TIMELINE_PURGE_DEBOUNCE_MS,
-  TIMELINE_PURGE_INDEX_THRESHOLD,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
+
+import type { PrependScrollAnchor } from '../../hooks/timelineScrollCoordinator';
 
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
@@ -54,10 +54,6 @@ export function ChatroomTimelineFeed({
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
-  const pendingPurgeIndexRef = useRef<number | null>(null);
-  const purgeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [purgeRequest, setPurgeRequest] = useState(0);
-  const [purgeEpoch, setPurgeEpoch] = useState(0);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
@@ -67,7 +63,7 @@ export function ChatroomTimelineFeed({
     () => coordinator.current.getSnapshot()
   );
 
-  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents, purgeOldMessages } =
+  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
     useChatroomTimeline(chatroomId);
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
@@ -76,19 +72,6 @@ export function ChatroomTimelineFeed({
   useEffect(() => {
     onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
   }, [onRegisterOpenEventStream]);
-
-  useEffect(() => {
-    coordinator.current.setOnTailSettled(() => {
-      setPurgeEpoch((n) => n + 1);
-    });
-    return () => {
-      coordinator.current.setOnTailSettled(null);
-      if (purgeDebounceRef.current !== null) {
-        clearTimeout(purgeDebounceRef.current);
-        purgeDebounceRef.current = null;
-      }
-    };
-  }, [coordinator]);
 
   const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -116,7 +99,7 @@ export function ChatroomTimelineFeed({
     paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),
     anchorTo: 'end',
-    followOnAppend: isPinned ? 'auto' : false,
+    followOnAppend: coordinator.current.shouldFollowOnAppend() ? 'auto' : false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
 
@@ -135,19 +118,42 @@ export function ChatroomTimelineFeed({
   const canLoadMore = hasMoreOlder && !isLoadingOlder;
   const tailEventKey = events.length > 0 ? events[events.length - 1]!.id : null;
 
+  useEffect(() => {
+    coordinator.current.syncIsLoadingOlder(isLoadingOlder);
+  }, [coordinator, isLoadingOlder]);
+
   useLayoutEffect(() => {
     const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
     if (measuredChrome !== topChromeHeight) {
+      const el = scrollParentRef.current;
+      const chromeDelta = measuredChrome - topChromeHeight;
+      if (
+        el &&
+        chromeDelta !== 0 &&
+        !coordinator.current.isAtBottom() &&
+        !coordinator.current.isProgrammaticScrollActive()
+      ) {
+        el.scrollTop += chromeDelta;
+        virtualizer.scrollToOffset(el.scrollTop, { behavior: 'auto' });
+      }
       setTopChromeHeight(measuredChrome);
+      return;
     }
-  }, [topChromeHeight, canLoadMore, hasMoreOlder, isLoadingOlder]);
 
-  useLayoutEffect(() => {
     coordinator.current.setVirtualizer({
       scrollToEnd: (options) => virtualizer.scrollToEnd(options),
       scrollToIndex: (index, options) => virtualizer.scrollToIndex(index, options),
       scrollToOffset: (offset, options) => virtualizer.scrollToOffset(offset, options),
-      measure: () => virtualizer.measure(),
+      scrollBy: (delta, options) => virtualizer.scrollBy(delta, options),
+      findIndexForKey: (key) => {
+        const index = events.findIndex((event) => event.id === key);
+        return index >= 0 ? index : null;
+      },
+      getItemStart: (index) => {
+        const visible = virtualizer.getVirtualItems().find((row) => row.index === index);
+        if (visible) return visible.start;
+        return topChromeHeight + index * TIMELINE_ESTIMATE_SIZE;
+      },
       getVisibleCount: () => virtualizer.getVirtualItems().length,
     });
 
@@ -157,53 +163,61 @@ export function ChatroomTimelineFeed({
       tailKey: tailEventKey,
       isLoadingOlder,
     });
-  }, [coordinator, events, isLoadingOlder, tailEventKey, virtualizer]);
-
-  useLayoutEffect(() => {
-    const pendingIndex = pendingPurgeIndexRef.current;
-    if (pendingIndex === null) return;
-    if (!coordinator.current.getAllowLoadOlder() || !isPinned) return;
-    if (coordinator.current.isProgrammaticScrollActive()) return;
-    if (coordinator.current.isTailSettling()) return;
-
-    pendingPurgeIndexRef.current = null;
-    purgeOldMessages(pendingIndex);
-  }, [coordinator, isPinned, purgeOldMessages, purgeEpoch, purgeRequest, events.length]);
+  }, [
+    coordinator,
+    events,
+    isLoadingOlder,
+    tailEventKey,
+    virtualizer,
+    topChromeHeight,
+    canLoadMore,
+    hasMoreOlder,
+  ]);
 
   const tryLoadOlder = useCallback(
     (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
       if (!coordinator.current.getAllowLoadOlder() || !hasMoreOlder || isLoadingOlder) return;
-      coordinator.current.setLoadOlderIntent(intent);
+      const el = scrollParentRef.current;
+      const firstVisible = virtualizer.getVirtualItems()[0];
+      let anchor: PrependScrollAnchor | undefined;
+      if (intent === 'preserve_position' && el && firstVisible) {
+        const anchoredEvent = events[firstVisible.index];
+        if (anchoredEvent) {
+          anchor = {
+            key: anchoredEvent.id,
+            index: firstVisible.index,
+            scrollTop: el.scrollTop,
+            scrollHeight: el.scrollHeight,
+            offsetInItem: el.scrollTop - firstVisible.start,
+          };
+        }
+      }
+      coordinator.current.setLoadOlderIntent(intent, anchor);
       loadOlderEvents();
     },
-    [coordinator, hasMoreOlder, isLoadingOlder, loadOlderEvents]
+    [coordinator, events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]
   );
 
   const handleScroll = useCallback(() => {
     if (!coordinator.current.getAllowLoadOlder()) return;
     if (coordinator.current.isProgrammaticScrollActive()) return;
 
+    const el = scrollParentRef.current;
     const firstVisible = virtualizer.getVirtualItems()[0];
-    if (!firstVisible) return;
+    if (!el || !firstVisible) return;
 
     if (
-      firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD &&
-      !coordinator.current.isAtBottom()
+      shouldTriggerLoadOlder({
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        firstVisibleIndex: firstVisible.index,
+        topChromeHeight,
+      })
     ) {
       tryLoadOlder('preserve_position');
     }
-
-    if (isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
-      pendingPurgeIndexRef.current = firstVisible.index;
-      if (purgeDebounceRef.current !== null) {
-        clearTimeout(purgeDebounceRef.current);
-      }
-      purgeDebounceRef.current = setTimeout(() => {
-        purgeDebounceRef.current = null;
-        setPurgeRequest((n) => n + 1);
-      }, TIMELINE_PURGE_DEBOUNCE_MS);
-    }
-  }, [coordinator, isPinned, tryLoadOlder, virtualizer]);
+  }, [coordinator, topChromeHeight, tryLoadOlder, virtualizer]);
 
   const virtualizedContentHeight = virtualizer.getTotalSize();
 

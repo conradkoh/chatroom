@@ -1,43 +1,60 @@
 import { describe, it, expect } from 'vitest';
 
-import type { TimelineEvent } from '../../timeline/types';
+import {
+  getLoadOlderNearTopScrollMax,
+  shouldTriggerLoadOlder,
+  TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
+} from './timelineVirtualizerConfig';
 
-import { getTimelineItemKey } from './timelineVirtualizerConfig';
+describe('shouldTriggerLoadOlder', () => {
+  const clientHeight = 400;
 
-const sampleEvents: TimelineEvent[] = [
-  {
-    id: 'a',
-    kind: 'user_message',
-    creationTime: 1,
-    message: {
-      _id: 'a',
-      type: 'message',
-      senderRole: 'user',
-      content: 'one',
-      _creationTime: 1,
-    },
-  },
-  {
-    id: 'b',
-    kind: 'team_message',
-    creationTime: 2,
-    message: {
-      _id: 'b',
-      type: 'message',
-      senderRole: 'builder',
-      content: 'two',
-      _creationTime: 2,
-    },
-  },
-];
-
-describe('getTimelineItemKey', () => {
-  it('uses event id for stable virtualizer keys', () => {
-    expect(getTimelineItemKey(0, sampleEvents)).toBe('a');
-    expect(getTimelineItemKey(1, sampleEvents)).toBe('b');
+  it('does not trigger at the bottom even when the virtualizer reports a low index', () => {
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: 2100,
+        scrollHeight: 2500,
+        clientHeight,
+        firstVisibleIndex: 0,
+        topChromeHeight: 32,
+      })
+    ).toBe(false);
   });
 
-  it('falls back to index when event missing', () => {
-    expect(getTimelineItemKey(99, sampleEvents)).toBe('99');
+  it('triggers when scrollTop is near the top and the sentinel row is visible', () => {
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: 120,
+        scrollHeight: 2500,
+        clientHeight,
+        firstVisibleIndex: TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
+        topChromeHeight: 32,
+      })
+    ).toBe(true);
+  });
+
+  it('does not trigger when scrolled up but still below the sentinel band', () => {
+    const nearTopMax = getLoadOlderNearTopScrollMax(32);
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: nearTopMax + 50,
+        scrollHeight: 2500,
+        clientHeight,
+        firstVisibleIndex: 2,
+        topChromeHeight: 32,
+      })
+    ).toBe(false);
+  });
+
+  it('does not trigger when near the top but the first visible row is below the sentinel', () => {
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: 100,
+        scrollHeight: 2500,
+        clientHeight,
+        firstVisibleIndex: TIMELINE_LOAD_OLDER_SENTINEL_INDEX + 1,
+        topChromeHeight: 32,
+      })
+    ).toBe(false);
   });
 });

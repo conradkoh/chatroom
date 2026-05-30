@@ -84,7 +84,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('follows tail when the last event changes but count is unchanged (send + purge)', () => {
+  it('follows tail when the last event changes but count is unchanged', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 50,
@@ -103,56 +103,6 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('re-snaps tail after purge shrinks the list while pinned', async () => {
-    const scrollToIndex = vi.fn();
-    const scrollToOffset = vi.fn();
-    const measure = vi.fn();
-    let visibleCount = 0;
-    coordinator.setVirtualizer({
-      scrollToEnd,
-      scrollToIndex,
-      scrollToOffset,
-      measure,
-      getVisibleCount: () => visibleCount,
-    });
-
-    coordinator.commitTimelineLayout({
-      scrollEl: el,
-      eventCount: 80,
-      tailKey: 'evt-79',
-      isLoadingOlder: false,
-    });
-    scrollToEnd.mockClear();
-    Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
-    Object.defineProperty(el, 'scrollHeight', { value: 4500, writable: true, configurable: true });
-
-    coordinator.commitTimelineLayout({
-      scrollEl: el,
-      eventCount: 45,
-      tailKey: 'evt-79',
-      isLoadingOlder: false,
-    });
-
-    visibleCount = 8;
-
-    await new Promise<void>((resolve) => {
-      const wait = () => {
-        if (!coordinator.isTailSettling() && scrollToEnd.mock.calls.length >= 1) {
-          resolve();
-          return;
-        }
-        requestAnimationFrame(wait);
-      };
-      requestAnimationFrame(wait);
-    });
-
-    expect(measure).toHaveBeenCalled();
-    expect(scrollToIndex).toHaveBeenCalledWith(44, expect.objectContaining({ align: 'end' }));
-    expect(scrollToEnd).toHaveBeenCalled();
-    expect(scrollToOffset).toHaveBeenCalled();
-    expect(coordinator.isTailSettling()).toBe(false);
-  });
-
   it('syncs virtualizer scrollOffset from the DOM after tail reconcile', () => {
     const scrollToOffset = vi.fn();
     coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
@@ -162,6 +112,76 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.followTail('auto');
 
     expect(scrollToOffset).toHaveBeenCalledWith(900, { behavior: 'auto' });
+  });
+
+  it('preserves scrollTop via captured anchor when wasLoadingOlder was not committed during chrome defer', () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 1000, writable: true, configurable: true });
+
+    coordinator.setLoadOlderIntent('preserve_position', {
+      key: 'evt-3',
+      index: 3,
+      scrollTop: 200,
+      scrollHeight: 1000,
+      offsetInItem: 0,
+    });
+    scrollToEnd.mockClear();
+
+    Object.defineProperty(el, 'scrollHeight', { value: 3000, writable: true, configurable: true });
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 30,
+      tailKey: 'evt-29',
+      isLoadingOlder: false,
+    });
+
+    expect(el.scrollTop).toBe(2200);
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('preserves scrollTop when prepending while loading older (preserve_position)', () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    Object.defineProperty(el, 'scrollTop', { value: 120, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 1000, writable: true, configurable: true });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: true,
+    });
+
+    Object.defineProperty(el, 'scrollHeight', { value: 3000, writable: true, configurable: true });
+    coordinator.setLoadOlderIntent('preserve_position');
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 30,
+      tailKey: 'evt-29',
+      isLoadingOlder: false,
+    });
+
+    expect(el.scrollTop).toBe(2120);
+    expect(scrollToEnd).not.toHaveBeenCalled();
+    expect(scrollToOffset).toHaveBeenCalled();
   });
 
   it('does not follow when count grows from prepend while loading older', () => {

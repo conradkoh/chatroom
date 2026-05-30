@@ -5,14 +5,46 @@ export const TIMELINE_ESTIMATE_SIZE = 100;
 
 export const TIMELINE_OVERSCAN = 5;
 
-/** Load older history when the first visible row is within this index of the top. */
-export const TIMELINE_LOAD_OLDER_INDEX_THRESHOLD = 2;
+/**
+ * 0-based index of the oldest row that should enter view before prefetching history.
+ * Index 4 = the 5th message from the top of the loaded timeline.
+ */
+export const TIMELINE_LOAD_OLDER_SENTINEL_INDEX = 4;
 
-/** Purge distant prepended history when the first visible row exceeds this index (while pinned). */
-export const TIMELINE_PURGE_INDEX_THRESHOLD = 50;
+/** Extra rows of slack beyond the sentinel when comparing scrollTop to estimates. */
+const LOAD_OLDER_SENTINEL_SCROLL_ROWS = 2;
 
-/** Wait before applying purge so scroll/virtualizer state can settle. */
-export const TIMELINE_PURGE_DEBOUNCE_MS = 300;
+export function getLoadOlderNearTopScrollMax(topChromeHeight: number): number {
+  return (
+    topChromeHeight +
+    TIMELINE_ESTIMATE_SIZE * (TIMELINE_LOAD_OLDER_SENTINEL_INDEX + LOAD_OLDER_SENTINEL_SCROLL_ROWS)
+  );
+}
+
+/**
+ * Whether scroll position + virtual range indicate the user has reached the load-older sentinel.
+ * Requires both a low first-visible index and scrollTop near the top so a stale virtual index
+ * at the bottom cannot trigger an early fetch.
+ */
+export function shouldTriggerLoadOlder(input: {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  firstVisibleIndex: number;
+  topChromeHeight: number;
+}): boolean {
+  const { scrollTop, scrollHeight, clientHeight, firstVisibleIndex, topChromeHeight } = input;
+
+  const atBottom =
+    scrollHeight - scrollTop - clientHeight < TIMELINE_SCROLL_END_THRESHOLD;
+  if (atBottom) return false;
+
+  const nearTop =
+    scrollTop < getLoadOlderNearTopScrollMax(topChromeHeight) &&
+    firstVisibleIndex <= TIMELINE_LOAD_OLDER_SENTINEL_INDEX;
+
+  return nearTop;
+}
 
 /** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
 export const TIMELINE_SCROLL_END_THRESHOLD = 50;

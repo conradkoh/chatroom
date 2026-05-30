@@ -3,7 +3,7 @@
  */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type React from 'react';
 
@@ -19,9 +19,17 @@ const virtualizerOptions: Array<{
 
 const mockScrollToEnd = vi.fn();
 const mockScrollToOffset = vi.fn();
-const mockMeasure = vi.fn();
+const mockScrollToIndex = vi.fn((index: number) => {
+  const el = document.querySelector('[data-testid="chatroom-timeline-scroll"]');
+  if (el) {
+    Object.defineProperty(el, 'scrollTop', {
+      value: index * 100,
+      writable: true,
+      configurable: true,
+    });
+  }
+});
 const loadOlderEvents = vi.fn();
-const purgeOldMessages = vi.fn();
 
 /** Default off; regression tests opt in. */
 let mockHasMoreOlder = false;
@@ -46,9 +54,8 @@ vi.mock('@tanstack/react-virtual', () => ({
       getTotalSize: () => options.count * 100,
       measureElement: vi.fn(),
       scrollToEnd: mockScrollToEnd,
-      scrollToIndex: vi.fn(),
+      scrollToIndex: mockScrollToIndex,
       scrollToOffset: mockScrollToOffset,
-      measure: mockMeasure,
       range: { startIndex: 0, endIndex: 0, count: options.count },
     };
   },
@@ -125,11 +132,10 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
     hasMoreOlder: mockHasMoreOlder,
     isLoadingOlder: timelineIsLoadingOlder,
     loadOlderEvents,
-    purgeOldMessages,
   }),
 }));
 
-import { TIMELINE_PADDING_END, TIMELINE_PURGE_DEBOUNCE_MS } from './timelineVirtualizerConfig';
+import { TIMELINE_PADDING_END } from './timelineVirtualizerConfig';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 
@@ -244,6 +250,24 @@ describe('ChatroomTimelineFeed load-older guards', () => {
     expect(loadOlderEvents).not.toHaveBeenCalled();
   });
 
+  it('does not load older on a small scroll up when the virtualizer reports index 0', async () => {
+    const { coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, maxScrollTop - 100, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(loadOlderEvents).not.toHaveBeenCalled();
+  });
+
   it('loads older after the user scrolls near the top', async () => {
     const { coordinator } = renderFeed();
     const el = screen.getByTestId('chatroom-timeline-scroll');
@@ -274,8 +298,17 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     timelineIsLoadingOlder = false;
   });
 
-  it('enables end-anchored chat virtualizer with followOnAppend only when pinned', () => {
-    renderFeed();
+  it('enables end-anchored chat virtualizer with followOnAppend only when pinned at the tail', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 600, 1000);
+    act(() => {
+      el.dispatchEvent(new Event('scroll'));
+    });
+    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+
     const pinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
       followOnAppend?: boolean | 'auto';
@@ -314,88 +347,6 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 });
 
-describe('ChatroomTimelineFeed purge behavior', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  beforeEach(() => {
-    virtualizerOptions.length = 0;
-    mockScrollToEnd.mockClear();
-    loadOlderEvents.mockClear();
-    mockHasMoreOlder = false;
-    mockFirstVisibleIndex = -1;
-    timelineEvents = buildEvents(80);
-    timelineIsLoadingOlder = false;
-  });
-
-  it('re-snaps tail after prepended history is purged while pinned', async () => {
-    const { rerender, coordinator } = renderFeed();
-    await flushRaf();
-    await waitFor(() => {
-      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
-    });
-
-    setScrollPinned(true);
-    mockScrollToEnd.mockClear();
-    mockFirstVisibleIndex = 40;
-
-    timelineEvents = buildEvents(80).slice(35);
-
-    act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
-    });
-
-    await waitFor(
-      () => {
-        expect(mockScrollToEnd).toHaveBeenCalled();
-        expect(coordinator.current.isTailSettling()).toBe(false);
-        expect(screen.getByText('Message 75')).toBeInTheDocument();
-      },
-      { timeout: 2000 }
-    );
-  });
-
-  it('debounces purge requests while scrolling', async () => {
-    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
-    purgeOldMessages.mockClear();
-    const { coordinator } = renderFeed();
-    await flushRaf();
-    await waitFor(() => {
-      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
-    });
-
-    mockFirstVisibleIndex = 55;
-    const el = screen.getByTestId('chatroom-timeline-scroll');
-    scrollElProps(el, 7600, 8000);
-
-    act(() => {
-      el.dispatchEvent(new Event('scroll'));
-    });
-
-    expect(purgeOldMessages).not.toHaveBeenCalled();
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), TIMELINE_PURGE_DEBOUNCE_MS);
-    setTimeoutSpy.mockRestore();
-  });
-
-  it('does not purge while tail settle is in progress', async () => {
-    purgeOldMessages.mockClear();
-    const { coordinator } = renderFeed();
-    await flushRaf();
-
-    vi.spyOn(coordinator.current, 'isTailSettling').mockReturnValue(true);
-    mockFirstVisibleIndex = 55;
-
-    act(() => {
-      const el = screen.getByTestId('chatroom-timeline-scroll');
-      scrollElProps(el, 7600, 8000);
-      el.dispatchEvent(new Event('scroll'));
-    });
-
-    expect(purgeOldMessages).not.toHaveBeenCalled();
-  });
-});
-
 describe('ChatroomTimelineFeed tail follow on send', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
@@ -407,7 +358,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     timelineIsLoadingOlder = false;
   });
 
-  it('follows tail when a new message is sent (same event count after purge)', async () => {
+  it('follows tail when a new message is sent (same event count after subscription slide-off)', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
     await waitFor(() => {
@@ -607,41 +558,93 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     expect(coordinator.current.isPinned).toBe(true);
   });
 
-  it('does not call DOM scrollTop delta on prepend (virtualizer anchors)', async () => {
-    timelineIsLoadingOlder = true;
+});
 
-    const { rerender, coordinator } = renderFeed();
-    await flushRaf();
-    const el = screen.getByTestId('chatroom-timeline-scroll');
-    scrollElProps(el, 50, 500);
-
-    const scrollTopBefore = el.scrollTop;
-
-    timelineEvents = [
-      {
-        id: 'evt-0',
-        kind: 'user_message',
-        creationTime: 50,
-        message: {
-          _id: 'evt-0',
-          type: 'message',
-          senderRole: 'user',
-          content: 'Older',
-          _creationTime: 50,
-        },
-      },
-      ...baseEvents,
-    ];
-
-    scrollElProps(el, scrollTopBefore, 700);
-
+describe('ChatroomTimelineFeed load-more scroll preservation', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();
+    mockScrollToOffset.mockClear();
+    mockScrollToIndex.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = true;
+    mockFirstVisibleIndex = 4;
+    timelineEvents = buildEvents(25);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('preserves viewport when older messages arrive after load-more (no tail snap)', async () => {
+    const { rerender, coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 400, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, 400, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+    expect(loadOlderEvents).toHaveBeenCalledTimes(1);
+    expect(coordinator.current.isPinned).toBe(false);
+
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
+    mockScrollToEnd.mockClear();
+
+    timelineIsLoadingOlder = true;
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    const olderBatch = buildEvents(20).map((e, i) => ({
+      ...e,
+      id: `older-${i}`,
+      message: { ...e.message, _id: `older-${i}`, content: `Older ${i}` },
+    }));
+    timelineEvents = [...olderBatch, ...buildEvents(25)];
+    timelineIsLoadingOlder = false;
+    scrollElProps(el, 400, 4500);
 
     act(() => {
       rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(el.scrollTop).toBe(scrollTopBefore);
+    expect(el.scrollTop).toBe(2400);
+    expect(followTail).not.toHaveBeenCalled();
+    expect(mockScrollToEnd).not.toHaveBeenCalled();
+    followTail.mockRestore();
+  });
+
+  it('does not jump when the loading chrome height changes while scrolled up', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const chrome = el.firstElementChild as HTMLElement;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
+    scrollElProps(el, 300, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, 300, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    const scrollTopBeforeSpinner = el.scrollTop;
+    mockScrollToEnd.mockClear();
+
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 56 });
+    timelineIsLoadingOlder = true;
+
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(el.scrollTop).toBe(scrollTopBeforeSpinner + 24);
     expect(mockScrollToEnd).not.toHaveBeenCalled();
   });
 });

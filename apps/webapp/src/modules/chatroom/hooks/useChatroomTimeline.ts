@@ -20,7 +20,6 @@ export interface UseChatroomTimelineResult {
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderEvents: () => void;
-  purgeOldMessages: (viewportTopIndex: number) => void;
 }
 
 export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResult {
@@ -30,7 +29,6 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
-    purgeOldMessages,
   } = useMessages(chatroomId);
 
   const events = useMemo(
@@ -44,6 +42,5 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     hasMoreOlder,
     isLoadingOlder,
     loadOlderEvents: loadOlderMessages,
-    purgeOldMessages,
   };
 }
