@@ -13,14 +13,10 @@ import {
 import { memo } from 'react';
 
 import type { Message, MessageClassification } from '../../types/message';
+import { formatTimestamp } from '../../viewModels/eventStreamViewModel';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
-import {
-  BADGE_BASE,
-  getSenderClasses,
-  ICON_SIZE,
-  TIMELINE_ROW_BORDER,
-} from './timelineRowStyles';
+import { BADGE_BASE, ICON_SIZE, TIMELINE_ROW_BORDER } from './timelineRowStyles';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
   if (!classification) return null;
@@ -92,6 +88,11 @@ function getTaskStatusBadge(status: Message['taskStatus']) {
   }
 }
 
+function getDisplayText(message: Message): string {
+  const text = message.featureTitle || message.content;
+  return text.replace(/\n+/g, ' ').trim();
+}
+
 interface TimelineUserMessageProps {
   message: Message;
 }
@@ -101,53 +102,63 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
-  const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
+  const isTaskFinished = message.taskStatus === 'completed' || message.taskStatus === 'cancelled';
+  const isAwaitingClassification = !message.classification && !isTaskFinished;
 
   return (
-    <div
-      className={`px-4 py-3 ${TIMELINE_ROW_BORDER} bg-chatroom-bg-primary`}
-      data-testid="timeline-user-message"
-    >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2 pb-1.5 border-b border-chatroom-border">
-        <span className={getSenderClasses('user')}>user</span>
-        {classificationBadge && (
-          <span className={classificationBadge.className}>
-            {classificationBadge.icon}
-            {classificationBadge.label}
-          </span>
-        )}
-        {taskStatusBadge && (
-          <span className={taskStatusBadge.className}>
-            {taskStatusBadge.icon}
-            {taskStatusBadge.label}
-          </span>
-        )}
-        {message.sourcePlatform === 'telegram' && (
-          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
-            Telegram
-          </span>
-        )}
-        {message.isQueued && (
-          <span
-            className={`${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`}
-          >
-            queued
-          </span>
-        )}
+    <div className={`${TIMELINE_ROW_BORDER} bg-transparent`} data-testid="timeline-user-message">
+      <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
+        <div className="flex items-center h-8 px-3 min-w-0">
+          {message.isQueued ? (
+            <span
+              className={`${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`}
+            >
+              queued
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 w-full min-w-0">
+              {isAwaitingClassification ? (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+                  <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  {classificationBadge && (
+                    <span className={`${classificationBadge.className} flex-shrink-0`}>
+                      {classificationBadge.icon}
+                      {classificationBadge.label}
+                    </span>
+                  )}
+                  {message.sourcePlatform === 'telegram' && (
+                    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
+                      Telegram
+                    </span>
+                  )}
+                  <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                    {getDisplayText(message)}
+                  </span>
+                </>
+              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+                  {formatTimestamp(message._creationTime)}
+                </span>
+                {taskStatusBadge && (
+                  <span className={taskStatusBadge.className}>
+                    {taskStatusBadge.icon}
+                    {taskStatusBadge.label}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {hasFeatureTitle && (
-        <div className="mb-2 px-3 py-2 bg-chatroom-status-warning/10 dark:bg-chatroom-status-warning/15 border border-chatroom-status-warning/20">
-          <div className="flex items-center gap-2">
-            <Sparkles size={14} className="text-chatroom-status-warning flex-shrink-0" />
-            <span className="text-sm font-semibold text-chatroom-text-primary">
-              {message.featureTitle}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <TimelineMarkdownBody content={message.content} />
+      <div className="px-4 py-3">
+        <TimelineMarkdownBody content={message.content} />
+      </div>
     </div>
   );
 });

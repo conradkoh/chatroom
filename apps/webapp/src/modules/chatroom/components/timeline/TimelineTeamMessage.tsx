@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo } from 'react';
 
 import type { Message } from '../../types/message';
@@ -44,7 +44,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 
   return (
     <div
-      className={`px-4 py-3 ${TIMELINE_ROW_BORDER} bg-chatroom-bg-primary`}
+      className={`px-4 py-3 ${TIMELINE_ROW_BORDER} bg-transparent`}
       data-testid="timeline-team-message"
     >
       <div className="flex flex-wrap justify-between items-center gap-y-1 gap-x-2 mb-2 pb-1.5 border-b border-chatroom-border">
@@ -78,10 +78,13 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       </div>
 
       {hasFeatureTitle && (
-        <div className="mb-2 px-3 py-2 bg-chatroom-status-warning/10 dark:bg-chatroom-status-warning/15 border border-chatroom-status-warning/20">
-          <span className="text-sm font-semibold text-chatroom-text-primary">
-            {message.featureTitle}
-          </span>
+        <div className="mb-2 px-3 py-2 bg-chatroom-status-warning/10 dark:bg-chatroom-status-warning/15 border border-chatroom-status-warning/20 cursor-pointer hover:bg-chatroom-status-warning/20 transition-colors">
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-chatroom-status-warning flex-shrink-0" />
+            <span className="text-sm font-semibold text-chatroom-text-primary">
+              {message.featureTitle}
+            </span>
+          </div>
         </div>
       )}
 

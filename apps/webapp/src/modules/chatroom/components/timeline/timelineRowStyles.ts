@@ -1,5 +1,5 @@
 /** Shared row chrome for timeline cells (no sticky positioning). */
-export const TIMELINE_ROW_BORDER = 'border-b border-chatroom-border';
+export const TIMELINE_ROW_BORDER = 'border-b-2 border-chatroom-border';
 
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
