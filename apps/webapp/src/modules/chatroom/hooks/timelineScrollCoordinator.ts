@@ -15,6 +15,9 @@ export type VirtualizerScrollApi = {
     index: number,
     options?: { align?: 'end' | 'auto'; behavior?: 'auto' | 'smooth' }
   ) => void;
+  scrollToOffset?: (offset: number, options?: { behavior?: 'auto' | 'smooth' }) => void;
+  /** Clears measurement cache after the list shrinks (purge). */
+  measure?: () => void;
   /** When 0, the virtual range is empty (blank viewport) until scroll is reconciled. */
   getVisibleCount?: () => number;
 };
@@ -195,10 +198,12 @@ export class TimelineScrollCoordinator {
     this.runProgrammaticScroll(() => {
       this.snapDomImmediate();
       this.scrollVirtualizer(behavior);
+      this.syncVirtualizerScrollFromDom();
     });
     requestAnimationFrame(() => {
       this.scrollVirtualizer(behavior);
       this.snapDomImmediate();
+      this.syncVirtualizerScrollFromDom();
     });
   }
 
@@ -260,6 +265,7 @@ export class TimelineScrollCoordinator {
       this.prevScrollHeight = scrollEl.scrollHeight;
     } else if (scrollEl && isPurgeShrink) {
       // Dropping prepended rows leaves scroll offset past the new range — settle across frames.
+      this.virtualizer?.measure?.();
       this.scheduleTailSettle({ tailIndex: eventCount - 1 });
       this.prevScrollHeight = scrollEl.scrollHeight;
     } else if (scrollEl) {
@@ -353,14 +359,7 @@ export class TimelineScrollCoordinator {
 
       if (this.pinned && this.el && (!atBottom || rangeEmpty)) {
         this.runProgrammaticScroll(() => {
-          this.snapDomImmediate();
-          if (rangeEmpty && tailIndex !== undefined && tailIndex >= 0) {
-            this.virtualizer?.scrollToIndex?.(tailIndex, {
-              align: 'end',
-              behavior: 'auto',
-            });
-          }
-          this.scrollVirtualizer('auto');
+          this.reconcileTailScroll(tailIndex);
         });
       }
 
@@ -378,14 +377,37 @@ export class TimelineScrollCoordinator {
     };
 
     this.runProgrammaticScroll(() => {
-      this.snapDomImmediate();
-      if (tailIndex !== undefined && tailIndex >= 0) {
-        this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
-      }
-      this.scrollVirtualizer('auto');
+      this.reconcileTailScroll(tailIndex);
     });
 
     this.tailSettleRafId = requestAnimationFrame(tick);
+  }
+
+  /** Align DOM, virtualizer scrollOffset (via scrollToOffset), and visible range. */
+  private reconcileTailScroll(tailIndex: number | undefined): void {
+    if (tailIndex !== undefined && tailIndex >= 0) {
+      this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
+    }
+    this.scrollVirtualizer('auto');
+    this.snapDomImmediate();
+    this.syncVirtualizerScrollFromDom();
+  }
+
+  /**
+   * TanStack Virtual caches scrollOffset from scroll events; DOM-only writes leave the
+   * range empty until the user scrolls. scrollToOffset + a synthetic scroll event sync it.
+   */
+  private syncVirtualizerScrollFromDom(): void {
+    if (!this.el) return;
+
+    const maxTop = this.getMaxScrollTop();
+    const top = Math.min(this.el.scrollTop, maxTop);
+    if (this.el.scrollTop !== top) {
+      this.el.scrollTop = top;
+    }
+
+    this.virtualizer?.scrollToOffset?.(top, { behavior: 'auto' });
+    this.el.dispatchEvent(new Event('scroll'));
   }
 
   private computeIsAtBottom(): boolean {

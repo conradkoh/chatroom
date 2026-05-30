@@ -105,10 +105,14 @@ describe('TimelineScrollCoordinator', () => {
 
   it('re-snaps tail after purge shrinks the list while pinned', async () => {
     const scrollToIndex = vi.fn();
+    const scrollToOffset = vi.fn();
+    const measure = vi.fn();
     let visibleCount = 0;
     coordinator.setVirtualizer({
       scrollToEnd,
       scrollToIndex,
+      scrollToOffset,
+      measure,
       getVisibleCount: () => visibleCount,
     });
 
@@ -142,9 +146,22 @@ describe('TimelineScrollCoordinator', () => {
       requestAnimationFrame(wait);
     });
 
+    expect(measure).toHaveBeenCalled();
     expect(scrollToIndex).toHaveBeenCalledWith(44, expect.objectContaining({ align: 'end' }));
     expect(scrollToEnd).toHaveBeenCalled();
+    expect(scrollToOffset).toHaveBeenCalled();
     expect(coordinator.isTailSettling()).toBe(false);
+  });
+
+  it('syncs virtualizer scrollOffset from the DOM after tail reconcile', () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+    Object.defineProperty(el, 'scrollTop', { value: 900, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 1300, writable: true, configurable: true });
+
+    coordinator.followTail('auto');
+
+    expect(scrollToOffset).toHaveBeenCalledWith(900, { behavior: 'auto' });
   });
 
   it('does not follow when count grows from prepend while loading older', () => {

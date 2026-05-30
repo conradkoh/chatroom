@@ -3,7 +3,7 @@
  */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import type React from 'react';
 
@@ -18,6 +18,8 @@ const virtualizerOptions: Array<{
 }> = [];
 
 const mockScrollToEnd = vi.fn();
+const mockScrollToOffset = vi.fn();
+const mockMeasure = vi.fn();
 const loadOlderEvents = vi.fn();
 const purgeOldMessages = vi.fn();
 
@@ -45,6 +47,8 @@ vi.mock('@tanstack/react-virtual', () => ({
       measureElement: vi.fn(),
       scrollToEnd: mockScrollToEnd,
       scrollToIndex: vi.fn(),
+      scrollToOffset: mockScrollToOffset,
+      measure: mockMeasure,
       range: { startIndex: 0, endIndex: 0, count: options.count },
     };
   },
@@ -125,7 +129,7 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
   }),
 }));
 
-import { TIMELINE_PADDING_END } from './timelineVirtualizerConfig';
+import { TIMELINE_PADDING_END, TIMELINE_PURGE_DEBOUNCE_MS } from './timelineVirtualizerConfig';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 
@@ -311,6 +315,10 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
 });
 
 describe('ChatroomTimelineFeed purge behavior', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();
@@ -346,6 +354,28 @@ describe('ChatroomTimelineFeed purge behavior', () => {
       },
       { timeout: 2000 }
     );
+  });
+
+  it('debounces purge requests while scrolling', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    purgeOldMessages.mockClear();
+    const { coordinator } = renderFeed();
+    await flushRaf();
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    mockFirstVisibleIndex = 55;
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 7600, 8000);
+
+    act(() => {
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(purgeOldMessages).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), TIMELINE_PURGE_DEBOUNCE_MS);
+    setTimeoutSpy.mockRestore();
   });
 
   it('does not purge while tail settle is in progress', async () => {

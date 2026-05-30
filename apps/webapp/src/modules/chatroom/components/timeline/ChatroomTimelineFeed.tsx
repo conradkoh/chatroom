@@ -34,6 +34,7 @@ import {
   TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
+  TIMELINE_PURGE_DEBOUNCE_MS,
   TIMELINE_PURGE_INDEX_THRESHOLD,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
@@ -54,6 +55,7 @@ export function ChatroomTimelineFeed({
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
   const pendingPurgeIndexRef = useRef<number | null>(null);
+  const purgeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [purgeRequest, setPurgeRequest] = useState(0);
   const [purgeEpoch, setPurgeEpoch] = useState(0);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
@@ -81,6 +83,10 @@ export function ChatroomTimelineFeed({
     });
     return () => {
       coordinator.current.setOnTailSettled(null);
+      if (purgeDebounceRef.current !== null) {
+        clearTimeout(purgeDebounceRef.current);
+        purgeDebounceRef.current = null;
+      }
     };
   }, [coordinator]);
 
@@ -140,6 +146,8 @@ export function ChatroomTimelineFeed({
     coordinator.current.setVirtualizer({
       scrollToEnd: (options) => virtualizer.scrollToEnd(options),
       scrollToIndex: (index, options) => virtualizer.scrollToIndex(index, options),
+      scrollToOffset: (offset, options) => virtualizer.scrollToOffset(offset, options),
+      measure: () => virtualizer.measure(),
       getVisibleCount: () => virtualizer.getVirtualItems().length,
     });
 
@@ -187,7 +195,13 @@ export function ChatroomTimelineFeed({
 
     if (isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
       pendingPurgeIndexRef.current = firstVisible.index;
-      setPurgeRequest((n) => n + 1);
+      if (purgeDebounceRef.current !== null) {
+        clearTimeout(purgeDebounceRef.current);
+      }
+      purgeDebounceRef.current = setTimeout(() => {
+        purgeDebounceRef.current = null;
+        setPurgeRequest((n) => n + 1);
+      }, TIMELINE_PURGE_DEBOUNCE_MS);
     }
   }, [coordinator, isPinned, tryLoadOlder, virtualizer]);
 

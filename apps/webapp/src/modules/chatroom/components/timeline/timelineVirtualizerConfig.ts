@@ -11,6 +11,9 @@ export const TIMELINE_LOAD_OLDER_INDEX_THRESHOLD = 2;
 /** Purge distant prepended history when the first visible row exceeds this index (while pinned). */
 export const TIMELINE_PURGE_INDEX_THRESHOLD = 50;
 
+/** Wait before applying purge so scroll/virtualizer state can settle. */
+export const TIMELINE_PURGE_DEBOUNCE_MS = 300;
+
 /** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
 export const TIMELINE_SCROLL_END_THRESHOLD = 50;
 
