@@ -293,6 +293,32 @@ describe('useMessages', () => {
 
     expect(result.current.hasMoreOlder).toBe(true);
   });
+
+  it('resets local pagination state when chatroomId changes', async () => {
+    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
+      makeMsg(`msg-${i}`, i * 1000)
+    );
+    mockConvexQuery.mockResolvedValue([makeMsg('old-0', 500)]);
+
+    const { result, rerender } = renderHook(({ roomId }) => useMessages(roomId), {
+      initialProps: { roomId: 'room-1' },
+    });
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(21);
+    });
+
+    rerender({ roomId: 'room-2' });
+
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(20);
+      expect(result.current.messages.every((m) => m._id.startsWith('msg-'))).toBe(true);
+      expect(result.current.hasMoreOlder).toBe(true);
+    });
+  });
 });
 
 describe('useMessages — empty-chatroom first-message regression', () => {

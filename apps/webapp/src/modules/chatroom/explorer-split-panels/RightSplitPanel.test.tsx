@@ -53,7 +53,6 @@ const DEFAULT_MESSAGES_PROPS = {
     },
   },
   isPinned: false,
-  scrollToBottom: vi.fn(),
   onRegisterOpenEventStream: vi.fn(),
 } as any;
 const DEFAULT_HARNESS_PROPS = {

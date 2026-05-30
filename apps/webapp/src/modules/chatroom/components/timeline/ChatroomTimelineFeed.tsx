@@ -39,20 +39,16 @@ import {
 
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
-  activeTask?: { status: string; assignedTo?: string } | null;
   controller: React.MutableRefObject<ScrollController>;
   isPinned: boolean;
-  scrollToBottom: () => void;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, MachineNameEntry>;
 }
 
 export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   chatroomId,
-  activeTask: _activeTask,
   controller,
   isPinned,
-  scrollToBottom: _scrollToBottomUnused,
   onRegisterOpenEventStream,
   machines,
 }: ChatroomTimelineFeedProps) {
@@ -188,13 +184,15 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     }
   }, [isPinned, purgeOldMessages, tryLoadOlder, virtualizer]);
 
+  const virtualizedContentHeight = virtualizer.getTotalSize();
+
   useEffect(() => {
     if (!allowLoadOlderRef.current || !isPinned) return;
 
     const el = scrollParentRef.current;
     if (!el || !hasMoreOlder || isLoadingOlder) return;
 
-    const contentHeight = topChromeHeight + virtualizer.getTotalSize();
+    const contentHeight = topChromeHeight + virtualizedContentHeight;
     if (contentHeight <= el.clientHeight) {
       tryLoadOlder('fill_viewport');
     }
@@ -205,7 +203,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     isPinned,
     topChromeHeight,
     tryLoadOlder,
-    virtualizer,
+    virtualizedContentHeight,
   ]);
 
   const canLoadMore = hasMoreOlder && !isLoadingOlder;

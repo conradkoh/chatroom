@@ -382,7 +382,6 @@ export function ChatroomDashboard({
   const {
     controller: scrollController,
     isPinned,
-    scrollToBottom,
     beginResize,
     endResize,
   } = useScrollController();
@@ -651,10 +650,6 @@ export function ChatroomDashboard({
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamLifecycle | null | undefined;
-
-  const activeTask = useSessionQuery(api.tasks.getActiveTask, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId);
@@ -1506,10 +1501,8 @@ export function ChatroomDashboard({
                         chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
                       }
                       messagesPanelProps={{
-                        activeTask,
                         controller: scrollController,
                         isPinned,
-                        scrollToBottom,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
@@ -1529,10 +1522,8 @@ export function ChatroomDashboard({
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <ChatroomTimelineFeed
                       chatroomId={chatroomId}
-                      activeTask={activeTask}
                       controller={scrollController}
                       isPinned={isPinned}
-                      scrollToBottom={scrollToBottom}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       machines={machineNameMap}
                     />

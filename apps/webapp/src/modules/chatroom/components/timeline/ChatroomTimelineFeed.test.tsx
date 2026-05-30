@@ -115,7 +115,6 @@ const defaultProps = {
   chatroomId: 'room-1',
   controller: { current: scrollController } as unknown as React.MutableRefObject<ScrollController>,
   isPinned: true,
-  scrollToBottom: vi.fn(),
 };
 
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {

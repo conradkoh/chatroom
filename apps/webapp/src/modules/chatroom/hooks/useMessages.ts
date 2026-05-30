@@ -88,6 +88,15 @@ export function useMessages(chatroomId: string): UseMessagesResult {
   const olderMessagesRef = useRef<Message[]>([]);
   olderMessagesRef.current = olderMessages;
 
+  // Reset local pagination state when switching chatrooms (defensive — parent also keys by id).
+  useEffect(() => {
+    setOlderMessages([]);
+    setExhaustedOlder(false);
+    setIsLoadingOlder(false);
+    isLoadingOlderRef.current = false;
+    prevLiveRef.current = [];
+  }, [chatroomId]);
+
   // Retain messages that slide out of the subscription window.
   useEffect(() => {
     if (subscriptionResult === undefined) return;

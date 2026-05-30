@@ -1,8 +1,8 @@
 /**
- * Integration tests for the new cursor-paginated message list API.
+ * Integration tests for messageList.ts timeline queries.
  *
- * Tests listMessages (paginated) and subscribeNewMessages (reactive tail)
- * from convex/messageList.ts.
+ * Tests subscribeLatestMessages (reactive window) and listMessagesBefore
+ * (imperative load-older) from convex/messageList.ts.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -49,161 +49,42 @@ async function sendMessageOfType(
 }
 
 // ---------------------------------------------------------------------------
-// listMessages
+// subscribeLatestMessages
 // ---------------------------------------------------------------------------
 
-describe('listMessages', () => {
-  test('empty chatroom → empty page, isDone=true', async () => {
-    const { sessionId } = await createTestSession('ml-empty-1');
+describe('subscribeLatestMessages', () => {
+  test('empty chatroom → empty array', async () => {
+    const { sessionId } = await createTestSession('ml-latest-empty-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
-    const result = await t.query(api.messageList.listMessages, {
+    const result = await t.query(api.messageList.subscribeLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
-      paginationOpts: { numItems: 20, cursor: null },
+      limit: 20,
     });
 
-    expect(result.page).toHaveLength(0);
-    expect(result.isDone).toBe(true);
+    expect(result).toHaveLength(0);
   });
 
-  test('returns up to numItems messages, newest-first, isDone=false when more exist', async () => {
-    const { sessionId } = await createTestSession('ml-paginated-1');
+  test('returns up to limit messages in ascending chronological order', async () => {
+    const { sessionId } = await createTestSession('ml-latest-window-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 25);
 
-    const firstPage = await t.query(api.messageList.listMessages, {
+    const result = await t.query(api.messageList.subscribeLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
-      paginationOpts: { numItems: 20, cursor: null },
+      limit: 20,
     });
 
-    // First page: 20 newest messages in DESC order
-    expect(firstPage.page).toHaveLength(20);
-    expect(firstPage.isDone).toBe(false);
-    // Descending order: first item is the newest
-    expect(firstPage.page[0]!.content).toBe('message-25');
-    expect(firstPage.page[19]!.content).toBe('message-6');
-  });
-
-  test('second page with continueCursor returns remaining messages, isDone=true', async () => {
-    const { sessionId } = await createTestSession('ml-paginated-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await sendMessages(sessionId, chatroomId, 25);
-
-    const firstPage = await t.query(api.messageList.listMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      paginationOpts: { numItems: 20, cursor: null },
-    });
-    expect(firstPage.isDone).toBe(false);
-
-    const secondPage = await t.query(api.messageList.listMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      paginationOpts: { numItems: 20, cursor: firstPage.continueCursor },
-    });
-
-    // Remaining 5 messages
-    expect(secondPage.page).toHaveLength(5);
-    expect(secondPage.isDone).toBe(true);
-    // Continuing descent: messages 5 down to 1
-    expect(secondPage.page[0]!.content).toBe('message-5');
-    expect(secondPage.page[4]!.content).toBe('message-1');
+    expect(result).toHaveLength(20);
+    expect(result[0]!.content).toBe('message-6');
+    expect(result[19]!.content).toBe('message-25');
   });
 
   test('filters out join and progress message types', async () => {
-    const { sessionId } = await createTestSession('ml-filter-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-
-    await sendMessages(sessionId, chatroomId, 3); // 3 normal messages
-    await sendMessageOfType(sessionId, chatroomId, 'join'); // filtered out
-    await sendMessageOfType(sessionId, chatroomId, 'progress'); // filtered out
-
-    const result = await t.query(api.messageList.listMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      paginationOpts: { numItems: 20, cursor: null },
-    });
-
-    expect(result.page).toHaveLength(3);
-    for (const msg of result.page) {
-      expect(msg.type).not.toBe('join');
-      expect(msg.type).not.toBe('progress');
-    }
-  });
-
-  test('rejects access from unauthenticated session', async () => {
-    const { sessionId } = await createTestSession('ml-auth-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-
-    await expect(
-      t.query(api.messageList.listMessages, {
-        sessionId: 'invalid-session' as any,
-        chatroomId,
-        paginationOpts: { numItems: 20, cursor: null },
-      })
-    ).rejects.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// subscribeNewMessages
-// ---------------------------------------------------------------------------
-
-describe('subscribeNewMessages', () => {
-  test('sinceCreationTime=0 returns all filtered messages in ascending order', async () => {
-    const { sessionId } = await createTestSession('ml-sub-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await sendMessages(sessionId, chatroomId, 5);
-
-    const result = await t.query(api.messageList.subscribeNewMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      sinceCreationTime: 0,
-    });
-
-    expect(result).toHaveLength(5);
-    // Ascending order: first is oldest
-    expect(result[0]!.content).toBe('message-1');
-    expect(result[4]!.content).toBe('message-5');
-  });
-
-  test('returns only messages newer than sinceCreationTime', async () => {
-    const { sessionId } = await createTestSession('ml-sub-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await sendMessages(sessionId, chatroomId, 5);
-
-    // Get all messages first to find the midpoint cursor
-    const allMessages = await t.query(api.messageList.subscribeNewMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      sinceCreationTime: 0,
-    });
-    expect(allMessages).toHaveLength(5);
-
-    // Use the 3rd message's _creationTime as boundary
-    const midpointCursor = allMessages[2]!._creationTime;
-
-    const result = await t.query(api.messageList.subscribeNewMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      sinceCreationTime: midpointCursor,
-    });
-
-    // Should return messages 4 and 5 only (strictly after the cursor)
-    expect(result).toHaveLength(2);
-    expect(result[0]!.content).toBe('message-4');
-    expect(result[1]!.content).toBe('message-5');
-  });
-
-  test('filters out join and progress types', async () => {
-    const { sessionId } = await createTestSession('ml-sub-filter-1');
+    const { sessionId } = await createTestSession('ml-latest-filter-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -211,10 +92,10 @@ describe('subscribeNewMessages', () => {
     await sendMessageOfType(sessionId, chatroomId, 'join');
     await sendMessageOfType(sessionId, chatroomId, 'progress');
 
-    const result = await t.query(api.messageList.subscribeNewMessages, {
+    const result = await t.query(api.messageList.subscribeLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
-      sinceCreationTime: 0,
+      limit: 20,
     });
 
     expect(result).toHaveLength(3);
@@ -224,30 +105,129 @@ describe('subscribeNewMessages', () => {
     }
   });
 
-  test('200-cap respected when chatroom has many messages', async () => {
-    const { sessionId } = await createTestSession('ml-sub-cap-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await sendMessages(sessionId, chatroomId, 205);
-
-    const result = await t.query(api.messageList.subscribeNewMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      sinceCreationTime: 0,
-    });
-
-    expect(result.length).toBeLessThanOrEqual(200);
-  });
-
   test('rejects access from unauthenticated session', async () => {
-    const { sessionId } = await createTestSession('ml-sub-auth-1');
+    const { sessionId } = await createTestSession('ml-latest-auth-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
     await expect(
-      t.query(api.messageList.subscribeNewMessages, {
+      t.query(api.messageList.subscribeLatestMessages, {
         sessionId: 'invalid-session' as any,
         chatroomId,
-        sinceCreationTime: 0,
+        limit: 20,
+      })
+    ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listMessagesBefore
+// ---------------------------------------------------------------------------
+
+describe('listMessagesBefore', () => {
+  test('before future timestamp → empty array', async () => {
+    const { sessionId } = await createTestSession('ml-before-empty-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.query(api.messageList.listMessagesBefore, {
+      sessionId: sessionId as any,
+      chatroomId,
+      before: Date.now() + 60_000,
+      limit: 20,
+    });
+
+    expect(result).toHaveLength(0);
+  });
+
+  test('returns messages strictly before cursor in ascending order', async () => {
+    const { sessionId } = await createTestSession('ml-before-page-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 25);
+
+    const latest = await t.query(api.messageList.subscribeLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+    expect(latest).toHaveLength(20);
+
+    const before = latest[0]!._creationTime;
+    const older = await t.query(api.messageList.listMessagesBefore, {
+      sessionId: sessionId as any,
+      chatroomId,
+      before,
+      limit: 20,
+    });
+
+    expect(older).toHaveLength(5);
+    expect(older[0]!.content).toBe('message-1');
+    expect(older[4]!.content).toBe('message-5');
+  });
+
+  test('second page returns remaining older messages', async () => {
+    const { sessionId } = await createTestSession('ml-before-page-2');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 45);
+
+    const latest = await t.query(api.messageList.subscribeLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+    const firstOlder = await t.query(api.messageList.listMessagesBefore, {
+      sessionId: sessionId as any,
+      chatroomId,
+      before: latest[0]!._creationTime,
+      limit: 20,
+    });
+    expect(firstOlder).toHaveLength(20);
+    expect(firstOlder[0]!.content).toBe('message-6');
+
+    const secondOlder = await t.query(api.messageList.listMessagesBefore, {
+      sessionId: sessionId as any,
+      chatroomId,
+      before: firstOlder[0]!._creationTime,
+      limit: 20,
+    });
+    expect(secondOlder).toHaveLength(5);
+    expect(secondOlder[0]!.content).toBe('message-1');
+    expect(secondOlder[4]!.content).toBe('message-5');
+  });
+
+  test('filters out join and progress types', async () => {
+    const { sessionId } = await createTestSession('ml-before-filter-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await sendMessages(sessionId, chatroomId, 3);
+    await sendMessageOfType(sessionId, chatroomId, 'join');
+    await sendMessageOfType(sessionId, chatroomId, 'progress');
+
+    const result = await t.query(api.messageList.listMessagesBefore, {
+      sessionId: sessionId as any,
+      chatroomId,
+      before: Date.now() + 60_000,
+      limit: 20,
+    });
+
+    expect(result).toHaveLength(3);
+    for (const msg of result) {
+      expect(msg.type).not.toBe('join');
+      expect(msg.type).not.toBe('progress');
+    }
+  });
+
+  test('rejects access from unauthenticated session', async () => {
+    const { sessionId } = await createTestSession('ml-before-auth-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await expect(
+      t.query(api.messageList.listMessagesBefore, {
+        sessionId: 'invalid-session' as any,
+        chatroomId,
+        before: Date.now(),
+        limit: 20,
       })
     ).rejects.toThrow();
   });

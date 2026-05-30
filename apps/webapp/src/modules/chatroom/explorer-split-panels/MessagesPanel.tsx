@@ -22,10 +22,8 @@ import type { ScrollController } from '../hooks/useScrollController';
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  activeTask?: { status: string; assignedTo?: string } | null;
   controller: React.MutableRefObject<ScrollController>;
   isPinned: boolean;
-  scrollToBottom: () => void;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, { hostname: string; alias?: string }>;
   // SendForm props
@@ -42,10 +40,8 @@ export interface MessagesPanelProps {
 
 export function MessagesPanel({
   chatroomId,
-  activeTask,
   controller,
   isPinned,
-  scrollToBottom,
   onRegisterOpenEventStream,
   machines,
   onBeforeResize,
@@ -58,10 +54,8 @@ export function MessagesPanel({
     <>
       <ChatroomTimelineFeed
         chatroomId={chatroomId}
-        activeTask={activeTask}
         controller={controller}
         isPinned={isPinned}
-        scrollToBottom={scrollToBottom}
         onRegisterOpenEventStream={onRegisterOpenEventStream}
         machines={machines}
       />
