@@ -9,6 +9,8 @@
  * 2. Older pages — useState + convex.query(listMessagesBefore) on scroll-to-top
  *    Imperative; prepended to local state.
  * 3. Merge — older (ASC) + deduped subscription (ASC) → chronological order.
+ * 4. Slide-off — when the subscription window shifts, messages that drop out of
+ *    live are retained in olderMessages so history does not vanish from the UI.
  *
  * taskStatus is resolved server-side by enrichMessages and flows through
  * both sources via Convex query reactivity.
@@ -18,7 +20,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useConvex } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Message } from '../types/message';
 
@@ -61,7 +63,6 @@ export interface UseMessagesResult {
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderMessages: () => void;
-  purgeOldMessages: (viewportTopIndex: number) => void;
 }
 
 export function useMessages(chatroomId: string): UseMessagesResult {
@@ -78,6 +79,36 @@ export function useMessages(chatroomId: string): UseMessagesResult {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [exhaustedOlder, setExhaustedOlder] = useState(false);
   const isLoadingOlderRef = useRef(false);
+  const prevLiveRef = useRef<Message[]>([]);
+
+  // Retain messages that slide out of the subscription window.
+  useEffect(() => {
+    if (subscriptionResult === undefined) return;
+
+    const live = subscriptionResult.map(toMessage);
+    const prevLive = prevLiveRef.current;
+
+    if (prevLive.length > 0) {
+      const newLiveIds = new Set(live.map((m) => m._id));
+      const dropped = prevLive.filter((m) => !newLiveIds.has(m._id));
+
+      if (dropped.length > 0) {
+        setOlderMessages((prev) => {
+          const knownIds = new Set([
+            ...prev.map((m) => m._id),
+            ...live.map((m) => m._id),
+          ]);
+          const toPrepend = dropped
+            .filter((m) => !knownIds.has(m._id))
+            .sort((a, b) => a._creationTime - b._creationTime);
+          if (toPrepend.length === 0) return prev;
+          return [...toPrepend, ...prev];
+        });
+      }
+    }
+
+    prevLiveRef.current = live;
+  }, [subscriptionResult]);
 
   const messages = useMemo(() => {
     const live = (subscriptionResult ?? []).map(toMessage);
@@ -87,13 +118,15 @@ export function useMessages(chatroomId: string): UseMessagesResult {
   }, [subscriptionResult, olderMessages]);
 
   const subLen = subscriptionResult?.length ?? 0;
-  const hasMoreOlder =
-    !exhaustedOlder && (subLen >= SUBSCRIPTION_LIMIT || olderMessages.length > 0);
+  const hasMoreOlder = !exhaustedOlder && subLen >= SUBSCRIPTION_LIMIT;
+
+  const oldestMessageRef = useRef<Message | undefined>(undefined);
+  oldestMessageRef.current = messages[0];
 
   const loadOlderMessages = useCallback(() => {
     if (isLoadingOlderRef.current || exhaustedOlder || !sessionId) return;
 
-    const oldest = messages[0];
+    const oldest = oldestMessageRef.current;
     const before = oldest ? oldest._creationTime : Date.now();
 
     isLoadingOlderRef.current = true;
@@ -121,11 +154,7 @@ export function useMessages(chatroomId: string): UseMessagesResult {
         setIsLoadingOlder(false);
       }
     })();
-  }, [convex, typedChatroomId, messages, sessionId, exhaustedOlder]);
-
-  const purgeOldMessages = useCallback((_viewportTopIndex: number) => {
-    // no-op for now
-  }, []);
+  }, [convex, typedChatroomId, sessionId, exhaustedOlder]);
 
   return {
     messages,
@@ -133,6 +162,5 @@ export function useMessages(chatroomId: string): UseMessagesResult {
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
-    purgeOldMessages,
   };
 }

@@ -70,8 +70,8 @@ describe('useMessages', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('hasMoreOlder=true when subscription is at cap (40)', () => {
-    mockSubscriptionData = Array.from({ length: 40 }, (_, i) =>
+  it('hasMoreOlder=true when subscription is at cap (20)', () => {
+    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
       makeMsg(`msg-${i}`, i * 1000)
     );
     const { result } = renderHook(() => useMessages('room-1'));
@@ -101,6 +101,26 @@ describe('useMessages', () => {
     const { result } = renderHook(() => useMessages('room-1'));
 
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-3']);
+  });
+
+  it('retains messages that slide out of the subscription window', async () => {
+    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
+      makeMsg(`msg-${i}`, i * 1000)
+    );
+    const { result, rerender } = renderHook(() => useMessages('room-1'));
+    expect(result.current.messages).toHaveLength(20);
+
+    mockSubscriptionData = [
+      ...Array.from({ length: 19 }, (_, i) => makeMsg(`msg-${i + 1}`, (i + 1) * 1000)),
+      makeMsg('msg-20', 20_000),
+    ];
+    rerender();
+
+    await waitFor(() => {
+      const ids = result.current.messages.map((m) => m._id);
+      expect(ids).toContain('msg-0');
+      expect(ids).toHaveLength(21);
+    });
   });
 
   it('deduplicates message that appears in both older pages and subscription', async () => {
@@ -148,7 +168,7 @@ describe('useMessages', () => {
   });
 
   it('sets hasMoreOlder=false when loadOlder returns no messages', async () => {
-    mockSubscriptionData = Array.from({ length: 40 }, (_, i) =>
+    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
       makeMsg(`msg-${i}`, i * 1000)
     );
     mockConvexQuery.mockResolvedValue([]);
@@ -165,7 +185,7 @@ describe('useMessages', () => {
   });
 
   it('isLoadingOlder=true while loadOlder is in flight', async () => {
-    mockSubscriptionData = Array.from({ length: 40 }, (_, i) =>
+    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
       makeMsg(`msg-${i}`, i * 1000)
     );
     let resolveQuery: (value: unknown[]) => void = () => {};
@@ -191,11 +211,6 @@ describe('useMessages', () => {
     await waitFor(() => {
       expect(result.current.isLoadingOlder).toBe(false);
     });
-  });
-
-  it('purgeOldMessages is a no-op (does not throw)', () => {
-    const { result } = renderHook(() => useMessages('room-1'));
-    expect(() => result.current.purgeOldMessages(50)).not.toThrow();
   });
 
   it('reflects taskStatus from subscription data', () => {
