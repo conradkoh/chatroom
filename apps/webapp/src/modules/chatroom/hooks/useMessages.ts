@@ -4,7 +4,7 @@
  * useMessages — subscription + imperative load-older hook.
  *
  * Architecture:
- * 1. Live tail — useSessionQuery(subscribeLatestMessages, limit=40)
+ * 1. Live tail — useSessionQuery(subscribeLatestMessages, limit=20)
  *    Reactive; always returns the latest N messages in chronological order.
  * 2. Older pages — useState + convex.query(listMessagesBefore) on scroll-to-top
  *    Imperative; prepended to local state.
@@ -22,7 +22,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { Message } from '../types/message';
 
-const SUBSCRIPTION_LIMIT = 40;
+const SUBSCRIPTION_LIMIT = 20;
 const LOAD_OLDER_PAGE_SIZE = 20;
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
