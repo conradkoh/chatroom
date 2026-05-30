@@ -3,6 +3,7 @@ import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
+import { getTeamEntryPoint } from '../../entities/team';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,
@@ -64,6 +65,7 @@ export async function promoteQueuedMessage(
     createdBy: 'user',
     content: queueRecord.content,
     forceStatus: 'pending',
+    assignedTo: getTeamEntryPoint(chatroom) ?? undefined,
     sourceMessageId: messageId,
     queuePosition,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
