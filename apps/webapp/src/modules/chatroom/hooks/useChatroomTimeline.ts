@@ -3,7 +3,7 @@
 /**
  * useChatroomTimeline — paginated chatroom history as linear timeline events.
  *
- * Reuses the listMessages + subscribeNewMessages pipeline from useMessages,
+ * Reuses subscribeLatestMessages + imperative load-older from useMessages,
  * then maps each row to a TimelineEvent for the virtualized timeline feed.
  */
 

@@ -6,8 +6,10 @@
  * getMessagesSince, getOlderMessages) have been removed from messages.ts.
  *
  * Queries:
- *   - listMessages        — paginated historical messages (newest-first per page)
- *   - subscribeNewMessages — reactive tail subscription for new arrivals
+ *   - listMessages              — paginated historical messages (newest-first per page)
+ *   - subscribeNewMessages      — reactive tail subscription for new arrivals
+ *   - subscribeLatestMessages     — reactive latest N messages in chronological order
+ *   - listMessagesBefore          — imperative load-older before a timestamp
  */
 
 import { paginationOptsValidator } from 'convex/server';
@@ -86,5 +88,66 @@ export const subscribeNewMessages = query({
       .take(200); // safety cap — prevents unbounded returns
 
     return enrichMessages(ctx, messages);
+  },
+});
+
+/**
+ * Reactive subscription for the latest N messages in a chatroom.
+ *
+ * Returns messages in ascending chronological order. Subscribed via
+ * useSessionQuery; Convex re-runs when messages change.
+ */
+export const subscribeLatestMessages = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) =>
+        q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress'))
+      )
+      .order('desc')
+      .take(args.limit);
+
+    const enriched = await enrichMessages(ctx, messages.reverse());
+    return enriched;
+  },
+});
+
+/**
+ * Imperative load-older — messages strictly before `before` (_creationTime).
+ *
+ * Returns up to `limit` messages in ascending chronological order so the
+ * caller can prepend them to local state.
+ */
+export const listMessagesBefore = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    before: v.number(),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).lt('_creationTime', args.before)
+      )
+      .filter((q) =>
+        q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress'))
+      )
+      .order('desc')
+      .take(args.limit);
+
+    const enriched = await enrichMessages(ctx, messages.reverse());
+    return enriched;
   },
 });
