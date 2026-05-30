@@ -9,7 +9,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { requireAuthenticatedMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── listPendingCommands ──────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ export const listPendingCommands = query({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     return await ctx.db
       .query('chatroom_directHarnessCommands')
@@ -65,7 +65,7 @@ export const updateCommandStatus = mutation({
       });
     }
 
-    await requireAuthenticatedMachineOwner(ctx, args.sessionId, command.machineId);
+    await requireMachineOwner(ctx, args.sessionId, command.machineId);
 
     const patch: Partial<{
       status: 'inProgress' | 'done' | 'failed';

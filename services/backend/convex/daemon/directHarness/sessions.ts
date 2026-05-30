@@ -6,7 +6,7 @@ import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers.js';
-import { requireAuthenticatedMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
@@ -180,7 +180,7 @@ export const listPendingSessionsForMachine = query({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const workspaces = await ctx.db
       .query('chatroom_workspaces')

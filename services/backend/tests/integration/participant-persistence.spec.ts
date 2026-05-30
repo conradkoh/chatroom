@@ -8,7 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { areAllAgentsWaiting } from '../../convex/auth/cliSessionAuth';
+import { areAllAgentsWaiting } from '../../convex/lib/chatroomUtils';
 import { t } from '../../test.setup';
 import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
 
