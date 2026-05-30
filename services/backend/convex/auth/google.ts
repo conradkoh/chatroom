@@ -3,9 +3,9 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { z } from 'zod';
 
-import { featureFlags } from '../../../config/featureFlags';
-import { api } from '../../_generated/api';
-import type { Doc, Id } from '../../_generated/dataModel';
+import { featureFlags } from '../../config/featureFlags';
+import { api } from '../_generated/api';
+import type { Doc, Id } from '../_generated/dataModel';
 import {
   type ActionCtx,
   action,
@@ -13,7 +13,7 @@ import {
   mutation,
   type QueryCtx,
   query,
-} from '../../_generated/server';
+} from '../_generated/server';
 
 // Public interfaces and types
 export type OAuthState = z.infer<typeof OAuthStateSchema>;
@@ -671,7 +671,7 @@ export const handleGoogleCallback = action({
 
       if (flowType === 'connect') {
         // Handle connect flow
-        const connectRequest = await ctx.runQuery(api.auth.web.google.getConnectRequest, {
+        const connectRequest = await ctx.runQuery(api.auth.google.getConnectRequest, {
           connectRequestId: requestId as Id<'auth_connectRequests'>,
         });
 
@@ -691,7 +691,7 @@ export const handleGoogleCallback = action({
         }
 
         // Exchange code for Google profile
-        const { profile, success } = await ctx.runAction(api.auth.web.google.exchangeGoogleCode, {
+        const { profile, success } = await ctx.runAction(api.auth.google.exchangeGoogleCode, {
           code,
           state,
           redirectUri,
@@ -699,14 +699,14 @@ export const handleGoogleCallback = action({
         if (!success) throw new Error('Google OAuth failed');
 
         // Connect Google account to existing user
-        const connectResult = await ctx.runMutation(api.auth.web.google.connectGoogle, {
+        const connectResult = await ctx.runMutation(api.auth.google.connectGoogle, {
           profile,
           sessionId: connectRequest.sessionId as SessionId,
         });
         if (!connectResult.success) throw new Error('Connect failed');
 
         // Mark connect request as completed
-        await ctx.runMutation(api.auth.web.google.completeConnectRequest, {
+        await ctx.runMutation(api.auth.google.completeConnectRequest, {
           connectRequestId: requestId as Id<'auth_connectRequests'>,
           status: 'completed',
         });
@@ -719,7 +719,7 @@ export const handleGoogleCallback = action({
       }
       if (flowType === 'login') {
         // Handle login flow
-        const loginRequest = await ctx.runQuery(api.auth.web.google.getLoginRequest, {
+        const loginRequest = await ctx.runQuery(api.auth.google.getLoginRequest, {
           loginRequestId: requestId as Id<'auth_loginRequests'>,
         });
 
@@ -739,7 +739,7 @@ export const handleGoogleCallback = action({
         }
 
         // Exchange code for Google profile
-        const { profile, success } = await ctx.runAction(api.auth.web.google.exchangeGoogleCode, {
+        const { profile, success } = await ctx.runAction(api.auth.google.exchangeGoogleCode, {
           code,
           state,
           redirectUri,
@@ -747,14 +747,14 @@ export const handleGoogleCallback = action({
         if (!success) throw new Error('Google OAuth failed');
 
         // Find or create user and update session
-        const loginResult = await ctx.runMutation(api.auth.web.google.loginWithGoogle, {
+        const loginResult = await ctx.runMutation(api.auth.google.loginWithGoogle, {
           profile,
           sessionId: loginRequest.sessionId as SessionId,
         });
         if (!loginResult.success) throw new Error('Login failed');
 
         // Mark login request as completed
-        await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+        await ctx.runMutation(api.auth.google.completeLoginRequest, {
           loginRequestId: requestId as Id<'auth_loginRequests'>,
           status: 'completed',
         });
@@ -774,13 +774,13 @@ export const handleGoogleCallback = action({
         const { flowType, requestId } = oauthState;
 
         if (flowType === 'connect') {
-          await ctx.runMutation(api.auth.web.google.completeConnectRequest, {
+          await ctx.runMutation(api.auth.google.completeConnectRequest, {
             connectRequestId: requestId as Id<'auth_connectRequests'>,
             status: 'failed',
             error: err instanceof Error ? err.message : 'Unknown error',
           });
         } else if (flowType === 'login') {
-          await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+          await ctx.runMutation(api.auth.google.completeLoginRequest, {
             loginRequestId: requestId as Id<'auth_loginRequests'>,
             status: 'failed',
             error: err instanceof Error ? err.message : 'Unknown error',
@@ -815,7 +815,7 @@ export const handleGoogleLoginCallback = action({
 
     try {
       // Get the login request to extract sessionId and redirectUri
-      const loginRequest = await ctx.runQuery(api.auth.web.google.getLoginRequest, {
+      const loginRequest = await ctx.runQuery(api.auth.google.getLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
       });
       if (!loginRequest || loginRequest.provider !== 'google') {
@@ -835,7 +835,7 @@ export const handleGoogleLoginCallback = action({
       }
 
       // Exchange code for Google profile
-      const { profile, success } = await ctx.runAction(api.auth.web.google.exchangeGoogleCode, {
+      const { profile, success } = await ctx.runAction(api.auth.google.exchangeGoogleCode, {
         code,
         state,
         redirectUri,
@@ -843,14 +843,14 @@ export const handleGoogleLoginCallback = action({
       if (!success) throw new Error('Google OAuth failed');
 
       // Find or create user and update session - using mutation
-      const loginResult = await ctx.runMutation(api.auth.web.google.loginWithGoogle, {
+      const loginResult = await ctx.runMutation(api.auth.google.loginWithGoogle, {
         profile,
         sessionId: loginRequest.sessionId as SessionId, // SessionId type casting
       });
       if (!loginResult.success) throw new Error('Login failed');
 
       // Mark login request as completed
-      await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+      await ctx.runMutation(api.auth.google.completeLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
         status: 'completed',
       });
@@ -861,7 +861,7 @@ export const handleGoogleLoginCallback = action({
       };
     } catch (err) {
       // Mark login request as failed
-      await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+      await ctx.runMutation(api.auth.google.completeLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
         status: 'failed',
         error: err instanceof Error ? err.message : 'Unknown error',
@@ -892,7 +892,7 @@ export const handleGoogleConnectCallback = action({
 
     try {
       // Get the login request to extract sessionId and redirectUri
-      const loginRequest = await ctx.runQuery(api.auth.web.google.getLoginRequest, {
+      const loginRequest = await ctx.runQuery(api.auth.google.getLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
       });
       if (!loginRequest || loginRequest.provider !== 'google') {
@@ -912,7 +912,7 @@ export const handleGoogleConnectCallback = action({
       }
 
       // Exchange code for Google profile
-      const { profile, success } = await ctx.runAction(api.auth.web.google.exchangeGoogleCode, {
+      const { profile, success } = await ctx.runAction(api.auth.google.exchangeGoogleCode, {
         code,
         state,
         redirectUri,
@@ -920,14 +920,14 @@ export const handleGoogleConnectCallback = action({
       if (!success) throw new Error('Google OAuth failed');
 
       // Connect Google account to existing user - using mutation
-      const connectResult = await ctx.runMutation(api.auth.web.google.connectGoogle, {
+      const connectResult = await ctx.runMutation(api.auth.google.connectGoogle, {
         profile,
         sessionId: loginRequest.sessionId as SessionId, // SessionId type casting
       });
       if (!connectResult.success) throw new Error('Connect failed');
 
       // Mark login request as completed
-      await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+      await ctx.runMutation(api.auth.google.completeLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
         status: 'completed',
       });
@@ -938,7 +938,7 @@ export const handleGoogleConnectCallback = action({
       };
     } catch (err) {
       // Mark login request as failed
-      await ctx.runMutation(api.auth.web.google.completeLoginRequest, {
+      await ctx.runMutation(api.auth.google.completeLoginRequest, {
         loginRequestId: state as Id<'auth_loginRequests'>,
         status: 'failed',
         error: err instanceof Error ? err.message : 'Unknown error',
@@ -1065,7 +1065,7 @@ async function _isGoogleAuthEnabledForActions(ctx: ActionCtx): Promise<{
   }
 
   // Get configuration from database via internal query
-  const config = await ctx.runQuery(api.auth.web.google.getGoogleAuthConfigInternal);
+  const config = await ctx.runQuery(api.auth.google.getGoogleAuthConfigInternal);
 
   if (!config?.enabled || !config?.clientId || !config?.clientSecret) {
     return { enabled: false };

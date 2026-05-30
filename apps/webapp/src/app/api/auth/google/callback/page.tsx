@@ -62,7 +62,7 @@ export default async function GoogleOAuthCallbackPage({
   let callbackResult: CallbackResult;
 
   try {
-    const result = await fetchAction(api.auth.web.google.handleGoogleCallback, {
+    const result = await fetchAction(api.auth.google.handleGoogleCallback, {
       code: params.code,
       state: params.state,
     });

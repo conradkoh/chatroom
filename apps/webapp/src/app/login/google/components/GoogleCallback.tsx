@@ -23,8 +23,8 @@ export const GoogleCallback = ({ code, state, redirectPath = '/app' }: GoogleCal
   const router = useRouter();
   const hasProcessedRef = useRef(false);
 
-  const exchangeGoogleCode = useAction(api.auth.web.google.exchangeGoogleCode);
-  const loginWithGoogle = useSessionMutation(api.auth.web.google.loginWithGoogle);
+  const exchangeGoogleCode = useAction(api.auth.google.exchangeGoogleCode);
+  const loginWithGoogle = useSessionMutation(api.auth.google.loginWithGoogle);
 
   /**
    * Processes the OAuth callback with the provided parameters.

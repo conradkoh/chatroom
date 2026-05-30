@@ -19,7 +19,7 @@ import type * as auth_core_accessCheck from "../auth/core/accessCheck.js";
 import type * as auth_core_chatroomAccess from "../auth/core/chatroomAccess.js";
 import type * as auth_core_session from "../auth/core/session.js";
 import type * as auth_core_sessionValidation from "../auth/core/sessionValidation.js";
-import type * as auth_web_google from "../auth/web/google.js";
+import type * as auth_google from "../auth/google.js";
 import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
@@ -113,7 +113,7 @@ declare const fullApi: ApiFromModules<{
   "auth/core/chatroomAccess": typeof auth_core_chatroomAccess;
   "auth/core/session": typeof auth_core_session;
   "auth/core/sessionValidation": typeof auth_core_sessionValidation;
-  "auth/web/google": typeof auth_web_google;
+  "auth/google": typeof auth_google;
   backlog: typeof backlog;
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
   chatroomCleanup: typeof chatroomCleanup;

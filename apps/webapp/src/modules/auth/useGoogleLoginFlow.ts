@@ -16,7 +16,7 @@ export function useGoogleLoginFlow() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const googleAuthAvailable = useGoogleAuthAvailable();
-  const createLoginRequest = useSessionMutation(api.auth.web.google.createLoginRequest);
+  const createLoginRequest = useSessionMutation(api.auth.google.createLoginRequest);
 
   /**
    * Initiates the Google login flow by creating a login request and redirecting.
