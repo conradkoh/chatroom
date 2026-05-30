@@ -58,6 +58,20 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
+  it('jumpToEnd stays pinned when scroll events fire mid-flight during programmatic scroll', () => {
+    Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+    expect(coordinator.isPinned).toBe(false);
+
+    coordinator.jumpToEnd('smooth');
+    expect(coordinator.isPinned).toBe(true);
+
+    Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+
+    expect(coordinator.isPinned).toBe(true);
+  });
+
   it('followTail snaps DOM and scrolls virtualizer', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     coordinator.followTail('auto');

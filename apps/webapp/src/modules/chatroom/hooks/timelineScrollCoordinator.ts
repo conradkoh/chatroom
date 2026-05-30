@@ -220,9 +220,13 @@ export class TimelineScrollCoordinator {
   /** Jump chip — virtualizer owns scrollTop to avoid DOM/virtual desync. */
   jumpToEnd(behavior: 'auto' | 'smooth' = 'smooth'): void {
     this.setPinned(true);
-    this.scrollVirtualizer(behavior);
+    this.runProgrammaticScroll(() => {
+      this.scrollVirtualizer(behavior);
+    });
     requestAnimationFrame(() => {
-      this.scrollVirtualizer('auto');
+      this.runProgrammaticScroll(() => {
+        this.scrollVirtualizer('auto');
+      });
     });
   }
 
