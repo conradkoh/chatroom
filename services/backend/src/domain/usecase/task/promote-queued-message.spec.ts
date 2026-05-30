@@ -100,6 +100,23 @@ describe('promoteQueuedMessage', () => {
     expect(task?.content).toBe('queued message content');
   });
 
+  test('sets assignedTo to team entry point', async () => {
+    const { sessionId } = await createTestSession('promote-msg-assigned');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await createQueueRecord(chatroomId);
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', result!.taskId);
+    });
+
+    expect(task?.assignedTo).toBe('builder');
+  });
+
   test('links message and task bidirectionally', async () => {
     const { sessionId } = await createTestSession('promote-msg-3');
     const chatroomId = await createChatroom(sessionId);

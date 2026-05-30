@@ -1,0 +1,85 @@
+/**
+ * Tests for releaseTasksOnAgentExit — tasks retain role assignment when released.
+ */
+
+import type { SessionId } from 'convex-helpers/server/sessions';
+import { describe, expect, test } from 'vitest';
+
+import { releaseTasksOnAgentExit } from './release-tasks-on-agent-exit';
+import { api } from '../../../../convex/_generated/api';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import { t } from '../../../../test.setup';
+
+async function createTestSession(id: string) {
+  const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
+  expect(login.success).toBe(true);
+  return { sessionId: id as SessionId };
+}
+
+async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+  return await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Pair Team',
+    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamEntryPoint: 'builder',
+  });
+}
+
+async function seedAcknowledgedBuilderTask(
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<Id<'chatroom_tasks'>> {
+  const now = Date.now();
+  return await t.run(async (ctx) => {
+    return await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content: 'builder task',
+      status: 'acknowledged',
+      assignedTo: 'builder',
+      acknowledgedAt: now,
+      queuePosition: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+describe('releaseTasksOnAgentExit', () => {
+  test('retains assignedTo, sets pending, clears acknowledgedAt and startedAt', async () => {
+    const { sessionId } = await createTestSession('release-exit-1');
+    const chatroomId = await createChatroom(sessionId);
+    const taskId = await seedAcknowledgedBuilderTask(chatroomId);
+
+    const released = await t.run(async (ctx) => {
+      return await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+    });
+
+    expect(released).toBe(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('builder');
+    expect(task?.acknowledgedAt).toBeUndefined();
+    expect(task?.startedAt).toBeUndefined();
+  });
+
+  test('planner cannot claim task released for builder', async () => {
+    const { sessionId } = await createTestSession('release-exit-2');
+    const chatroomId = await createChatroom(sessionId);
+    const taskId = await seedAcknowledgedBuilderTask(chatroomId);
+
+    await t.run(async (ctx) => {
+      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+    });
+
+    await expect(
+      t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'planner',
+        taskId,
+      })
+    ).rejects.toThrow(/not claimable by role planner/i);
+  });
+});
