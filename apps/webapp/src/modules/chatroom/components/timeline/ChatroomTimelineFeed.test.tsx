@@ -14,7 +14,7 @@ const virtualizerOptions: Array<{
   getItemKey: (index: number) => string;
 }> = [];
 
-const mockScrollToIndex = vi.fn();
+const mockScrollToEnd = vi.fn();
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
@@ -23,7 +23,7 @@ vi.mock('@tanstack/react-virtual', () => ({
       getVirtualItems: () => [],
       getTotalSize: () => 0,
       measureElement: vi.fn(),
-      scrollToIndex: mockScrollToIndex,
+      scrollToEnd: mockScrollToEnd,
       range: { startIndex: 0, endIndex: 0, count: options.count },
     };
   },
@@ -121,7 +121,17 @@ const defaultProps = {
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
-    mockScrollToIndex.mockClear();
+    mockScrollToEnd.mockClear();
+  });
+
+  it('enables end-anchored chat virtualizer options', () => {
+    render(<ChatroomTimelineFeed {...defaultProps} />);
+    const options = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
+      anchorTo?: string;
+      followOnAppend?: string;
+    };
+    expect(options.anchorTo).toBe('end');
+    expect(options.followOnAppend).toBe('smooth');
   });
 
   it('uses stable getItemKey across parent re-renders', () => {

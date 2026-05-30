@@ -34,6 +34,7 @@ import {
   TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
   TIMELINE_PURGE_INDEX_THRESHOLD,
+  TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
 
 export interface ChatroomTimelineFeedProps {
@@ -59,7 +60,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const topChromeRef = useRef<HTMLDivElement>(null);
   const prevEventCountRef = useRef(0);
   const wasLoadingOlderRef = useRef(false);
-  const loadAnchorIdRef = useRef<string | null>(null);
   const hasInitialScrollRef = useRef(false);
   /** Gates load-older until the first scroll-to-bottom has settled (avoids spurious top loads). */
   const allowLoadOlderRef = useRef(false);
@@ -102,6 +102,10 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     overscan: TIMELINE_OVERSCAN,
     scrollMargin: topChromeHeight,
     getItemKey: (index) => getTimelineItemKey(index, events),
+    // Chat-style anchoring: stable scroll when prepending history; follow tail only at end.
+    anchorTo: 'end',
+    followOnAppend: 'smooth',
+    scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
 
   const scrollRefCallback = useCallback(
@@ -116,34 +120,24 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     [controller]
   );
 
-  const scrollToLatest = useCallback(() => {
-    if (events.length === 0) return;
-    const lastIndex = events.length - 1;
-    controller.current.snapToBottom();
-    virtualizer.scrollToIndex(lastIndex, { align: 'end' });
-    requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(lastIndex, { align: 'end' });
+  const scrollToLatest = useCallback(
+    (behavior: 'auto' | 'smooth' = 'auto') => {
+      if (events.length === 0) return;
       controller.current.snapToBottom();
-    });
-  }, [controller, events.length, virtualizer]);
-
-  const scrollToAnchor = useCallback(
-    (anchorId: string) => {
-      const anchorIndex = events.findIndex((e) => e.id === anchorId);
-      if (anchorIndex < 0) return;
-      virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      virtualizer.scrollToEnd({ behavior });
       requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+        virtualizer.scrollToEnd({ behavior });
+        controller.current.snapToBottom();
       });
     },
-    [events, virtualizer]
+    [controller, events.length, virtualizer]
   );
 
   useLayoutEffect(() => {
     if (events.length > 0 && !hasInitialScrollRef.current) {
       hasInitialScrollRef.current = true;
       allowLoadOlderRef.current = false;
-      scrollToLatest();
+      scrollToLatest('auto');
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           allowLoadOlderRef.current = true;
@@ -153,28 +147,18 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   }, [events.length, scrollToLatest]);
 
   useLayoutEffect(() => {
-    const prevCount = prevEventCountRef.current;
-    const added = events.length > prevCount;
+    const added = events.length > prevEventCountRef.current;
     const wasLoadingOlder = wasLoadingOlderRef.current;
 
-    if (added && isPinned && !wasLoadingOlder) {
-      scrollToLatest();
-    }
-
-    if (added && wasLoadingOlder) {
-      const intent = loadOlderIntentRef.current;
-      if (intent === 'fill_viewport' || (isPinned && !loadAnchorIdRef.current)) {
-        scrollToLatest();
-      } else if (loadAnchorIdRef.current) {
-        scrollToAnchor(loadAnchorIdRef.current);
-      }
-      loadAnchorIdRef.current = null;
+    // Prepend-for-viewport-fill while pinned — end-anchor does not apply followOnAppend here.
+    if (added && wasLoadingOlder && loadOlderIntentRef.current === 'fill_viewport') {
+      scrollToLatest('auto');
       loadOlderIntentRef.current = 'preserve_position';
     }
 
     prevEventCountRef.current = events.length;
     wasLoadingOlderRef.current = isLoadingOlder;
-  }, [events, isLoadingOlder, isPinned, scrollToAnchor, scrollToLatest]);
+  }, [events.length, isLoadingOlder, scrollToLatest]);
 
   useEffect(() => {
     wasLoadingOlderRef.current = isLoadingOlder;
@@ -183,21 +167,10 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const tryLoadOlder = useCallback(
     (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
       if (!allowLoadOlderRef.current || !hasMoreOlder || isLoadingOlder) return;
-
       loadOlderIntentRef.current = intent;
-      if (intent === 'preserve_position') {
-        const firstVisible = virtualizer.getVirtualItems()[0];
-        loadAnchorIdRef.current =
-          firstVisible !== undefined
-            ? (events[firstVisible.index]?.id ?? null)
-            : (events[0]?.id ?? null);
-      } else {
-        loadAnchorIdRef.current = null;
-      }
-
       loadOlderEvents();
     },
-    [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]
+    [hasMoreOlder, isLoadingOlder, loadOlderEvents]
   );
 
   const handleScroll = useCallback(() => {
@@ -310,7 +283,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       <div
         ref={scrollRefCallback}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 [overflow-anchor:auto] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         data-testid="chatroom-timeline-scroll"
       >
         <div ref={topChromeRef}>
@@ -370,7 +343,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       {!isPinned && (
         <button
           type="button"
-          onClick={scrollToLatest}
+          onClick={() => scrollToLatest('smooth')}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >
