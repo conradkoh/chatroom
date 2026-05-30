@@ -94,7 +94,9 @@ async function flushFinalChunks(
   runId: any
 ): Promise<void> {
   await flushTailV2(ctx, tracked);
-  await appendFullOutputChunks(ctx, tracked, runId);
+  if (consumePendingFullSync(tracked.runId)) {
+    await appendFullOutputChunks(ctx, tracked, runId);
+  }
 }
 
 /** One-shot full log sync when the webapp requests "Load more" on an active run. */

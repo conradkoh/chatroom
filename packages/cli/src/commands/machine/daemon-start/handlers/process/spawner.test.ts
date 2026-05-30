@@ -196,13 +196,17 @@ describe('spawnCommandProcess — new output flow', () => {
     expect(appendCalls).toHaveLength(0);
   });
 
-  it('flushes final chunks via appendOutput on exit, then destroys store', async () => {
+  it('does not appendOutput on exit when full sync was not requested', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const fullContent = 'a'.repeat(50 * 1024);
     mockStore._setContent(fullContent);
+
+    const { isRunLogObserved, consumePendingFullSync } = await import('./log-observer-sync.js');
+    vi.mocked(isRunLogObserved).mockReturnValue(true);
+    vi.mocked(consumePendingFullSync).mockReturnValue(false);
 
     const { spawnCommandProcess } = await import('./spawner.js');
     await spawnCommandProcess(
@@ -218,17 +222,20 @@ describe('spawnCommandProcess — new output flow', () => {
     const appendCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
       (c: any) => c[0] === 'mock-appendOutput'
     );
-    expect(appendCalls.length).toBeGreaterThanOrEqual(1);
+    expect(appendCalls).toHaveLength(0);
     expect(mockStore.destroy).toHaveBeenCalled();
   });
 
-  it('flushes final chunks with compressed content', async () => {
+  it('flushes final chunks via appendOutput on exit when full sync was requested', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
 
     const fullContent = 'hello final output';
     mockStore._setContent(fullContent);
+
+    const { consumePendingFullSync } = await import('./log-observer-sync.js');
+    vi.mocked(consumePendingFullSync).mockReturnValue(true);
 
     const { spawnCommandProcess } = await import('./spawner.js');
     await spawnCommandProcess(

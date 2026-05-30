@@ -77,20 +77,20 @@ export async function handleListRunsWithLogObservers(
   const [running, pending] = await Promise.all([
     ctx.db
       .query('chatroom_commandRuns')
-      .withIndex('by_status', (q) => q.eq('status', 'running'))
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'running')
+      )
       .collect(),
     ctx.db
       .query('chatroom_commandRuns')
-      .withIndex('by_status', (q) => q.eq('status', 'pending'))
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
       .collect(),
   ]);
 
   return [...running, ...pending]
-    .filter(
-      (r) =>
-        r.machineId === args.machineId &&
-        ((r.logObserverCount ?? 0) > 0 || r.pendingFullOutputSync === true)
-    )
+    .filter((r) => (r.logObserverCount ?? 0) > 0 || r.pendingFullOutputSync === true)
     .map((r) => ({
       _id: r._id,
       pendingFullOutputSync: r.pendingFullOutputSync === true,

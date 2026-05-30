@@ -442,6 +442,54 @@ describe('controlRunOutputV2', () => {
   });
 });
 
+// ─── listRunsWithLogObservers tests ───────────────────────────────────────────
+
+describe('listRunsWithLogObservers', () => {
+  test('returns only observed or pending-full runs on the requested machine', async () => {
+    const { sessionId, machineId } = await setupMachine('lro-scope');
+    const otherMachine = 'machine-lro-other';
+    await registerMachineWithDaemon(sessionId, otherMachine);
+
+    const observedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+    const pendingFullRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'build');
+    const ignoredRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'lint');
+    const otherMachineRunId = await createRunningRun(sessionId, otherMachine, '/tmp/other', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', observedRunId, { logObserverCount: 1 });
+      await ctx.db.patch('chatroom_commandRuns', pendingFullRunId, {
+        pendingFullOutputSync: true,
+      });
+      await ctx.db.patch('chatroom_commandRuns', otherMachineRunId, { logObserverCount: 1 });
+    });
+
+    const runs = await t.query(api.commands.listRunsWithLogObservers, {
+      sessionId,
+      machineId,
+    });
+
+    const ids = runs.map((r) => r._id).sort();
+    expect(ids).toEqual([observedRunId, pendingFullRunId].sort());
+    expect(ids).not.toContain(ignoredRunId);
+    expect(ids).not.toContain(otherMachineRunId);
+    expect(
+      runs.find((r) => r._id === pendingFullRunId)?.pendingFullOutputSync
+    ).toBe(true);
+  });
+
+  test('rejects caller without owner access to the machine', async () => {
+    const { sessionId, machineId } = await setupMachine('lro-auth');
+    const { sessionId: otherSession } = await createTestSession('cmds-spec-lro-auth-other');
+
+    await expect(
+      t.query(api.commands.listRunsWithLogObservers, {
+        sessionId: otherSession,
+        machineId,
+      })
+    ).rejects.toThrow();
+  });
+});
+
 // ─── getRunOutput tests ─────────────────────────────────────────────────────
 
 describe('getRunOutputV2', () => {
