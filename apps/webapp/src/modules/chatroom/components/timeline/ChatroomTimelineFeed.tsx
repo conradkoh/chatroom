@@ -31,11 +31,19 @@ import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
   shouldTriggerLoadOlder,
+  TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
+
+function timelineOverscan(eventCount: number): number {
+  if (eventCount <= TIMELINE_EAGER_MEASURE_MAX_COUNT) {
+    return Math.max(TIMELINE_OVERSCAN, eventCount);
+  }
+  return TIMELINE_OVERSCAN;
+}
 
 import type { PrependScrollAnchor } from '../../hooks/timelineScrollCoordinator';
 
@@ -94,16 +102,24 @@ export function ChatroomTimelineFeed({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => TIMELINE_ESTIMATE_SIZE,
-    overscan: TIMELINE_OVERSCAN,
+    overscan: timelineOverscan(events.length),
     scrollMargin: topChromeHeight,
     paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),
     anchorTo: 'end',
-    followOnAppend: coordinator.current.shouldFollowOnAppend() ? 'auto' : false,
+    // Tail follow when pinned is handled imperatively in TimelineScrollCoordinator
+    // (commitTimelineLayout / followTail). Toggling followOnAppend on pin/unpin
+    // reconfigures TanStack Virtual and causes a visible scroll jump.
+    followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
+  // Default TanStack adjustment runs after scroll settles (scrollDirection null)
+  // when rows are first measured on scroll-up — visible as a first-unpin jump.
+  // Prepend preservation is coordinator-driven; tail-at-end uses wasAtEnd path.
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+  const eagerMeasureDoneRef = useRef(false);
 
   const scrollRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
@@ -130,12 +146,8 @@ export function ChatroomTimelineFeed({
 
     const el = scrollParentRef.current;
     const chromeDelta = measuredChrome - topChromeHeight;
-    if (
-      el &&
-      chromeDelta !== 0 &&
-      !coordinator.current.isAtBottom() &&
-      !coordinator.current.isProgrammaticScrollActive()
-    ) {
+    // Preserve viewport when top chrome grows (load-older spinner); skip only at tail.
+    if (el && chromeDelta !== 0 && !coordinator.current.isAtBottom()) {
       el.scrollTop += chromeDelta;
       virtualizerRef.current.scrollToOffset(el.scrollTop, { behavior: 'auto' });
     }
@@ -216,6 +228,54 @@ export function ChatroomTimelineFeed({
   }, [coordinator, topChromeHeight, tryLoadOlder, virtualizer]);
 
   const virtualizedContentHeight = virtualizer.getTotalSize();
+
+  useEffect(() => {
+    if (eagerMeasureDoneRef.current || events.length === 0) return;
+    if (events.length > TIMELINE_EAGER_MEASURE_MAX_COUNT) {
+      eagerMeasureDoneRef.current = true;
+      return;
+    }
+
+    let frames = 0;
+    const maxFrames = 8;
+
+    const tick = (): void => {
+      if (!coordinator.current.getAllowLoadOlder()) {
+        if (frames++ < maxFrames * 4) {
+          requestAnimationFrame(tick);
+        }
+        return;
+      }
+
+      if (!coordinator.current.isPinned) {
+        eagerMeasureDoneRef.current = true;
+        return;
+      }
+
+      const el = scrollParentRef.current;
+      if (!el) {
+        eagerMeasureDoneRef.current = true;
+        return;
+      }
+
+      el.querySelectorAll('[data-index]').forEach((node) => {
+        virtualizerRef.current.measureElement(node as HTMLElement);
+      });
+
+      frames++;
+      if (frames >= maxFrames) {
+        if (coordinator.current.isPinned && coordinator.current.isAtBottom()) {
+          coordinator.current.followTail('auto');
+        }
+        eagerMeasureDoneRef.current = true;
+        return;
+      }
+
+      requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+  }, [coordinator, events.length]);
 
   useEffect(() => {
     if (!coordinator.current.getAllowLoadOlder() || !isPinned) return;

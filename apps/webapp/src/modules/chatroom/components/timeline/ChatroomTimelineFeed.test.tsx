@@ -15,7 +15,10 @@ const virtualizerOptions: Array<{
   getItemKey: (index: number) => string;
   scrollMargin?: number;
   paddingEnd?: number;
+  overscan?: number;
 }> = [];
+
+let lastVirtualizerInstance: Record<string, unknown> | null = null;
 
 const mockScrollToEnd = vi.fn();
 const mockScrollToOffset = vi.fn();
@@ -39,7 +42,7 @@ let mockFirstVisibleIndex = 0;
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
     virtualizerOptions.push(options);
-    return {
+    const instance = {
       getVirtualItems: () => {
         if (mockFirstVisibleIndex < 0) return [];
         return [
@@ -58,6 +61,8 @@ vi.mock('@tanstack/react-virtual', () => ({
       scrollToOffset: mockScrollToOffset,
       range: { startIndex: 0, endIndex: 0, count: options.count },
     };
+    lastVirtualizerInstance = instance;
+    return instance;
   },
 }));
 
@@ -135,7 +140,11 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
   }),
 }));
 
-import { TIMELINE_PADDING_END } from './timelineVirtualizerConfig';
+import {
+  TIMELINE_EAGER_MEASURE_MAX_COUNT,
+  TIMELINE_OVERSCAN,
+  TIMELINE_PADDING_END,
+} from './timelineVirtualizerConfig';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 
@@ -310,6 +319,7 @@ describe('ChatroomTimelineFeed load-older guards', () => {
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
+    lastVirtualizerInstance = null;
     mockScrollToEnd.mockClear();
     loadOlderEvents.mockClear();
     mockHasMoreOlder = false;
@@ -318,7 +328,25 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     timelineIsLoadingOlder = false;
   });
 
-  it('enables end-anchored chat virtualizer with followOnAppend only when pinned at the tail', async () => {
+  it('disables scroll adjustment on row measurement and expands overscan for small feeds', async () => {
+    timelineEvents = buildEvents(20);
+    renderFeed();
+    await flushRaf();
+
+    expect(virtualizerOptions.at(-1)?.overscan).toBe(20);
+    const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
+      | (() => boolean)
+      | undefined;
+    expect(shouldAdjust?.()).toBe(false);
+  });
+
+  it('uses default overscan for large feeds', () => {
+    timelineEvents = buildEvents(TIMELINE_EAGER_MEASURE_MAX_COUNT + 10);
+    renderFeed();
+    expect(virtualizerOptions.at(-1)?.overscan).toBe(TIMELINE_OVERSCAN);
+  });
+
+  it('keeps followOnAppend false regardless of pin state', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
 
@@ -334,7 +362,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
       followOnAppend?: boolean | 'auto';
     };
     expect(pinnedOptions.anchorTo).toBe('end');
-    expect(pinnedOptions.followOnAppend).toBe('auto');
+    expect(pinnedOptions.followOnAppend).toBe(false);
 
     virtualizerOptions.length = 0;
     render(
@@ -558,6 +586,35 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     });
 
     expect(mockScrollToEnd).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
+  });
+
+  it('does not jump scroll position when unpinning and jump chip appears', async () => {
+    timelineEvents = buildEvents(25);
+    const { coordinator } = renderFeed(true);
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    const scrollUpBy = 300;
+    const targetScrollTop = maxScrollTop - scrollUpBy;
+
+    act(() => {
+      scrollElProps(el, targetScrollTop, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      expect(coordinator.current.isPinned).toBe(false);
+    });
+
+    expect(el.scrollTop).toBe(targetScrollTop);
     expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
   });
 

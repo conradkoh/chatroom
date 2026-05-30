@@ -6,6 +6,13 @@ export const TIMELINE_ESTIMATE_SIZE = 100;
 export const TIMELINE_OVERSCAN = 5;
 
 /**
+ * For feeds at or below this count, render with expanded overscan and eagerly
+ * measure rows after initial tail settle so the first scroll-up does not shift
+ * when estimates are replaced by measured heights.
+ */
+export const TIMELINE_EAGER_MEASURE_MAX_COUNT = 40;
+
+/**
  * 0-based index of the oldest row that should enter view before prefetching history.
  * Index 2 = the 3rd message from the top (matches release/v1.51.0 threshold).
  */
