@@ -39,6 +39,7 @@ export class TimelineScrollCoordinator {
   private resizeObserver: ResizeObserver | null = null;
 
   private prevEventCount = 0;
+  private prevTailKey: string | null = null;
   private prevScrollHeight = 0;
   private wasLoadingOlder = false;
   private hasInitialScroll = false;
@@ -190,13 +191,19 @@ export class TimelineScrollCoordinator {
   commitTimelineLayout(input: {
     scrollEl: HTMLElement | null;
     eventCount: number;
+    tailKey: string | null;
     isLoadingOlder: boolean;
   }): TimelineCommitResult {
-    const { scrollEl, eventCount, isLoadingOlder } = input;
+    const { scrollEl, eventCount, tailKey, isLoadingOlder } = input;
     const prev = {
       prevEventCount: this.prevEventCount,
       prevScrollHeight: this.prevScrollHeight,
     };
+
+    const countIncreased = eventCount > this.prevEventCount;
+    const tailChanged =
+      tailKey !== null && tailKey !== this.prevTailKey && this.prevTailKey !== null;
+    const isPrependWhileLoadingOlder = countIncreased && this.wasLoadingOlder;
 
     if (eventCount > 0 && !this.hasInitialScroll) {
       this.hasInitialScroll = true;
@@ -207,16 +214,15 @@ export class TimelineScrollCoordinator {
       } else {
         this.allowLoadOlder = true;
       }
-    } else if (scrollEl && eventCount > this.prevEventCount) {
-      const wasLoadingOlder = this.wasLoadingOlder;
-
-      if (wasLoadingOlder) {
+    } else if (scrollEl && (countIncreased || tailChanged)) {
+      if (isPrependWhileLoadingOlder) {
         if (this.loadOlderIntent === 'fill_viewport') {
           this.followTail('auto');
           this.loadOlderIntent = 'preserve_position';
         }
         // `preserve_position` — virtualizer end-anchor preserves scroll; no DOM delta.
       } else if (this.shouldFollowTail()) {
+        // Tail key covers send+purge (same count); count covers growth without tail rotation.
         this.followTail('auto');
       }
 
@@ -226,6 +232,7 @@ export class TimelineScrollCoordinator {
     }
 
     this.prevEventCount = eventCount;
+    this.prevTailKey = tailKey;
     this.wasLoadingOlder = isLoadingOlder;
 
     return prev;

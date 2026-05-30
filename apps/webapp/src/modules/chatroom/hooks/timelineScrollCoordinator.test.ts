@@ -69,6 +69,7 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
+      tailKey: 'evt-1',
       isLoadingOlder: false,
     });
     scrollToEnd.mockClear();
@@ -76,10 +77,56 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 3,
+      tailKey: 'evt-2',
       isLoadingOlder: false,
     });
 
     expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('follows tail when the last event changes but count is unchanged (send + purge)', () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 50,
+      tailKey: 'evt-49',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 50,
+      tailKey: 'evt-50',
+      isLoadingOlder: false,
+    });
+
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('does not follow when count grows from prepend while loading older', () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: true,
+    });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 30,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+
+    expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
   it('re-snaps during initial tail settle when content height grows', async () => {
@@ -88,6 +135,7 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
+      tailKey: 'evt-1',
       isLoadingOlder: false,
     });
 
@@ -112,6 +160,7 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
+      tailKey: 'evt-1',
       isLoadingOlder: false,
     });
 
@@ -140,6 +189,7 @@ describe('TimelineScrollCoordinator', () => {
     unpinned.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
+      tailKey: 'evt-1',
       isLoadingOlder: false,
     });
     scrollToEnd.mockClear();
@@ -148,6 +198,7 @@ describe('TimelineScrollCoordinator', () => {
     unpinned.commitTimelineLayout({
       scrollEl: el,
       eventCount: 3,
+      tailKey: 'evt-2',
       isLoadingOlder: false,
     });
 

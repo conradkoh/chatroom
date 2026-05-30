@@ -119,20 +119,23 @@ export function ChatroomTimelineFeed({
   );
 
   const canLoadMore = hasMoreOlder && !isLoadingOlder;
+  const tailEventKey = events.length > 0 ? events[events.length - 1]!.id : null;
 
   useLayoutEffect(() => {
     const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
     if (measuredChrome !== topChromeHeight) {
       setTopChromeHeight(measuredChrome);
-      return;
     }
+  }, [topChromeHeight, canLoadMore, hasMoreOlder, isLoadingOlder]);
 
+  useLayoutEffect(() => {
     coordinator.current.commitTimelineLayout({
       scrollEl: scrollParentRef.current,
       eventCount: events.length,
+      tailKey: tailEventKey,
       isLoadingOlder,
     });
-  }, [coordinator, events, isLoadingOlder, topChromeHeight, canLoadMore, hasMoreOlder]);
+  }, [coordinator, events, isLoadingOlder, tailEventKey]);
 
   const tryLoadOlder = useCallback(
     (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {

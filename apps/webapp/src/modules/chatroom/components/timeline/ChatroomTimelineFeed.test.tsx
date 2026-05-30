@@ -308,6 +308,91 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 });
 
+describe('ChatroomTimelineFeed tail follow on send', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
+    timelineEvents = buildEvents(50);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('follows tail when a new message is sent (same event count after purge)', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    setScrollPinned(true);
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
+    mockScrollToEnd.mockClear();
+
+    // Simulate subscription slide-off: count unchanged, new tail id.
+    timelineEvents = [
+      ...buildEvents(49).slice(1),
+      {
+        id: 'evt-new',
+        kind: 'user_message',
+        creationTime: 9999,
+        message: {
+          _id: 'evt-new',
+          type: 'message',
+          senderRole: 'user',
+          content: 'Just sent',
+          _creationTime: 9999,
+        },
+      },
+    ];
+
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(followTail).toHaveBeenCalled();
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    followTail.mockRestore();
+  });
+
+  it('commits layout when top chrome is still being measured (does not block tail follow)', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+
+    const scroll = screen.getByTestId('chatroom-timeline-scroll');
+    const chrome = scroll.firstElementChild as HTMLElement;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 48 });
+
+    mockHasMoreOlder = true;
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
+    mockScrollToEnd.mockClear();
+
+    timelineEvents = [
+      ...timelineEvents,
+      {
+        id: 'evt-append',
+        kind: 'user_message',
+        creationTime: 5000,
+        message: {
+          _id: 'evt-append',
+          type: 'message',
+          senderRole: 'user',
+          content: 'Another',
+          _creationTime: 5000,
+        },
+      },
+    ];
+
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(followTail).toHaveBeenCalled();
+    followTail.mockRestore();
+  });
+});
+
 describe('ChatroomTimelineFeed scroll pin behavior', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
