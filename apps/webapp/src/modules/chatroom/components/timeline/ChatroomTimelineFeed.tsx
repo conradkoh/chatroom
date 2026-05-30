@@ -60,9 +60,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const wasLoadingOlderRef = useRef(false);
   const loadAnchorIdRef = useRef<string | null>(null);
   const hasInitialScrollRef = useRef(false);
-  // Tracks the previous isLoadingOlder value to detect load completion and
-  // suppress auto-load for one render cycle while the virtualizer settles.
-  const prevIsLoadingOlderRef = useRef(false);
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
@@ -164,22 +161,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     }
     loadOlderEvents();
   }, [events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]);
-
-  useEffect(() => {
-    // After a load completes the virtualizer hasn't re-measured scroll position yet
-    // (scrollToIndex runs in useLayoutEffect but virtualizer.getVirtualItems() reflects
-    // the pre-scroll state in this render).  Skip this one cycle so we don't
-    // immediately queue another load while the anchor scroll is still settling.
-    const justCompletedLoad = prevIsLoadingOlderRef.current && !isLoadingOlder;
-    prevIsLoadingOlderRef.current = isLoadingOlder;
-    if (justCompletedLoad) return;
-
-    const firstVisible = virtualizer.getVirtualItems()[0];
-    if (!firstVisible) return;
-    if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
-      tryLoadOlder();
-    }
-  }, [isLoadingOlder, tryLoadOlder, virtualizer.range, virtualizer]);
 
   const handleScroll = useCallback(() => {
     const firstVisible = virtualizer.getVirtualItems()[0];
