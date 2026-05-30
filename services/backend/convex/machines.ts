@@ -28,6 +28,7 @@ import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-co
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { roleSupportsAutoRestartOnNewContextSetting } from '../src/domain/entities/team-agent-settings';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
@@ -1812,6 +1813,69 @@ export const saveTeamAgentConfig = mutation({
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
+  },
+});
+
+/** Toggle auto-restart-on-new-context for a team agent config (builder only for now). */
+export const setAutoRestartOnNewContext = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    if (!roleSupportsAutoRestartOnNewContextSetting(args.role)) {
+      throw new ConvexError({
+        code: 'AUTO_RESTART_SETTING_NOT_AVAILABLE',
+        message: `Auto restart on new context is not available for role "${args.role}"`,
+      });
+    }
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) throw new Error('Chatroom not found');
+    if (chatroom.ownerId !== auth.user._id) {
+      throw new Error('Not authorized to modify team agent configs for this chatroom');
+    }
+    if (!chatroom.teamId) {
+      throw new ConvexError({
+        code: 'CHATROOM_NO_TEAM_ID',
+        message: 'Chatroom has no teamId — cannot build agent config key',
+      });
+    }
+
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+    const existing = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
+        autoRestartOnNewContext: args.enabled,
+        updatedAt: now,
+      });
+    } else {
+      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        type: 'remote',
+        autoRestartOnNewContext: args.enabled,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return { success: true, enabled: args.enabled };
   },
 });
 
