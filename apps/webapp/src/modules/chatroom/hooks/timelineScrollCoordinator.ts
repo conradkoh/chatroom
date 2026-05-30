@@ -11,6 +11,12 @@ const AT_BOTTOM_THRESHOLD = TIMELINE_SCROLL_END_THRESHOLD;
 const USER_SCROLL_TIMEOUT_MS = 200;
 export type VirtualizerScrollApi = {
   scrollToEnd: (options?: { behavior?: 'auto' | 'smooth' }) => void;
+  scrollToIndex?: (
+    index: number,
+    options?: { align?: 'end' | 'auto'; behavior?: 'auto' | 'smooth' }
+  ) => void;
+  /** When 0, the virtual range is empty (blank viewport) until scroll is reconciled. */
+  getVisibleCount?: () => number;
 };
 
 export type LoadOlderIntent = 'preserve_position' | 'fill_viewport';
@@ -36,6 +42,9 @@ export class TimelineScrollCoordinator {
 
   private pendingSnap = false;
   private rafId: number | null = null;
+  private tailSettleRafId: number | null = null;
+  private tailSettling = false;
+  private onTailSettled: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   private prevEventCount = 0;
@@ -88,6 +97,14 @@ export class TimelineScrollCoordinator {
     return this.programmaticScroll;
   }
 
+  isTailSettling(): boolean {
+    return this.tailSettling;
+  }
+
+  setOnTailSettled(listener: (() => void) | null): void {
+    this.onTailSettled = listener;
+  }
+
   setLoadOlderIntent(intent: LoadOlderIntent): void {
     this.loadOlderIntent = intent;
   }
@@ -133,6 +150,12 @@ export class TimelineScrollCoordinator {
       this.rafId = null;
     }
 
+    if (this.tailSettleRafId !== null) {
+      cancelAnimationFrame(this.tailSettleRafId);
+      this.tailSettleRafId = null;
+    }
+
+    this.tailSettling = false;
     this.pendingSnap = false;
     this.el = null;
     this.virtualizer = null;
@@ -216,8 +239,9 @@ export class TimelineScrollCoordinator {
       this.hasInitialScroll = true;
       this.allowLoadOlder = false;
       if (this.pinned) {
-        this.followTail('auto');
-        this.scheduleInitialTailSettle();
+        this.scheduleTailSettle({ onSettled: () => {
+          this.allowLoadOlder = true;
+        } });
       } else {
         this.allowLoadOlder = true;
       }
@@ -235,8 +259,8 @@ export class TimelineScrollCoordinator {
 
       this.prevScrollHeight = scrollEl.scrollHeight;
     } else if (scrollEl && isPurgeShrink) {
-      // Dropping prepended rows leaves scroll offset past the new range — re-pin tail.
-      this.followTail('auto');
+      // Dropping prepended rows leaves scroll offset past the new range — settle across frames.
+      this.scheduleTailSettle({ tailIndex: eventCount - 1 });
       this.prevScrollHeight = scrollEl.scrollHeight;
     } else if (scrollEl) {
       this.prevScrollHeight = scrollEl.scrollHeight;
@@ -303,35 +327,65 @@ export class TimelineScrollCoordinator {
   }
 
   /**
-   * Keep snapping to the tail until the viewport is at the bottom or we time out.
-   * Covers top-chrome scrollMargin settling, row measurement growth, and paddingEnd.
+   * Multi-frame tail recovery — virtualizer range and DOM scrollHeight often lag one
+   * or more frames after count changes (especially purge shrink).
    */
-  private scheduleInitialTailSettle(): void {
+  private scheduleTailSettle(options: {
+    tailIndex?: number;
+    maxFrames?: number;
+    onSettled?: () => void;
+  } = {}): void {
+    const maxFrames = options.maxFrames ?? 24;
+    const tailIndex = options.tailIndex;
+
+    if (this.tailSettleRafId !== null) {
+      cancelAnimationFrame(this.tailSettleRafId);
+    }
+
+    this.tailSettling = true;
     let frames = 0;
-    const maxFrames = 24;
 
     const tick = (): void => {
       frames++;
+      const visibleCount = this.virtualizer?.getVisibleCount?.() ?? 1;
+      const rangeEmpty = visibleCount === 0;
+      const atBottom = this.computeIsAtBottom();
 
-      if (this.pinned && this.el && !this.computeIsAtBottom()) {
+      if (this.pinned && this.el && (!atBottom || rangeEmpty)) {
         this.runProgrammaticScroll(() => {
           this.snapDomImmediate();
+          if (rangeEmpty && tailIndex !== undefined && tailIndex >= 0) {
+            this.virtualizer?.scrollToIndex?.(tailIndex, {
+              align: 'end',
+              behavior: 'auto',
+            });
+          }
           this.scrollVirtualizer('auto');
         });
       }
 
-      const atBottom = this.computeIsAtBottom();
-      const settled = atBottom && frames >= 2;
+      const settled = atBottom && !rangeEmpty && frames >= 2;
 
       if (settled || frames >= maxFrames) {
-        this.allowLoadOlder = true;
+        this.tailSettleRafId = null;
+        this.tailSettling = false;
+        options.onSettled?.();
+        this.onTailSettled?.();
         return;
       }
 
-      requestAnimationFrame(tick);
+      this.tailSettleRafId = requestAnimationFrame(tick);
     };
 
-    requestAnimationFrame(tick);
+    this.runProgrammaticScroll(() => {
+      this.snapDomImmediate();
+      if (tailIndex !== undefined && tailIndex >= 0) {
+        this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
+      }
+      this.scrollVirtualizer('auto');
+    });
+
+    this.tailSettleRafId = requestAnimationFrame(tick);
   }
 
   private computeIsAtBottom(): boolean {

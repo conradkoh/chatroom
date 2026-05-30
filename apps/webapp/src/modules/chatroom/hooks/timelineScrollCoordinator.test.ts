@@ -103,7 +103,15 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('re-snaps tail after purge shrinks the list while pinned', () => {
+  it('re-snaps tail after purge shrinks the list while pinned', async () => {
+    const scrollToIndex = vi.fn();
+    let visibleCount = 0;
+    coordinator.setVirtualizer({
+      scrollToEnd,
+      scrollToIndex,
+      getVisibleCount: () => visibleCount,
+    });
+
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 80,
@@ -112,6 +120,7 @@ describe('TimelineScrollCoordinator', () => {
     });
     scrollToEnd.mockClear();
     Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 4500, writable: true, configurable: true });
 
     coordinator.commitTimelineLayout({
       scrollEl: el,
@@ -120,8 +129,22 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
+    visibleCount = 8;
+
+    await new Promise<void>((resolve) => {
+      const wait = () => {
+        if (!coordinator.isTailSettling() && scrollToEnd.mock.calls.length >= 1) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(wait);
+      };
+      requestAnimationFrame(wait);
+    });
+
+    expect(scrollToIndex).toHaveBeenCalledWith(44, expect.objectContaining({ align: 'end' }));
     expect(scrollToEnd).toHaveBeenCalled();
-    expect(el.scrollTop).toBe(maxScrollTop());
+    expect(coordinator.isTailSettling()).toBe(false);
   });
 
   it('does not follow when count grows from prepend while loading older', () => {

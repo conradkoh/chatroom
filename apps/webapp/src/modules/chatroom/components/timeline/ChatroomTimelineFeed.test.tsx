@@ -19,6 +19,7 @@ const virtualizerOptions: Array<{
 
 const mockScrollToEnd = vi.fn();
 const loadOlderEvents = vi.fn();
+const purgeOldMessages = vi.fn();
 
 /** Default off; regression tests opt in. */
 let mockHasMoreOlder = false;
@@ -43,6 +44,7 @@ vi.mock('@tanstack/react-virtual', () => ({
       getTotalSize: () => options.count * 100,
       measureElement: vi.fn(),
       scrollToEnd: mockScrollToEnd,
+      scrollToIndex: vi.fn(),
       range: { startIndex: 0, endIndex: 0, count: options.count },
     };
   },
@@ -119,7 +121,7 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
     hasMoreOlder: mockHasMoreOlder,
     isLoadingOlder: timelineIsLoadingOlder,
     loadOlderEvents,
-    purgeOldMessages: vi.fn(),
+    purgeOldMessages,
   }),
 }));
 
@@ -327,8 +329,8 @@ describe('ChatroomTimelineFeed purge behavior', () => {
     });
 
     setScrollPinned(true);
-    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
+    mockFirstVisibleIndex = 40;
 
     timelineEvents = buildEvents(80).slice(35);
 
@@ -336,9 +338,31 @@ describe('ChatroomTimelineFeed purge behavior', () => {
       rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(followTail).toHaveBeenCalled();
-    expect(mockScrollToEnd).toHaveBeenCalled();
-    followTail.mockRestore();
+    await waitFor(
+      () => {
+        expect(mockScrollToEnd).toHaveBeenCalled();
+        expect(coordinator.current.isTailSettling()).toBe(false);
+        expect(screen.getByText('Message 75')).toBeInTheDocument();
+      },
+      { timeout: 2000 }
+    );
+  });
+
+  it('does not purge while tail settle is in progress', async () => {
+    purgeOldMessages.mockClear();
+    const { coordinator } = renderFeed();
+    await flushRaf();
+
+    vi.spyOn(coordinator.current, 'isTailSettling').mockReturnValue(true);
+    mockFirstVisibleIndex = 55;
+
+    act(() => {
+      const el = screen.getByTestId('chatroom-timeline-scroll');
+      scrollElProps(el, 7600, 8000);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(purgeOldMessages).not.toHaveBeenCalled();
   });
 });
 
