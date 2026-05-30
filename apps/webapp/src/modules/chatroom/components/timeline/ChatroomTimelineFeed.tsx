@@ -102,6 +102,8 @@ export function ChatroomTimelineFeed({
     followOnAppend: coordinator.current.shouldFollowOnAppend() ? 'auto' : false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
 
   const scrollRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
@@ -124,37 +126,40 @@ export function ChatroomTimelineFeed({
 
   useLayoutEffect(() => {
     const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
-    if (measuredChrome !== topChromeHeight) {
-      const el = scrollParentRef.current;
-      const chromeDelta = measuredChrome - topChromeHeight;
-      if (
-        el &&
-        chromeDelta !== 0 &&
-        !coordinator.current.isAtBottom() &&
-        !coordinator.current.isProgrammaticScrollActive()
-      ) {
-        el.scrollTop += chromeDelta;
-        virtualizer.scrollToOffset(el.scrollTop, { behavior: 'auto' });
-      }
-      setTopChromeHeight(measuredChrome);
-      return;
-    }
+    if (measuredChrome === topChromeHeight) return;
 
+    const el = scrollParentRef.current;
+    const chromeDelta = measuredChrome - topChromeHeight;
+    if (
+      el &&
+      chromeDelta !== 0 &&
+      !coordinator.current.isAtBottom() &&
+      !coordinator.current.isProgrammaticScrollActive()
+    ) {
+      el.scrollTop += chromeDelta;
+      virtualizerRef.current.scrollToOffset(el.scrollTop, { behavior: 'auto' });
+    }
+    setTopChromeHeight(measuredChrome);
+  });
+
+  useLayoutEffect(() => {
     coordinator.current.setVirtualizer({
-      scrollToEnd: (options) => virtualizer.scrollToEnd(options),
-      scrollToIndex: (index, options) => virtualizer.scrollToIndex(index, options),
-      scrollToOffset: (offset, options) => virtualizer.scrollToOffset(offset, options),
-      scrollBy: (delta, options) => virtualizer.scrollBy(delta, options),
+      scrollToEnd: (options) => virtualizerRef.current.scrollToEnd(options),
+      scrollToIndex: (index, options) => virtualizerRef.current.scrollToIndex(index, options),
+      scrollToOffset: (offset, options) => virtualizerRef.current.scrollToOffset(offset, options),
+      scrollBy: (delta, options) => virtualizerRef.current.scrollBy(delta, options),
       findIndexForKey: (key) => {
         const index = events.findIndex((event) => event.id === key);
         return index >= 0 ? index : null;
       },
       getItemStart: (index) => {
-        const visible = virtualizer.getVirtualItems().find((row) => row.index === index);
+        const visible = virtualizerRef.current
+          .getVirtualItems()
+          .find((row) => row.index === index);
         if (visible) return visible.start;
         return topChromeHeight + index * TIMELINE_ESTIMATE_SIZE;
       },
-      getVisibleCount: () => virtualizer.getVirtualItems().length,
+      getVisibleCount: () => virtualizerRef.current.getVirtualItems().length,
     });
 
     coordinator.current.commitTimelineLayout({
@@ -163,16 +168,7 @@ export function ChatroomTimelineFeed({
       tailKey: tailEventKey,
       isLoadingOlder,
     });
-  }, [
-    coordinator,
-    events,
-    isLoadingOlder,
-    tailEventKey,
-    virtualizer,
-    topChromeHeight,
-    canLoadMore,
-    hasMoreOlder,
-  ]);
+  }, [coordinator, events, isLoadingOlder, tailEventKey, topChromeHeight]);
 
   const tryLoadOlder = useCallback(
     (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
