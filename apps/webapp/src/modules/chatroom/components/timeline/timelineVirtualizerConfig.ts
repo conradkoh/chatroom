@@ -14,6 +14,9 @@ export const TIMELINE_PURGE_INDEX_THRESHOLD = 50;
 /** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
 export const TIMELINE_SCROLL_END_THRESHOLD = 50;
 
+/** Extra space after the last row so the tail message is not clipped at the scroll edge. */
+export const TIMELINE_PADDING_END = 16;
+
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);
 }

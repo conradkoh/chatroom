@@ -1,27 +1,45 @@
 /**
  * ChatroomTimelineFeed — virtualizer stability and scroll-pin wiring tests.
  */
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type React from 'react';
 
-import type { ScrollController } from '../../hooks/useScrollController';
+import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 
 const virtualizerOptions: Array<{
   count: number;
   getItemKey: (index: number) => string;
+  scrollMargin?: number;
+  paddingEnd?: number;
 }> = [];
 
 const mockScrollToEnd = vi.fn();
+const loadOlderEvents = vi.fn();
+
+/** Default off; regression tests opt in. */
+let mockHasMoreOlder = false;
+/** Simulates virtualizer reporting a top index while the DOM is already at bottom. */
+let mockFirstVisibleIndex = 0;
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
     virtualizerOptions.push(options);
     return {
-      getVirtualItems: () => [],
+      getVirtualItems: () => {
+        if (mockFirstVisibleIndex < 0) return [];
+        return [
+          {
+            index: mockFirstVisibleIndex,
+            start: mockFirstVisibleIndex * 100,
+            size: 100,
+            key: `row-${mockFirstVisibleIndex}`,
+          },
+        ];
+      },
       getTotalSize: () => options.count * 100,
       measureElement: vi.fn(),
       scrollToEnd: mockScrollToEnd,
@@ -64,17 +82,6 @@ vi.mock('../../hooks/useHandoffNotification', () => ({
   useHandoffNotification: vi.fn(),
 }));
 
-const scrollController = {
-  attach: vi.fn(),
-  detach: vi.fn(),
-  isPinned: true,
-  isAtBottom: vi.fn(() => false),
-  onNewMessages: vi.fn(),
-  scrollToBottom: vi.fn(),
-  snapToBottom: vi.fn(),
-  pinToEnd: vi.fn(),
-};
-
 const baseEvents: TimelineEvent[] = [
   {
     id: 'evt-1',
@@ -109,41 +116,160 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
   useChatroomTimeline: () => ({
     events: timelineEvents,
     isLoading: false,
-    hasMoreOlder: false,
+    hasMoreOlder: mockHasMoreOlder,
     isLoadingOlder: timelineIsLoadingOlder,
-    loadOlderEvents: vi.fn(),
+    loadOlderEvents,
     purgeOldMessages: vi.fn(),
   }),
 }));
 
+import { TIMELINE_PADDING_END } from './timelineVirtualizerConfig';
+
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 
-function renderFeed(isPinned: boolean) {
-  return render(
-    <ChatroomTimelineFeed
-      chatroomId="room-1"
-      controller={
-        { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-      }
-      isPinned={isPinned}
-    />
-  );
+function createCoordinatorRef(
+  initialPinned = true
+): React.MutableRefObject<TimelineScrollCoordinator> {
+  return { current: new TimelineScrollCoordinator(initialPinned) };
 }
+
+async function flushRaf(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+function scrollElProps(el: HTMLElement, scrollTop: number, scrollHeight = 1200) {
+  Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
+  Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true });
+  Object.defineProperty(el, 'scrollTop', { value: scrollTop, writable: true, configurable: true });
+}
+
+/** Pin/unpin the feed scroll container after mount. */
+function setScrollPinned(pinned: boolean) {
+  act(() => {
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, pinned ? 800 : 0);
+    el.dispatchEvent(new Event('scroll'));
+  });
+}
+
+function renderFeed(initialPinned = true) {
+  const coordinator = createCoordinatorRef(initialPinned);
+  const view = render(
+    <ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />
+  );
+  return { ...view, coordinator };
+}
+
+function buildEvents(count: number): TimelineEvent[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `evt-${i}`,
+    kind: 'user_message' as const,
+    creationTime: i * 100,
+    message: {
+      _id: `evt-${i}`,
+      type: 'message' as const,
+      senderRole: 'user',
+      content: `Message ${i}`,
+      _creationTime: i * 100,
+    },
+  }));
+}
+
+describe('ChatroomTimelineFeed initial tail scroll', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
+    timelineEvents = buildEvents(3);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('applies paddingEnd and syncs scrollMargin when top chrome height changes', async () => {
+    const { coordinator, rerender } = renderFeed();
+    await flushRaf();
+
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    expect(virtualizerOptions.at(-1)?.paddingEnd).toBe(TIMELINE_PADDING_END);
+
+    const scroll = screen.getByTestId('chatroom-timeline-scroll');
+    const chrome = scroll.firstElementChild as HTMLElement;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 40 });
+
+    mockHasMoreOlder = true;
+    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    await flushRaf();
+
+    expect(virtualizerOptions.some((o) => o.scrollMargin === 40)).toBe(true);
+  });
+});
+
+describe('ChatroomTimelineFeed load-older guards', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = true;
+    mockFirstVisibleIndex = 0;
+    timelineEvents = buildEvents(25);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('does not load older on initial mount when programmatic scroll settles at bottom', async () => {
+    const { coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    // Regression: virtualizer still reports index 0 while DOM is at bottom.
+    act(() => {
+      el.dispatchEvent(new Event('scroll'));
+      el.dispatchEvent(new Event('scroll'));
+    });
+    await flushRaf();
+
+    expect(loadOlderEvents).not.toHaveBeenCalled();
+  });
+
+  it('loads older after the user scrolls near the top', async () => {
+    const { coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 2100, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, 0, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(loadOlderEvents).toHaveBeenCalledTimes(1);
+    expect(coordinator.current.isAtBottom()).toBe(false);
+  });
+});
 
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();
-    scrollController.attach.mockClear();
-    scrollController.detach.mockClear();
-    scrollController.onNewMessages.mockClear();
-    scrollController.pinToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
     timelineEvents = [...baseEvents];
     timelineIsLoadingOlder = false;
   });
 
   it('enables end-anchored chat virtualizer with followOnAppend only when pinned', () => {
-    renderFeed(true);
+    renderFeed();
     const pinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
       followOnAppend?: boolean | 'auto';
@@ -151,7 +277,10 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     expect(pinnedOptions.anchorTo).toBe('end');
     expect(pinnedOptions.followOnAppend).toBe('auto');
 
-    renderFeed(false);
+    virtualizerOptions.length = 0;
+    render(
+      <ChatroomTimelineFeed chatroomId="room-1" coordinator={createCoordinatorRef(false)} />
+    );
     const unpinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       followOnAppend?: boolean | 'auto';
     };
@@ -159,32 +288,21 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 
   it('uses stable getItemKey across parent re-renders', () => {
-    const { rerender } = renderFeed(true);
+    const { rerender, coordinator } = renderFeed();
     expect(virtualizerOptions.length).toBeGreaterThan(0);
 
     const firstOptions = virtualizerOptions.at(-1)!;
     const keyBeforeRerender = firstOptions.getItemKey(0);
-    const keySecondRow = firstOptions.getItemKey(1);
 
-    rerender(
-      <ChatroomTimelineFeed
-        chatroomId="room-1"
-        controller={
-          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-        }
-        isPinned={true}
-      />
-    );
+    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
 
     const secondOptions = virtualizerOptions.at(-1)!;
     expect(secondOptions.getItemKey(0)).toBe(keyBeforeRerender);
-    expect(secondOptions.getItemKey(1)).toBe(keySecondRow);
     expect(keyBeforeRerender).toBe('evt-1');
-    expect(keySecondRow).toBe('evt-2');
   });
 
   it('configures virtualizer count from timeline events', () => {
-    renderFeed(true);
+    renderFeed();
     const options = virtualizerOptions.at(-1)!;
     expect(options.count).toBe(timelineEvents.length);
   });
@@ -194,17 +312,20 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();
-    scrollController.onNewMessages.mockClear();
-    scrollController.pinToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
     timelineEvents = [...baseEvents];
     timelineIsLoadingOlder = false;
   });
 
-  it('stays pinned at bottom when new messages arrive (no jump chip)', () => {
-    const { rerender } = renderFeed(true);
+  it('stays pinned at bottom when new messages arrive (no jump chip)', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    setScrollPinned(true);
 
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
-    scrollController.snapToBottom.mockClear();
 
     timelineEvents = [
       ...baseEvents,
@@ -222,29 +343,23 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       },
     ];
 
-    rerender(
-      <ChatroomTimelineFeed
-        chatroomId="room-1"
-        controller={
-          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-        }
-        isPinned={true}
-      />
-    );
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
 
+    expect(followTail).toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
-    expect(scrollController.snapToBottom).toHaveBeenCalled();
+    expect(coordinator.current.isPinned).toBe(true);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
+    followTail.mockRestore();
   });
 
-  it('follows tail on append when at bottom even if isPinned prop is false', () => {
-    vi.mocked(scrollController.isAtBottom).mockReturnValue(true);
-    Object.defineProperty(scrollController, 'isPinned', { value: false, configurable: true });
-
-    const { rerender } = renderFeed(false);
-
+  it('follows tail on append when physically at bottom', async () => {
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    setScrollPinned(true);
+    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
-    scrollController.snapToBottom.mockClear();
 
     timelineEvents = [
       ...baseEvents,
@@ -262,28 +377,19 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       },
     ];
 
-    rerender(
-      <ChatroomTimelineFeed
-        chatroomId="room-1"
-        controller={
-          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-        }
-        isPinned={false}
-      />
-    );
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
 
+    expect(followTail).toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
-    expect(scrollController.snapToBottom).toHaveBeenCalled();
-
-    Object.defineProperty(scrollController, 'isPinned', { value: true, configurable: true });
-    vi.mocked(scrollController.isAtBottom).mockReturnValue(false);
+    expect(coordinator.current.isPinned).toBe(true);
+    followTail.mockRestore();
   });
 
-  it('does not auto-scroll when scrolled up and shows jump chip', () => {
-    vi.mocked(scrollController.isAtBottom).mockReturnValue(false);
-    Object.defineProperty(scrollController, 'isPinned', { value: false, configurable: true });
-
-    const { rerender } = renderFeed(false);
+  it('does not auto-scroll when scrolled up and shows jump chip', async () => {
+    const { rerender, coordinator } = renderFeed(false);
+    await flushRaf();
 
     mockScrollToEnd.mockClear();
 
@@ -303,32 +409,20 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       },
     ];
 
-    rerender(
-      <ChatroomTimelineFeed
-        chatroomId="room-1"
-        controller={
-          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-        }
-        isPinned={false}
-      />
-    );
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
 
     expect(mockScrollToEnd).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
   });
 
-  it('scrolls to end and re-pins when jump chip is clicked', async () => {
+  it('scrolls to end when jump chip is clicked', async () => {
     const user = userEvent.setup();
-    renderFeed(false);
-
-    // Flush initial `follow` scroll rAFs so they do not count toward the jump assertion.
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
+    const { coordinator } = renderFeed(false);
+    await flushRaf();
 
     mockScrollToEnd.mockClear();
-    scrollController.pinToEnd.mockClear();
-    scrollController.snapToBottom.mockClear();
 
     await user.click(screen.getByRole('button', { name: 'Jump to new messages' }));
 
@@ -336,25 +430,19 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
-    expect(scrollController.pinToEnd).toHaveBeenCalled();
-    expect(scrollController.snapToBottom).not.toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
+    expect(coordinator.current.isPinned).toBe(true);
   });
 
-  it('preserves scroll position when loading older messages near top', () => {
+  it('does not call DOM scrollTop delta on prepend (virtualizer anchors)', async () => {
     timelineIsLoadingOlder = true;
 
-    const { rerender } = renderFeed(true);
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 50, 500);
 
-    const attachedEl = scrollController.attach.mock.calls.at(-1)?.[0] as
-      | HTMLDivElement
-      | undefined;
-    if (attachedEl) {
-      Object.defineProperty(attachedEl, 'scrollHeight', { value: 500, configurable: true });
-      Object.defineProperty(attachedEl, 'scrollTop', { value: 50, writable: true, configurable: true });
-    }
-
-    scrollController.onNewMessages.mockClear();
+    const scrollTopBefore = el.scrollTop;
 
     timelineEvents = [
       {
@@ -372,20 +460,15 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       ...baseEvents,
     ];
 
-    if (attachedEl) {
-      Object.defineProperty(attachedEl, 'scrollHeight', { value: 700, configurable: true });
-    }
+    scrollElProps(el, scrollTopBefore, 700);
 
-    rerender(
-      <ChatroomTimelineFeed
-        chatroomId="room-1"
-        controller={
-          { current: scrollController } as unknown as React.MutableRefObject<ScrollController>
-        }
-        isPinned={true}
-      />
-    );
+    mockScrollToEnd.mockClear();
 
-    expect(scrollController.onNewMessages).toHaveBeenCalledWith(expect.any(Number), true, true);
+    act(() => {
+      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(el.scrollTop).toBe(scrollTopBefore);
+    expect(mockScrollToEnd).not.toHaveBeenCalled();
   });
 });
