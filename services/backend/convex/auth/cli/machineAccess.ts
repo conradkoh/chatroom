@@ -1,6 +1,8 @@
 /**
  * Machine-scoped authentication and authorization helpers.
  *
+ * Used by daemon and CLI-initiated endpoints that accept a `machineId`.
+ *
  * ## Auth layers (apply in order)
  *
  * 1. **Session** — `requireSession` / `getSession` validates `sessionId`.
@@ -9,16 +11,13 @@
  * 3. **Resource id** — handlers must scope DB reads/writes to the authorized `machineId`
  *    (or verify nested resources belong to that machine). Never use a client-supplied id
  *    without tying it to the machine checked in layer 2.
- *
- * Daemon and webapp endpoints that accept `machineId` should use these helpers instead of
- * session-only checks.
  */
 
 import { ConvexError } from 'convex/values';
 
-import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { checkAccess } from './accessCheck';
-import { type SessionAuth, getSession, requireSession } from './session';
+import type { MutationCtx, QueryCtx } from '../../_generated/server';
+import { checkAccess } from '../core/accessCheck';
+import { type SessionAuth, getSession, requireSession } from '../core/session';
 
 /** Auth result for machine-scoped operations. */
 export type MachineAuth = SessionAuth;

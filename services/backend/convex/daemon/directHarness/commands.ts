@@ -9,7 +9,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── listPendingCommands ──────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireChatroomAccess } from '../../auth/chatroomAccess.js';
+import { requireChatroomAccess } from '../../auth/core/chatroomAccess.js';
 import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,

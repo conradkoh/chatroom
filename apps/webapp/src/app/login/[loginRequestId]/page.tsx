@@ -36,7 +36,7 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const googleConfig = useQuery(api.auth.google.getConfig);
+  const googleConfig = useQuery(api.auth.web.google.getConfig);
 
   // Resolve params — must use effect for Promise resolution
   const [prevParams, setPrevParams] = useState(params);
@@ -57,7 +57,7 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
 
   // Query the login request status
   const loginRequest = useQuery(
-    api.auth.google.getLoginRequest,
+    api.auth.web.google.getLoginRequest,
     loginRequestId ? { loginRequestId: loginRequestId as Id<'auth_loginRequests'> } : 'skip'
   );
 

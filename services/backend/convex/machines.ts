@@ -6,12 +6,12 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from './auth/accessCheck';
-import { getSession, requireSession } from './auth/session';
+import { checkAccess, requireAccess } from './auth/core/accessCheck';
+import { getSession, requireSession } from './auth/core/session';
 import {
   getMachineOwner,
   requireMachineOwner,
-} from './auth/machineAccess';
+} from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';

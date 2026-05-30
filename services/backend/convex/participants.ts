@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';

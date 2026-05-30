@@ -7,7 +7,7 @@ import {
   requireDirectHarnessWorkers,
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 import type { MutationCtx, QueryCtx } from '../../_generated/server.js';
 import type { Id } from '../../_generated/dataModel.js';

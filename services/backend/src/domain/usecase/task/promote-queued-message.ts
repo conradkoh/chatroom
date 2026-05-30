@@ -2,7 +2,7 @@ import { createTask } from './create-task';
 import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { getAndIncrementQueuePosition } from '../../../../convex/auth/cliSessionAuth';
+import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,

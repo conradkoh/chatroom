@@ -2,8 +2,8 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/chatroomAccess';
-import { getSession, requireSession } from './auth/session';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { getSession, requireSession } from './auth/core/session';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';

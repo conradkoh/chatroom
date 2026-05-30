@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
-import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { closeBacklogItem as closeBacklogItemUseCase } from '../src/domain/usecase/backlog/close-backlog-item';
 import { completeAllPendingReviewBacklogItems as completeAllPendingReviewBacklogItemsUseCase } from '../src/domain/usecase/backlog/complete-all-pending-review-backlog-items';
 import { completeBacklogItem as completeBacklogItemUseCase } from '../src/domain/usecase/backlog/complete-backlog-item';

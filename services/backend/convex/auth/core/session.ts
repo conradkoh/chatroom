@@ -12,9 +12,9 @@
 
 import { ConvexError } from 'convex/values';
 
-import { validateSession } from './cliSessionAuth';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../../_generated/server';
+import { validateSession } from './sessionValidation';
 
 /** The result of a successful session auth check. */
 export type SessionAuth = {

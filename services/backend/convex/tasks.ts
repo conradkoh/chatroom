@@ -8,9 +8,9 @@ import {
 } from '../config/errorCodes';
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './auth/cliSessionAuth';
-import { requireChatroomAccess } from './auth/chatroomAccess';
-import { getSession } from './auth/session';
+import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
+import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { getSession } from './auth/core/session';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';

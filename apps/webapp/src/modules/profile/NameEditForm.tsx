@@ -56,7 +56,7 @@ export function NameEditForm() {
   const authMethod = authState?.state === 'authenticated' ? authState.authMethod : undefined;
 
   // Get Google auth availability
-  const googleAuthAvailable = useQuery(api.auth.google.getConfig);
+  const googleAuthAvailable = useQuery(api.auth.web.google.getConfig);
   const isGoogleAuthAvailable = googleAuthAvailable?.enabled ?? false;
 
   // State for editing
@@ -90,12 +90,12 @@ export function NameEditForm() {
 
   // Convex mutations
   const updateUserName = useSessionMutation(api.auth.updateUserName);
-  const disconnectGoogle = useSessionMutation(api.auth.google.disconnectGoogle);
-  const createConnectRequest = useSessionMutation(api.auth.google.createConnectRequest);
+  const disconnectGoogle = useSessionMutation(api.auth.web.google.disconnectGoogle);
+  const createConnectRequest = useSessionMutation(api.auth.web.google.createConnectRequest);
 
   // Query to poll connect request status for connect flow
   const connectRequest = useQuery(
-    api.auth.google.getConnectRequest,
+    api.auth.web.google.getConnectRequest,
     connectLoginRequestId
       ? { connectRequestId: connectLoginRequestId as Id<'auth_connectRequests'> }
       : 'skip'

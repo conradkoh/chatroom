@@ -1,6 +1,7 @@
 /**
  * Workspace-scoped authentication and authorization helpers.
  *
+ * Used by daemon and CLI-initiated endpoints that accept a `workspaceId`.
  * Workspaces are protected via machine ownership — a user may access a workspace
  * if they have the corresponding permission on the machine it belongs to.
  *
@@ -11,8 +12,8 @@
 
 import { ConvexError } from 'convex/values';
 
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../../_generated/server';
 import { requireMachineOwner, requireMachineWriteAccess } from './machineAccess';
 
 /** Auth result for workspace-scoped operations. */

@@ -6,7 +6,7 @@ import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/machineAccess.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
