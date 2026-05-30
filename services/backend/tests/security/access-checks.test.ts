@@ -32,6 +32,9 @@ const ACCESS_CHECK_PATTERNS = [
   'requireAccess',
   'requireAuthenticatedUser',
   'getAuthenticatedUser',
+  'requireAuthenticatedMachineOwner',
+  'getAuthenticatedMachineOwnerOrNull',
+  'requireAuthenticatedMachineWriteAccess',
   'requireChatroomAccess',
   // convex/backlog.ts — requireBacklogItemForChatroom → requireChatroomAccess
   'requireBacklogItemForChatroom',

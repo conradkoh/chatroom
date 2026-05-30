@@ -1,12 +1,12 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers.js';
+import { requireAuthenticatedMachineOwner } from '../../auth/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
@@ -62,8 +62,7 @@ export const pendingForMachine = query({
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) return { sessions: [], messages: [] };
+    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
 
     const workspaces = await ctx.db
       .query('chatroom_workspaces')

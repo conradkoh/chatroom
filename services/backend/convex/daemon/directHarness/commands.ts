@@ -5,11 +5,11 @@
  * their completion status.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getAuthenticatedUser } from '../../auth/authenticatedUser.js';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { requireAuthenticatedMachineOwner } from '../../auth/machineAccess.js';
 import { mutation, query } from '../../_generated/server.js';
 
 // ─── listPendingCommands ──────────────────────────────────────────────────────
@@ -26,8 +26,7 @@ export const listPendingCommands = query({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    await requireAuthenticatedMachineOwner(ctx, args.sessionId, args.machineId);
 
     return await ctx.db
       .query('chatroom_directHarnessCommands')
@@ -58,8 +57,15 @@ export const updateCommandStatus = mutation({
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
 
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.ok) throw new Error('Authentication required');
+    const command = await ctx.db.get('chatroom_directHarnessCommands', args.commandId);
+    if (!command) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Command ${args.commandId} not found`,
+      });
+    }
+
+    await requireAuthenticatedMachineOwner(ctx, args.sessionId, command.machineId);
 
     const patch: Partial<{
       status: 'inProgress' | 'done' | 'failed';
