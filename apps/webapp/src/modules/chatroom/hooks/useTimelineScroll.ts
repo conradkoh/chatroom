@@ -97,7 +97,10 @@ export class TimelineScrollState implements TimelineScrollApi {
         this.pendingPrepend = false;
       });
       this.loadOlderMarker = false;
-    } else if (this.pinned && (countIncreased || tailRotated)) {
+    } else if ((countIncreased || tailRotated) && this.isAtBottom()) {
+      // Defensive: re-check at-bottom against the DOM right now, not against the
+      // possibly-stale `this.pinned` flag. Append should only scroll-to-end if
+      // the user is currently sitting at the bottom.
       this.virtualizer?.scrollToEnd({ behavior: 'auto' });
     }
 
