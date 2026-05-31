@@ -33,6 +33,7 @@ import {
   getTimelineItemKey,
   shouldTriggerLoadOlder,
   TIMELINE_ESTIMATE_SIZE,
+  TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
   TIMELINE_PADDING_END,
   timelineOverscan,
 } from './timelineVirtualizerConfig';
@@ -53,6 +54,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   // In-memory size cache keyed by event id. Survives virtualizer reconciliation
   // (e.g. load-older prepend re-keys indices) but not full page reloads.
   const measurementCacheRef = useRef<Map<string, number>>(new Map());
+  const loadOlderArmedRef = useRef(true);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
@@ -147,7 +149,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   }, [scroll, events.length, tailEventId, isLoadingOlder]);
 
   const tryLoadOlder = useCallback(() => {
+    if (!loadOlderArmedRef.current) return;
     if (!hasMoreOlder || isLoadingOlder) return;
+    loadOlderArmedRef.current = false;
     scroll.beginLoadOlder();
     loadOlderEvents();
   }, [hasMoreOlder, isLoadingOlder, loadOlderEvents, scroll]);
@@ -156,6 +160,11 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     const el = scrollParentRef.current;
     const firstVisible = virtualizer.getVirtualItems()[0];
     if (!el || !firstVisible) return;
+
+    if (firstVisible.index > TIMELINE_LOAD_OLDER_SENTINEL_INDEX + 2) {
+      loadOlderArmedRef.current = true;
+    }
+
     if (
       shouldTriggerLoadOlder({
         scrollTop: el.scrollTop,
