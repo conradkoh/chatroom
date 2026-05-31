@@ -35,6 +35,7 @@ import {
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
   TIMELINE_PADDING_END,
+  TIMELINE_SCROLL_END_THRESHOLD,
   timelineOverscan,
 } from './timelineVirtualizerConfig';
 
@@ -106,6 +107,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     getItemKey: (index) => getTimelineItemKey(index, events),
     anchorTo: 'end',
     followOnAppend: isPinned ? 'auto' : false,
+    scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
   });
 
   useEffect(() => {
@@ -117,11 +119,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       }
     }
   });
-
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
-    if (!scroll.isPendingPrepend()) return false;
-    return item.start < (instance.scrollOffset ?? 0);
-  };
 
   const scrollRefCallback = useCallback(
     (node: HTMLDivElement | null) => {

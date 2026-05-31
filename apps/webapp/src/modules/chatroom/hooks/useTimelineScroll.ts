@@ -40,6 +40,8 @@ export class TimelineScrollState implements TimelineScrollApi {
   private prevTailEventId: string | null = null;
   private wasLoadingOlder = false;
   private loadOlderMarker = false;
+  private programmaticScroll = false;
+  private programmaticScrollFrames = 0;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -63,7 +65,22 @@ export class TimelineScrollState implements TimelineScrollApi {
 
   jumpToEnd = (): void => {
     this.setPinned(true);
+    this.markProgrammaticScroll();
     this.virtualizer?.scrollToEnd({ behavior: 'smooth' });
+  };
+
+  private markProgrammaticScroll = (): void => {
+    this.programmaticScroll = true;
+    this.programmaticScrollFrames = 0;
+    const tick = () => {
+      this.programmaticScrollFrames++;
+      if (this.programmaticScrollFrames >= 30) {
+        this.programmaticScroll = false;
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   };
 
   beginLoadOlder = (): void => {
@@ -113,6 +130,7 @@ export class TimelineScrollState implements TimelineScrollApi {
   }
 
   private onScroll = (): void => {
+    if (this.programmaticScroll) return;
     if (this.isAtBottom()) {
       this.setPinned(true);
     } else if (this.pinned) {
