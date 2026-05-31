@@ -61,6 +61,7 @@ export function ChatroomTimelineFeed({
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
+  const measurementCacheRef = useRef<Map<string, number>>(new Map());
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
   const isPinned = useSyncExternalStore(
@@ -99,7 +100,11 @@ export function ChatroomTimelineFeed({
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => TIMELINE_ESTIMATE_SIZE,
+    estimateSize: (index) => {
+      const event = events[index];
+      if (!event) return TIMELINE_ESTIMATE_SIZE;
+      return measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE;
+    },
     overscan: timelineOverscan(events.length),
     scrollMargin: topChromeHeight,
     paddingEnd: TIMELINE_PADDING_END,
@@ -110,6 +115,13 @@ export function ChatroomTimelineFeed({
     // reconfigures TanStack Virtual and causes a visible scroll jump.
     followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
+  });
+  useEffect(() => {
+    const cache = measurementCacheRef.current;
+    for (const item of virtualizer.getVirtualItems()) {
+      const e = events[item.index];
+      if (e && item.size > 0) cache.set(e.id, item.size);
+    }
   });
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
