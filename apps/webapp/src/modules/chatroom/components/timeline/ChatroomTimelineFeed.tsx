@@ -105,7 +105,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),
     anchorTo: 'end',
-    followOnAppend: false,
+    followOnAppend: isPinned ? 'auto' : false,
   });
 
   useEffect(() => {
