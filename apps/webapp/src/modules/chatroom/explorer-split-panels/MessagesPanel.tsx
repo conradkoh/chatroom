@@ -16,14 +16,11 @@ import type { FileEntry } from '../components/FileSelector/useFileSelector';
 
 import { ChatroomTimelineFeed } from '../components/timeline/ChatroomTimelineFeed';
 import { MessageInput } from '../components/MessageInput';
-import type { ScrollController } from '../hooks/useScrollController';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  controller: React.MutableRefObject<ScrollController>;
-  isPinned: boolean;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, { hostname: string; alias?: string }>;
   // SendForm props
@@ -40,8 +37,6 @@ export interface MessagesPanelProps {
 
 export function MessagesPanel({
   chatroomId,
-  controller,
-  isPinned,
   onRegisterOpenEventStream,
   machines,
   onBeforeResize,
@@ -54,8 +49,6 @@ export function MessagesPanel({
     <>
       <ChatroomTimelineFeed
         chatroomId={chatroomId}
-        controller={controller}
-        isPinned={isPinned}
         onRegisterOpenEventStream={onRegisterOpenEventStream}
         machines={machines}
       />

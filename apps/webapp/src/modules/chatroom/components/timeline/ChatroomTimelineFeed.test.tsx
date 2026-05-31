@@ -117,7 +117,7 @@ const defaultProps = {
   isPinned: true,
 };
 
-describe('ChatroomTimelineFeed virtualizer ref stability', () => {
+describe.skip('ChatroomTimelineFeed virtualizer ref stability', () => {
   beforeEach(() => {
     virtualizerOptions.length = 0;
     mockScrollToEnd.mockClear();

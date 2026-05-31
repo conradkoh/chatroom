@@ -44,15 +44,6 @@ vi.mock('../direct-harness/components/ui/select', () => ({
 
 const CHATROOM_ID = 'cr1' as never;
 const DEFAULT_MESSAGES_PROPS = {
-  controller: {
-    current: {
-      attach: vi.fn(),
-      detach: vi.fn(),
-      onNewMessages: vi.fn(),
-      getScrollPosition: vi.fn(),
-    },
-  },
-  isPinned: false,
   onRegisterOpenEventStream: vi.fn(),
 } as any;
 const DEFAULT_HARNESS_PROPS = {

@@ -378,13 +378,8 @@ export function ChatroomDashboard({
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
-  // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const {
-    controller: scrollController,
-    isPinned,
-    beginResize,
-    endResize,
-  } = useScrollController();
+  // ─── Textarea resize bracketing for MessageInput (ScrollController) ───
+  const { beginResize, endResize } = useScrollController();
 
   // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
   const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
@@ -1501,8 +1496,6 @@ export function ChatroomDashboard({
                         chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
                       }
                       messagesPanelProps={{
-                        controller: scrollController,
-                        isPinned,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
@@ -1522,8 +1515,6 @@ export function ChatroomDashboard({
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <ChatroomTimelineFeed
                       chatroomId={chatroomId}
-                      controller={scrollController}
-                      isPinned={isPinned}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       machines={machineNameMap}
                     />
