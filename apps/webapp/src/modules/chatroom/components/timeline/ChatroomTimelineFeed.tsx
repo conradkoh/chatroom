@@ -19,7 +19,7 @@ import {
 
 import { useChatroomTimeline } from '../../hooks/useChatroomTimeline';
 import { useHandoffNotification } from '../../hooks/useHandoffNotification';
-import type { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
+import type { PrependScrollAnchor, TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 
 import { EventStreamModal } from '../EventStreamModal';
@@ -44,8 +44,6 @@ function timelineOverscan(eventCount: number): number {
   }
   return TIMELINE_OVERSCAN;
 }
-
-import type { PrependScrollAnchor } from '../../hooks/timelineScrollCoordinator';
 
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
@@ -162,7 +160,6 @@ export function ChatroomTimelineFeed({
       scrollToEnd: (options) => virtualizerRef.current.scrollToEnd(options),
       scrollToIndex: (index, options) => virtualizerRef.current.scrollToIndex(index, options),
       scrollToOffset: (offset, options) => virtualizerRef.current.scrollToOffset(offset, options),
-      scrollBy: (delta, options) => virtualizerRef.current.scrollBy(delta, options),
       findIndexForKey: (key) => {
         const index = events.findIndex((event) => event.id === key);
         return index >= 0 ? index : null;

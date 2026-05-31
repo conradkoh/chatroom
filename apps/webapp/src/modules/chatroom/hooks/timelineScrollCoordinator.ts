@@ -16,7 +16,6 @@ export type VirtualizerScrollApi = {
     options?: { align?: 'end' | 'auto'; behavior?: 'auto' | 'smooth' }
   ) => void;
   scrollToOffset?: (offset: number, options?: { behavior?: 'auto' | 'smooth' }) => void;
-  scrollBy?: (delta: number, options?: { behavior?: 'auto' | 'smooth' }) => void;
   /** Resolve a stable item key to its index after a prepend. */
   findIndexForKey?: (key: string) => number | null;
   getItemStart?: (index: number) => number | null;
@@ -36,11 +35,6 @@ export type PrependScrollAnchor = {
   offsetInItem: number;
 };
 
-export type TimelineCommitResult = {
-  prevEventCount: number;
-  prevScrollHeight: number;
-};
-
 type PinListener = () => void;
 
 export class TimelineScrollCoordinator {
@@ -58,7 +52,6 @@ export class TimelineScrollCoordinator {
   private pendingSnap = false;
   private rafId: number | null = null;
   private tailSettleRafId: number | null = null;
-  private tailSettling = false;
   private resizeObserver: ResizeObserver | null = null;
 
   private prevEventCount = 0;
@@ -96,16 +89,6 @@ export class TimelineScrollCoordinator {
     return this.computeIsAtBottom();
   }
 
-  /** Virtualizer `followOnAppend` — only when pinned at the tail (never during history load). */
-  shouldFollowOnAppend(): boolean {
-    return (
-      this.pinned &&
-      !this.pendingPrependPreserve &&
-      !this.wasLoadingOlder &&
-      this.computeIsAtBottom()
-    );
-  }
-
   /** Whether tail follow should run on append (pinned or physically at bottom). */
   shouldFollowTail(): boolean {
     if (this.pendingPrependPreserve || this.wasLoadingOlder) {
@@ -129,10 +112,6 @@ export class TimelineScrollCoordinator {
    */
   isPrependScrollPreservationActive(): boolean {
     return this.pendingPrependPreserve || this.prependSettleRafId !== null;
-  }
-
-  isTailSettling(): boolean {
-    return this.tailSettling;
   }
 
   setLoadOlderIntent(intent: LoadOlderIntent, anchor?: PrependScrollAnchor): void {
@@ -202,7 +181,6 @@ export class TimelineScrollCoordinator {
       this.prependSettleRafId = null;
     }
 
-    this.tailSettling = false;
     this.pendingSnap = false;
     this.el = null;
     this.virtualizer = null;
@@ -255,11 +233,6 @@ export class TimelineScrollCoordinator {
     });
   }
 
-  getScrollPosition(): { scrollTop: number } | null {
-    if (!this.el) return null;
-    return { scrollTop: this.el.scrollTop };
-  }
-
   /**
    * Called from useLayoutEffect when timeline data or loading flags change.
    * Prepend scroll preservation uses DOM height delta + virtualizer offset sync
@@ -270,12 +243,8 @@ export class TimelineScrollCoordinator {
     eventCount: number;
     tailKey: string | null;
     isLoadingOlder: boolean;
-  }): TimelineCommitResult {
+  }): void {
     const { scrollEl, eventCount, tailKey, isLoadingOlder } = input;
-    const prev = {
-      prevEventCount: this.prevEventCount,
-      prevScrollHeight: this.prevScrollHeight,
-    };
 
     const countIncreased = eventCount > this.prevEventCount;
     const tailChanged =
@@ -317,8 +286,6 @@ export class TimelineScrollCoordinator {
     this.prevEventCount = eventCount;
     this.prevTailKey = tailKey;
     this.wasLoadingOlder = isLoadingOlder;
-
-    return prev;
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────
@@ -498,7 +465,6 @@ export class TimelineScrollCoordinator {
       cancelAnimationFrame(this.tailSettleRafId);
     }
 
-    this.tailSettling = true;
     let frames = 0;
 
     const tick = (): void => {
@@ -517,7 +483,6 @@ export class TimelineScrollCoordinator {
 
       if (settled || frames >= maxFrames) {
         this.tailSettleRafId = null;
-        this.tailSettling = false;
         options.onSettled?.();
         return;
       }
