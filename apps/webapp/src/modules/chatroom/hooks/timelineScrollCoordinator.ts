@@ -206,13 +206,19 @@ export class TimelineScrollCoordinator {
   /** Jump chip — virtualizer owns scrollTop to avoid DOM/virtual desync. */
   jumpToEnd(behavior: 'auto' | 'smooth' = 'smooth'): void {
     this.setPinned(true);
-    this.runProgrammaticScroll(() => {
-      this.scrollVirtualizer(behavior);
-    });
+    this.runProgrammaticScroll(
+      () => {
+        this.scrollVirtualizer(behavior);
+      },
+      { targetCheck: () => this.computeIsAtBottom() }
+    );
     requestAnimationFrame(() => {
-      this.runProgrammaticScroll(() => {
-        this.scrollVirtualizer('auto');
-      });
+      this.runProgrammaticScroll(
+        () => {
+          this.scrollVirtualizer('auto');
+        },
+        { targetCheck: () => this.computeIsAtBottom() }
+      );
     });
   }
 
@@ -221,11 +227,14 @@ export class TimelineScrollCoordinator {
    */
   followTail(behavior: 'auto' | 'smooth' = 'auto'): void {
     this.setPinned(true);
-    this.runProgrammaticScroll(() => {
-      this.snapDomImmediate();
-      this.scrollVirtualizer(behavior);
-      this.syncVirtualizerScrollFromDom();
-    });
+    this.runProgrammaticScroll(
+      () => {
+        this.snapDomImmediate();
+        this.scrollVirtualizer(behavior);
+        this.syncVirtualizerScrollFromDom();
+      },
+      { targetCheck: () => this.computeIsAtBottom() }
+    );
     requestAnimationFrame(() => {
       this.scrollVirtualizer(behavior);
       this.snapDomImmediate();
@@ -439,14 +448,41 @@ export class TimelineScrollCoordinator {
     return Math.max(0, this.el.scrollHeight - this.el.clientHeight);
   }
 
-  private runProgrammaticScroll(action: () => void): void {
+  private runProgrammaticScroll(
+    action: () => void,
+    options: { targetCheck?: () => boolean } = {}
+  ): void {
     this.programmaticScroll = true;
     action();
-    requestAnimationFrame(() => {
+
+    const { targetCheck } = options;
+    if (!targetCheck) {
+      // Fallback: clear after 2 rAFs (preserves existing behavior for mid-list scrolls).
       requestAnimationFrame(() => {
-        this.programmaticScroll = false;
+        requestAnimationFrame(() => {
+          this.programmaticScroll = false;
+        });
       });
-    });
+      return;
+    }
+
+    // Parameterized clear: drop the flag as soon as the caller's target is hit
+    // (or after a hard cap so we never deadlock pin updates).
+    let frames = 0;
+    const maxFrames = 30;
+    const tick = (): void => {
+      frames++;
+      if (targetCheck()) {
+        this.programmaticScroll = false;
+        return;
+      }
+      if (frames >= maxFrames) {
+        this.programmaticScroll = false;
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   /**
