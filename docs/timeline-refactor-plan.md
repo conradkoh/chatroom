@@ -102,6 +102,20 @@ useEffect(() => {
 
 **Diff size:** 1 line.
 
+## Architectural observation — competing scroll writers
+
+During Phase 3 verification, user noted that very tall messages render with a small jump and a brief scroll stutter that "correctly settles." This is a system-level symptom of multiple paths competing for control of the scroll element's `scrollTop`:
+
+1. **`snapDomImmediate` and `applyPrependScrollTop`** — write `el.scrollTop` directly.
+2. **TanStack Virtual** — writes `el.scrollTop` via its `scrollToFn` / `elementScroll` when invoked through `scrollToEnd`, `scrollToOffset`, `scrollToIndex`.
+3. **TanStack's `shouldAdjustScrollPositionOnItemSizeChange`** — writes `el.scrollTop` via `applyScrollAdjustment` when a row's measured size differs from estimate.
+4. **The browser's own scroll updates** — user wheel/touch input.
+5. **The `wasAtEnd` path inside TanStack** — writes scrollTop when `anchorTo:'end'` is active and a size change extends the total length.
+
+Sources 1–3 and 5 are all our own writes; the order they fire and the order they read each other's effects is what produces the visible stutter for tall content. There is no single-phase fix because each write is load-bearing for a different scenario. The synthetic `dispatchEvent('scroll')` in `syncVirtualizerScrollFromDom()` is what keeps sources 1 and 2/3/5 consistent (Phase 2 confirmed this is non-negotiable). A real fix would route ALL scroll writes through TanStack and remove sources 1, but that requires giving up the pixel-precise prepend preservation, which is a behavior change. Out of scope for this refactor.
+
+**Status:** known limitation. Tracked for a future redesign that picks a single scroll authority.
+
 ## Phase 7 — Consolidate 4 tail-follow paths into 1 (HIGH RISK — do not start without explicit go-ahead)
 
 **Goal:** merge `commit.followTail`, `ResizeObserver.enqueueSnap`, `endResize`, and `scheduleTailSettle` into a single `requestTailFollow({ reason })` with debouncing.
