@@ -32,6 +32,7 @@ import {
   estimateTimelineRowSize,
   getTimelineItemKey,
   shouldTriggerLoadOlder,
+  TIMELINE_ESTIMATE_SIZE,
   TIMELINE_PADDING_END,
   timelineOverscan,
 } from './timelineVirtualizerConfig';
@@ -49,6 +50,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
+  // In-memory size cache keyed by event id. Survives virtualizer reconciliation
+  // (e.g. load-older prepend re-keys indices) but not full page reloads.
+  const measurementCacheRef = useRef<Map<string, number>>(new Map());
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
@@ -87,13 +91,29 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: (index) => estimateTimelineRowSize(events[index]),
+    estimateSize: (index) => {
+      const event = events[index];
+      if (!event) return TIMELINE_ESTIMATE_SIZE;
+      const cached = measurementCacheRef.current.get(event.id);
+      if (cached !== undefined && cached > 0) return cached;
+      return estimateTimelineRowSize(event);
+    },
     overscan: timelineOverscan(events.length),
     scrollMargin: topChromeHeight,
     paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),
     anchorTo: 'end',
     followOnAppend: isPinned ? 'auto' : false,
+  });
+
+  useEffect(() => {
+    const cache = measurementCacheRef.current;
+    for (const item of virtualizer.getVirtualItems()) {
+      const event = events[item.index];
+      if (event && item.size > 0) {
+        cache.set(event.id, item.size);
+      }
+    }
   });
 
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
