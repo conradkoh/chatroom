@@ -45,21 +45,18 @@ useEffect(() => {
 
 **Diff size:** ~15 lines.
 
-## Phase 2 — Stop synthetic-scroll dispatch from steady-state tail follow (LOW-MEDIUM)
+## Phase 2 — Stop synthetic-scroll dispatch from steady-state tail follow (TRIED — REVERTED)
 
-**Goal:** remove `this.el.dispatchEvent(new Event('scroll'))` from `followTail()`. Keep it in `applyPrependScrollTop()` where it's needed.
+**Tried:** dropped both `syncVirtualizerScrollFromDom()` calls from `followTail()`.
 
-**Rationale:** at scrollHeight - clientHeight (the maximum), TanStack's range computation is well-defined regardless of cached offset. The synthetic dispatch is only load-bearing in mid-list (prepend) positions.
+**Result:** broke three user-observable behaviors:
+1. Pinned + send message: view did not fully scroll to include the new message (TanStack's cached `scrollOffset` was stale, so the `wasAtEnd` check in `shouldAdjustScrollPositionOnItemSizeChange` failed to fire as new rows measured in).
+2. Scroll-up felt more stuttery (cached offset drift between scroll events).
+3. Agent-response arrival did not show jump-to-new-message chip when user was scrolled up.
 
-**Mechanism:** drop `syncVirtualizerScrollFromDom()` calls inside `followTail`.
+**Conclusion:** `syncVirtualizerScrollFromDom()` is load-bearing inside `followTail()`. TanStack's cached `scrollOffset` must be kept in sync with the DOM whenever we write `scrollTop` directly; otherwise downstream callbacks (`shouldAdjustScrollPositionOnItemSizeChange`, range computation, etc.) read stale state. Do not retry this without a different approach (e.g. driving scroll through TanStack only and never via `el.scrollTop = …`).
 
-**Verify checklist:**
-- Pinned + new message: still follows tail.
-- Click jump chip from scrolled-up: still scrolls + re-pins.
-- Resize textarea while pinned: still re-snaps to bottom.
-- First-paint tail land: still lands on latest message.
-
-**Diff size:** ~5 lines.
+**Status:** abandoned.
 
 ## Phase 3 — Tighten `runProgrammaticScroll` window (MEDIUM)
 
