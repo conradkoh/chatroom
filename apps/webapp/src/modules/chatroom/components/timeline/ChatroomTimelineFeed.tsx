@@ -29,9 +29,9 @@ import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
+  estimateTimelineRowSize,
   getTimelineItemKey,
   shouldTriggerLoadOlder,
-  TIMELINE_ESTIMATE_SIZE,
   TIMELINE_PADDING_END,
   timelineOverscan,
 } from './timelineVirtualizerConfig';
@@ -87,7 +87,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => TIMELINE_ESTIMATE_SIZE,
+    estimateSize: (index) => estimateTimelineRowSize(events[index]),
     overscan: timelineOverscan(events.length),
     scrollMargin: topChromeHeight,
     paddingEnd: TIMELINE_PADDING_END,
@@ -261,6 +261,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
           {virtualItems.map((virtualRow) => {
             const event = events[virtualRow.index];
             if (!event) return null;
+            const rowEstimate = estimateTimelineRowSize(event);
             return (
               <div
                 key={event.id}
@@ -272,6 +273,9 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
                   left: 0,
                   width: '100%',
                   transform: `translateY(${virtualRow.start}px)`,
+                  contain: 'layout paint',
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: `${rowEstimate}px ${rowEstimate}px`,
                 }}
               >
                 <TimelineEventRow event={event} chatroomId={chatroomId} machines={machines} />
