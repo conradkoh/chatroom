@@ -70,16 +70,19 @@ useEffect(() => {
 
 **Diff size:** ~25 lines.
 
-## Phase 4 — Replace `userScrolling` 200 ms timeout with TanStack `isScrolling` (MEDIUM)
+## Phase 4 — Replace `userScrolling` 200 ms timeout with TanStack `isScrolling` (TRIED — REVERTED)
 
-**Goal:** delete `handleUserScroll`, `userScrolling`, `userScrollTimeout`, `wheel`/`touchmove` listeners. Gate `handleScrollEvent` on TanStack's `instance.isScrolling`.
+**Tried:** removed the wheel/touchmove early-gating + 200 ms userScrolling timeout. Gated `handleScrollEvent` on `virtualizer.isScrolling` instead.
 
-**Verify checklist:**
-- Mouse wheel scroll up from tail: no pin-flicker, no jump chip flash.
-- iOS touchpad inertial scroll: still un-pins correctly.
-- All previous checks.
+**Result:** blank rows, rows flashing then going blank during scroll. Behavior was reportedly broken to the point of being hard to characterize further.
 
-**Diff size:** ~40 lines (mostly removals).
+**Hypotheses:**
+1. The deleted `wheel`/`touchmove` listeners' debounced reconciliation (setPinned at the end of the 200 ms timeout) reconciled pin state AFTER the user's scroll gesture ended. TanStack's `isScrolling` debounces too, but no scroll event fires after scrolling stops, so the post-scroll reconciliation never runs. Pin state can become wrong, which then triggers an erroneous `followTail` on the next data update.
+2. Removing the wheel/touchmove listeners may have changed event-listener order or removed some side effect TanStack relies on. Unclear without browser debugging.
+
+**Conclusion:** the wheel/touchmove early-gating is structurally needed. Even though TanStack's `isScrolling` exists, it's not a drop-in replacement — the timing and side-effect semantics differ. Do not retry this without re-thinking the pin-state reconciliation as a whole (likely part of Phase 7's tail-follow consolidation, not a standalone change).
+
+**Status:** abandoned.
 
 ## Phase 5 — Replace eager-measure tick with `initialMeasurementsCache` (MEDIUM)
 
