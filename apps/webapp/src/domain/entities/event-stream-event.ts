@@ -66,6 +66,8 @@ export interface AgentRequestStartEvent extends EventStreamEventBase {
   reason: string;
   deadline: number;
   chatroomId: string;
+  /** When true (default), resume-capable harnesses continue from the last session after agent_end. */
+  wantResume?: boolean;
 }
 
 export interface AgentRequestStopEvent extends EventStreamEventBase {

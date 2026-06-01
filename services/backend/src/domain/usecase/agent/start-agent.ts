@@ -167,7 +167,7 @@ export async function startAgent(
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
-    ...(wantResume !== undefined ? { wantResume } : {}),
+    wantResume: wantResume ?? true,
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 

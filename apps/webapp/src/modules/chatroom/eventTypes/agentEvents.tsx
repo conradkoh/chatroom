@@ -168,6 +168,10 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
+function formatWantResumeLabel(wantResume: boolean | undefined): string {
+  return wantResume === false ? 'resume off' : 'resume on';
+}
+
 function renderAgentRequestStartCell(
   event: AgentRequestStartEvent,
   isSelected: boolean
@@ -178,7 +182,7 @@ function renderAgentRequestStartCell(
       badgeText="Req Start"
       badgeColor="warning"
       primaryInfo={event.role}
-      secondaryInfo={event.reason}
+      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${event.reason}`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -198,6 +202,7 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Model" value={event.model} mono />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Resume session" value={formatWantResumeLabel(event.wantResume)} />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
