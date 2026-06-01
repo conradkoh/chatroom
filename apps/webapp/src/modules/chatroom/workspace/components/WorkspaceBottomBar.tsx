@@ -28,7 +28,7 @@ import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { CommitStatusIndicator } from './CommitStatusIndicator';
-import { InlineDiffStat } from './shared';
+import { GitDiffStatClickable, InlineDiffStat } from './shared';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
@@ -445,23 +445,17 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
             {headCommitStatus && <CommitStatusIndicator status={headCommitStatus} />}
           </div>
 
-          {/* Diff stats — clickable, opens git panel */}
-          <button
-            type="button"
-            onClick={onOpenGitPanel}
-            className="shrink-0 hover:bg-chatroom-bg-hover/50 px-1.5 py-0.5 rounded-none transition-colors cursor-pointer flex items-center"
-            title="Open workspace details"
-          >
-            <InlineDiffStat
-              diffStat={diffStat}
-              showFileCount={true}
-              commitsAhead={commitsAhead}
-              commitsBehind={commitsBehind}
-              syncEnabled={isLocal}
-              isSyncing={isSyncing}
-              onSync={handleSync}
-            />
-          </button>
+          {/* Diff stats — clickable, opens git panel; sync is a sibling button when shown */}
+          <GitDiffStatClickable
+            diffStat={diffStat}
+            showFileCount={true}
+            commitsAhead={commitsAhead}
+            commitsBehind={commitsBehind}
+            isLocal={isLocal}
+            isSyncing={isSyncing}
+            onSync={handleSync}
+            onOpenGitPanel={onOpenGitPanel}
+          />
         </>
       )}
 
