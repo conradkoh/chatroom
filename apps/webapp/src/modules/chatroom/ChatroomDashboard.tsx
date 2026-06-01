@@ -54,7 +54,7 @@ import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
-import { useScrollController } from './hooks/useScrollController';
+import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
@@ -380,11 +380,10 @@ export function ChatroomDashboard({
 
   // ─── Scroll controller (shared between timeline feed and SendForm) ───
   const {
-    controller: scrollController,
-    isPinned,
+    coordinator: timelineScrollCoordinator,
     beginResize,
     endResize,
-  } = useScrollController();
+  } = useTimelineScroll();
 
   // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
   const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
@@ -1501,8 +1500,7 @@ export function ChatroomDashboard({
                         chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
                       }
                       messagesPanelProps={{
-                        controller: scrollController,
-                        isPinned,
+                        coordinator: timelineScrollCoordinator,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
@@ -1522,8 +1520,7 @@ export function ChatroomDashboard({
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <ChatroomTimelineFeed
                       chatroomId={chatroomId}
-                      controller={scrollController}
-                      isPinned={isPinned}
+                      coordinator={timelineScrollCoordinator}
                       onRegisterOpenEventStream={handleRegisterOpenEventStream}
                       machines={machineNameMap}
                     />

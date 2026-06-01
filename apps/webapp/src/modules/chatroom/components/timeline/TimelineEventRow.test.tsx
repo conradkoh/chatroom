@@ -2,12 +2,18 @@
  * TimelineEventRow — delegates to the correct cell by event.kind.
  */
 import { render, screen } from '@testing-library/react';
+import type React from 'react';
 import { describe, it, expect } from 'vitest';
 
+import { AttachmentsProvider } from '../../context/AttachmentsContext';
 import type { Message } from '../../types/message';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 
 import { TimelineEventRow } from './TimelineEventRow';
+
+function renderRow(ui: React.ReactElement) {
+  return render(<AttachmentsProvider>{ui}</AttachmentsProvider>);
+}
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -25,9 +31,10 @@ const TEST_CHATROOM_ID = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
 describe('TimelineEventRow', () => {
   it('renders user message cell', () => {
     const event = mapMessageToTimelineEvent(makeMessage());
-    render(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-user-message')).toBeInTheDocument();
     expect(screen.getByText('Hello timeline')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
   });
 
   it('renders context cell', () => {
@@ -44,7 +51,7 @@ describe('TimelineEventRow', () => {
       makeMessage({ senderRole: 'builder', content: 'Handoff note' })
     );
     const machines = new Map([['m1', { hostname: 'dev-box', alias: 'Dev' }]]);
-    render(
+    renderRow(
       <TimelineEventRow
         event={event}
         chatroomId={TEST_CHATROOM_ID}
@@ -53,6 +60,7 @@ describe('TimelineEventRow', () => {
       />
     );
     expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
     expect(screen.getByText('(Dev)')).toBeInTheDocument();
     expect(screen.getByText('Handoff note')).toBeInTheDocument();
   });

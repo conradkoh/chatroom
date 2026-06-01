@@ -8,6 +8,7 @@ import type { Message } from '../../types/message';
 import { MessageAttachmentChips } from '../MessageAttachmentChips';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
   BADGE_BASE,
   formatMachineLabel,
@@ -99,6 +100,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
           chatroomId={chatroomId as Id<'chatroom_rooms'>}
         />
       </div>
+      <TimelineMessageFooter message={message} />
     </div>
   );
 });

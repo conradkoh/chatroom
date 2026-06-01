@@ -14,10 +14,10 @@ import {
 import { memo } from 'react';
 
 import type { Message, MessageClassification } from '../../types/message';
-import { formatTimestamp } from '../../viewModels/eventStreamViewModel';
 import { MessageAttachmentChips } from '../MessageAttachmentChips';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { BADGE_BASE, ICON_SIZE, TIMELINE_ROW_BORDER } from './timelineRowStyles';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
@@ -144,17 +144,12 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
                   </span>
                 </>
               )}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-                  {formatTimestamp(message._creationTime)}
+              {taskStatusBadge && (
+                <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+                  {taskStatusBadge.icon}
+                  {taskStatusBadge.label}
                 </span>
-                {taskStatusBadge && (
-                  <span className={taskStatusBadge.className}>
-                    {taskStatusBadge.icon}
-                    {taskStatusBadge.label}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -168,6 +163,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
             chatroomId={chatroomId as Id<'chatroom_rooms'>}
           />
         </div>
+        <TimelineMessageFooter message={message} />
       </div>
     </div>
   );

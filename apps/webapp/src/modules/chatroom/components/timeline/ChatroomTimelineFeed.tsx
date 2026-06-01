@@ -2,24 +2,24 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { usePaginatedQuery } from 'convex/react';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import {
-  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 
 import { useChatroomTimeline } from '../../hooks/useChatroomTimeline';
 import { useHandoffNotification } from '../../hooks/useHandoffNotification';
-import type { ScrollController } from '../../hooks/useScrollController';
+import type { PrependScrollAnchor, TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 
 import { EventStreamModal } from '../EventStreamModal';
@@ -30,41 +30,47 @@ import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
+  shouldTriggerLoadOlder,
+  TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_ESTIMATE_SIZE,
-  TIMELINE_LOAD_OLDER_INDEX_THRESHOLD,
   TIMELINE_OVERSCAN,
-  TIMELINE_PURGE_INDEX_THRESHOLD,
+  TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
 
+function timelineOverscan(eventCount: number): number {
+  if (eventCount <= TIMELINE_EAGER_MEASURE_MAX_COUNT) {
+    return Math.max(TIMELINE_OVERSCAN, eventCount);
+  }
+  return TIMELINE_OVERSCAN;
+}
+
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
-  controller: React.MutableRefObject<ScrollController>;
-  isPinned: boolean;
+  coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, MachineNameEntry>;
 }
 
-export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
+export function ChatroomTimelineFeed({
   chatroomId,
-  controller,
-  isPinned,
+  coordinator,
   onRegisterOpenEventStream,
   machines,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
-  const prevEventCountRef = useRef(0);
-  const wasLoadingOlderRef = useRef(false);
-  const hasInitialScrollRef = useRef(false);
-  /** Gates load-older until the first scroll-to-bottom has settled (avoids spurious top loads). */
-  const allowLoadOlderRef = useRef(false);
-  const loadOlderIntentRef = useRef<'preserve_position' | 'fill_viewport'>('preserve_position');
   const [topChromeHeight, setTopChromeHeight] = useState(0);
-
+  const measurementCacheRef = useRef<Map<string, number>>(new Map());
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
-  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents, purgeOldMessages } =
+  const isPinned = useSyncExternalStore(
+    (onStoreChange) => coordinator.current.subscribe(onStoreChange),
+    () => coordinator.current.getSnapshot(),
+    () => coordinator.current.getSnapshot()
+  );
+
+  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
     useChatroomTimeline(chatroomId);
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
@@ -91,103 +97,164 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
   const latestEvent: EventStreamEvent | null =
     (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
+  const initialMeasurementsCache = useMemo((): VirtualItem[] => {
+    // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.
+    return events.map((event, index) => ({
+      key: event.id,
+      index,
+      size: measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE,
+      start: 0,
+      end: 0,
+      lane: 0,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => TIMELINE_ESTIMATE_SIZE,
-    overscan: TIMELINE_OVERSCAN,
+    estimateSize: (index) => {
+      const event = events[index];
+      if (!event) return TIMELINE_ESTIMATE_SIZE;
+      return measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE;
+    },
+    overscan: timelineOverscan(events.length),
     scrollMargin: topChromeHeight,
+    paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),
-    // Chat-style anchoring: stable scroll when prepending history; follow tail only at end.
     anchorTo: 'end',
-    followOnAppend: 'smooth',
+    // Tail follow when pinned is handled imperatively in TimelineScrollCoordinator
+    // (commitTimelineLayout / followTail). Toggling followOnAppend on pin/unpin
+    // reconfigures TanStack Virtual and causes a visible scroll jump.
+    followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
+    initialMeasurementsCache,
   });
-
+  useEffect(() => {
+    const cache = measurementCacheRef.current;
+    for (const item of virtualizer.getVirtualItems()) {
+      const e = events[item.index];
+      if (e && item.size > 0) cache.set(e.id, item.size);
+    }
+  });
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    if (!coordinator.current.isPrependScrollPreservationActive()) {
+      return false;
+    }
+    const scrollOffset = instance.scrollOffset ?? 0;
+    return item.start < scrollOffset && instance.scrollDirection !== 'backward';
+  };
   const scrollRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
       scrollParentRef.current = node;
       if (node) {
-        controller.current.attach(node);
+        coordinator.current.attach(node);
       } else {
-        controller.current.detach();
+        coordinator.current.detach();
       }
     },
-    [controller]
+    [coordinator]
   );
 
-  const scrollToLatest = useCallback(
-    (behavior: 'auto' | 'smooth' = 'auto') => {
-      if (events.length === 0) return;
-      controller.current.snapToBottom();
-      virtualizer.scrollToEnd({ behavior });
-      requestAnimationFrame(() => {
-        virtualizer.scrollToEnd({ behavior });
-        controller.current.snapToBottom();
-      });
-    },
-    [controller, events.length, virtualizer]
-  );
-
-  useLayoutEffect(() => {
-    if (events.length > 0 && !hasInitialScrollRef.current) {
-      hasInitialScrollRef.current = true;
-      allowLoadOlderRef.current = false;
-      scrollToLatest('auto');
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          allowLoadOlderRef.current = true;
-        });
-      });
-    }
-  }, [events.length, scrollToLatest]);
-
-  useLayoutEffect(() => {
-    const added = events.length > prevEventCountRef.current;
-    const wasLoadingOlder = wasLoadingOlderRef.current;
-
-    // Prepend-for-viewport-fill while pinned — end-anchor does not apply followOnAppend here.
-    if (added && wasLoadingOlder && loadOlderIntentRef.current === 'fill_viewport') {
-      scrollToLatest('auto');
-      loadOlderIntentRef.current = 'preserve_position';
-    }
-
-    prevEventCountRef.current = events.length;
-    wasLoadingOlderRef.current = isLoadingOlder;
-  }, [events.length, isLoadingOlder, scrollToLatest]);
+  const canLoadMore = hasMoreOlder && !isLoadingOlder;
+  const tailEventKey = events.length > 0 ? events[events.length - 1]!.id : null;
 
   useEffect(() => {
-    wasLoadingOlderRef.current = isLoadingOlder;
-  }, [isLoadingOlder]);
+    coordinator.current.syncIsLoadingOlder(isLoadingOlder);
+  }, [coordinator, isLoadingOlder]);
+
+  useLayoutEffect(() => {
+    const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
+    if (measuredChrome === topChromeHeight) return;
+
+    const el = scrollParentRef.current;
+    const chromeDelta = measuredChrome - topChromeHeight;
+    // Preserve viewport when top chrome grows (load-older spinner); skip only at tail.
+    if (el && chromeDelta !== 0 && !coordinator.current.isAtBottom()) {
+      el.scrollTop += chromeDelta;
+      virtualizerRef.current.scrollToOffset(el.scrollTop, { behavior: 'auto' });
+    }
+    setTopChromeHeight(measuredChrome);
+  });
+
+  useLayoutEffect(() => {
+    coordinator.current.setVirtualizer({
+      scrollToEnd: (options) => virtualizerRef.current.scrollToEnd(options),
+      scrollToIndex: (index, options) => virtualizerRef.current.scrollToIndex(index, options),
+      scrollToOffset: (offset, options) => virtualizerRef.current.scrollToOffset(offset, options),
+      findIndexForKey: (key) => {
+        const index = events.findIndex((event) => event.id === key);
+        return index >= 0 ? index : null;
+      },
+      getItemStart: (index) => {
+        const visible = virtualizerRef.current
+          .getVirtualItems()
+          .find((row) => row.index === index);
+        if (visible) return visible.start;
+        return topChromeHeight + index * TIMELINE_ESTIMATE_SIZE;
+      },
+      getVisibleCount: () => virtualizerRef.current.getVirtualItems().length,
+    });
+
+    coordinator.current.commitTimelineLayout({
+      scrollEl: scrollParentRef.current,
+      eventCount: events.length,
+      tailKey: tailEventKey,
+      isLoadingOlder,
+    });
+  }, [coordinator, events, isLoadingOlder, tailEventKey, topChromeHeight]);
 
   const tryLoadOlder = useCallback(
     (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
-      if (!allowLoadOlderRef.current || !hasMoreOlder || isLoadingOlder) return;
-      loadOlderIntentRef.current = intent;
+      if (!coordinator.current.getAllowLoadOlder() || !hasMoreOlder || isLoadingOlder) return;
+      const el = scrollParentRef.current;
+      const firstVisible = virtualizer.getVirtualItems()[0];
+      let anchor: PrependScrollAnchor | undefined;
+      if (intent === 'preserve_position' && el && firstVisible) {
+        const anchoredEvent = events[firstVisible.index];
+        if (anchoredEvent) {
+          anchor = {
+            key: anchoredEvent.id,
+            index: firstVisible.index,
+            scrollTop: el.scrollTop,
+            scrollHeight: el.scrollHeight,
+            offsetInItem: el.scrollTop - firstVisible.start + topChromeHeight,
+          };
+        }
+      }
+      coordinator.current.setLoadOlderIntent(intent, anchor);
       loadOlderEvents();
     },
-    [hasMoreOlder, isLoadingOlder, loadOlderEvents]
+    [coordinator, events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]
   );
 
   const handleScroll = useCallback(() => {
-    if (!allowLoadOlderRef.current) return;
+    if (!coordinator.current.getAllowLoadOlder()) return;
+    if (coordinator.current.isProgrammaticScrollActive()) return;
 
+    const el = scrollParentRef.current;
     const firstVisible = virtualizer.getVirtualItems()[0];
-    if (!firstVisible) return;
+    if (!el || !firstVisible) return;
 
-    if (firstVisible.index <= TIMELINE_LOAD_OLDER_INDEX_THRESHOLD) {
+    if (
+      shouldTriggerLoadOlder({
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        firstVisibleIndex: firstVisible.index,
+        topChromeHeight,
+      })
+    ) {
       tryLoadOlder('preserve_position');
     }
-
-    if (isPinned && firstVisible.index > TIMELINE_PURGE_INDEX_THRESHOLD) {
-      purgeOldMessages(firstVisible.index);
-    }
-  }, [isPinned, purgeOldMessages, tryLoadOlder, virtualizer]);
+  }, [coordinator, topChromeHeight, tryLoadOlder, virtualizer]);
 
   const virtualizedContentHeight = virtualizer.getTotalSize();
 
   useEffect(() => {
-    if (!allowLoadOlderRef.current || !isPinned) return;
+    if (!coordinator.current.getAllowLoadOlder() || !isPinned) return;
 
     const el = scrollParentRef.current;
     if (!el || !hasMoreOlder || isLoadingOlder) return;
@@ -197,6 +264,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       tryLoadOlder('fill_viewport');
     }
   }, [
+    coordinator,
     events.length,
     hasMoreOlder,
     isLoadingOlder,
@@ -205,17 +273,6 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
     tryLoadOlder,
     virtualizedContentHeight,
   ]);
-
-  const canLoadMore = hasMoreOlder && !isLoadingOlder;
-
-  useLayoutEffect(() => {
-    const chrome = topChromeRef.current;
-    if (!chrome) {
-      setTopChromeHeight(0);
-      return;
-    }
-    setTopChromeHeight(chrome.offsetHeight);
-  }, [canLoadMore, hasMoreOlder, isLoadingOlder]);
 
   const footer = (
     <>
@@ -341,7 +398,7 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       {!isPinned && (
         <button
           type="button"
-          onClick={() => scrollToLatest('smooth')}
+          onClick={() => coordinator.current.jumpToEnd('smooth')}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >
@@ -353,4 +410,4 @@ export const ChatroomTimelineFeed = memo(function ChatroomTimelineFeed({
       {footer}
     </div>
   );
-});
+}
