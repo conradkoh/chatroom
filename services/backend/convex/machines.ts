@@ -1827,20 +1827,25 @@ export const setAutoRestartOnNewContext = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) {
-      throw new Error('Authentication required');
+      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
     }
 
     if (!roleSupportsAutoRestartOnNewContextSetting(args.role)) {
       throw new ConvexError({
-        code: 'AUTO_RESTART_SETTING_NOT_AVAILABLE',
+        code: 'INVALID_ROLE',
         message: `Auto restart on new context is not available for role "${args.role}"`,
       });
     }
 
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) throw new Error('Chatroom not found');
+    if (!chatroom) {
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    }
     if (chatroom.ownerId !== auth.user._id) {
-      throw new Error('Not authorized to modify team agent configs for this chatroom');
+      throw new ConvexError({
+        code: 'UNAUTHORIZED',
+        message: 'Not authorized to modify team agent configs for this chatroom',
+      });
     }
     if (!chatroom.teamId) {
       throw new ConvexError({

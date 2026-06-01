@@ -102,5 +102,5 @@ test('setAutoRestartOnNewContext rejects non-builder roles', async () => {
       role: 'planner',
       enabled: true,
     })
-  ).rejects.toThrow();
+  ).rejects.toThrow(/INVALID_ROLE/);
 });
