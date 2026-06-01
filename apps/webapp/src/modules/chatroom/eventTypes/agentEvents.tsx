@@ -1,6 +1,6 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import type {
   AgentStartedEvent,
@@ -450,51 +450,64 @@ function renderAgentSessionResumeFailedDetails(
   );
 }
 
-// ─── Register all agent event types ────────────────────────────────────────────
+// ─── Agent event definitions ────────────────────────────────────────────────────
 
-export function registerAgentEvents(): void {
-  registerEventType('agent.started', {
+export const agentEventDefinitions: Pick<
+  EventTypeRegistry,
+  | 'agent.started'
+  | 'agent.exited'
+  | 'agent.circuitOpen'
+  | 'agent.requestStart'
+  | 'agent.requestStop'
+  | 'agent.registered'
+  | 'agent.waiting'
+  | 'agent.startFailed'
+  | 'agent.restartLimitReached'
+  | 'agent.sessionResumed'
+  | 'agent.sessionResumeFailed'
+> = {
+  'agent.started': {
     cellRenderer: renderAgentStartedCell,
     detailsRenderer: renderAgentStartedDetails,
-  });
-  registerEventType('agent.exited', {
+  },
+  'agent.exited': {
     cellRenderer: renderAgentExitedCell,
     detailsRenderer: renderAgentExitedDetails,
-  });
-  registerEventType('agent.circuitOpen', {
+  },
+  'agent.circuitOpen': {
     cellRenderer: renderAgentCircuitOpenCell,
     detailsRenderer: renderAgentCircuitOpenDetails,
-  });
-  registerEventType('agent.requestStart', {
+  },
+  'agent.requestStart': {
     cellRenderer: renderAgentRequestStartCell,
     detailsRenderer: renderAgentRequestStartDetails,
-  });
-  registerEventType('agent.requestStop', {
+  },
+  'agent.requestStop': {
     cellRenderer: renderAgentRequestStopCell,
     detailsRenderer: renderAgentRequestStopDetails,
-  });
-  registerEventType('agent.registered', {
+  },
+  'agent.registered': {
     cellRenderer: renderAgentRegisteredCell,
     detailsRenderer: renderAgentRegisteredDetails,
-  });
-  registerEventType('agent.waiting', {
+  },
+  'agent.waiting': {
     cellRenderer: renderAgentWaitingCell,
     detailsRenderer: renderAgentWaitingDetails,
-  });
-  registerEventType('agent.startFailed', {
+  },
+  'agent.startFailed': {
     cellRenderer: renderAgentStartFailedCell,
     detailsRenderer: renderAgentStartFailedDetails,
-  });
-  registerEventType('agent.restartLimitReached', {
+  },
+  'agent.restartLimitReached': {
     cellRenderer: renderAgentRestartLimitReachedCell,
     detailsRenderer: renderAgentRestartLimitReachedDetails,
-  });
-  registerEventType('agent.sessionResumed', {
+  },
+  'agent.sessionResumed': {
     cellRenderer: renderAgentSessionResumedCell,
     detailsRenderer: renderAgentSessionResumedDetails,
-  });
-  registerEventType('agent.sessionResumeFailed', {
+  },
+  'agent.sessionResumeFailed': {
     cellRenderer: renderAgentSessionResumeFailedCell,
     detailsRenderer: renderAgentSessionResumeFailedDetails,
-  });
-}
+  },
+};

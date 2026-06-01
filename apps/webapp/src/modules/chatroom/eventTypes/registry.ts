@@ -1,6 +1,10 @@
 /**
  * Registry for event type renderers.
  * Maps event types to their cell (list row) and details (side panel) renderers.
+ *
+ * The registry is a REQUIRED record — every EventTypeName must have a definition.
+ * This provides compile-time exhaustiveness: adding a new event type to the
+ * EventStreamEvent union without registering a renderer causes a TypeScript error.
  */
 
 import type { ReactNode } from 'react';
@@ -20,52 +24,40 @@ export interface EventTypeDefinition<T extends EventStreamEvent> {
 
 /**
  * Registry mapping event types to their renderers.
- * Keys are event type strings, values are the renderer definitions.
+ * All EventTypeName keys are REQUIRED — TypeScript will error if any key is missing.
+ * This is the exhaustiveness check: you cannot add a new event type without
+ * also providing a renderer definition.
  */
-type EventTypeRegistry = {
-  [K in EventTypeName]?: EventTypeDefinition<Extract<EventStreamEvent, { type: K }>>;
+export type EventTypeRegistry = {
+  [K in EventTypeName]: EventTypeDefinition<Extract<EventStreamEvent, { type: K }>>;
 };
 
-// Create the registry object
-const registry: EventTypeRegistry = {};
+// The active registry (set once via initRegistry)
+let _registry: EventTypeRegistry | undefined;
 
 /**
- * Register an event type definition.
- * @param type - The event type string
- * @param definition - The cell and details renderers
+ * Initialize the registry with a complete, exhaustive definitions map.
+ * TypeScript enforces that all EventTypeName keys are present in `defs`.
  */
-export function registerEventType<K extends EventTypeName>(
-  type: K,
-  definition: EventTypeDefinition<Extract<EventStreamEvent, { type: K }>>
-): void {
-  registry[type] = definition as EventTypeRegistry[K];
+export function initRegistry(defs: EventTypeRegistry): void {
+  _registry = defs;
 }
 
 /**
  * Get the renderer definition for an event type.
- * @param type - The event type string
- * @returns The definition or undefined if not registered
+ * Throws if the registry has not been initialized.
  */
 export function getEventTypeDefinition<K extends EventTypeName>(
   type: K
-): EventTypeDefinition<Extract<EventStreamEvent, { type: K }>> | undefined {
-  return registry[type] as EventTypeDefinition<Extract<EventStreamEvent, { type: K }>> | undefined;
-}
-
-/**
- * Check if an event type is registered.
- * @param type - The event type string
- */
-export function hasEventTypeRenderer(type: string): boolean {
-  return type in registry;
+): EventTypeDefinition<Extract<EventStreamEvent, { type: K }>> {
+  if (!_registry) throw new Error('Event type registry not initialized');
+  return _registry[type];
 }
 
 /**
  * Get all registered event types.
  */
 export function getRegisteredEventTypes(): EventTypeName[] {
-  return Object.keys(registry) as EventTypeName[];
+  if (!_registry) return [];
+  return Object.keys(_registry) as EventTypeName[];
 }
-
-// Re-export for convenience
-export type { EventTypeDefinition as EventTypeDef };

@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 
 import { WorkflowVisualizer } from '../components/WorkflowVisualizer';
 import { buildWorkflowMermaid } from '../utils/workflowMermaid';
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
 import type {
   WorkflowStartedEvent,
@@ -300,35 +300,44 @@ function renderStepStartedDetails(event: WorkflowStepStartedEvent) {
   );
 }
 
-// ─── Register ──────────────────────────────────────────────────────
+// ─── Workflow event definitions ─────────────────────────────────────────────────
 
-export function registerWorkflowEvents(): void {
-  registerEventType('workflow.started', {
+export const workflowEventDefinitions: Pick<
+  EventTypeRegistry,
+  | 'workflow.started'
+  | 'workflow.stepCompleted'
+  | 'workflow.stepCancelled'
+  | 'workflow.completed'
+  | 'workflow.created'
+  | 'workflow.specified'
+  | 'workflow.stepStarted'
+> = {
+  'workflow.started': {
     cellRenderer: renderWorkflowStartedCell,
     detailsRenderer: renderWorkflowStartedDetails,
-  });
-  registerEventType('workflow.stepCompleted', {
+  },
+  'workflow.stepCompleted': {
     cellRenderer: renderStepCompletedCell,
     detailsRenderer: renderStepCompletedDetails,
-  });
-  registerEventType('workflow.stepCancelled', {
+  },
+  'workflow.stepCancelled': {
     cellRenderer: renderStepCancelledCell,
     detailsRenderer: renderStepCancelledDetails,
-  });
-  registerEventType('workflow.completed', {
+  },
+  'workflow.completed': {
     cellRenderer: renderWorkflowCompletedCell,
     detailsRenderer: renderWorkflowCompletedDetails,
-  });
-  registerEventType('workflow.created', {
+  },
+  'workflow.created': {
     cellRenderer: renderWorkflowCreatedCell,
     detailsRenderer: renderWorkflowCreatedDetails,
-  });
-  registerEventType('workflow.specified', {
+  },
+  'workflow.specified': {
     cellRenderer: renderWorkflowSpecifiedCell,
     detailsRenderer: renderWorkflowSpecifiedDetails,
-  });
-  registerEventType('workflow.stepStarted', {
+  },
+  'workflow.stepStarted': {
     cellRenderer: renderStepStartedCell,
     detailsRenderer: renderStepStartedDetails,
-  });
-}
+  },
+};

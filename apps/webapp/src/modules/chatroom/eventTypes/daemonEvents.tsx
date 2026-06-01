@@ -1,6 +1,6 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import type {
   DaemonPingEvent,
@@ -132,23 +132,26 @@ function renderDaemonRefreshCapabilitiesDetails(
   );
 }
 
-// ─── Register all daemon event types ───────────────────────────────────────────
+// ─── Daemon event definitions ───────────────────────────────────────────────────
 
-export function registerDaemonEvents(): void {
-  registerEventType('daemon.ping', {
+export const daemonEventDefinitions: Pick<
+  EventTypeRegistry,
+  'daemon.ping' | 'daemon.pong' | 'daemon.gitRefresh' | 'daemon.refreshCapabilities'
+> = {
+  'daemon.ping': {
     cellRenderer: renderDaemonPingCell,
     detailsRenderer: renderDaemonPingDetails,
-  });
-  registerEventType('daemon.pong', {
+  },
+  'daemon.pong': {
     cellRenderer: renderDaemonPongCell,
     detailsRenderer: renderDaemonPongDetails,
-  });
-  registerEventType('daemon.gitRefresh', {
+  },
+  'daemon.gitRefresh': {
     cellRenderer: renderDaemonGitRefreshCell,
     detailsRenderer: renderDaemonGitRefreshDetails,
-  });
-  registerEventType('daemon.refreshCapabilities', {
+  },
+  'daemon.refreshCapabilities': {
     cellRenderer: renderDaemonRefreshCapabilitiesCell,
     detailsRenderer: renderDaemonRefreshCapabilitiesDetails,
-  });
-}
+  },
+};
