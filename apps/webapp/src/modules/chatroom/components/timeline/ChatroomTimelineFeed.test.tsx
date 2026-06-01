@@ -461,6 +461,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
   it('commits layout when top chrome is still being measured (does not block tail follow)', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
+    setScrollPinned(true);
 
     const scroll = screen.getByTestId('chatroom-timeline-scroll');
     const chrome = scroll.firstElementChild as HTMLElement;
@@ -648,6 +649,41 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
 
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
+  });
+
+  it('shows jump chip on partial scroll from tail and follows tail on click', async () => {
+    timelineEvents = buildEvents(25);
+    const user = userEvent.setup();
+    const { coordinator } = renderFeed(true);
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    const partialScrollTop = maxScrollTop - 80;
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, partialScrollTop, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      expect(coordinator.current.isPinned).toBe(false);
+    });
+    expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
+
+    mockScrollToEnd.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Jump to new messages' }));
+    await flushRaf();
+    await flushRaf();
+
+    expect(coordinator.current.isPinned).toBe(true);
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    expect(el.scrollTop).toBe(maxScrollTop);
+    expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
 
 });
