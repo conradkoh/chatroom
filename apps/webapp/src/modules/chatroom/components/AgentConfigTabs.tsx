@@ -57,7 +57,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RemoteAgentBehaviorSettings } from './AgentPanel/RemoteAgentBehaviorSettings';
+import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -970,16 +970,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
           </div>
 
-          <RemoteAgentBehaviorSettings
-            chatroomId={chatroomId}
-            role={role}
-            agentHarness={displayHarness}
-            wantResumeOnFail={persistedWantResumeOnFail ?? wantResumeOnFail}
-            autoRestartOnNewContext={autoRestartOnNewContext}
-            disabled={isBusy}
-            onWantResumeOnFailChange={setWantResumeOnFail}
-          />
-
           {/* Row 2: Working Directory */}
           <div className="flex items-center gap-1">
             <input
@@ -1211,6 +1201,16 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               )}
             </div>
           </div>
+
+          <RemoteAgentAdvancedSettings
+            chatroomId={chatroomId}
+            role={role}
+            agentHarness={displayHarness}
+            wantResumeOnFail={persistedWantResumeOnFail ?? wantResumeOnFail}
+            autoRestartOnNewContext={autoRestartOnNewContext}
+            disabled={isBusy}
+            onWantResumeOnFailChange={setWantResumeOnFail}
+          />
 
           <AlertDialog
             open={rehomeConfirmOpen}
