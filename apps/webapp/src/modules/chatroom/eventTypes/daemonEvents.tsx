@@ -7,7 +7,8 @@ import type {
   DaemonPongEvent,
   DaemonGitRefreshEvent,
   DaemonRefreshCapabilitiesEvent,
-} from '../viewModels/eventStreamViewModel';
+  DaemonLocalActionEvent,
+} from '@/domain/entities/event-stream-event';
 
 // ─── Daemon Ping ──────────────────────────────────────────────────────────────
 
@@ -132,11 +133,49 @@ function renderDaemonRefreshCapabilitiesDetails(
   );
 }
 
+// ─── Daemon Local Action ──────────────────────────────────────────────────────
+
+function renderDaemonLocalActionCell(
+  event: DaemonLocalActionEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="daemon.localAction"
+      badgeText="Local Action"
+      badgeColor="muted"
+      primaryInfo={event.action}
+      secondaryInfo={event.workingDir}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderDaemonLocalActionDetails(event: DaemonLocalActionEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Local Action"
+      timestamp={event.timestamp}
+      type="daemon.localAction"
+    >
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Action" value={event.action} />
+      <DetailRow label="Working Dir" value={event.workingDir} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Daemon event definitions ───────────────────────────────────────────────────
 
 export const daemonEventDefinitions: Pick<
   EventTypeRegistry,
-  'daemon.ping' | 'daemon.pong' | 'daemon.gitRefresh' | 'daemon.refreshCapabilities'
+  | 'daemon.ping'
+  | 'daemon.pong'
+  | 'daemon.gitRefresh'
+  | 'daemon.refreshCapabilities'
+  | 'daemon.localAction'
 > = {
   'daemon.ping': {
     cellRenderer: renderDaemonPingCell,
@@ -153,5 +192,9 @@ export const daemonEventDefinitions: Pick<
   'daemon.refreshCapabilities': {
     cellRenderer: renderDaemonRefreshCapabilitiesCell,
     detailsRenderer: renderDaemonRefreshCapabilitiesDetails,
+  },
+  'daemon.localAction': {
+    cellRenderer: renderDaemonLocalActionCell,
+    detailsRenderer: renderDaemonLocalActionDetails,
   },
 };

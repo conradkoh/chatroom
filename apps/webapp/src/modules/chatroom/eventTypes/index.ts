@@ -6,13 +6,14 @@
  * at compile time if any event type is missing a renderer definition.
  *
  * To add a new event type:
- * 1. Add the type to EventTypeName and EventStreamEvent in eventStreamViewModel.ts
- * 2. Add the interface to eventStreamViewModel.ts
- * 3. Create the renderer functions in the appropriate eventType file
- * 4. Export the definitions from that file and add them to the spread below
+ * 1. Add label + badge to SUPPORTED_EVENT_TYPES in domain/entities/event-type.ts
+ * 2. Add the interface and EventStreamEvent union member in domain/entities/event-stream-event.ts
+ * 3. Create renderer functions in the appropriate eventTypes/* file
+ * 4. Export definitions and add them to the spread below
  */
 
 import { agentEventDefinitions } from './agentEvents';
+import { commandEventDefinitions } from './commandEvents';
 import { configEventDefinitions } from './configEvents';
 import { daemonEventDefinitions } from './daemonEvents';
 import { initRegistry } from './registry';
@@ -50,5 +51,6 @@ export function initializeEventTypes(): void {
     ...skillEventDefinitions,
     ...configEventDefinitions,
     ...workflowEventDefinitions,
+    ...commandEventDefinitions,
   });
 }

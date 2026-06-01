@@ -2,7 +2,7 @@
 
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
-import type { SkillActivatedEvent } from '../viewModels/eventStreamViewModel';
+import type { SkillActivatedEvent } from '@/domain/entities/event-stream-event';
 
 // ─── Skill Activated ───────────────────────────────────────────────────────────
 

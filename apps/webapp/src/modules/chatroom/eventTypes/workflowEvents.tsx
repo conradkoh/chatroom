@@ -15,7 +15,7 @@ import type {
   WorkflowCreatedEvent,
   WorkflowSpecifiedEvent,
   WorkflowStepStartedEvent,
-} from '../viewModels/eventStreamViewModel';
+} from '@/domain/entities/event-stream-event';
 
 // ─── View Workflow Button ──────────────────────────────────────────
 

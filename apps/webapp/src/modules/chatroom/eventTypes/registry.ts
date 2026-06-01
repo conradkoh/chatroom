@@ -9,7 +9,8 @@
 
 import type { ReactNode } from 'react';
 
-import type { EventStreamEvent, EventTypeName } from '../viewModels/eventStreamViewModel';
+import type { EventTypeName } from '@/domain/entities/event-type';
+import type { EventStreamEvent } from '@/domain/entities/event-stream-event';
 
 /**
  * Definition for how to render an event type.

@@ -7,7 +7,7 @@ import type {
   TaskAcknowledgedEvent,
   TaskInProgressEvent,
   TaskCompletedEvent,
-} from '../viewModels/eventStreamViewModel';
+} from '@/domain/entities/event-stream-event';
 
 // ─── Task Activated ───────────────────────────────────────────────────────────
 

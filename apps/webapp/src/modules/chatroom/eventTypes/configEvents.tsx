@@ -2,7 +2,7 @@
 
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
-import type { ConfigRequestRemovalEvent } from '../viewModels/eventStreamViewModel';
+import type { ConfigRequestRemovalEvent } from '@/domain/entities/event-stream-event';
 
 // ─── Config Request Removal ───────────────────────────────────────────────────
 

@@ -14,7 +14,8 @@ import type {
   AgentRestartLimitReachedEvent,
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
-} from '../viewModels/eventStreamViewModel';
+  MachineSwitchedEvent,
+} from '@/domain/entities/event-stream-event';
 import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
 // ─── Agent Started ───────────────────────────────────────────────────────────
 
@@ -450,6 +451,42 @@ function renderAgentSessionResumeFailedDetails(
   );
 }
 
+// ─── Machine Switched ─────────────────────────────────────────────────────────
+
+function renderMachineSwitchedCell(
+  event: MachineSwitchedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="machine.switched"
+      badgeText="Switched"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.newMachineId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderMachineSwitchedDetails(event: MachineSwitchedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Machine Switched"
+      timestamp={event.timestamp}
+      type="machine.switched"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Previous Machine" value={event.previousMachineId} mono />
+      <DetailRow label="New Machine" value={event.newMachineId} mono />
+      <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Agent event definitions ────────────────────────────────────────────────────
 
 export const agentEventDefinitions: Pick<
@@ -465,6 +502,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.restartLimitReached'
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
+  | 'machine.switched'
 > = {
   'agent.started': {
     cellRenderer: renderAgentStartedCell,
@@ -509,5 +547,9 @@ export const agentEventDefinitions: Pick<
   'agent.sessionResumeFailed': {
     cellRenderer: renderAgentSessionResumeFailedCell,
     detailsRenderer: renderAgentSessionResumeFailedDetails,
+  },
+  'machine.switched': {
+    cellRenderer: renderMachineSwitchedCell,
+    detailsRenderer: renderMachineSwitchedDetails,
   },
 };
