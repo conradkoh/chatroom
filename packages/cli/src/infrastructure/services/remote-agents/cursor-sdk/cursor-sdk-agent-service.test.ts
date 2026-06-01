@@ -246,6 +246,40 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentSendFn.mock.calls[1][0]).toBe('resume prompt');
     });
 
+    it('accepts resumeTurn from agent_end callback (daemon handleAgentEnd path)', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild(8889);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+
+      let agentEndCount = 0;
+      // AgentProcessManager calls resumeTurn inside onAgentEnd — same turn, no await.
+      result.onAgentEnd!(() => {
+        agentEndCount++;
+        if (agentEndCount === 1) {
+          void service.resumeTurn(result.pid, 'daemon resume prompt');
+        }
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(2));
+      expect(sharedAgentSendFn.mock.calls[1][0]).toBe('daemon resume prompt');
+
+      await service.stop(result.pid);
+    });
+
     it('throws when session is not waiting for resume', async () => {
       const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
       const run = {

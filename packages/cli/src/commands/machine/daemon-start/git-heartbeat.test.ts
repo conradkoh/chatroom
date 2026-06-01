@@ -12,6 +12,7 @@ vi.mock('../../../infrastructure/git/git-reader.js', () => ({
   getDiffStat: vi.fn(),
   getRecentCommits: vi.fn(),
   getCommitsAhead: vi.fn(),
+  getCommitsBehind: vi.fn(),
   getRemotes: vi.fn(),
   getOpenPRsForBranch: vi.fn(),
   getAllPRs: vi.fn(),
@@ -205,6 +206,7 @@ describe('pushSingleWorkspaceGitSummaryForObserved', () => {
     vi.mocked(gitReader.getCommitStatusChecks).mockResolvedValue(null);
     vi.mocked(gitReader.getDiffStat).mockResolvedValue({ status: 'not_found' });
     vi.mocked(gitReader.getCommitsAhead).mockResolvedValue(0);
+    vi.mocked(gitReader.getCommitsBehind).mockResolvedValue(0);
     vi.mocked(gitReader.getRemotes).mockResolvedValue([]);
     vi.mocked(gitReader.getAllPRs).mockResolvedValue([]);
 
@@ -225,6 +227,7 @@ describe('pushSingleWorkspaceGitSummaryForObserved', () => {
     vi.mocked(gitReader.getCommitStatusChecks).mockResolvedValue(null);
     vi.mocked(gitReader.getDiffStat).mockResolvedValue({ status: 'not_found' });
     vi.mocked(gitReader.getCommitsAhead).mockResolvedValue(0);
+    vi.mocked(gitReader.getCommitsBehind).mockResolvedValue(0);
     vi.mocked(gitReader.getRemotes).mockResolvedValue([]);
     vi.mocked(gitReader.getAllPRs).mockResolvedValue([]);
     vi.mocked(gitReader.getRecentCommits).mockResolvedValue([]);

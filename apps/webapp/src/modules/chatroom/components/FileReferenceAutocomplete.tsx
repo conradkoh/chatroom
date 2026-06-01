@@ -131,6 +131,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
             >
               <FileTypeIcon
                 path={file.path}
+                type={file.type}
                 className="h-4 w-4 shrink-0 text-chatroom-text-muted"
               />
               <span className="text-sm font-medium truncate flex-1">{getFileName(file.path)}</span>

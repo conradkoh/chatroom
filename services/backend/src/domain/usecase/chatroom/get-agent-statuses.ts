@@ -28,6 +28,8 @@ export interface AgentRoleView {
   model?: string;
   workingDir?: string;
   spawnedAt?: number;
+  /** When true, agent restarts after entry role sets new pinned context. */
+  autoRestartOnNewContext?: boolean;
 }
 
 /** Full chatroom agent status returned to the UI. */
@@ -119,6 +121,7 @@ export async function getAgentStatusForChatroom(
       model,
       workingDir: teamConfig.workingDir,
       spawnedAt: teamConfig.spawnedAt,
+      autoRestartOnNewContext: teamConfig.autoRestartOnNewContext,
     };
   });
 

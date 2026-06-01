@@ -963,6 +963,9 @@ export default defineSchema({
 
     spawnedAgentPid: v.optional(v.number()),
     spawnedAt: v.optional(v.number()),
+
+    /** When true, restart this remote agent after the entry role sets new context. */
+    autoRestartOnNewContext: v.optional(v.boolean()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
@@ -1322,7 +1325,9 @@ export default defineSchema({
           v.literal('open-github-desktop'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
-          v.literal('git-pull')
+          v.literal('git-pull'),
+          v.literal('git-push'),
+          v.literal('git-sync')
         ),
         workingDir: v.string(),
         timestamp: v.number(),
@@ -1480,6 +1485,8 @@ export default defineSchema({
 
     // Commits ahead of upstream tracking branch (unpushed)
     commitsAhead: v.optional(v.number()),
+    // Commits on upstream not in HEAD (unpulled)
+    commitsBehind: v.optional(v.number()),
 
     // Default branch name (e.g. 'main', 'master')
     defaultBranch: v.optional(v.union(v.string(), v.null())),
