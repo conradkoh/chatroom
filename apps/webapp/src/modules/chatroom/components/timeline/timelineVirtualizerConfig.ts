@@ -5,14 +5,59 @@ export const TIMELINE_ESTIMATE_SIZE = 100;
 
 export const TIMELINE_OVERSCAN = 5;
 
-/** Load older history when the first visible row is within this index of the top. */
-export const TIMELINE_LOAD_OLDER_INDEX_THRESHOLD = 2;
+/**
+ * For feeds at or below this count, render with expanded overscan and eagerly
+ * measure rows after initial tail settle so the first scroll-up does not shift
+ * when estimates are replaced by measured heights.
+ */
+export const TIMELINE_EAGER_MEASURE_MAX_COUNT = 40;
 
-/** Purge distant prepended history when the first visible row exceeds this index (while pinned). */
-export const TIMELINE_PURGE_INDEX_THRESHOLD = 50;
+/**
+ * 0-based index of the oldest row that should enter view before prefetching history.
+ * Index 2 = the 3rd message from the top (matches release/v1.51.0 threshold).
+ */
+export const TIMELINE_LOAD_OLDER_SENTINEL_INDEX = 2;
+
+/**
+ * Fraction of max scroll range (0–1) within which scroll-driven load-older may fire.
+ * Relative to loaded content height so moderate scroll-up from the tail cannot match
+ * a fixed pixel band (~600px) while the virtualizer still reports a low index.
+ */
+export const TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION = 0.1;
+
+/**
+ * Whether scroll position + virtual range indicate the user has reached the load-older sentinel.
+ * Requires both a low first-visible index and scrollTop in the top fraction of the range so a
+ * stale virtual index mid-list or at the bottom cannot trigger an early fetch.
+ */
+export function shouldTriggerLoadOlder(input: {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  firstVisibleIndex: number;
+  topChromeHeight: number;
+}): boolean {
+  const { scrollTop, scrollHeight, clientHeight, firstVisibleIndex } = input;
+
+  const atBottom =
+    scrollHeight - scrollTop - clientHeight < TIMELINE_SCROLL_END_THRESHOLD;
+  if (atBottom) return false;
+
+  const maxScrollTop = scrollHeight - clientHeight;
+  if (maxScrollTop <= 0) return false;
+
+  const nearTop =
+    scrollTop <= maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION;
+  const sentinelVisible = firstVisibleIndex <= TIMELINE_LOAD_OLDER_SENTINEL_INDEX;
+
+  return nearTop && sentinelVisible;
+}
 
 /** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
 export const TIMELINE_SCROLL_END_THRESHOLD = 50;
+
+/** Extra space after the last row so the tail message is not clipped at the scroll edge. */
+export const TIMELINE_PADDING_END = 16;
 
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);

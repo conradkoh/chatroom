@@ -113,6 +113,11 @@ export class ScrollController {
     return this.pinned;
   }
 
+  /** Whether the scroll container is within the bottom threshold. */
+  isAtBottom(): boolean {
+    return this.computeIsAtBottom();
+  }
+
   /**
    * Called when new messages arrive (from useLayoutEffect).
    *
@@ -139,7 +144,19 @@ export class ScrollController {
     }
   }
 
-  /** Pin the feed and snap to the bottom immediately (for virtualized feeds). */
+  /**
+   * Mark the feed as pinned without changing scroll position.
+   * Use with a virtualizer-owned scroll (e.g. `scrollToEnd`) so DOM scroll and
+   * virtual item range stay in sync.
+   */
+  pinToEnd(): void {
+    if (!this.pinned) {
+      this.pinned = true;
+      this.onPinnedChange(true);
+    }
+  }
+
+  /** Pin the feed and snap to the bottom immediately (non-virtualized feeds). */
   snapToBottom(): void {
     this.pinned = true;
     this.onPinnedChange(true);
@@ -204,7 +221,7 @@ export class ScrollController {
   /** Process the pending action (called via rAF) */
   private processQueue(): void {
     if (this.pendingSnap && this.pinned && this.el) {
-      this.el.scrollTop = this.el.scrollHeight;
+      this.el.scrollTop = this.getMaxScrollTop();
     }
 
     this.pendingSnap = false;
@@ -214,8 +231,13 @@ export class ScrollController {
   /** Immediately set scrollTop to bottom (synchronous, for useLayoutEffect) */
   private snapImmediate(): void {
     if (this.el) {
-      this.el.scrollTop = this.el.scrollHeight;
+      this.el.scrollTop = this.getMaxScrollTop();
     }
+  }
+
+  private getMaxScrollTop(): number {
+    if (!this.el) return 0;
+    return Math.max(0, this.el.scrollHeight - this.el.clientHeight);
   }
 
   private runProgrammaticScroll(action: () => void): void {
@@ -229,7 +251,7 @@ export class ScrollController {
   }
 
   /** Check whether the scroll container is at the bottom (within threshold) */
-  private isAtBottom(): boolean {
+  private computeIsAtBottom(): boolean {
     if (!this.el) return false;
     const { scrollTop, scrollHeight, clientHeight } = this.el;
     return scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
@@ -252,7 +274,7 @@ export class ScrollController {
       this.userScrollTimeout = null;
 
       // After the user stops scrolling, sync pinned state with position
-      const atBottom = this.isAtBottom();
+      const atBottom = this.computeIsAtBottom();
       if (!atBottom && this.pinned) {
         this.pinned = false;
         this.onPinnedChange(false);
@@ -267,13 +289,20 @@ export class ScrollController {
    * Handle scroll event — sync pin state from position (scrollbar drags, smooth scroll end).
    */
   private handleScrollEvent = (): void => {
-    if (this.userScrolling || this.programmaticScroll) return;
+    if (this.programmaticScroll) return;
 
-    const atBottom = this.isAtBottom();
+    const atBottom = this.computeIsAtBottom();
+
+    // Re-pin as soon as the user reaches the bottom (including during wheel/touch scroll).
     if (atBottom && !this.pinned) {
       this.pinned = true;
       this.onPinnedChange(true);
-    } else if (!atBottom && this.pinned) {
+      return;
+    }
+
+    if (this.userScrolling) return;
+
+    if (!atBottom && this.pinned) {
       this.pinned = false;
       this.onPinnedChange(false);
     }
