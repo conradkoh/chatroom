@@ -159,6 +159,50 @@ describe('AgentProcessManager', () => {
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
       expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
       expect(deps.processes.kill).not.toHaveBeenCalled();
+      const sessionResumedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason === undefined &&
+          (call[1] as Record<string, unknown>)?.role === ROLE
+      );
+      expect(sessionResumedCalls.length).toBeGreaterThan(0);
+    });
+
+    test('onAgentEnd emits sessionResumeFailed and kills when resumeTurn fails', async () => {
+      const resumeTurn = vi.fn().mockRejectedValue(new Error('session not found'));
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            cb();
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      const sessionResumeFailedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason === 'session not found'
+      );
+      expect(sessionResumeFailedCalls).toHaveLength(1);
     });
 
     test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {

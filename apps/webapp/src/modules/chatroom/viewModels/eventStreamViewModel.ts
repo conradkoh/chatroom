@@ -17,6 +17,8 @@ export type EventTypeName =
   | 'agent.registered'
   | 'agent.waiting'
   | 'agent.startFailed'
+  | 'agent.sessionResumed'
+  | 'agent.sessionResumeFailed'
   | 'agent.restartLimitReached'
   | 'task.activated'
   | 'task.acknowledged'
@@ -125,6 +127,21 @@ export interface AgentStartFailedEvent extends EventStreamEventBase {
   role: string;
   machineId: string;
   error: string;
+  chatroomId: string;
+}
+
+export interface AgentSessionResumedEvent extends EventStreamEventBase {
+  type: 'agent.sessionResumed';
+  role: string;
+  machineId: string;
+  chatroomId: string;
+}
+
+export interface AgentSessionResumeFailedEvent extends EventStreamEventBase {
+  type: 'agent.sessionResumeFailed';
+  role: string;
+  machineId: string;
+  reason: string;
   chatroomId: string;
 }
 
@@ -317,6 +334,8 @@ export type EventStreamEvent =
   | AgentRegisteredEvent
   | AgentWaitingEvent
   | AgentStartFailedEvent
+  | AgentSessionResumedEvent
+  | AgentSessionResumeFailedEvent
   | AgentRestartLimitReachedEvent
   | TaskActivatedEvent
   | TaskAcknowledgedEvent
@@ -349,6 +368,8 @@ export function formatEventType(type: string): string {
     'agent.requestStart': 'Agent Request Start',
     'agent.requestStop': 'Agent Request Stop',
     'agent.startFailed': 'Agent Start Failed',
+    'agent.sessionResumed': 'Session Resumed',
+    'agent.sessionResumeFailed': 'Session Resume Failed',
     'agent.restartLimitReached': 'Agent Restart Limit',
     'task.activated': 'Task Activated',
     'task.acknowledged': 'Task Acknowledged',
@@ -382,6 +403,7 @@ export function getEventBadgeTextColor(type: string): string {
     'agent.requestStart': 'text-chatroom-status-warning',
     'agent.requestStop': 'text-chatroom-status-error',
     'agent.startFailed': 'text-chatroom-status-error',
+    'agent.sessionResumeFailed': 'text-chatroom-status-warning',
     'agent.restartLimitReached': 'text-chatroom-status-error',
     'task.activated': 'text-chatroom-status-success',
     'task.acknowledged': 'text-chatroom-status-success',

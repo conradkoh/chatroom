@@ -2527,6 +2527,72 @@ export const emitAgentStartFailed = mutation({
   },
 });
 
+/** Emits an agent.sessionResumed event when resumeTurn succeeds after agent_end. */
+export const emitSessionResumed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.sessionResumeFailed event when resumeTurn fails after agent_end. */
+export const emitSessionResumeFailed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumeFailed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      reason: args.reason,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
 /** Emits an agent.restartLimitReached event when crash loop protection triggers. */
 export const emitRestartLimitReached = mutation({
   args: {

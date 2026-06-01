@@ -1207,6 +1207,23 @@ export default defineSchema({
         error: v.string(),
         timestamp: v.number(),
       }),
+      // Agent session resumed successfully after agent_end
+      v.object({
+        type: v.literal('agent.sessionResumed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        timestamp: v.number(),
+      }),
+      // Agent session resume attempted but failed (graceful fallback follows)
+      v.object({
+        type: v.literal('agent.sessionResumeFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
       // Daemon hit crash loop limit and stopped restarting
       v.object({
         type: v.literal('agent.restartLimitReached'),
