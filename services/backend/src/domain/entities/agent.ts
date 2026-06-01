@@ -143,6 +143,7 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  * - `user.start`: User explicitly started the agent via UI or CLI
  * - `user.restart`: @deprecated — no longer used, kept for backward compatibility with old events
  * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
+ * - `platform.new_context`: Restart after the entry role sets a new pinned context
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
@@ -150,6 +151,7 @@ export const AGENT_START_REASONS = [
   /** @deprecated No longer used — kept for backward compatibility with old events */
   'user.restart',
   'platform.crash_recovery',
+  'platform.new_context',
   'test',
 ] as const;
 

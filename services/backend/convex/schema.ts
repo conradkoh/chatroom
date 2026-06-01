@@ -963,6 +963,9 @@ export default defineSchema({
 
     spawnedAgentPid: v.optional(v.number()),
     spawnedAt: v.optional(v.number()),
+
+    /** When true, restart this remote agent after the entry role sets new context. */
+    autoRestartOnNewContext: v.optional(v.boolean()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])

@@ -11,6 +11,7 @@ import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentControlsSection } from './AgentControlsSection';
+import { AutoRestartOnNewContextToggle } from './AutoRestartOnNewContextToggle';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow } from './AgentStatusRow';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
@@ -173,6 +174,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           prompt={prompt}
           linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
+        />
+
+        <AutoRestartOnNewContextToggle
+          chatroomId={chatroomId}
+          role={role}
+          enabled={agentRoleView?.autoRestartOnNewContext ?? false}
         />
 
         {/* Restart stats row — always shown when data is loaded */}

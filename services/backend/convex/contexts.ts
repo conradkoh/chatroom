@@ -6,6 +6,7 @@ import type { QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { restartAgentsOnNewContext } from '../src/domain/usecase/context/restart-agents-on-new-context';
 
 /**
  * Count messages in a chatroom created after a given timestamp.
@@ -106,6 +107,8 @@ export const createContext = mutation({
       content: args.content,
       type: 'new-context',
     });
+
+    await restartAgentsOnNewContext(ctx, args.chatroomId);
 
     return contextId;
   },
