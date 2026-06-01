@@ -146,7 +146,17 @@ import {
   TIMELINE_PADDING_END,
 } from './timelineVirtualizerConfig';
 
+import { AttachmentsProvider } from '../../context/AttachmentsContext';
+
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
+
+function TimelineFeedWithProviders(props: React.ComponentProps<typeof ChatroomTimelineFeed>) {
+  return (
+    <AttachmentsProvider>
+      <ChatroomTimelineFeed {...props} />
+    </AttachmentsProvider>
+  );
+}
 
 function createCoordinatorRef(
   initialPinned = true
@@ -178,7 +188,7 @@ function setScrollPinned(pinned: boolean) {
 function renderFeed(initialPinned = true) {
   const coordinator = createCoordinatorRef(initialPinned);
   const view = render(
-    <ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />
+    <TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />
   );
   return { ...view, coordinator };
 }
@@ -221,7 +231,7 @@ describe('ChatroomTimelineFeed initial tail scroll', () => {
     Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 40 });
 
     mockHasMoreOlder = true;
-    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     await flushRaf();
 
     expect(virtualizerOptions.some((o) => o.scrollMargin === 40)).toBe(true);
@@ -360,7 +370,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     act(() => {
       el.dispatchEvent(new Event('scroll'));
     });
-    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
 
     const pinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
@@ -371,7 +381,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
 
     virtualizerOptions.length = 0;
     render(
-      <ChatroomTimelineFeed chatroomId="room-1" coordinator={createCoordinatorRef(false)} />
+      <TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef(false)} />
     );
     const unpinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
       followOnAppend?: boolean | 'auto';
@@ -386,7 +396,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     const firstOptions = virtualizerOptions.at(-1)!;
     const keyBeforeRerender = firstOptions.getItemKey(0);
 
-    rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
 
     const secondOptions = virtualizerOptions.at(-1)!;
     expect(secondOptions.getItemKey(0)).toBe(keyBeforeRerender);
@@ -440,7 +450,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     ];
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(followTail).toHaveBeenCalled();
@@ -477,7 +487,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     ];
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(followTail).toHaveBeenCalled();
@@ -521,7 +531,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(followTail).toHaveBeenCalled();
@@ -555,7 +565,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(followTail).toHaveBeenCalled();
@@ -587,7 +597,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(mockScrollToEnd).not.toHaveBeenCalled();
@@ -677,7 +687,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     timelineIsLoadingOlder = true;
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     const olderBatch = buildEvents(20).map((e, i) => ({
@@ -692,7 +702,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     scrollElProps(el, scrollTopBeforeLoad, 4500);
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(el.scrollTop).toBe(expectedScrollTopAfterPrepend);
@@ -756,7 +766,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     timelineIsLoadingOlder = true;
 
     act(() => {
-      rerender(<ChatroomTimelineFeed chatroomId="room-1" coordinator={coordinator} />);
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
     expect(el.scrollTop).toBe(scrollTopBeforeSpinner + 24);
