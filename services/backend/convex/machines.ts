@@ -1141,7 +1141,9 @@ export const sendLocalAction = mutation({
       v.literal('open-github-desktop'),
       v.literal('git-discard-file'),
       v.literal('git-discard-all'),
-      v.literal('git-pull')
+      v.literal('git-pull'),
+      v.literal('git-push'),
+      v.literal('git-sync')
     ),
     workingDir: v.string(),
   },

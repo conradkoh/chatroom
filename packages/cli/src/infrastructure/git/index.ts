@@ -28,4 +28,4 @@ export {
   parseDiffStatLine,
 } from './git-reader.js';
 
-export { discardFile, discardAllChanges, discardStaged, gitPull } from './git-writer.js';
+export { discardFile, discardAllChanges, discardStaged, gitPull, gitPush, gitSync } from './git-writer.js';

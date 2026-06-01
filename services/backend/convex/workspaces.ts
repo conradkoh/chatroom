@@ -223,6 +223,7 @@ export const getWorkspaceGitState = query({
         })),
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
+        commitsBehind: row.commitsBehind ?? 0,
         defaultBranch: row.defaultBranch ?? null,
         headCommitStatus: row.headCommitStatus ?? null,
         defaultBranchStatus: row.defaultBranchStatus ?? null,
@@ -463,6 +464,8 @@ export const upsertWorkspaceGitState = mutation({
     ),
     // Commits ahead of upstream (unpushed)
     commitsAhead: v.optional(v.number()),
+    // Commits on upstream not in HEAD (unpulled)
+    commitsBehind: v.optional(v.number()),
     // Default branch name
     defaultBranch: v.optional(v.union(v.string(), v.null())),
     // CI/CD status checks for current branch head
@@ -534,6 +537,7 @@ export const upsertWorkspaceGitState = mutation({
       allPullRequests: args.allPullRequests?.map(normalizePr),
       remotes: args.remotes,
       commitsAhead: args.commitsAhead,
+      commitsBehind: args.commitsBehind,
       defaultBranch: args.defaultBranch,
       headCommitStatus: args.headCommitStatus,
       defaultBranchStatus: args.defaultBranchStatus,

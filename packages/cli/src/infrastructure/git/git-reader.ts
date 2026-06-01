@@ -820,6 +820,19 @@ export async function getCommitsAhead(workingDir: string): Promise<number> {
   return Number.isNaN(count) ? 0 : count;
 }
 
+/**
+ * Returns the number of commits on the upstream tracking branch that are not
+ * reachable from HEAD (i.e. unpulled commits).
+ *
+ * Uses `git rev-list --count HEAD..@{upstream}`.
+ */
+export async function getCommitsBehind(workingDir: string): Promise<number> {
+  const result = await runGit('rev-list --count HEAD..@{upstream}', workingDir);
+  if ('error' in result) return 0;
+  const count = parseInt(result.stdout.trim(), 10);
+  return Number.isNaN(count) ? 0 : count;
+}
+
 // ─── Commit Status Checks ─────────────────────────────────────────────────────
 
 /**

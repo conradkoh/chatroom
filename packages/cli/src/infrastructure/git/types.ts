@@ -90,6 +90,9 @@ export type GitPullResult =
   | { status: 'available'; message?: string }
   | { status: 'error'; message: string };
 
+/** Result of `gitPush` — same shape as pull. */
+export type GitPushResult = GitPullResult;
+
 /** Maximum byte size for full diff content before truncation. */
 export const FULL_DIFF_MAX_BYTES = 500_000; // 500 KB
 

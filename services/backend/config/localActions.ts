@@ -13,4 +13,6 @@ export type LocalActionType =
   | 'open-github-desktop'
   | 'git-discard-file'
   | 'git-discard-all'
-  | 'git-pull';
+  | 'git-pull'
+  | 'git-push'
+  | 'git-sync';

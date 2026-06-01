@@ -85,6 +85,8 @@ export type WorkspaceGitState =
       remotes: GitRemote[];
       /** Number of commits ahead of the upstream tracking branch (unpushed). 0 if no upstream. */
       commitsAhead: number;
+      /** Number of commits on upstream not in HEAD (unpulled). 0 if no upstream. */
+      commitsBehind: number;
       /** Default branch name (e.g. 'main', 'master'). Null if gh unavailable. */
       defaultBranch?: string | null;
       /** CI/CD status checks for the current branch head commit. */
