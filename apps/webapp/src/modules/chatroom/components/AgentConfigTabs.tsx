@@ -57,6 +57,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -246,6 +248,7 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
+  const [resumeSession, setResumeSession] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -448,6 +451,7 @@ export function useAgentControls({
             model: selectedModel || undefined,
             agentHarness: selectedHarness,
             workingDir: workingDir.trim() || undefined,
+            wantResume: resumeSession,
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
@@ -472,6 +476,7 @@ export function useAgentControls({
       selectedHarness,
       selectedModel,
       workingDir,
+      resumeSession,
       sendCommand,
       chatroomId,
       role,
@@ -539,6 +544,7 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
+          wantResume: resumeSession,
         },
       });
       setSuccess('Restart command sent!');
@@ -549,7 +555,7 @@ export function useAgentControls({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, resumeSession, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -568,6 +574,7 @@ export function useAgentControls({
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
+    setResumeSession(true);
   }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
@@ -597,6 +604,7 @@ export function useAgentControls({
     selectedHarness,
     selectedModel,
     workingDir,
+    resumeSession,
     isStarting,
     isStopping,
     error,
@@ -621,6 +629,7 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    setResumeSession,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -674,6 +683,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    resumeSession,
+    setResumeSession,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -943,6 +954,32 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               ) : null}
             </div>
           </div>
+
+          {!isAgentRunning &&
+            displayHarness &&
+            harnessSupportsSessionResume(displayHarness) && (
+              <div className="flex items-center justify-between gap-3 px-0.5">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-secondary cursor-default">
+                        Resume session
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] text-xs">
+                      When enabled, the agent will continue from its last session instead of
+                      starting fresh
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Switch
+                  checked={resumeSession}
+                  disabled={isBusy}
+                  onCheckedChange={setResumeSession}
+                  aria-label="Resume session"
+                />
+              </div>
+            )}
 
           {/* Row 2: Working Directory */}
           <div className="flex items-center gap-1">

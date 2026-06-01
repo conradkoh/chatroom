@@ -58,6 +58,8 @@ export type SendCommandArgs =
         workingDir?: string;
         /** Allows switching to a different machine when the role was already bound elsewhere. */
         allowNewMachine?: boolean;
+        /** When true (default), resume-capable harnesses continue from the last session. */
+        wantResume?: boolean;
       };
     }
   | {

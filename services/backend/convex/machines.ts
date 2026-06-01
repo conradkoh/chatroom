@@ -1186,6 +1186,8 @@ export const sendCommand = mutation({
         workingDir: v.optional(v.string()),
         /** When true, allows binding to a new machine or switching from a previously bound machine. */
         allowNewMachine: v.optional(v.boolean()),
+        /** When true (default), resume-capable harnesses continue from the last session. */
+        wantResume: v.optional(v.boolean()),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -1257,6 +1259,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: 'user.start',
+          wantResume: args.payload.wantResume,
         },
         machine
       );

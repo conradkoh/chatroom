@@ -53,6 +53,8 @@ export interface StartAgentInput {
    * Examples: 'user.start', 'user.restart', 'platform.crash_recovery'
    */
   reason: AgentStartReason;
+  /** When true (default), resume-capable harnesses continue from the last session. */
+  wantResume?: boolean;
 }
 
 /** Successful result of a start-agent operation. */
@@ -87,7 +89,8 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResume } =
+    input;
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 
@@ -164,6 +167,7 @@ export async function startAgent(
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
+    ...(wantResume !== undefined ? { wantResume } : {}),
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
