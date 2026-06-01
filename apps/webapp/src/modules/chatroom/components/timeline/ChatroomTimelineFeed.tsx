@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { usePaginatedQuery } from 'convex/react';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
@@ -97,6 +97,19 @@ export function ChatroomTimelineFeed({
   const latestEvent: EventStreamEvent | null =
     (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
+  const initialMeasurementsCache = useMemo((): VirtualItem[] => {
+    // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.
+    return events.map((event, index) => ({
+      key: event.id,
+      index,
+      size: measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE,
+      start: 0,
+      end: 0,
+      lane: 0,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => scrollParentRef.current,
@@ -115,6 +128,7 @@ export function ChatroomTimelineFeed({
     // reconfigures TanStack Virtual and causes a visible scroll jump.
     followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
+    initialMeasurementsCache,
   });
   useEffect(() => {
     const cache = measurementCacheRef.current;
@@ -132,8 +146,6 @@ export function ChatroomTimelineFeed({
     const scrollOffset = instance.scrollOffset ?? 0;
     return item.start < scrollOffset && instance.scrollDirection !== 'backward';
   };
-  const eagerMeasureDoneRef = useRef(false);
-
   const scrollRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
       scrollParentRef.current = node;
@@ -240,54 +252,6 @@ export function ChatroomTimelineFeed({
   }, [coordinator, topChromeHeight, tryLoadOlder, virtualizer]);
 
   const virtualizedContentHeight = virtualizer.getTotalSize();
-
-  useEffect(() => {
-    if (eagerMeasureDoneRef.current || events.length === 0) return;
-    if (events.length > TIMELINE_EAGER_MEASURE_MAX_COUNT) {
-      eagerMeasureDoneRef.current = true;
-      return;
-    }
-
-    let frames = 0;
-    const maxFrames = 8;
-
-    const tick = (): void => {
-      if (!coordinator.current.getAllowLoadOlder()) {
-        if (frames++ < maxFrames * 4) {
-          requestAnimationFrame(tick);
-        }
-        return;
-      }
-
-      if (!coordinator.current.isPinned) {
-        eagerMeasureDoneRef.current = true;
-        return;
-      }
-
-      const el = scrollParentRef.current;
-      if (!el) {
-        eagerMeasureDoneRef.current = true;
-        return;
-      }
-
-      el.querySelectorAll('[data-index]').forEach((node) => {
-        virtualizerRef.current.measureElement(node as HTMLElement);
-      });
-
-      frames++;
-      if (frames >= maxFrames) {
-        if (coordinator.current.isPinned && coordinator.current.isAtBottom()) {
-          coordinator.current.followTail('auto');
-        }
-        eagerMeasureDoneRef.current = true;
-        return;
-      }
-
-      requestAnimationFrame(tick);
-    };
-
-    requestAnimationFrame(tick);
-  }, [coordinator, events.length]);
 
   useEffect(() => {
     if (!coordinator.current.getAllowLoadOlder() || !isPinned) return;
