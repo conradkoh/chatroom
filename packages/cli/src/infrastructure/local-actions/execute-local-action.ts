@@ -170,6 +170,12 @@ export async function executeLocalAction(
       return { success: true, message: result.message ?? 'Pull successful' };
     }
 
+    case 'git-push':
+    case 'git-sync': {
+      // Not implemented in this release; action is schema-compatible but a no-op here.
+      return { success: false, error: `Action "${action}" is not supported in this version.` };
+    }
+
     default: {
       // Exhaustive check
       const _exhaustive: never = action;
