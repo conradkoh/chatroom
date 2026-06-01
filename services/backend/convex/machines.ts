@@ -2555,6 +2555,8 @@ export const emitSessionResumed = mutation({
       timestamp: Date.now(),
     });
 
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumed');
+
     return { success: true };
   },
 });
@@ -2588,6 +2590,8 @@ export const emitSessionResumeFailed = mutation({
       reason: args.reason,
       timestamp: Date.now(),
     });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeFailed');
 
     return { success: true };
   },

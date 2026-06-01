@@ -42,6 +42,8 @@ export interface AgentSlot {
   startedAt?: number;
   /** Promise that resolves when a pending spawn or stop completes */
   pendingOperation?: Promise<OperationResult>;
+  /** Guards against overlapping resumeTurn + emit cycles from duplicate agent_end signals. */
+  resumeInFlight?: boolean;
 }
 
 export interface OperationResult {
@@ -261,6 +263,15 @@ export class AgentProcessManager {
     harness: AgentHarness;
     wantResume: boolean;
   }): Promise<void> {
+    const key = agentKey(opts.chatroomId, opts.role);
+    const slot = this.slots.get(key);
+    if (slot?.resumeInFlight) {
+      console.log(
+        `[AgentProcessManager] agent_end: skipping duplicate resume for ${opts.role} (resume already in flight)`
+      );
+      return;
+    }
+
     const capabilities = getHarnessCapabilities(opts.harness);
 
     console.log(
@@ -270,6 +281,9 @@ export class AgentProcessManager {
     if (capabilities.supportsSessionResume && opts.wantResume) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
+        if (slot) {
+          slot.resumeInFlight = true;
+        }
         try {
           const resumePrompt = composeResumeMessage({
             chatroomId: opts.chatroomId,
@@ -278,37 +292,49 @@ export class AgentProcessManager {
           });
           await service.resumeTurn(opts.pid, resumePrompt);
 
-          this.deps.backend
-            .mutation(api.machines.emitSessionResumed, {
+          try {
+            await this.deps.backend.mutation(api.machines.emitSessionResumed, {
               sessionId: this.deps.sessionId,
               machineId: this.deps.machineId,
               chatroomId: opts.chatroomId,
               role: opts.role,
-            })
-            .catch((err: Error) => {
-              console.log(`   ⚠️  Failed to emit sessionResumed event: ${err.message}`);
             });
+            console.log(
+              `[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`
+            );
+          } catch (err) {
+            console.log(
+              `   ⚠️  Failed to emit sessionResumed event: ${(err as Error).message}`
+            );
+          }
 
           return;
         } catch (err) {
           const reason = (err as Error).message;
-          this.deps.backend
-            .mutation(api.machines.emitSessionResumeFailed, {
+          try {
+            await this.deps.backend.mutation(api.machines.emitSessionResumeFailed, {
               sessionId: this.deps.sessionId,
               machineId: this.deps.machineId,
               chatroomId: opts.chatroomId,
               role: opts.role,
               reason,
-            })
-            .catch((emitErr: Error) => {
-              console.log(
-                `   ⚠️  Failed to emit sessionResumeFailed event: ${emitErr.message}`
-              );
             });
+            console.log(
+              `[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${opts.role}`
+            );
+          } catch (emitErr) {
+            console.log(
+              `   ⚠️  Failed to emit sessionResumeFailed event: ${(emitErr as Error).message}`
+            );
+          }
 
           console.log(
             `[AgentProcessManager] ⚠️  resumeTurn failed for ${opts.role} (pid ${opts.pid}): ${reason} — falling back to kill`
           );
+        } finally {
+          if (slot) {
+            slot.resumeInFlight = false;
+          }
         }
       }
     }
