@@ -4,6 +4,7 @@ import {
   File,
   FileCode,
   FileText,
+  Folder,
   Globe,
   Image,
   Lock,
@@ -84,7 +85,15 @@ export function getFileIcon(path: string): LucideIcon {
  * Renders a file type icon for the given path.
  * Convenience wrapper to avoid IIFE patterns in JSX.
  */
-export function FileTypeIcon({ path, className }: { path: string; className?: string }) {
-  const Icon = getFileIcon(path);
+export function FileTypeIcon({
+  path,
+  className,
+  type = 'file',
+}: {
+  path: string;
+  className?: string;
+  type?: 'file' | 'directory';
+}) {
+  const Icon = type === 'directory' ? Folder : getFileIcon(path);
   return <Icon className={className} />;
 }

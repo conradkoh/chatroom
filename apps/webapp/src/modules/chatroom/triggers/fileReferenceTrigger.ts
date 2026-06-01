@@ -4,6 +4,14 @@ import { fuzzyMatch } from '@/lib/fuzzyMatch';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
 
+/** Serialize a file or directory entry for insertion after @ trigger. */
+export function serializeFileReferencePath(item: FileEntry): string {
+  if (item.type === 'directory') {
+    return item.path.endsWith('/') ? item.path : `${item.path}/`;
+  }
+  return item.path;
+}
+
 export function createFileReferenceTrigger(
   files: FileEntry[],
   onActivate?: () => void
@@ -25,7 +33,7 @@ export function createFileReferenceTrigger(
         .map((item) => item.file)
         .slice(0, MAX_DISPLAY);
     },
-    serialize: (item) => item.path,
+    serialize: serializeFileReferencePath,
     onActivate,
     maxDisplayItems: MAX_DISPLAY,
   };

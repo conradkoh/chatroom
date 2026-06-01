@@ -59,6 +59,7 @@ function slotToWorkspaceFileTreeArgs(slot: WorkspaceSlot | null | undefined) {
     machineId: slot?.machineId ?? '',
     workingDir: slot?.workingDir ?? '',
     enabled: !!slot,
+    includeDirectories: true,
   };
 }
 
