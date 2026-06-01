@@ -12,6 +12,8 @@ import type {
   AgentWaitingEvent,
   AgentStartFailedEvent,
   AgentRestartLimitReachedEvent,
+  AgentSessionResumedEvent,
+  AgentSessionResumeFailedEvent,
 } from '../viewModels/eventStreamViewModel';
 import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
 // ─── Agent Started ───────────────────────────────────────────────────────────
@@ -376,6 +378,78 @@ function renderAgentRestartLimitReachedDetails(
   );
 }
 
+// ─── Agent Session Resumed ────────────────────────────────────────────────────
+
+function renderAgentSessionResumedCell(
+  event: AgentSessionResumedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.sessionResumed"
+      badgeText="Session Resumed"
+      badgeColor="success"
+      primaryInfo={event.role}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionResumedDetails(event: AgentSessionResumedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Resumed"
+      timestamp={event.timestamp}
+      type="agent.sessionResumed"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Session Resume Failed ──────────────────────────────────────────────
+
+function renderAgentSessionResumeFailedCell(
+  event: AgentSessionResumeFailedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedReason =
+    event.reason.length > 60 ? event.reason.substring(0, 57) + '...' : event.reason;
+  return (
+    <EventRow
+      type="agent.sessionResumeFailed"
+      badgeText="Resume Failed"
+      badgeColor="warning"
+      primaryInfo={event.role}
+      secondaryInfo={truncatedReason}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionResumeFailedDetails(
+  event: AgentSessionResumeFailedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Resume Failed"
+      timestamp={event.timestamp}
+      type="agent.sessionResumeFailed"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Register all agent event types ────────────────────────────────────────────
 
 export function registerAgentEvents(): void {
@@ -414,5 +488,13 @@ export function registerAgentEvents(): void {
   registerEventType('agent.restartLimitReached', {
     cellRenderer: renderAgentRestartLimitReachedCell,
     detailsRenderer: renderAgentRestartLimitReachedDetails,
+  });
+  registerEventType('agent.sessionResumed', {
+    cellRenderer: renderAgentSessionResumedCell,
+    detailsRenderer: renderAgentSessionResumedDetails,
+  });
+  registerEventType('agent.sessionResumeFailed', {
+    cellRenderer: renderAgentSessionResumeFailedCell,
+    detailsRenderer: renderAgentSessionResumeFailedDetails,
   });
 }
