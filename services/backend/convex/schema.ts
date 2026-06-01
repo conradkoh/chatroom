@@ -966,6 +966,12 @@ export default defineSchema({
 
     /** When true, restart this remote agent after the entry role sets new context. */
     autoRestartOnNewContext: v.optional(v.boolean()),
+
+    /**
+     * When true (default), resume-capable harnesses call resumeTurn after a failed
+     * turn end instead of killing the process.
+     */
+    wantResumeOnFail: v.optional(v.boolean()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])

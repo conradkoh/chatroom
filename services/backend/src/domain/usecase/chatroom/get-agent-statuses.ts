@@ -30,6 +30,8 @@ export interface AgentRoleView {
   spawnedAt?: number;
   /** When true, agent restarts after entry role sets new pinned context. */
   autoRestartOnNewContext?: boolean;
+  /** When true, resume-capable harnesses resume the session after a turn failure. */
+  wantResumeOnFail?: boolean;
 }
 
 /** Full chatroom agent status returned to the UI. */
@@ -122,6 +124,7 @@ export async function getAgentStatusForChatroom(
       workingDir: teamConfig.workingDir,
       spawnedAt: teamConfig.spawnedAt,
       autoRestartOnNewContext: teamConfig.autoRestartOnNewContext,
+      wantResumeOnFail: teamConfig.wantResumeOnFail,
     };
   });
 

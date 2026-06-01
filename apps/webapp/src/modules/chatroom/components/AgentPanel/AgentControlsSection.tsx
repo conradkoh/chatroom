@@ -21,6 +21,8 @@ export interface AgentControlsSectionProps {
   linkedMachineIds?: ReadonlySet<string>;
   /** Which tab to show initially. Defaults to 'remote'. */
   initialTab?: 'remote' | 'custom';
+  wantResumeOnFail?: boolean;
+  autoRestartOnNewContext?: boolean;
 }
 
 /**
@@ -37,6 +39,8 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   prompt,
   linkedMachineIds,
   initialTab = 'remote',
+  wantResumeOnFail,
+  autoRestartOnNewContext,
 }: AgentControlsSectionProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(initialTab);
 
@@ -75,6 +79,9 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
             chatroomId={chatroomId}
+            role={role}
+            wantResumeOnFail={wantResumeOnFail}
+            autoRestartOnNewContext={autoRestartOnNewContext}
             linkedMachineIds={linkedMachineIds}
           />
         ) : (

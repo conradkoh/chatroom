@@ -169,7 +169,7 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
 function formatWantResumeLabel(wantResume: boolean | undefined): string {
-  return wantResume === false ? 'resume off' : 'resume on';
+  return wantResume === false ? 'resume on failure off' : 'resume on failure on';
 }
 
 function renderAgentRequestStartCell(
@@ -202,7 +202,10 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Model" value={event.model} mono />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="Reason" value={event.reason} />
-      <DetailRow label="Resume session" value={formatWantResumeLabel(event.wantResume)} />
+      <DetailRow
+        label="Resume on failure"
+        value={formatWantResumeLabel(event.wantResume)}
+      />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>

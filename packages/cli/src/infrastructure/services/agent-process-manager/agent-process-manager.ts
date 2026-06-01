@@ -372,6 +372,7 @@ export class AgentProcessManager {
     const harness = slot.harness;
     const model = slot.model;
     const workingDir = slot.workingDir;
+    const wantResume = slot.wantResume;
 
     // Transition: running → idle
     slot.state = 'idle';
@@ -441,6 +442,7 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
+      wantResume,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
