@@ -96,14 +96,15 @@ useEffect(() => {
 
 **Diff size:** ~50 lines (mostly removals).
 
-## Phase 6 — Reduce `scheduleTailSettle` max-frames from 24 to 6 (LOW after 1+5)
+## Phase 6 — Reduce `scheduleTailSettle` max-frames from 24 to 6 (TRIED — REVERTED)
 
-**Goal:** `maxFrames = options.maxFrames ?? 6`. Settle exits at first stable frame; cap reduction prevents pathological loops.
+**Tried:** lowered the cap from 24 frames to 6.
 
-**Verify checklist:**
-- Hard reload with cache disabled: initial load still lands on latest.
+**Result:** during real-app testing, user observed that big messages caused noticeable content jumping. It's not certain Phase 6 was the cause — the "competing scroll writers" architectural pattern documented above can produce jumping regardless of cap — but lowering the cap removes the worst-case recovery window that the system relies on when measurements take a long time to converge (font load, large markdown render, image load all contribute).
 
-**Diff size:** 1 line.
+**Conclusion:** the 24-frame cap is doing real work for the worst-case path. With Phases 1+5 in place, the common case settles in 2-3 frames anyway, so the high cap is only paid when needed. Keep the 24-frame cap.
+
+**Status:** abandoned. Net negative tradeoff.
 
 ## Architectural observation — competing scroll writers
 
