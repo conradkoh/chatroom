@@ -5,9 +5,9 @@
  * React only renders rows and subscribes to pin for UI (jump chip, followOnAppend).
  */
 
-import { TIMELINE_SCROLL_END_THRESHOLD } from '../components/timeline/timelineVirtualizerConfig';
+import { TIMELINE_PIN_AT_BOTTOM_THRESHOLD } from '../components/timeline/timelineVirtualizerConfig';
 
-const AT_BOTTOM_THRESHOLD = TIMELINE_SCROLL_END_THRESHOLD;
+const AT_BOTTOM_THRESHOLD = TIMELINE_PIN_AT_BOTTOM_THRESHOLD;
 const USER_SCROLL_TIMEOUT_MS = 200;
 export type VirtualizerScrollApi = {
   scrollToEnd: (options?: { behavior?: 'auto' | 'smooth' }) => void;
@@ -89,12 +89,12 @@ export class TimelineScrollCoordinator {
     return this.computeIsAtBottom();
   }
 
-  /** Whether tail follow should run on append (pinned or physically at bottom). */
+  /** Whether tail follow should run on append (pinned and flush at the tail). */
   shouldFollowTail(): boolean {
     if (this.pendingPrependPreserve || this.wasLoadingOlder) {
       return false;
     }
-    return this.pinned || this.computeIsAtBottom();
+    return this.pinned && this.computeIsAtBottom();
   }
 
   getAllowLoadOlder(): boolean {
@@ -203,23 +203,10 @@ export class TimelineScrollCoordinator {
 
   // ─── User actions ────────────────────────────────────────────────────────
 
-  /** Jump chip — virtualizer owns scrollTop to avoid DOM/virtual desync. */
+  /** Jump chip — same tail recovery as pinned follow (DOM snap + virtualizer sync + settle). */
   jumpToEnd(behavior: 'auto' | 'smooth' = 'smooth'): void {
-    this.setPinned(true);
-    this.runProgrammaticScroll(
-      () => {
-        this.scrollVirtualizer(behavior);
-      },
-      { targetCheck: () => this.computeIsAtBottom() }
-    );
-    requestAnimationFrame(() => {
-      this.runProgrammaticScroll(
-        () => {
-          this.scrollVirtualizer('auto');
-        },
-        { targetCheck: () => this.computeIsAtBottom() }
-      );
-    });
+    this.followTail(behavior);
+    this.scheduleTailSettle();
   }
 
   /**

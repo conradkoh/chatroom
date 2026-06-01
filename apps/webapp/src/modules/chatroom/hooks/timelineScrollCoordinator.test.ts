@@ -39,7 +39,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(true);
   });
 
-  it('shouldFollowTail when pinned or at bottom', () => {
+  it('shouldFollowTail only when pinned and flush at the tail', () => {
     Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
     expect(coordinator.shouldFollowTail()).toBe(true);
@@ -47,14 +47,60 @@ describe('TimelineScrollCoordinator', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
     expect(coordinator.shouldFollowTail()).toBe(false);
+
+    const unpinned = new TimelineScrollCoordinator(false);
+    unpinned.attach(el);
+    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    expect(unpinned.shouldFollowTail()).toBe(false);
+    unpinned.detach();
   });
 
-  it('jumpToEnd pins and scrolls via virtualizer', () => {
+  it('shouldFollowTail is false when pinned but only partially at the tail', () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 80,
+      writable: true,
+      configurable: true,
+    });
+    expect(coordinator.shouldFollowTail()).toBe(false);
+  });
+
+  it('jumpToEnd pins, snaps DOM to tail, and scrolls via virtualizer', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
 
     coordinator.jumpToEnd('smooth');
     expect(coordinator.isPinned).toBe(true);
+    expect(scrollToEnd).toHaveBeenCalled();
+    expect(el.scrollTop).toBe(maxScrollTop());
+  });
+
+  it('stays unpinned when only partially scrolled from the tail', () => {
+    const partialFromBottom = 40;
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - partialFromBottom,
+      writable: true,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event('scroll'));
+
+    expect(coordinator.isPinned).toBe(false);
+    expect(coordinator.isAtBottom()).toBe(false);
+  });
+
+  it('jumpToEnd reaches tail from a partial scroll position', () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 80,
+      writable: true,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event('scroll'));
+    expect(coordinator.isPinned).toBe(false);
+
+    scrollToEnd.mockClear();
+    coordinator.jumpToEnd('smooth');
+
+    expect(coordinator.isPinned).toBe(true);
+    expect(el.scrollTop).toBe(maxScrollTop());
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
