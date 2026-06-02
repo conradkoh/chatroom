@@ -1205,10 +1205,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <RemoteAgentAdvancedSettings
             role={role}
             agentHarness={displayHarness}
-            isAgentRunning={isAgentRunning}
             resumeSession={resumeSession}
             autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
-            disabled={isBusy}
+            disabled={isBusy || isAgentRunning}
             isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
             onResumeSessionChange={setResumeSession}
             onAutoRestartOnNewContextChange={(checked) =>
