@@ -44,6 +44,20 @@ export interface SpawnOptions {
   context: SpawnContext;
 }
 
+/** Harness-specific metadata needed to reconnect after stop (daemon memory only). */
+export interface HarnessReconnectMetadata {
+  agentName: string;
+  model?: string;
+}
+
+/** Daemon-memory session context for stop→start resume (same daemon process). */
+export interface DaemonHarnessSessionContext {
+  harnessSessionId: string;
+  agentName: string;
+  workingDir: string;
+  model?: string;
+}
+
 export interface SpawnResult {
   pid: number;
   onExit: (
@@ -57,12 +71,20 @@ export interface SpawnResult {
   onAgentEnd?: (cb: () => void) => void;
   /** Session ID for harnesses that support session resume. Undefined if not applicable. */
   harnessSessionId?: string;
+  /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
+  harnessReconnect?: HarnessReconnectMetadata;
 }
 
 export interface ProcessInfo {
   pid: number;
   context: SpawnContext;
   lastOutputAt: number;
+}
+
+/** Optional flags for harness-specific stop behavior (e.g. resume-friendly user stop). */
+export interface AgentStopOptions {
+  /** When true, preserve session state for a later stop→start daemon-memory resume instead of aborting. */
+  preserveForResume?: boolean;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
@@ -100,8 +122,23 @@ export interface RemoteAgentService {
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
+  /**
+   * Reconnect after user.stop preserved session state (daemon memory only).
+   * Only implement on harnesses where supportsSessionResume = true (e.g. opencode-sdk, cursor-sdk, pi).
+   */
+  resumeFromDaemonMemory?(
+    options: SpawnOptions,
+    session: DaemonHarnessSessionContext
+  ): Promise<SpawnResult>;
+
+  /**
+   * Read harness session metadata for reconnect before stop removes it.
+   * Only implement on harnesses that support daemon-memory resume (e.g. opencode-sdk).
+   */
+  getHarnessReconnectContext?(pid: number): HarnessReconnectMetadata | undefined;
+
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
-  stop(pid: number): Promise<void>;
+  stop(pid: number, options?: AgentStopOptions): Promise<void>;
 
   /** Is this PID still alive? */
   isAlive(pid: number): boolean;

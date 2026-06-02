@@ -113,6 +113,8 @@ function cleanupOldDrafts(currentKey: string) {
 
 export function MessageInput({
   chatroomId,
+  onBeforeResize,
+  onAfterResize,
   onRegisterFocus,
   files = [],
   onAtTriggerActivate,
@@ -232,9 +234,11 @@ export function MessageInput({
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    onBeforeResize?.();
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
-  }, []);
+    onAfterResize?.();
+  }, [onBeforeResize, onAfterResize]);
 
   // Re-measure textarea height whenever message changes (covers draft restore,
   // editor modal close, and autocomplete file select uniformly)

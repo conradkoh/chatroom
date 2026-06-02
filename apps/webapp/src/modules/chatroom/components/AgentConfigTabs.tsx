@@ -20,6 +20,7 @@ import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
 import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
@@ -57,6 +58,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -210,6 +212,7 @@ export function useAgentControls({
   agentPreference,
   onSavePreference,
   teamConfigMachineId,
+  teamAutoRestartOnNewContext,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
 }: {
@@ -229,6 +232,8 @@ export function useAgentControls({
   onSavePreference?: (pref: AgentPreference) => void;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
+  /** Persisted auto-restart-on-new-context preference from team agent config. */
+  teamAutoRestartOnNewContext?: boolean;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
@@ -246,6 +251,13 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
+  const [resumeSession, setResumeSession] = useState(true);
+  const teamBehavior = useTeamAgentBehaviorSettings({
+    chatroomId,
+    role,
+    teamAutoRestartOnNewContext,
+  });
+  const { seedFromTeamConfig } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +335,7 @@ export function useAgentControls({
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
+    seedFromTeamConfig();
     setIsInitialized(true);
   }, [
     isInitialized,
@@ -331,6 +344,7 @@ export function useAgentControls({
     runningAgentConfig,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
+    seedFromTeamConfig,
   ]);
 
   // Available models from the selected machine filtered by selected harness
@@ -448,6 +462,7 @@ export function useAgentControls({
             model: selectedModel || undefined,
             agentHarness: selectedHarness,
             workingDir: workingDir.trim() || undefined,
+            wantResume: resumeSession,
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
@@ -472,6 +487,7 @@ export function useAgentControls({
       selectedHarness,
       selectedModel,
       workingDir,
+      resumeSession,
       sendCommand,
       chatroomId,
       role,
@@ -539,6 +555,7 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
+          wantResume: resumeSession,
         },
       });
       setSuccess('Restart command sent!');
@@ -549,7 +566,7 @@ export function useAgentControls({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, resumeSession, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -568,6 +585,7 @@ export function useAgentControls({
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
+    setResumeSession(true);
   }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
@@ -597,6 +615,9 @@ export function useAgentControls({
     selectedHarness,
     selectedModel,
     workingDir,
+    resumeSession,
+    setResumeSession,
+    teamBehavior,
     isStarting,
     isStopping,
     error,
@@ -638,6 +659,7 @@ interface RemoteTabContentProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   chatroomId: string;
+  role: string;
   /** When provided, skips a duplicate workspace registry subscription in this tab. */
   linkedMachineIds?: ReadonlySet<string>;
 }
@@ -648,6 +670,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   isLoadingMachines,
   daemonStartCommand,
   chatroomId,
+  role,
   linkedMachineIds: linkedMachineIdsProp,
 }: RemoteTabContentProps) {
   const {
@@ -674,6 +697,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    resumeSession,
+    setResumeSession,
+    teamBehavior,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -1175,6 +1201,19 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               )}
             </div>
           </div>
+
+          <RemoteAgentAdvancedSettings
+            role={role}
+            agentHarness={displayHarness}
+            resumeSession={resumeSession}
+            autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
+            disabled={isBusy || isAgentRunning}
+            isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
+            onResumeSessionChange={setResumeSession}
+            onAutoRestartOnNewContextChange={(checked) =>
+              void teamBehavior.updateAutoRestartOnNewContext(checked)
+            }
+          />
 
           <AlertDialog
             open={rehomeConfirmOpen}

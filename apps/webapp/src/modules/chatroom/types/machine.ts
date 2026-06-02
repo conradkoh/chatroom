@@ -58,6 +58,8 @@ export type SendCommandArgs =
         workingDir?: string;
         /** Allows switching to a different machine when the role was already bound elsewhere. */
         allowNewMachine?: boolean;
+        /** When true (default), resume from the daemon's last session on first launch. */
+        wantResume?: boolean;
       };
     }
   | {

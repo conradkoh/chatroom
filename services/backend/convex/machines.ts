@@ -1186,6 +1186,8 @@ export const sendCommand = mutation({
         workingDir: v.optional(v.string()),
         /** When true, allows binding to a new machine or switching from a previously bound machine. */
         allowNewMachine: v.optional(v.boolean()),
+        /** When true (default), resume from the daemon's last session on first launch. */
+        wantResume: v.optional(v.boolean()),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -1257,6 +1259,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: 'user.start',
+          wantResume: args.payload.wantResume,
         },
         machine
       );
@@ -1297,6 +1300,7 @@ export const updateSpawnedAgent = mutation({
     pid: v.optional(v.number()), // null to clear
     model: v.optional(v.string()), // Save model alongside PID for config persistence
     reason: v.optional(v.string()),
+    harnessSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1351,6 +1355,7 @@ export const updateSpawnedAgent = mutation({
         workingDir: configWorkingDir,
         pid: args.pid,
         reason: args.reason,
+        harnessSessionId: args.harnessSessionId,
         timestamp: now,
       });
 
@@ -2519,6 +2524,80 @@ export const emitAgentStartFailed = mutation({
         });
       }
     }
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.sessionResumed event when resumeTurn succeeds after agent_end. */
+export const emitSessionResumed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumed');
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.sessionResumeFailed event when resumeTurn fails after agent_end. */
+export const emitSessionResumeFailed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    reason: v.string(),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumeFailed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      reason: args.reason,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeFailed');
 
     return { success: true };
   },

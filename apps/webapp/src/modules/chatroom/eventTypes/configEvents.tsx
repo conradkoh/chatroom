@@ -1,8 +1,8 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
-import type { ConfigRequestRemovalEvent } from '../viewModels/eventStreamViewModel';
+import type { ConfigRequestRemovalEvent } from '@/domain/entities/event-stream-event';
 
 // ─── Config Request Removal ───────────────────────────────────────────────────
 
@@ -38,11 +38,11 @@ function renderConfigRequestRemovalDetails(event: ConfigRequestRemovalEvent): Re
   );
 }
 
-// ─── Register config event types ───────────────────────────────────────────────
+// ─── Config event definitions ───────────────────────────────────────────────────
 
-export function registerConfigEvents(): void {
-  registerEventType('config.requestRemoval', {
+export const configEventDefinitions: Pick<EventTypeRegistry, 'config.requestRemoval'> = {
+  'config.requestRemoval': {
     cellRenderer: renderConfigRequestRemovalCell,
     detailsRenderer: renderConfigRequestRemovalDetails,
-  });
-}
+  },
+};

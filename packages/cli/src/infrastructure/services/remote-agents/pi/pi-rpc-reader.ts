@@ -29,6 +29,7 @@ type AgentEndCallback = () => void;
 type ToolCallCallback = (name: string, args: unknown) => void;
 type ToolResultCallback = (name: string, result: unknown) => void;
 type AnyEventCallback = () => void;
+type StateResponseCallback = (sessionId: string) => void;
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export class PiRpcReader {
   private readonly toolCallCallbacks: ToolCallCallback[] = [];
   private readonly toolResultCallbacks: ToolResultCallback[] = [];
   private readonly anyEventCallbacks: AnyEventCallback[] = [];
+  private readonly stateResponseCallbacks: StateResponseCallback[] = [];
 
   constructor(stream: Readable) {
     const rl = createInterface({ input: stream, crlfDelay: Infinity });
@@ -75,6 +77,11 @@ export class PiRpcReader {
     this.anyEventCallbacks.push(cb);
   }
 
+  /** Fires when a successful get_state RPC response arrives (spawn session discovery). */
+  onStateResponse(cb: StateResponseCallback): void {
+    this.stateResponseCallbacks.push(cb);
+  }
+
   // ─── Private ───────────────────────────────────────────────────────────────
 
   private _handleLine(line: string): void {
@@ -93,6 +100,15 @@ export class PiRpcReader {
     for (const cb of this.anyEventCallbacks) cb();
 
     const type = event['type'];
+
+    if (type === 'response' && event['command'] === 'get_state') {
+      const data = event['data'] as Record<string, unknown> | undefined;
+      const sessionId = data?.['sessionId'];
+      if (event['success'] === true && typeof sessionId === 'string') {
+        for (const cb of this.stateResponseCallbacks) cb(sessionId);
+      }
+      return;
+    }
 
     if (type === 'message_update') {
       const assistantMessageEvent = event['assistantMessageEvent'] as

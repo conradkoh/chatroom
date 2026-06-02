@@ -93,6 +93,7 @@ function RehomeHarness({
       isLoadingMachines={false}
       daemonStartCommand="chatroom daemon"
       chatroomId="jd7testchatroom0000000000000001"
+      role="builder"
     />
   );
 }

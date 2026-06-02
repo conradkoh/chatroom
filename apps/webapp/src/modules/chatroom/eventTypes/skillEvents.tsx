@@ -1,8 +1,8 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock } from './shared';
-import type { SkillActivatedEvent } from '../viewModels/eventStreamViewModel';
+import type { SkillActivatedEvent } from '@/domain/entities/event-stream-event';
 
 // ─── Skill Activated ───────────────────────────────────────────────────────────
 
@@ -40,11 +40,11 @@ function renderSkillActivatedDetails(event: SkillActivatedEvent): React.ReactNod
   );
 }
 
-// ─── Register skill event types ────────────────────────────────────────────────
+// ─── Skill event definitions ────────────────────────────────────────────────────
 
-export function registerSkillEvents(): void {
-  registerEventType('skill.activated', {
+export const skillEventDefinitions: Pick<EventTypeRegistry, 'skill.activated'> = {
+  'skill.activated': {
     cellRenderer: renderSkillActivatedCell,
     detailsRenderer: renderSkillActivatedDetails,
-  });
-}
+  },
+};

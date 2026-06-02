@@ -21,6 +21,7 @@ export interface AgentRequestStartEventPayload {
   workingDir: string;
   reason: string;
   deadline: number;
+  wantResume?: boolean;
 }
 
 export async function onRequestStartAgent(
@@ -46,6 +47,7 @@ export async function onRequestStartAgent(
     model: event.model,
     workingDir: event.workingDir,
     reason: event.reason as StartAgentReason,
+    wantResume: event.wantResume ?? true,
   });
 
   if (!result.success) {

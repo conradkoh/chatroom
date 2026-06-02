@@ -1,6 +1,6 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import type {
   AgentStartedEvent,
@@ -12,7 +12,10 @@ import type {
   AgentWaitingEvent,
   AgentStartFailedEvent,
   AgentRestartLimitReachedEvent,
-} from '../viewModels/eventStreamViewModel';
+  AgentSessionResumedEvent,
+  AgentSessionResumeFailedEvent,
+  MachineSwitchedEvent,
+} from '@/domain/entities/event-stream-event';
 import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
 // ─── Agent Started ───────────────────────────────────────────────────────────
 
@@ -45,6 +48,9 @@ function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="PID" value={String(event.pid)} mono />
       {event.reason && <DetailRow label="Reason" value={event.reason} />}
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -165,6 +171,15 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
+function formatWantResumeLabel(wantResume: boolean | undefined): string {
+  return wantResume === false ? 'resume off' : 'resume on';
+}
+
+function formatAutoRestartOnNewContextLabel(autoRestartOnNewContext: boolean | undefined): string {
+  if (autoRestartOnNewContext === undefined) return 'new context restart unset';
+  return autoRestartOnNewContext ? 'new context restart on' : 'new context restart off';
+}
+
 function renderAgentRequestStartCell(
   event: AgentRequestStartEvent,
   isSelected: boolean
@@ -175,7 +190,7 @@ function renderAgentRequestStartCell(
       badgeText="Req Start"
       badgeColor="warning"
       primaryInfo={event.role}
-      secondaryInfo={event.reason}
+      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)} · ${event.reason}`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -195,6 +210,11 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Model" value={event.model} mono />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Resume session" value={formatWantResumeLabel(event.wantResume)} />
+      <DetailRow
+        label="Restart on new context"
+        value={formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)}
+      />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
@@ -376,43 +396,190 @@ function renderAgentRestartLimitReachedDetails(
   );
 }
 
-// ─── Register all agent event types ────────────────────────────────────────────
+// ─── Agent Session Resumed ────────────────────────────────────────────────────
 
-export function registerAgentEvents(): void {
-  registerEventType('agent.started', {
+function renderAgentSessionResumedCell(
+  event: AgentSessionResumedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedSessionId = event.harnessSessionId
+    ? event.harnessSessionId.length > 60
+      ? event.harnessSessionId.substring(0, 57) + '...'
+      : event.harnessSessionId
+    : undefined;
+
+  return (
+    <EventRow
+      type="agent.sessionResumed"
+      badgeText="Session Resumed"
+      badgeColor="success"
+      primaryInfo={event.role}
+      secondaryInfo={truncatedSessionId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionResumedDetails(event: AgentSessionResumedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Resumed"
+      timestamp={event.timestamp}
+      type="agent.sessionResumed"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Session Resume Failed ──────────────────────────────────────────────
+
+function renderAgentSessionResumeFailedCell(
+  event: AgentSessionResumeFailedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedReason =
+    event.reason.length > 60 ? event.reason.substring(0, 57) + '...' : event.reason;
+  return (
+    <EventRow
+      type="agent.sessionResumeFailed"
+      badgeText="Resume Failed"
+      badgeColor="warning"
+      primaryInfo={event.role}
+      secondaryInfo={truncatedReason}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionResumeFailedDetails(
+  event: AgentSessionResumeFailedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Resume Failed"
+      timestamp={event.timestamp}
+      type="agent.sessionResumeFailed"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Reason" value={event.reason} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Machine Switched ─────────────────────────────────────────────────────────
+
+function renderMachineSwitchedCell(
+  event: MachineSwitchedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="machine.switched"
+      badgeText="Switched"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.newMachineId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderMachineSwitchedDetails(event: MachineSwitchedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Machine Switched"
+      timestamp={event.timestamp}
+      type="machine.switched"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Previous Machine" value={event.previousMachineId} mono />
+      <DetailRow label="New Machine" value={event.newMachineId} mono />
+      <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent event definitions ────────────────────────────────────────────────────
+
+export const agentEventDefinitions: Pick<
+  EventTypeRegistry,
+  | 'agent.started'
+  | 'agent.exited'
+  | 'agent.circuitOpen'
+  | 'agent.requestStart'
+  | 'agent.requestStop'
+  | 'agent.registered'
+  | 'agent.waiting'
+  | 'agent.startFailed'
+  | 'agent.restartLimitReached'
+  | 'agent.sessionResumed'
+  | 'agent.sessionResumeFailed'
+  | 'machine.switched'
+> = {
+  'agent.started': {
     cellRenderer: renderAgentStartedCell,
     detailsRenderer: renderAgentStartedDetails,
-  });
-  registerEventType('agent.exited', {
+  },
+  'agent.exited': {
     cellRenderer: renderAgentExitedCell,
     detailsRenderer: renderAgentExitedDetails,
-  });
-  registerEventType('agent.circuitOpen', {
+  },
+  'agent.circuitOpen': {
     cellRenderer: renderAgentCircuitOpenCell,
     detailsRenderer: renderAgentCircuitOpenDetails,
-  });
-  registerEventType('agent.requestStart', {
+  },
+  'agent.requestStart': {
     cellRenderer: renderAgentRequestStartCell,
     detailsRenderer: renderAgentRequestStartDetails,
-  });
-  registerEventType('agent.requestStop', {
+  },
+  'agent.requestStop': {
     cellRenderer: renderAgentRequestStopCell,
     detailsRenderer: renderAgentRequestStopDetails,
-  });
-  registerEventType('agent.registered', {
+  },
+  'agent.registered': {
     cellRenderer: renderAgentRegisteredCell,
     detailsRenderer: renderAgentRegisteredDetails,
-  });
-  registerEventType('agent.waiting', {
+  },
+  'agent.waiting': {
     cellRenderer: renderAgentWaitingCell,
     detailsRenderer: renderAgentWaitingDetails,
-  });
-  registerEventType('agent.startFailed', {
+  },
+  'agent.startFailed': {
     cellRenderer: renderAgentStartFailedCell,
     detailsRenderer: renderAgentStartFailedDetails,
-  });
-  registerEventType('agent.restartLimitReached', {
+  },
+  'agent.restartLimitReached': {
     cellRenderer: renderAgentRestartLimitReachedCell,
     detailsRenderer: renderAgentRestartLimitReachedDetails,
-  });
-}
+  },
+  'agent.sessionResumed': {
+    cellRenderer: renderAgentSessionResumedCell,
+    detailsRenderer: renderAgentSessionResumedDetails,
+  },
+  'agent.sessionResumeFailed': {
+    cellRenderer: renderAgentSessionResumeFailedCell,
+    detailsRenderer: renderAgentSessionResumeFailedDetails,
+  },
+  'machine.switched': {
+    cellRenderer: renderMachineSwitchedCell,
+    detailsRenderer: renderMachineSwitchedDetails,
+  },
+};

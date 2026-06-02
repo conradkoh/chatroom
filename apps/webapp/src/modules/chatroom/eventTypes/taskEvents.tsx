@@ -1,13 +1,13 @@
 'use client';
 
-import { registerEventType } from './registry';
+import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock, MachineDetailRow } from './shared';
 import type {
   TaskActivatedEvent,
   TaskAcknowledgedEvent,
   TaskInProgressEvent,
   TaskCompletedEvent,
-} from '../viewModels/eventStreamViewModel';
+} from '@/domain/entities/event-stream-event';
 
 // ─── Task Activated ───────────────────────────────────────────────────────────
 
@@ -144,23 +144,26 @@ function renderTaskCompletedDetails(event: TaskCompletedEvent): React.ReactNode 
   );
 }
 
-// ─── Register all task event types ─────────────────────────────────────────────
+// ─── Task event definitions ────────────────────────────────────────────────────
 
-export function registerTaskEvents(): void {
-  registerEventType('task.activated', {
+export const taskEventDefinitions: Pick<
+  EventTypeRegistry,
+  'task.activated' | 'task.acknowledged' | 'task.inProgress' | 'task.completed'
+> = {
+  'task.activated': {
     cellRenderer: renderTaskActivatedCell,
     detailsRenderer: renderTaskActivatedDetails,
-  });
-  registerEventType('task.acknowledged', {
+  },
+  'task.acknowledged': {
     cellRenderer: renderTaskAcknowledgedCell,
     detailsRenderer: renderTaskAcknowledgedDetails,
-  });
-  registerEventType('task.inProgress', {
+  },
+  'task.inProgress': {
     cellRenderer: renderTaskInProgressCell,
     detailsRenderer: renderTaskInProgressDetails,
-  });
-  registerEventType('task.completed', {
+  },
+  'task.completed': {
     cellRenderer: renderTaskCompletedCell,
     detailsRenderer: renderTaskCompletedDetails,
-  });
-}
+  },
+};

@@ -7,7 +7,7 @@
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
  * Spawns agents using:
- *   pi --mode rpc --no-session [--model <model>] [--system-prompt <systemPrompt>]
+ *   pi --mode rpc --session-dir <dir> [--session <id>] [--model <model>] [--system-prompt <systemPrompt>]
  *
  * The prompt is sent to the long-running process over stdin as a JSON command:
  *   {"type": "prompt", "message": "<prompt>"}
@@ -23,9 +23,15 @@
  */
 
 import { type ChildProcess } from 'node:child_process';
+import { join } from 'node:path';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import type {
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnOptions,
+  SpawnResult,
+} from '../remote-agent-service.js';
 import { PiRpcReader } from './pi-rpc-reader.js';
 
 export type PiAgentServiceDeps = CLIAgentServiceDeps;
@@ -33,6 +39,21 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PI_COMMAND = 'pi';
+const PI_AGENT_NAME = 'pi';
+const GET_STATE_TIMEOUT_MS = 5_000;
+const SPAWN_READY_DELAY_MS = 500;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function getPiSessionDir(workingDir: string): string {
+  return join(workingDir, '.chatroom', 'pi-sessions');
+}
+
+interface PiTrackedSession {
+  harnessSessionId: string;
+  workingDir: string;
+  model?: string;
+}
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
@@ -43,25 +64,62 @@ export class PiAgentService extends BaseCLIAgentService {
 
   /** Child processes by PID — needed for resumeTurn stdin writes. */
   private readonly childProcesses = new Map<number, ChildProcess>();
+  /** Session metadata for daemon-memory stop→start resume reconnect context. */
+  private readonly trackedSessions = new Map<number, PiTrackedSession>();
 
-  constructor(deps?: Partial<CLIAgentServiceDeps>) {
+  constructor(deps?: Partial<PiAgentServiceDeps>) {
     super(deps);
   }
 
   override untrack(pid: number): void {
     this.childProcesses.delete(pid);
+    this.trackedSessions.delete(pid);
     super.untrack(pid);
+  }
+
+  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
+    const session = this.trackedSessions.get(pid);
+    if (!session) {
+      return undefined;
+    }
+    return {
+      agentName: PI_AGENT_NAME,
+      ...(session.model ? { model: session.model } : {}),
+    };
+  }
+
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    stored: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
+    const { prompt, systemPrompt, model, context } = options;
+    const modelForSession = model ?? stored.model;
+
+    const childProcess = this.spawnPiRpcProcess({
+      workingDir: stored.workingDir,
+      systemPrompt,
+      model: modelForSession,
+      sessionId: stored.harnessSessionId,
+    });
+
+    await this.waitForSpawnReady(childProcess);
+    await this.writePrompt(childProcess, prompt);
+
+    return this.wireRpcProcess({
+      childProcess,
+      context,
+      workingDir: stored.workingDir,
+      model: modelForSession,
+      harnessSessionId: stored.harnessSessionId,
+    });
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
     const child = this.childProcesses.get(pid);
-    if (!child?.stdin) {
+    if (!child) {
       throw new Error(`No tracked pi process or stdin for pid=${pid}`);
     }
-    const message = JSON.stringify({ type: 'prompt', message: prompt }) + '\n';
-    await new Promise<void>((resolve, reject) => {
-      child.stdin!.write(message, (err) => (err ? reject(err) : resolve()));
-    });
+    await this.writePrompt(child, prompt);
   }
 
   async isInstalled(): Promise<boolean> {
@@ -102,39 +160,76 @@ export class PiAgentService extends BaseCLIAgentService {
     // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
     // at the use-case layer (`agent-process-manager`). See
     // `infrastructure/services/remote-agents/spawn-prompt.ts`.
-    const { prompt, systemPrompt, model } = options;
+    const { prompt, systemPrompt, model, context, workingDir } = options;
 
-    // Build args for RPC mode. The prompt is NOT a positional arg — it is sent
-    // over stdin as a JSON command after the process starts.
-    const args: string[] = ['--mode', 'rpc', '--no-session'];
+    const childProcess = this.spawnPiRpcProcess({
+      workingDir,
+      systemPrompt,
+      model,
+    });
 
-    if (model) {
-      args.push('--model', model);
+    await this.waitForSpawnReady(childProcess);
+
+    if (!childProcess.stdout) {
+      throw new Error('Pi RPC process has no stdout');
     }
 
-    if (systemPrompt) {
-      args.push('--system-prompt', systemPrompt);
+    const reader = new PiRpcReader(childProcess.stdout);
+    const harnessSessionId = await this.querySessionId(reader, childProcess.stdin);
+    await this.writePrompt(childProcess, prompt);
+
+    return this.wireRpcProcess({
+      childProcess,
+      context,
+      workingDir,
+      model,
+      harnessSessionId,
+      reader,
+    });
+  }
+
+  private spawnPiRpcProcess(args: {
+    workingDir: string;
+    systemPrompt: string;
+    model?: string;
+    sessionId?: string;
+  }): ChildProcess {
+    const rpcArgs: string[] = [
+      '--mode',
+      'rpc',
+      '--session-dir',
+      getPiSessionDir(args.workingDir),
+    ];
+
+    if (args.sessionId) {
+      rpcArgs.push('--session', args.sessionId);
     }
 
-    const childProcess: ChildProcess = this.deps.spawn(PI_COMMAND, args, {
-      cwd: options.workingDir,
+    if (args.model) {
+      rpcArgs.push('--model', args.model);
+    }
+
+    if (args.systemPrompt) {
+      rpcArgs.push('--system-prompt', args.systemPrompt);
+    }
+
+    const childProcess: ChildProcess = this.deps.spawn(PI_COMMAND, rpcArgs, {
+      cwd: args.workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
       env: {
         ...process.env,
-        // Prevent git rebase/merge from opening an interactive editor
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
       },
     });
 
-    // Send the initial prompt as a JSON RPC command over stdin.
-    // Do NOT close stdin — the process must stay alive to receive future prompts.
-    childProcess.stdin?.write(JSON.stringify({ type: 'prompt', message: prompt }) + '\n');
+    return childProcess;
+  }
 
-    // Wait briefly for immediate crash detection
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  private async waitForSpawnReady(childProcess: ChildProcess): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, SPAWN_READY_DELAY_MS));
 
     if (childProcess.killed || childProcess.exitCode !== null) {
       throw new Error(`Agent process exited immediately (exit code: ${childProcess.exitCode})`);
@@ -143,98 +238,99 @@ export class PiAgentService extends BaseCLIAgentService {
     if (!childProcess.pid) {
       throw new Error('Agent process started but has no PID');
     }
+  }
 
-    const pid = childProcess.pid;
-    const context = options.context;
+  private writePrompt(child: ChildProcess, prompt: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!child.stdin) {
+        reject(new Error('Pi RPC process has no stdin'));
+        return;
+      }
+      const message = JSON.stringify({ type: 'prompt', message: prompt }) + '\n';
+      child.stdin.write(message, (err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  private async querySessionId(
+    reader: PiRpcReader,
+    stdin: ChildProcess['stdin']
+  ): Promise<string> {
+    if (!stdin) {
+      throw new Error('Pi RPC process has no stdin');
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`get_state timed out after ${GET_STATE_TIMEOUT_MS}ms`));
+      }, GET_STATE_TIMEOUT_MS);
+
+      reader.onStateResponse((sessionId) => {
+        clearTimeout(timer);
+        resolve(sessionId);
+      });
+
+      stdin.write(JSON.stringify({ type: 'get_state' }) + '\n');
+    });
+  }
+
+  private wireRpcProcess(args: {
+    childProcess: ChildProcess;
+    context: SpawnOptions['context'];
+    workingDir: string;
+    model?: string;
+    harnessSessionId: string;
+    reader?: PiRpcReader;
+  }): SpawnResult {
+    const { childProcess, context, workingDir, model, harnessSessionId } = args;
+    const pid = childProcess.pid!;
 
     this.childProcesses.set(pid, childProcess);
+    this.trackedSessions.set(pid, { harnessSessionId, workingDir, model });
 
-    // Register in process registry
     const entry = this.registerProcess(pid, context);
 
-    // Build a log prefix from spawn context for easier debugging.
-    // Format: [pi:role] or [pi:role@short-id] when chatroomId is available.
     const roleTag = context.role ?? 'unknown';
     const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
     const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
 
-    // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
+    const agentEndCallbacks: (() => void)[] = [];
 
-    if (childProcess.stdout) {
-      // Parse the RPC JSON event stream — fire output callbacks on every event
-      // so the daemon knows the agent is still producing output.
-      const reader = new PiRpcReader(childProcess.stdout);
-
-      // Buffer accumulated text/thinking so we can emit complete lines with
-      // a [pi:role text] / [pi:role thinking] prefix — PM2 captures output
-      // per-line, so raw streaming tokens without newlines don't appear as
-      // distinct log entries. We flush on natural newlines in the delta and
-      // on section boundaries.
-      let textBuffer = '';
-      let thinkingBuffer = '';
-
-      const flushText = () => {
-        if (!textBuffer) return;
-        for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
-        }
-        textBuffer = '';
-      };
-
-      const flushThinking = () => {
-        if (!thinkingBuffer) return;
-        for (const line of thinkingBuffer.split('\n')) {
-          if (line) process.stdout.write(`${logPrefix} thinking] ${line}\n`);
-        }
-        thinkingBuffer = '';
-      };
-
-      reader.onTextDelta((delta) => {
-        flushThinking(); // switch section
-        textBuffer += delta;
-        // Flush on natural line breaks so logs stay responsive
-        if (textBuffer.includes('\n')) flushText();
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
+    const onExit = (
+      cb: (info: {
+        code: number | null;
+        signal: string | null;
+        context: SpawnOptions['context'];
+      }) => void
+    ) => {
+      childProcess.on('exit', (code, signal) => {
+        this.childProcesses.delete(pid);
+        this.trackedSessions.delete(pid);
+        this.deleteProcess(pid);
+        cb({ code, signal, context });
       });
+    };
 
-      reader.onThinkingDelta((delta) => {
-        flushText(); // switch section
-        thinkingBuffer += delta;
-        // Flush on natural line breaks
-        if (thinkingBuffer.includes('\n')) flushThinking();
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
+    const onOutput = (cb: () => void) => {
+      outputCallbacks.push(cb);
+    };
 
-      reader.onAnyEvent(() => {
-        // Non-text events (agent_start, tool_execution_start/end, agent_end, …)
-        // still count as activity for the purposes of the output timestamp.
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
+    const onAgentEnd = (cb: () => void) => {
+      agentEndCallbacks.push(cb);
+    };
 
-      reader.onAgentEnd(() => {
-        // Flush any buffered text before the turn boundary marker
-        flushText();
-        flushThinking();
-        process.stdout.write(`${logPrefix} agent_end]\n`);
-      });
+    const baseResult: SpawnResult = {
+      pid,
+      harnessSessionId,
+      harnessReconnect: {
+        agentName: PI_AGENT_NAME,
+        ...(model ? { model } : {}),
+      },
+      onExit,
+      onOutput,
+    };
 
-      reader.onToolCall((name, args) => {
-        // Flush buffered content before the tool marker
-        flushText();
-        flushThinking();
-        const argsStr = args != null ? ` args: ${JSON.stringify(args)}` : '';
-        process.stdout.write(`${logPrefix} tool: ${name}${argsStr}]\n`);
-      });
-
-      reader.onToolResult((name, result) => {
-        const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-        process.stdout.write(`${logPrefix} tool_result: ${name} result: ${resultStr}]\n`);
-      });
-
+    if (!childProcess.stdout) {
       if (childProcess.stderr) {
         childProcess.stderr.pipe(process.stderr, { end: false });
         childProcess.stderr.on('data', () => {
@@ -242,24 +338,69 @@ export class PiAgentService extends BaseCLIAgentService {
           for (const cb of outputCallbacks) cb();
         });
       }
-
-      return {
-        pid,
-        onExit: (cb) => {
-          childProcess.on('exit', (code, signal) => {
-            this.childProcesses.delete(pid);
-            this.deleteProcess(pid);
-            cb({ code, signal, context });
-          });
-        },
-        onOutput: (cb) => {
-          outputCallbacks.push(cb);
-        },
-        onAgentEnd: (cb) => {
-          reader.onAgentEnd(cb);
-        },
-      };
+      return baseResult;
     }
+
+    const reader = args.reader ?? new PiRpcReader(childProcess.stdout);
+
+    let textBuffer = '';
+    let thinkingBuffer = '';
+
+    const flushText = () => {
+      if (!textBuffer) return;
+      for (const line of textBuffer.split('\n')) {
+        if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+      }
+      textBuffer = '';
+    };
+
+    const flushThinking = () => {
+      if (!thinkingBuffer) return;
+      for (const line of thinkingBuffer.split('\n')) {
+        if (line) process.stdout.write(`${logPrefix} thinking] ${line}\n`);
+      }
+      thinkingBuffer = '';
+    };
+
+    reader.onTextDelta((delta) => {
+      flushThinking();
+      textBuffer += delta;
+      if (textBuffer.includes('\n')) flushText();
+      entry.lastOutputAt = Date.now();
+      for (const cb of outputCallbacks) cb();
+    });
+
+    reader.onThinkingDelta((delta) => {
+      flushText();
+      thinkingBuffer += delta;
+      if (thinkingBuffer.includes('\n')) flushThinking();
+      entry.lastOutputAt = Date.now();
+      for (const cb of outputCallbacks) cb();
+    });
+
+    reader.onAnyEvent(() => {
+      entry.lastOutputAt = Date.now();
+      for (const cb of outputCallbacks) cb();
+    });
+
+    reader.onAgentEnd(() => {
+      flushText();
+      flushThinking();
+      process.stdout.write(`${logPrefix} agent_end]\n`);
+      for (const cb of agentEndCallbacks) cb();
+    });
+
+    reader.onToolCall((name, toolArgs) => {
+      flushText();
+      flushThinking();
+      const argsStr = toolArgs != null ? ` args: ${JSON.stringify(toolArgs)}` : '';
+      process.stdout.write(`${logPrefix} tool: ${name}${argsStr}]\n`);
+    });
+
+    reader.onToolResult((name, result) => {
+      const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+      process.stdout.write(`${logPrefix} tool_result: ${name} result: ${resultStr}]\n`);
+    });
 
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
@@ -270,17 +411,8 @@ export class PiAgentService extends BaseCLIAgentService {
     }
 
     return {
-      pid,
-      onExit: (cb) => {
-        childProcess.on('exit', (code, signal) => {
-          this.childProcesses.delete(pid);
-          this.deleteProcess(pid);
-          cb({ code, signal, context });
-        });
-      },
-      onOutput: (cb) => {
-        outputCallbacks.push(cb);
-      },
+      ...baseResult,
+      onAgentEnd,
     };
   }
 }
