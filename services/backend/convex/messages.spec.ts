@@ -32,7 +32,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const now = Date.now();
-    return await ctx.db.insert('chatroom_tasks', {
+    const taskId = await ctx.db.insert('chatroom_tasks', {
       chatroomId,
       createdBy: 'user',
       content: 'active task',
@@ -41,6 +41,17 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
       updatedAt: now,
       queuePosition: 0,
     });
+    await ctx.db.insert('chatroom_taskCounts', {
+      chatroomId,
+      pending: 0,
+      acknowledged: 0,
+      inProgress: 1,
+      completed: 0,
+      queueSize: 0,
+      backlogCount: 0,
+      pendingReviewCount: 0,
+    });
+    return taskId;
   });
 }
 
