@@ -458,6 +458,62 @@ describe('AgentProcessManager', () => {
       ).toBe(true);
     });
 
+    test('pi wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'pi-sess-1',
+        harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const piService = {
+        ...createMockService(),
+        id: 'pi',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'pi-sess-1',
+          harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'pi',
+          model: 'anthropic/claude-3-5-sonnet',
+        }),
+      };
+      deps.agentServices = new Map([['pi', piService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'pi', wantResume: false }));
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'pi', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(piService.spawn).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('pi-sess-1');
+
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
+      expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'pi-sess-1')).toBe(true);
+    });
+
     test('wantResume falls back to spawn when resumeFromDaemonMemory fails', async () => {
       const resumeFromDaemonMemory = vi
         .fn()

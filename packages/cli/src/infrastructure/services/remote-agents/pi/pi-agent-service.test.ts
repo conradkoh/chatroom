@@ -3,7 +3,53 @@ import { EventEmitter, Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSpawnPrompt } from '../spawn-prompt.js';
-import { PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
+import { getPiSessionDir, PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
+
+const SAMPLE_SESSION_ID = '019e86d8-39ec-7ae8-8380-c5ee4c904c99';
+const SPAWN_READY_DELAY_MS = 500;
+
+type MockChild = {
+  stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+  stdout: Readable;
+};
+
+function resolveWriteCallback(
+  encodingOrCb?: unknown,
+  maybeCb?: unknown
+): ((err?: Error | null) => void) | undefined {
+  if (typeof encodingOrCb === 'function') {
+    return encodingOrCb as (err?: Error | null) => void;
+  }
+  if (typeof maybeCb === 'function') {
+    return maybeCb as (err?: Error | null) => void;
+  }
+  return undefined;
+}
+
+function wireGetStateOnStdinWrite(child: MockChild): void {
+  child.stdin.write = vi.fn(
+    (data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+      const cb = resolveWriteCallback(encodingOrCb, maybeCb);
+      const text = typeof data === 'string' ? data : data.toString();
+      if (text.includes('get_state')) {
+        setTimeout(() => {
+          child.stdout.push(
+            `${JSON.stringify({
+              type: 'response',
+              command: 'get_state',
+              success: true,
+              data: { sessionId: SAMPLE_SESSION_ID },
+            })}\n`
+          );
+          cb?.(null);
+        }, 0);
+        return true;
+      }
+      cb?.(null);
+      return true;
+    }
+  );
+}
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {
   return {
@@ -195,8 +241,14 @@ describe('PiAgentService', () => {
   });
 
   describe('spawn', () => {
-    function makeChildProcess(pid: number) {
-      const mockStdin = { write: vi.fn(), end: vi.fn() };
+    function makeChildProcess(pid: number, options?: { wireGetState?: boolean }) {
+      const mockStdin = {
+        write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
+          return true;
+        }),
+        end: vi.fn(),
+      };
       const mockStdout = new Readable({ read() {} });
       const mockStderr = new Readable({ read() {} });
 
@@ -212,10 +264,14 @@ describe('PiAgentService', () => {
         exitCode: null,
       });
 
+      if (options?.wireGetState !== false) {
+        wireGetStateOnStdinWrite(child);
+      }
+
       return child;
     }
 
-    it('builds the correct args array with --mode rpc, --system-prompt, and --model', async () => {
+    it('builds the correct args array with --mode rpc, --session-dir, --system-prompt, and --model', async () => {
       const child = makeChildProcess(42);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -234,7 +290,8 @@ describe('PiAgentService', () => {
         [
           '--mode',
           'rpc',
-          '--no-session',
+          '--session-dir',
+          getPiSessionDir('/tmp/test'),
           '--model',
           'github-copilot/claude-sonnet-4.6',
           '--system-prompt',
@@ -266,7 +323,7 @@ describe('PiAgentService', () => {
       expect(args).not.toContain('--model');
     });
 
-    it('sends the prompt as a JSON RPC command over stdin', async () => {
+    it('sends the prompt as a JSON RPC command over stdin after get_state', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -279,9 +336,11 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      // The prompt is sent as a JSON RPC command — NOT as a positional CLI arg
-      const writeCall = child.stdin.write.mock.calls[0][0] as string;
-      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0] as string)
+        .filter((line) => line.includes('"prompt"'));
+      expect(promptWrites.length).toBeGreaterThanOrEqual(1);
+      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBe("Don't stop");
     });
@@ -326,7 +385,7 @@ describe('PiAgentService', () => {
       ).rejects.toThrow('exited immediately');
     });
 
-    it('returns pid and lifecycle callbacks on success', async () => {
+    it('returns pid, harnessSessionId, harnessReconnect, and lifecycle callbacks on success', async () => {
       const child = makeChildProcess(99);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -340,6 +399,8 @@ describe('PiAgentService', () => {
       });
 
       expect(result.pid).toBe(99);
+      expect(result.harnessSessionId).toBe(SAMPLE_SESSION_ID);
+      expect(result.harnessReconnect).toEqual({ agentName: 'pi' });
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
     });
@@ -387,9 +448,10 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      // The prompt is written to stdin as JSON — it should use the default trigger
-      const writeCall = child.stdin.write.mock.calls[0][0] as string;
-      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0] as string)
+        .filter((line) => line.includes('"prompt"'));
+      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBeTruthy();
       expect(parsed.message).not.toBe('');
@@ -408,18 +470,40 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      const writeCall = child.stdin.write.mock.calls[0][0] as string;
-      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0] as string)
+        .filter((line) => line.includes('"prompt"'));
+      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message.trim()).toBeTruthy();
     });
 
+    it('throws when get_state times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const child = makeChildProcess(44, { wireGetState: false });
+        const spawnFn = vi.fn().mockReturnValue(child);
+        const deps = createMockDeps({ spawn: spawnFn as any });
+        const service = new PiAgentService(deps);
+
+        const spawnPromise = service.spawn({
+          workingDir: '/tmp',
+          systemPrompt: 'system',
+          prompt: createSpawnPrompt('prompt'),
+          context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        });
+
+        const assertion = expect(spawnPromise).rejects.toThrow('get_state timed out');
+        await vi.advanceTimersByTimeAsync(SPAWN_READY_DELAY_MS + 5_000);
+        await assertion;
+      } finally {
+        await vi.runAllTimersAsync();
+        vi.useRealTimers();
+      }
+    });
+
     it('resumeTurn writes prompt JSON to stdin', async () => {
       const child = makeChildProcess(77);
-      const writeWithCallback = vi.fn((_data: string, cb?: (err?: Error | null) => void) => {
-        cb?.();
-      });
-      child.stdin.write = writeWithCallback;
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new PiAgentService(deps);
@@ -431,7 +515,13 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      writeWithCallback.mockClear();
+      const writeWithCallback = vi.fn(
+        (_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
+          return true;
+        }
+      );
+      child.stdin.write = writeWithCallback;
       await service.resumeTurn(77, 'resume message');
 
       expect(writeWithCallback).toHaveBeenCalledOnce();
@@ -465,6 +555,123 @@ describe('PiAgentService', () => {
       expect(args).toContain("It's a system prompt with 'quotes'");
       // Prompt is NOT in args — it goes via stdin
       expect(args).not.toContain("Don't stop");
+    });
+  });
+
+  describe('resumeFromDaemonMemory', () => {
+    function makeChildProcess(pid: number) {
+      const mockStdin = {
+        write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
+          return true;
+        }),
+        end: vi.fn(),
+      };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const child = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid,
+        killed: false,
+        exitCode: null,
+      });
+
+      wireGetStateOnStdinWrite(child);
+      return child;
+    }
+
+    it('spawns with --session and returns stored harnessSessionId', async () => {
+      const child = makeChildProcess(88);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const result = await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/ws',
+          systemPrompt: 'system',
+          prompt: createSpawnPrompt('resume prompt'),
+          model: 'anthropic/claude-3-5-sonnet',
+          context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        },
+        {
+          harnessSessionId: 'stored-session-id',
+          agentName: 'pi',
+          workingDir: '/tmp/ws',
+        }
+      );
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'pi',
+        expect.arrayContaining([
+          '--session-dir',
+          getPiSessionDir('/tmp/ws'),
+          '--session',
+          'stored-session-id',
+        ]),
+        expect.any(Object)
+      );
+      expect(result.harnessSessionId).toBe('stored-session-id');
+      expect(result.harnessReconnect).toEqual({
+        agentName: 'pi',
+        model: 'anthropic/claude-3-5-sonnet',
+      });
+    });
+  });
+
+  describe('getHarnessReconnectContext', () => {
+    function makeChildProcess(pid: number) {
+      const mockStdin = {
+        write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
+          return true;
+        }),
+        end: vi.fn(),
+      };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+      const child = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid,
+        killed: false,
+        exitCode: null,
+      });
+      wireGetStateOnStdinWrite(child);
+      return child;
+    }
+
+    it('returns agentName pi and model after spawn', async () => {
+      const child = makeChildProcess(70);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('go'),
+        model: 'openai/gpt-4o',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(service.getHarnessReconnectContext(70)).toEqual({
+        agentName: 'pi',
+        model: 'openai/gpt-4o',
+      });
+    });
+
+    it('returns undefined for unknown pid', () => {
+      const service = new PiAgentService(createMockDeps());
+      expect(service.getHarnessReconnectContext(404)).toBeUndefined();
     });
   });
 });

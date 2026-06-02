@@ -206,6 +206,23 @@ describe('PiRpcReader', () => {
     });
   });
 
+  describe('onStateResponse', () => {
+    it('fires for successful get_state RPC responses', async () => {
+      const sessionIds: string[] = [];
+      const reader = makeReader([
+        JSON.stringify({
+          type: 'response',
+          command: 'get_state',
+          success: true,
+          data: { sessionId: 'sess-abc-123' },
+        }),
+      ]);
+      reader.onStateResponse((id) => sessionIds.push(id));
+      await flush();
+      expect(sessionIds).toEqual(['sess-abc-123']);
+    });
+  });
+
   describe('onAnyEvent', () => {
     it('fires for every parsed event regardless of type', async () => {
       let count = 0;
