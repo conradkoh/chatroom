@@ -32,6 +32,7 @@ export interface AgentStartedEvent extends EventStreamEventBase {
   workingDir: string;
   pid: number;
   reason?: string;
+  harnessSessionId?: string;
   chatroomId: string;
 }
 
@@ -108,6 +109,7 @@ export interface AgentSessionResumedEvent extends EventStreamEventBase {
   type: 'agent.sessionResumed';
   role: string;
   machineId: string;
+  harnessSessionId?: string;
   chatroomId: string;
 }
 
@@ -116,6 +118,7 @@ export interface AgentSessionResumeFailedEvent extends EventStreamEventBase {
   role: string;
   machineId: string;
   reason: string;
+  harnessSessionId?: string;
   chatroomId: string;
 }
 

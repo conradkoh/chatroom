@@ -48,6 +48,9 @@ function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="PID" value={String(event.pid)} mono />
       {event.reason && <DetailRow label="Reason" value={event.reason} />}
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -399,12 +402,19 @@ function renderAgentSessionResumedCell(
   event: AgentSessionResumedEvent,
   isSelected: boolean
 ): React.ReactNode {
+  const truncatedSessionId = event.harnessSessionId
+    ? event.harnessSessionId.length > 60
+      ? event.harnessSessionId.substring(0, 57) + '...'
+      : event.harnessSessionId
+    : undefined;
+
   return (
     <EventRow
       type="agent.sessionResumed"
       badgeText="Session Resumed"
       badgeColor="success"
       primaryInfo={event.role}
+      secondaryInfo={truncatedSessionId}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -421,6 +431,9 @@ function renderAgentSessionResumedDetails(event: AgentSessionResumedEvent): Reac
     >
       <DetailRow label="Role" value={event.role} />
       <MachineDetailRow machineId={event.machineId} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -460,6 +473,9 @@ function renderAgentSessionResumeFailedDetails(
       <DetailRow label="Role" value={event.role} />
       <MachineDetailRow machineId={event.machineId} />
       <DetailRow label="Reason" value={event.reason} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
