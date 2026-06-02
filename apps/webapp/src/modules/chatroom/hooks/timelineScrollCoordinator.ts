@@ -91,7 +91,6 @@ export class TimelineScrollCoordinator {
 
   private readonly intentQueue: ScrollIntent[] = [];
   private workerRafId: number | null = null;
-  private followTailRafId: number | null = null;
   private pinnedTailGuardRafId: number | null = null;
   private pinnedTailGuardIterations = 0;
   private isFlushingQueue = false;
@@ -109,9 +108,16 @@ export class TimelineScrollCoordinator {
   private pendingPrependPreserve = false;
   private prependAnchor: PrependScrollAnchor | null = null;
   private prependSettleRafId: number | null = null;
-  /** Coalesced offset for deferred virtualizer sync (scrollToOffset uses flushSync). */
-  private pendingVirtualizerSyncTop: number | null = null;
-  private virtualizerSyncScheduled = false;
+  /**
+   * Coalesced virtualizer commands deferred to a microtask (TanStack uses flushSync).
+   * DOM scrollTop is always adjusted synchronously before scheduling.
+   */
+  private pendingVirtualizerApply: {
+    scrollToIndex?: number;
+    scrollToEndBehavior?: 'auto' | 'smooth';
+    syncOffset?: number;
+  } = {};
+  private virtualizerApplyScheduled = false;
 
   constructor(initialPinned = true) {
     this.pinned = initialPinned;
@@ -232,8 +238,8 @@ export class TimelineScrollCoordinator {
 
     this.intentQueue.length = 0;
     this.tailSettle = null;
-    this.pendingVirtualizerSyncTop = null;
-    this.virtualizerSyncScheduled = false;
+    this.pendingVirtualizerApply = {};
+    this.virtualizerApplyScheduled = false;
     this.el = null;
     this.virtualizer = null;
   }
@@ -276,6 +282,27 @@ export class TimelineScrollCoordinator {
    */
   notifyTailRowResized(tailIndex?: number): void {
     if (!this.shouldFollowTail()) {
+      return;
+    }
+    if (this.tailSettle !== null) {
+      if (tailIndex !== undefined) {
+        this.tailSettle.tailIndex = tailIndex;
+      }
+      return;
+    }
+    const hasPendingTailWork = this.intentQueue.some(
+      (intent) => intent.type === 'follow_tail' || intent.type === 'tail_settle'
+    );
+    if (hasPendingTailWork) {
+      for (let i = this.intentQueue.length - 1; i >= 0; i--) {
+        const intent = this.intentQueue[i];
+        if (intent.type === 'tail_settle') {
+          if (tailIndex !== undefined) {
+            intent.tailIndex = tailIndex;
+          }
+          return;
+        }
+      }
       return;
     }
     this.enqueue({ type: 'tail_settle', tailIndex });
@@ -392,10 +419,6 @@ export class TimelineScrollCoordinator {
       cancelAnimationFrame(this.workerRafId);
       this.workerRafId = null;
     }
-    if (this.followTailRafId !== null) {
-      cancelAnimationFrame(this.followTailRafId);
-      this.followTailRafId = null;
-    }
     this.stopPinnedTailGuard();
     this.tailSettle = null;
     this.programmaticScrollDepth = 0;
@@ -476,6 +499,7 @@ export class TimelineScrollCoordinator {
       }
     }
 
+    let mergedTailIndex: number | undefined;
     if (tailSettleIntents.length > 0) {
       const merged = tailSettleIntents.reduce(
         (acc, intent) => ({
@@ -490,6 +514,7 @@ export class TimelineScrollCoordinator {
         }),
         {} as { tailIndex?: number; maxFrames?: number; onSettled?: () => void }
       );
+      mergedTailIndex = merged.tailIndex;
       this.startTailSettle(merged);
     }
 
@@ -498,7 +523,9 @@ export class TimelineScrollCoordinator {
       if (followBehavior !== null) {
         this.setPinned(true);
       }
-      this.applyFollowTailIntent(behavior);
+      this.applyFollowTailIntent(behavior, mergedTailIndex);
+    } else if (!blockTail && this.tailSettle !== null && this.pinned && this.el) {
+      this.applyFollowTailIntent('auto', this.tailSettle.tailIndex);
     }
 
     if (this.tailSettle !== null) {
@@ -519,10 +546,6 @@ export class TimelineScrollCoordinator {
       tailIndex: options.tailIndex,
       onSettled: options.onSettled,
     };
-
-    if (this.pinned && this.el) {
-      this.applyFollowTailIntent('auto', options.tailIndex);
-    }
   }
 
   /** Returns true when tail settle should continue on the next frame. */
@@ -557,16 +580,6 @@ export class TimelineScrollCoordinator {
       },
       { targetCheck: () => this.computeIsAtBottom() }
     );
-    if (this.followTailRafId !== null) {
-      cancelAnimationFrame(this.followTailRafId);
-    }
-    this.followTailRafId = requestAnimationFrame(() => {
-      this.followTailRafId = null;
-      if (!this.pinned || this.isTailBlockedByPrepend()) {
-        return;
-      }
-      this.applyTailScroll(behavior, tailIndex);
-    });
   }
 
   /** While pinned, correct scrollTop below max via the intent queue (no separate React watchdog). */
@@ -627,12 +640,12 @@ export class TimelineScrollCoordinator {
 
   /** Single DOM + virtualizer apply path for tail follow / snap / settle. */
   private applyTailScroll(behavior: 'auto' | 'smooth', tailIndex?: number): void {
-    if (tailIndex !== undefined && tailIndex >= 0) {
-      this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
-    }
-    this.scrollVirtualizer(behavior);
     this.snapDomImmediate();
-    this.syncVirtualizerScrollFromDom();
+    this.scheduleVirtualizerApply({
+      scrollToIndex: tailIndex !== undefined && tailIndex >= 0 ? tailIndex : undefined,
+      scrollToEndBehavior: behavior,
+      syncOffset: this.el ? Math.min(this.el.scrollTop, this.getMaxScrollTop()) : undefined,
+    });
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────
@@ -648,10 +661,6 @@ export class TimelineScrollCoordinator {
     for (const listener of this.pinListeners) {
       listener();
     }
-  }
-
-  private scrollVirtualizer(behavior: 'auto' | 'smooth'): void {
-    this.virtualizer?.scrollToEnd({ behavior });
   }
 
   private snapDomImmediate(): void {
@@ -831,10 +840,9 @@ export class TimelineScrollCoordinator {
 
   /**
    * TanStack Virtual caches scrollOffset from scroll events; DOM-only writes leave the
-   * range empty until the user scrolls. scrollToOffset + a synthetic scroll event sync it.
+   * range empty until the user scrolls. Reconcile via scrollToOffset + synthetic scroll.
    *
-   * Virtualizer scroll commands use flushSync and must not run during React layout
-   * (e.g. notifyTopChromeDelta from useLayoutEffect) — defer to a microtask.
+   * All virtualizer scroll APIs use flushSync — batch into one microtask per frame.
    */
   private syncVirtualizerScrollFromDom(): void {
     if (!this.el) return;
@@ -845,19 +853,44 @@ export class TimelineScrollCoordinator {
       this.el.scrollTop = top;
     }
 
-    this.scheduleVirtualizerSync(top);
+    this.scheduleVirtualizerApply({ syncOffset: top });
   }
 
-  private scheduleVirtualizerSync(top: number): void {
-    this.pendingVirtualizerSyncTop = top;
-    if (this.virtualizerSyncScheduled) return;
-    this.virtualizerSyncScheduled = true;
+  private scheduleVirtualizerApply(
+    patch: {
+      scrollToIndex?: number;
+      scrollToEndBehavior?: 'auto' | 'smooth';
+      syncOffset?: number;
+    }
+  ): void {
+    if (patch.scrollToIndex !== undefined) {
+      this.pendingVirtualizerApply.scrollToIndex = patch.scrollToIndex;
+    }
+    if (patch.scrollToEndBehavior !== undefined) {
+      this.pendingVirtualizerApply.scrollToEndBehavior = patch.scrollToEndBehavior;
+    }
+    if (patch.syncOffset !== undefined) {
+      this.pendingVirtualizerApply.syncOffset = patch.syncOffset;
+    }
+
+    if (this.virtualizerApplyScheduled) return;
+    this.virtualizerApplyScheduled = true;
     queueMicrotask(() => {
-      this.virtualizerSyncScheduled = false;
-      const offset = this.pendingVirtualizerSyncTop;
-      this.pendingVirtualizerSyncTop = null;
-      if (offset === null || !this.el) return;
-      this.virtualizer?.scrollToOffset?.(offset, { behavior: 'auto' });
+      this.virtualizerApplyScheduled = false;
+      const pending = this.pendingVirtualizerApply;
+      this.pendingVirtualizerApply = {};
+      if (!this.el) return;
+
+      const tailIndex = pending.scrollToIndex;
+      if (tailIndex !== undefined && tailIndex >= 0) {
+        this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
+      }
+      if (pending.scrollToEndBehavior !== undefined) {
+        this.virtualizer?.scrollToEnd({ behavior: pending.scrollToEndBehavior });
+      }
+      if (pending.syncOffset !== undefined) {
+        this.virtualizer?.scrollToOffset?.(pending.syncOffset, { behavior: 'auto' });
+      }
       this.el.dispatchEvent(new Event('scroll'));
     });
   }

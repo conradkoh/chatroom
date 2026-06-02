@@ -67,14 +67,15 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.shouldFollowTail()).toBe(false);
   });
 
-  it('jumpToEnd pins, snaps DOM to tail, and scrolls via virtualizer', () => {
+  it('jumpToEnd pins, snaps DOM to tail, and scrolls via virtualizer', async () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
 
     coordinator.jumpToEnd();
     expect(coordinator.isPinned).toBe(true);
-    expect(scrollToEnd).toHaveBeenCalled();
     expect(el.scrollTop).toBe(maxScrollTop());
+    await flushVirtualizerSync();
+    expect(scrollToEnd).toHaveBeenCalled();
   });
 
   it('stays unpinned when only partially scrolled from the tail', () => {
@@ -90,7 +91,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isAtBottom()).toBe(false);
   });
 
-  it('jumpToEnd reaches tail from a partial scroll position', () => {
+  it('jumpToEnd reaches tail from a partial scroll position', async () => {
     Object.defineProperty(el, 'scrollTop', {
       value: maxScrollTop() - 80,
       writable: true,
@@ -104,10 +105,11 @@ describe('TimelineScrollCoordinator', () => {
 
     expect(coordinator.isPinned).toBe(true);
     expect(el.scrollTop).toBe(maxScrollTop());
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('jumpToEnd pins immediately and uses auto scroll from unpinned partial position', () => {
+  it('jumpToEnd pins immediately and uses auto scroll from unpinned partial position', async () => {
     Object.defineProperty(el, 'scrollTop', {
       value: maxScrollTop() - 120,
       writable: true,
@@ -121,6 +123,7 @@ describe('TimelineScrollCoordinator', () => {
 
     expect(coordinator.isPinned).toBe(true);
     expect(el.scrollTop).toBe(maxScrollTop());
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalledWith({ behavior: 'auto' });
   });
 
@@ -138,14 +141,15 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(true);
   });
 
-  it('followTail snaps DOM and scrolls virtualizer', () => {
+  it('followTail snaps DOM and scrolls virtualizer', async () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     coordinator.followTail('auto');
-    expect(scrollToEnd).toHaveBeenCalled();
     expect(el.scrollTop).toBe(maxScrollTop());
+    await flushVirtualizerSync();
+    expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('follows tail on append when pinned but not yet flush at the tail', () => {
+  it('follows tail on append when pinned but not yet flush at the tail', async () => {
     Object.defineProperty(el, 'scrollTop', {
       value: maxScrollTop() - 80,
       writable: true,
@@ -167,11 +171,12 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalled();
     expect(coordinator.isPinned).toBe(true);
   });
 
-  it('follows tail on append when pinned', () => {
+  it('follows tail on append when pinned', async () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
@@ -187,6 +192,7 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
@@ -224,7 +230,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('follows tail when the last event changes but count is unchanged', () => {
+  it('follows tail when the last event changes but count is unchanged', async () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 50,
@@ -240,6 +246,7 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
@@ -584,14 +591,16 @@ describe('TimelineScrollCoordinator', () => {
       requestAnimationFrame(wait);
     });
 
+    await flushVirtualizerSync();
     expect(el.scrollTop).toBe(maxScrollTop());
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('endResize enqueues follow and tail settle when pinned', () => {
+  it('endResize enqueues follow and tail settle when pinned', async () => {
     coordinator.beginResize();
     scrollToEnd.mockClear();
     coordinator.endResize();
+    await flushVirtualizerSync();
     expect(scrollToEnd).toHaveBeenCalled();
   });
 

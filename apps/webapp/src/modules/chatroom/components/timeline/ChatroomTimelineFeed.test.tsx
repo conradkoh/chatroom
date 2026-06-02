@@ -186,6 +186,8 @@ function createCoordinatorRef(
 }
 
 async function flushRaf(): Promise<void> {
+  // Coordinator batches TanStack scroll commands in a microtask before rAF settle loops.
+  await Promise.resolve();
   await new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
@@ -486,6 +488,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
+    await flushRaf();
     expect(mockScrollToEnd).toHaveBeenCalled();
   });
 
@@ -521,6 +524,7 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
+    await flushRaf();
     expect(mockScrollToEnd).toHaveBeenCalled();
   });
 });
@@ -624,6 +628,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
+    await flushRaf();
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
@@ -655,6 +660,7 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
+    await flushRaf();
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
   });
