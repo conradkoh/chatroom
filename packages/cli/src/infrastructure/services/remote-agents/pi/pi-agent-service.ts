@@ -64,7 +64,7 @@ export class PiAgentService extends BaseCLIAgentService {
 
   /** Child processes by PID — needed for resumeTurn stdin writes. */
   private readonly childProcesses = new Map<number, ChildProcess>();
-  /** Session metadata for first-launch resume reconnect context. */
+  /** Session metadata for daemon-memory stop→start resume reconnect context. */
   private readonly trackedSessions = new Map<number, PiTrackedSession>();
 
   constructor(deps?: Partial<PiAgentServiceDeps>) {

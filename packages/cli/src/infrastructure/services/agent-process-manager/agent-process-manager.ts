@@ -24,7 +24,6 @@ import type {
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   RemoteAgentService,
-  SpawnOptions,
   SpawnResult,
 } from '../remote-agents/remote-agent-service.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
@@ -32,17 +31,6 @@ import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-function hasResumeFromDaemonMemory(
-  service: RemoteAgentService
-): service is RemoteAgentService & {
-  resumeFromDaemonMemory: (
-    options: SpawnOptions,
-    session: DaemonHarnessSessionContext
-  ) => Promise<SpawnResult>;
-} {
-  return typeof (service as { resumeFromDaemonMemory?: unknown }).resumeFromDaemonMemory === 'function';
-}
 
 /** In-memory reconnect context per chatroom+role (lost on daemon restart). */
 export interface LastHarnessSessionContext extends DaemonHarnessSessionContext {
@@ -79,7 +67,7 @@ export interface EnsureRunningOpts {
   model?: string;
   workingDir: string;
   reason: string;
-  /** When true (default), try to resume the daemon's last session on first launch. */
+  /** When true (default), try daemon-memory resume on stop→start (same daemon process). */
   wantResume?: boolean;
 }
 
@@ -752,7 +740,7 @@ export class AgentProcessManager {
     }
   }
 
-  private async tryFirstLaunchResume(opts: {
+  private async tryDaemonMemoryResume(opts: {
     key: string;
     chatroomId: string;
     role: string;
@@ -769,25 +757,37 @@ export class AgentProcessManager {
     }
 
     const stored = this.lastHarnessSessions.get(opts.key);
-    if (
-      !stored ||
-      stored.harness !== opts.agentHarness ||
-      !stored.agentName ||
-      !stored.workingDir
-    ) {
+    if (!stored) {
+      return null;
+    }
+
+    if (stored.workingDir !== opts.workingDir) {
+      this.clearLastHarnessSession(opts.key);
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        'no session in daemon memory'
+        'working directory changed',
+        stored.harnessSessionId
       );
       return null;
     }
 
-    if (!hasResumeFromDaemonMemory(opts.service)) {
+    if (stored.harness !== opts.agentHarness || !stored.agentName) {
+      this.clearLastHarnessSession(opts.key);
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        'first-launch session resume not yet supported',
+        stored.harness !== opts.agentHarness ? 'harness changed' : 'incomplete session in daemon memory',
+        stored.harnessSessionId
+      );
+      return null;
+    }
+
+    if (!opts.service.resumeFromDaemonMemory) {
+      await this.emitSessionResumeFailed(
+        opts.chatroomId,
+        opts.role,
+        'daemon-memory session resume not yet supported',
         stored.harnessSessionId
       );
       return null;
@@ -979,7 +979,7 @@ export class AgentProcessManager {
       let spawnResult: SpawnResult | undefined;
       if (wantResume) {
         spawnResult =
-          (await this.tryFirstLaunchResume({
+          (await this.tryDaemonMemoryResume({
             key,
             chatroomId: opts.chatroomId,
             role: opts.role,

@@ -514,6 +514,68 @@ describe('AgentProcessManager', () => {
       expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'pi-sess-1')).toBe(true);
     });
 
+    test('wantResume with no daemon memory spawns fresh without sessionResumeFailed', async () => {
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeFromDaemonMemory: vi.fn(),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      expect(opencodeSdkService.resumeFromDaemonMemory).not.toHaveBeenCalled();
+      const sessionResumeFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          typeof args.reason === 'string' &&
+          args.pid === undefined &&
+          args.stopReason === undefined
+      );
+      expect(sessionResumeFailedCalls).toHaveLength(0);
+    });
+
+    test('wantResume clears daemon memory and emits sessionResumeFailed when workingDir changed', async () => {
+      const resumeFromDaemonMemory = vi.fn();
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeFromDaemonMemory,
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      getLastHarnessSessions(manager).set(key, {
+        harnessSessionId: 'sess-1',
+        harness: 'opencode-sdk',
+        agentName: 'build',
+        workingDir: '/tmp/other',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true, workingDir: '/tmp/test' })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      expect(getLastHarnessSessions(manager).has(key)).toBe(false);
+      const resumeFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.reason === 'working directory changed'
+      );
+      expect(resumeFailedCalls).toHaveLength(1);
+      expect(resumeFailedCalls[0]).toMatchObject({
+        harnessSessionId: 'sess-1',
+      });
+    });
+
     test('wantResume falls back to spawn when resumeFromDaemonMemory fails', async () => {
       const resumeFromDaemonMemory = vi
         .fn()

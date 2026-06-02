@@ -50,7 +50,7 @@ export interface HarnessReconnectMetadata {
   model?: string;
 }
 
-/** Daemon-memory session context for first-launch resume (opencode-sdk). */
+/** Daemon-memory session context for stop→start resume (same daemon process). */
 export interface DaemonHarnessSessionContext {
   harnessSessionId: string;
   agentName: string;
@@ -71,7 +71,7 @@ export interface SpawnResult {
   onAgentEnd?: (cb: () => void) => void;
   /** Session ID for harnesses that support session resume. Undefined if not applicable. */
   harnessSessionId?: string;
-  /** Extra fields for first-launch resume (e.g. opencode-sdk agent name). */
+  /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
   harnessReconnect?: HarnessReconnectMetadata;
 }
 
@@ -83,7 +83,7 @@ export interface ProcessInfo {
 
 /** Optional flags for harness-specific stop behavior (e.g. resume-friendly user stop). */
 export interface AgentStopOptions {
-  /** When true, preserve session state for a later first-launch resume instead of aborting. */
+  /** When true, preserve session state for a later stop→start daemon-memory resume instead of aborting. */
   preserveForResume?: boolean;
 }
 
@@ -123,8 +123,17 @@ export interface RemoteAgentService {
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
   /**
+   * Reconnect after user.stop preserved session state (daemon memory only).
+   * Only implement on harnesses where supportsSessionResume = true (e.g. opencode-sdk, cursor-sdk, pi).
+   */
+  resumeFromDaemonMemory?(
+    options: SpawnOptions,
+    session: DaemonHarnessSessionContext
+  ): Promise<SpawnResult>;
+
+  /**
    * Read harness session metadata for reconnect before stop removes it.
-   * Only implement on harnesses that support first-launch resume (e.g. opencode-sdk).
+   * Only implement on harnesses that support daemon-memory resume (e.g. opencode-sdk).
    */
   getHarnessReconnectContext?(pid: number): HarnessReconnectMetadata | undefined;
 
