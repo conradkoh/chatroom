@@ -320,6 +320,11 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 | `commandcode` | Direct `cmd` child | Long-lived headless (`--max-turns`) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 | `copilot` | Direct `copilot` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 
-**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On first launch, `wantResume` on `agent.requestStart` controls whether the daemon tries to reconnect to its in-memory last session (emitting `agent.sessionResumed` or `agent.sessionResumeFailed` for observability). A **requestStart replace** always kills via `doStop` regardless of resume state.
+**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On first launch, `wantResume` on `agent.requestStart` controls whether the daemon tries to reconnect:
+
+- **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`, persists a disk snapshot). The next start with `wantResume` calls `resumeFromSnapshot` (new `opencode serve`, same `sessionId` via `session.promptAsync`). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to a fresh `spawn`.
+- **pi / cursor-sdk**: in-turn `resumeTurn` only; first-launch reconnect is not implemented yet.
+
+A **requestStart replace** always kills via `doStop` regardless of resume state.
 
 **Residual risk (all CLI harnesses):** tool subprocesses that call `setsid` and leave the agent PG may survive group kill — upstream CLI behavior, not fixable in Chatroom alone.

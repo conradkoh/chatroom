@@ -21,9 +21,18 @@ import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+import { OpenCodeSdkAgentService } from '../remote-agents/opencode-sdk/opencode-sdk-agent-service.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
+
+function isOpencodeSdkResumeService(service: RemoteAgentService): service is OpenCodeSdkAgentService {
+  return (
+    service.id === 'opencode-sdk' &&
+    typeof (service as OpenCodeSdkAgentService).getResumeSnapshot === 'function' &&
+    typeof (service as OpenCodeSdkAgentService).resumeFromSnapshot === 'function'
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -728,37 +737,78 @@ export class AgentProcessManager {
   }
 
   /**
-   * When wantResume is true on first launch, check daemon memory for a prior
-   * harness session. Emits sessionResumeFailed when none is available (e.g.
-   * after daemon restart) or when reconnect is not yet implemented.
+   * When wantResume is true on first launch, try to reconnect via persisted harness
+   * snapshot (opencode-sdk). Returns SpawnResult on success; null falls through to spawn.
    */
-  private async handleFirstLaunchResumeAttempt(opts: {
-    key: string;
+  private async tryFirstLaunchResume(opts: {
     chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
-  }): Promise<void> {
+    workingDir: string;
+    model?: string;
+    initPrompt: string;
+    systemPrompt: string;
+    service: RemoteAgentService;
+  }): Promise<SpawnResult | null> {
     const capabilities = getHarnessCapabilities(opts.agentHarness);
     if (!capabilities.supportsSessionResume) {
-      return;
+      return null;
     }
 
-    const stored = this.lastHarnessSessions.get(opts.key);
-    if (!stored || stored.harness !== opts.agentHarness) {
+    if (opts.agentHarness !== 'opencode-sdk' || !isOpencodeSdkResumeService(opts.service)) {
+      return null;
+    }
+
+    const snapshot = opts.service.getResumeSnapshot(
+      this.deps.machineId,
+      opts.chatroomId,
+      opts.role
+    );
+    if (!snapshot) {
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        'no session in daemon memory'
+        'no resume snapshot on disk'
       );
-      return;
+      return null;
     }
 
-    // Harness-specific first-launch reconnect is not implemented yet — fall through to fresh spawn.
-    await this.emitSessionResumeFailed(
-      opts.chatroomId,
-      opts.role,
-      'first-launch session resume not yet supported'
-    );
+    try {
+      const spawnResult = await opts.service.resumeFromSnapshot(
+        {
+          workingDir: opts.workingDir,
+          prompt: createSpawnPrompt(opts.initPrompt),
+          systemPrompt: opts.systemPrompt,
+          model: opts.model,
+          context: {
+            machineId: this.deps.machineId,
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+          },
+        },
+        snapshot
+      );
+      await this.emitSessionResumed(opts.chatroomId, opts.role);
+      return spawnResult;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      await this.emitSessionResumeFailed(opts.chatroomId, opts.role, reason);
+      return null;
+    }
+  }
+
+  private async emitSessionResumed(chatroomId: string, role: string): Promise<void> {
+    try {
+      await this.deps.backend.mutation(api.machines.emitSessionResumed, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${role}`);
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit sessionResumed event: ${(err as Error).message}`);
+    }
   }
 
   private async emitSessionResumeFailed(
@@ -889,32 +939,39 @@ export class AgentProcessManager {
         return { success: false, error: `Unknown agent harness: ${opts.agentHarness}` };
       }
 
+      let spawnResult: SpawnResult | undefined;
       if (wantResume) {
-        await this.handleFirstLaunchResumeAttempt({
-          key,
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          agentHarness: opts.agentHarness,
-        });
-      }
-
-      let spawnResult: SpawnResult;
-      try {
-        spawnResult = await service.spawn({
-          workingDir: opts.workingDir,
-          prompt: createSpawnPrompt(initPromptResult.initialMessage),
-          systemPrompt: initPromptResult.rolePrompt,
-          model: opts.model,
-          context: {
-            machineId: this.deps.machineId,
+        spawnResult =
+          (await this.tryFirstLaunchResume({
             chatroomId: opts.chatroomId,
             role: opts.role,
-          },
-        });
-      } catch (e) {
-        slot.state = 'idle';
-        slot.pendingOperation = undefined;
-        return { success: false, error: `Failed to spawn agent: ${(e as Error).message}` };
+            agentHarness: opts.agentHarness,
+            workingDir: opts.workingDir,
+            model: opts.model,
+            initPrompt: initPromptResult.initialMessage,
+            systemPrompt: initPromptResult.rolePrompt,
+            service,
+          })) ?? undefined;
+      }
+
+      if (!spawnResult) {
+        try {
+          spawnResult = await service.spawn({
+            workingDir: opts.workingDir,
+            prompt: createSpawnPrompt(initPromptResult.initialMessage),
+            systemPrompt: initPromptResult.rolePrompt,
+            model: opts.model,
+            context: {
+              machineId: this.deps.machineId,
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+            },
+          });
+        } catch (e) {
+          slot.state = 'idle';
+          slot.pendingOperation = undefined;
+          return { success: false, error: `Failed to spawn agent: ${(e as Error).message}` };
+        }
       }
 
       const { pid } = spawnResult;

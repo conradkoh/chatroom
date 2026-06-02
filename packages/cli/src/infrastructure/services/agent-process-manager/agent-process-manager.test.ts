@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
+import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import {
   AgentProcessManager,
@@ -306,6 +307,91 @@ describe('AgentProcessManager', () => {
       const spawnArgs = (service.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnArgs.prompt).toBe(DEFAULT_TRIGGER_PROMPT);
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
+    });
+
+    test('wantResume uses resumeFromSnapshot when opencode-sdk snapshot exists', async () => {
+      const resumeFromSnapshot = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'sess-resume-1',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const getResumeSnapshot = vi.fn().mockReturnValue({
+        sessionId: 'sess-resume-1',
+        machineId: 'test-machine',
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        updatedAt: new Date().toISOString(),
+      });
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        getResumeSnapshot,
+        resumeFromSnapshot,
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromSnapshot).toHaveBeenCalledOnce();
+      expect(opencodeSdkService.spawn).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('sess-resume-1');
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        api.machines.emitSessionResumed,
+        expect.objectContaining({ chatroomId: CHATROOM_ID, role: ROLE })
+      );
+      const resumeFailedCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => call[0] === api.machines.emitSessionResumeFailed
+      );
+      expect(resumeFailedCalls).toHaveLength(0);
+    });
+
+    test('wantResume falls back to spawn when resumeFromSnapshot fails', async () => {
+      const resumeFromSnapshot = vi
+        .fn()
+        .mockRejectedValue(new Error('OpenCode session sess-1 not found'));
+      const getResumeSnapshot = vi.fn().mockReturnValue({
+        sessionId: 'sess-1',
+        machineId: 'test-machine',
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        updatedAt: new Date().toISOString(),
+      });
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        getResumeSnapshot,
+        resumeFromSnapshot,
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromSnapshot).toHaveBeenCalledOnce();
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        api.machines.emitSessionResumeFailed,
+        expect.objectContaining({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          reason: 'OpenCode session sess-1 not found',
+        })
+      );
     });
 
     test('second start while running replaces PID', async () => {
