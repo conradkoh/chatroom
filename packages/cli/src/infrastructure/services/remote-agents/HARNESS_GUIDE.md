@@ -315,7 +315,7 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 | `opencode-sdk` | `opencode serve` server | SDK client in-process + server PG | Override: forwarder stop → `session.abort` → base stop; removes session metadata | `doStop` → override stop | `stopPersistedProcess` → override stop |
 | `pi` | Direct `pi` child | Long-lived RPC, stdin resume | Base group kill; `untrack` clears `childProcesses` | `doStop` → base stop + untrack | `stopPersistedProcess` → base stop |
 | `cursor` | Direct `agent` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
-| `cursor-sdk` | Keeper `node -e …` child | SDK in-process + keeper PG | Override: abort resume wait → `run.cancel` → `agent.close` → base stop | `doStop` → override stop | `stopPersistedProcess` → override stop |
+| `cursor-sdk` | Keeper `node -e …` child | SDK in-process + keeper PG | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop | `stopPersistedProcess` → override stop |
 | `claude` | Direct `claude` child | Single-shot CLI (agentic turns) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 | `commandcode` | Direct `cmd` child | Long-lived headless (`--max-turns`) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 | `copilot` | Direct `copilot` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
@@ -323,7 +323,8 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 **Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On first launch, `wantResume` on `agent.requestStart` controls whether the daemon tries to reconnect:
 
 - **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`). `AgentProcessManager.lastHarnessSessions` stores reconnect metadata in daemon memory on spawn and on preserve-for-resume stop; non-preserve stop clears the entry. The next start with `wantResume` calls `OpenCodeSdkAgentService.resumeFromDaemonMemory` (new `opencode serve`, `session.get`, `session.promptAsync` on the same `sessionId`). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. Daemon restart loses memory → `no session in daemon memory` → fresh spawn.
-- **pi / cursor-sdk**: in-turn `resumeTurn` only; first-launch reconnect is not implemented yet.
+- **cursor-sdk**: Same daemon-memory model as opencode-sdk. `spawn` returns `harnessSessionId` (`agent.agentId`) and `harnessReconnect` metadata. `user.stop` with `preserveForResume` skips `agent.close()` so the Cursor agent stays resumable. The next start with `wantResume` calls `CursorSdkAgentService.resumeFromDaemonMemory` (`Agent.resume(agentId)`, then `agent.send` with the spawn prompt). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. Daemon restart loses memory → fresh spawn.
+- **pi**: in-turn `resumeTurn` only; first-launch reconnect is not implemented yet.
 
 A **requestStart replace** always kills via `doStop` regardless of resume state.
 
