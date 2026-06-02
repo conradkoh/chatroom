@@ -228,7 +228,7 @@ export function MessageInput({
   const attachedBacklogItems = useBacklogAttachments();
   const attachedMessages = useMessageAttachments();
 
-  const sendMessage = useSessionMutation(api.messages.send);
+  const sendMessage = useSessionMutation(api.messages.sendMessage);
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
   const autoResize = useCallback(() => {

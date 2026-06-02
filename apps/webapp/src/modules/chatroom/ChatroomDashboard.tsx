@@ -558,7 +558,7 @@ export function ChatroomDashboard({
   });
 
   // Send message mutation (used to execute saved commands)
-  const sendMessageMutation = useSessionMutation(api.messages.send);
+  const sendMessageMutation = useSessionMutation(api.messages.sendMessage);
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);

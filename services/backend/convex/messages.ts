@@ -151,6 +151,32 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
     taskMap.set(id, task);
   }
 
+  const taskIdsNeedingProgress = [
+    ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
+  ];
+  const progressByTaskId = new Map<
+    string,
+    { content: string; senderRole: string; _creationTime: number }
+  >();
+  await Promise.all(
+    taskIdsNeedingProgress.map(async (taskId) => {
+      const progressMessages = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
+        .filter((q) => q.eq(q.field('type'), 'progress'))
+        .order('desc')
+        .take(1);
+      if (progressMessages.length > 0) {
+        const latest = progressMessages[0];
+        progressByTaskId.set(taskId.toString(), {
+          content: latest.content,
+          senderRole: latest.senderRole,
+          _creationTime: latest._creationTime,
+        });
+      }
+    })
+  );
+
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
       // Use batched task lookup
@@ -163,26 +189,9 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
       // Resolve attachments (shared helper)
       const attachments = await enrichMessageAttachments(ctx, message);
 
-      // Fetch latest progress message for tasks (for inline progress display)
-      let latestProgress:
-        | { content: string; senderRole: string; _creationTime: number }
-        | undefined;
-      if (message.taskId) {
-        const progressMessages = await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
-          .filter((q) => q.eq(q.field('type'), 'progress'))
-          .order('desc')
-          .take(1);
-        if (progressMessages.length > 0) {
-          const latest = progressMessages[0];
-          latestProgress = {
-            content: latest.content,
-            senderRole: latest.senderRole,
-            _creationTime: latest._creationTime,
-          };
-        }
-      }
+      const latestProgress = message.taskId
+        ? progressByTaskId.get(message.taskId.toString())
+        : undefined;
 
       return {
         ...message,
@@ -379,38 +388,6 @@ async function _sendMessageHandler(
 
       return messageId;
     }
-    // ─── Pending path: existing flow (store in chatroom_messages) ────────
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      targetRole,
-      type: args.type,
-      ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-      ...(args.attachedBacklogItemIds?.length && {
-        attachedBacklogItemIds: args.attachedBacklogItemIds,
-      }),
-      ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
-    });
-
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      lastActivityAt: Date.now(),
-    });
-
-    const { taskId } = await createTaskUsecase(ctx, {
-      chatroomId: args.chatroomId,
-      createdBy: 'user',
-      content: args.content,
-      forceStatus: undefined,
-      assignedTo,
-      sourceMessageId: messageId,
-      attachedTaskIds: args.attachedTaskIds,
-      queuePosition,
-    });
-
-    await ctx.db.patch('chatroom_messages', messageId, { taskId });
-
-    return messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────
   const messageId = await ctx.db.insert('chatroom_messages', {
