@@ -56,11 +56,16 @@ export async function shouldEnqueueMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  const tasks = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-  return tasks.some((t) => ACTIVE_TASK_STATUSES.has(t.status));
+  for (const status of ACTIVE_TASK_STATUSES) {
+    const active = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', status)
+      )
+      .first();
+    if (active) return true;
+  }
+  return false;
 }
 
 /**
