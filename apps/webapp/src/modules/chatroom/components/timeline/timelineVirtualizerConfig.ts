@@ -53,8 +53,14 @@ export function shouldTriggerLoadOlder(input: {
   return nearTop && sentinelVisible;
 }
 
-/** Matches ScrollController AT_BOTTOM_THRESHOLD — used for followOnAppend / isAtEnd. */
+/** Matches ScrollController AT_BOTTOM_THRESHOLD — TanStack scrollEndThreshold / load-older guards. */
 export const TIMELINE_SCROLL_END_THRESHOLD = 50;
+
+/**
+ * Stricter DOM threshold for pin / jump-chip UI. A partial scroll (e.g. half the last
+ * message still visible) must stay unpinned so "Jump to new messages" remains actionable.
+ */
+export const TIMELINE_PIN_AT_BOTTOM_THRESHOLD = 8;
 
 /** Extra space after the last row so the tail message is not clipped at the scroll edge. */
 export const TIMELINE_PADDING_END = 16;

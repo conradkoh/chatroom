@@ -62,6 +62,7 @@ export function ChatroomTimelineFeed({
   const topChromeRef = useRef<HTMLDivElement>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const measurementCacheRef = useRef<Map<string, number>>(new Map());
+  const tailMeasureRef = useRef<{ id: string; size: number } | null>(null);
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
   const isPinned = useSyncExternalStore(
@@ -136,6 +137,25 @@ export function ChatroomTimelineFeed({
       const e = events[item.index];
       if (e && item.size > 0) cache.set(e.id, item.size);
     }
+
+    const lastEvent = events.length > 0 ? events[events.length - 1]! : null;
+    if (!lastEvent) {
+      tailMeasureRef.current = null;
+      return;
+    }
+
+    const measuredSize = cache.get(lastEvent.id);
+    if (measuredSize === undefined || measuredSize <= 0) return;
+
+    const prev = tailMeasureRef.current;
+    if (
+      prev?.id === lastEvent.id &&
+      measuredSize > prev.size &&
+      coordinator.current.shouldFollowTail()
+    ) {
+      coordinator.current.notifyTailRowResized(events.length - 1);
+    }
+    tailMeasureRef.current = { id: lastEvent.id, size: measuredSize };
   });
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
@@ -169,12 +189,9 @@ export function ChatroomTimelineFeed({
     const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
     if (measuredChrome === topChromeHeight) return;
 
-    const el = scrollParentRef.current;
     const chromeDelta = measuredChrome - topChromeHeight;
-    // Preserve viewport when top chrome grows (load-older spinner); skip only at tail.
-    if (el && chromeDelta !== 0 && !coordinator.current.isAtBottom()) {
-      el.scrollTop += chromeDelta;
-      virtualizerRef.current.scrollToOffset(el.scrollTop, { behavior: 'auto' });
+    if (chromeDelta !== 0) {
+      coordinator.current.notifyTopChromeDelta(chromeDelta);
     }
     setTopChromeHeight(measuredChrome);
   });
@@ -398,7 +415,7 @@ export function ChatroomTimelineFeed({
       {!isPinned && (
         <button
           type="button"
-          onClick={() => coordinator.current.jumpToEnd('smooth')}
+          onClick={() => coordinator.current.jumpToEnd()}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >

@@ -38,21 +38,42 @@ const loadOlderEvents = vi.fn();
 let mockHasMoreOlder = false;
 /** Simulates virtualizer reporting a top index while the DOM is already at bottom. */
 let mockFirstVisibleIndex = 0;
+/** When set, include the tail row in getVirtualItems (for in-place tail growth tests). */
+let mockTailItemIndex: number | null = null;
+let mockTailItemSize = 100;
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
     virtualizerOptions.push(options);
     const instance = {
       getVirtualItems: () => {
-        if (mockFirstVisibleIndex < 0) return [];
-        return [
-          {
+        if (mockFirstVisibleIndex < 0 && mockTailItemIndex === null) return [];
+        const items: Array<{
+          index: number;
+          start: number;
+          size: number;
+          key: string;
+        }> = [];
+        if (mockFirstVisibleIndex >= 0) {
+          items.push({
             index: mockFirstVisibleIndex,
             start: mockFirstVisibleIndex * 100,
             size: 100,
             key: `row-${mockFirstVisibleIndex}`,
-          },
-        ];
+          });
+        }
+        if (
+          mockTailItemIndex !== null &&
+          !items.some((row) => row.index === mockTailItemIndex)
+        ) {
+          items.push({
+            index: mockTailItemIndex,
+            start: mockTailItemIndex * 100,
+            size: mockTailItemSize,
+            key: `row-${mockTailItemIndex}`,
+          });
+        }
+        return items;
       },
       getTotalSize: () => options.count * 100,
       measureElement: vi.fn(),
@@ -429,7 +450,6 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     });
 
     setScrollPinned(true);
-    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
 
     // Simulate subscription slide-off: count unchanged, new tail id.
@@ -453,21 +473,19 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(followTail).toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
-    followTail.mockRestore();
   });
 
   it('commits layout when top chrome is still being measured (does not block tail follow)', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
+    setScrollPinned(true);
 
     const scroll = screen.getByTestId('chatroom-timeline-scroll');
     const chrome = scroll.firstElementChild as HTMLElement;
     Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 48 });
 
     mockHasMoreOlder = true;
-    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
 
     timelineEvents = [
@@ -490,8 +508,69 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(followTail).toHaveBeenCalled();
-    followTail.mockRestore();
+    expect(mockScrollToEnd).toHaveBeenCalled();
+  });
+});
+
+describe('ChatroomTimelineFeed tail row in-place growth', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
+    mockTailItemIndex = null;
+    mockTailItemSize = 100;
+    timelineEvents = buildEvents(25);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('notifies coordinator when tail row measured size grows while pinned', async () => {
+    mockTailItemIndex = 24;
+    mockTailItemSize = 100;
+
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    setScrollPinned(true);
+
+    const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+    notifyTailRowResized.mockClear();
+
+    mockTailItemSize = 280;
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(notifyTailRowResized).toHaveBeenCalledWith(24);
+    notifyTailRowResized.mockRestore();
+  });
+
+  it('does not notify when tail row grows while unpinned', async () => {
+    mockTailItemIndex = 24;
+    mockTailItemSize = 100;
+
+    const { rerender, coordinator } = renderFeed(false);
+    await flushRaf();
+    setScrollPinned(false);
+
+    const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+    notifyTailRowResized.mockClear();
+
+    mockTailItemSize = 280;
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(notifyTailRowResized).not.toHaveBeenCalled();
+    notifyTailRowResized.mockRestore();
   });
 });
 
@@ -510,8 +589,6 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
     setScrollPinned(true);
-
-    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
 
     timelineEvents = [
@@ -534,18 +611,15 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(followTail).toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
-    followTail.mockRestore();
   });
 
   it('follows tail on append when physically at bottom', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
     setScrollPinned(true);
-    const followTail = vi.spyOn(coordinator.current, 'followTail');
     mockScrollToEnd.mockClear();
 
     timelineEvents = [
@@ -568,10 +642,8 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
     });
 
-    expect(followTail).toHaveBeenCalled();
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
-    followTail.mockRestore();
   });
 
   it('does not auto-scroll when scrolled up and shows jump chip', async () => {
@@ -648,6 +720,42 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
 
     expect(mockScrollToEnd).toHaveBeenCalled();
     expect(coordinator.current.isPinned).toBe(true);
+  });
+
+  it('shows jump chip on partial scroll from tail and follows tail on click', async () => {
+    timelineEvents = buildEvents(25);
+    const user = userEvent.setup();
+    const { coordinator } = renderFeed(true);
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    const partialScrollTop = maxScrollTop - 80;
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, partialScrollTop, 2500);
+      el.dispatchEvent(new Event('wheel'));
+      el.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      expect(coordinator.current.isPinned).toBe(false);
+    });
+    expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
+
+    mockScrollToEnd.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Jump to new messages' }));
+    await flushRaf();
+    await flushRaf();
+
+    expect(coordinator.current.isPinned).toBe(true);
+    expect(mockScrollToEnd).toHaveBeenCalled();
+    expect(el.scrollTop).toBe(maxScrollTop);
+    expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
 
 });
