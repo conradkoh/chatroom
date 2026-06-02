@@ -6,6 +6,7 @@ import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
@@ -60,12 +61,22 @@ export const join = mutation({
       // Update presence fields and optionally connectionId/action/agentType.
       // connectionId is only updated when explicitly provided — never cleared by heartbeats
       // that don't supply a connectionId, to avoid breaking superseded-connection detection.
-      await ctx.db.patch('chatroom_participants', existing._id, {
-        ...(args.connectionId !== undefined ? { connectionId: args.connectionId } : {}),
-        lastSeenAt: now,
-        ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
-        ...(args.agentType ? { agentType: args.agentType } : {}),
-      });
+      const hasMaterialChange =
+        args.connectionId !== undefined ||
+        args.action !== undefined ||
+        args.agentType !== undefined;
+      const lastSeenAtStale =
+        existing.lastSeenAt === undefined ||
+        now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
+
+      if (hasMaterialChange || lastSeenAtStale) {
+        await ctx.db.patch('chatroom_participants', existing._id, {
+          ...(args.connectionId !== undefined ? { connectionId: args.connectionId } : {}),
+          ...(lastSeenAtStale ? { lastSeenAt: now } : {}),
+          ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
+          ...(args.agentType ? { agentType: args.agentType } : {}),
+        });
+      }
       participantId = existing._id;
     } else {
       // Create new participant
