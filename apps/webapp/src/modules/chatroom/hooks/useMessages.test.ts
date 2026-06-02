@@ -197,6 +197,84 @@ describe('useMessages (delta store)', () => {
     });
   });
 
+  it('issues a second listMessagesBefore after a duplicate-only page', async () => {
+    mockInitialLoad(
+      [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+      true
+    );
+    const beforeArgs: number[] = [];
+    mockConvexQuery.mockImplementation((endpoint: string, args?: { before?: number }) => {
+      if (endpoint === 'getLatestMessages') {
+        return Promise.resolve({
+          messages: [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+          hasMore: true,
+          tailAfterCreationTime: 1000,
+        });
+      }
+      if (endpoint === 'listMessagesBefore') {
+        beforeArgs.push(args?.before ?? -1);
+        if (beforeArgs.length <= 2) {
+          return Promise.resolve([makeMsg('msg-1', 1000)]);
+        }
+        return Promise.resolve([makeMsg('older-0', 500)]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+    await waitFor(() => expect(result.current.isLoadingOlder).toBe(false));
+    const callsAfterFirst = beforeArgs.length;
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+    await waitFor(() => {
+      expect(beforeArgs.length).toBeGreaterThan(callsAfterFirst);
+      expect(result.current.messages.some((m) => m._id === 'older-0')).toBe(true);
+    });
+  });
+
+  it('keeps hasMoreOlder true after a partial older page (fewer than page size)', async () => {
+    mockInitialLoad(
+      Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
+      true
+    );
+    mockConvexQuery.mockImplementation((endpoint: string) => {
+      if (endpoint === 'getLatestMessages') {
+        const messages = Array.from({ length: 20 }, (_, i) =>
+          makeMsg(`msg-${i}`, i * 1000)
+        );
+        return Promise.resolve({
+          messages,
+          hasMore: true,
+          tailAfterCreationTime: 0,
+        });
+      }
+      if (endpoint === 'listMessagesBefore') {
+        return Promise.resolve([makeMsg('older-0', 50)]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasMoreOlder).toBe(true);
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.some((m) => m._id === 'older-0')).toBe(true);
+      expect(result.current.hasMoreOlder).toBe(true);
+    });
+  });
+
   it('resets store when chatroomId changes', async () => {
     mockInitialLoad([makeMsg('a-1', 1000)]);
     const { result, rerender } = renderHook(({ roomId }) => useMessages(roomId), {

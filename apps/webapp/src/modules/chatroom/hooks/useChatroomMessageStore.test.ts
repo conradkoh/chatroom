@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { inferHasMoreOlder, MESSAGE_STORE_LIMIT } from './useChatroomMessageStore';
+import {
+  hasMoreOlderAfterPage,
+  inferHasMoreOlder,
+  MESSAGE_STORE_LIMIT,
+} from './useChatroomMessageStore';
+
+describe('hasMoreOlderAfterPage', () => {
+  it('returns true for any non-empty page (partial pages still have more)', () => {
+    expect(hasMoreOlderAfterPage(5)).toBe(true);
+    expect(hasMoreOlderAfterPage(20)).toBe(true);
+  });
+
+  it('returns false only for an empty page', () => {
+    expect(hasMoreOlderAfterPage(0)).toBe(false);
+  });
+});
 
 describe('inferHasMoreOlder', () => {
   it('returns true when server reports hasMore', () => {

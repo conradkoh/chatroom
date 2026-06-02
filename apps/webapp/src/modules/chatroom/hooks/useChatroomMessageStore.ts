@@ -26,6 +26,11 @@ export function inferHasMoreOlder(messageCount: number, hasMoreFromServer: boole
   return hasMoreFromServer || messageCount >= MESSAGE_STORE_LIMIT;
 }
 
+/** History is exhausted only when the server returns zero rows for a page. */
+export function hasMoreOlderAfterPage(pageLength: number): boolean {
+  return pageLength > 0;
+}
+
 // ─── Wire → domain mapping ───────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,6 +108,11 @@ function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] 
   return result;
 }
 
+function filterNewMessages(existing: Message[], incoming: Message[]): Message[] {
+  const existingIds = new Set(existing.map((m) => m._id));
+  return incoming.filter((m) => !existingIds.has(m._id));
+}
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'INITIALIZE': {
@@ -122,16 +132,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, messages: merged };
     }
     case 'PREPEND_OLDER': {
-      const existingIds = new Set(state.messages.map((m) => m._id));
-      const newOnes = action.messages.filter((m) => !existingIds.has(m._id));
-      if (newOnes.length === 0) {
+      if (action.messages.length === 0) {
         return {
           ...state,
           hasMoreOlder: action.hasMoreOlder,
           isLoadingOlder: false,
         };
       }
-      const merged = [...newOnes, ...state.messages].sort(
+      const merged = [...action.messages, ...state.messages].sort(
         (a, b) => a._creationTime - b._creationTime
       );
       return {
@@ -169,7 +177,8 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
   const [state, dispatch] = useReducer(reducer, initialState);
   const [initialLoadRequested, setInitialLoadRequested] = useState(false);
   const isLoadingOlderRef = useRef(false);
-  const oldestBeforeRef = useRef<number | null>(null);
+  /** When a page overlaps the tail window (duplicates only), next load uses this cursor. */
+  const loadOlderBeforeRef = useRef<number | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const hasMoreOlderRef = useRef(false);
   const isInitializedRef = useRef(false);
@@ -181,7 +190,7 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     dispatch({ type: 'RESET' });
     setInitialLoadRequested(false);
     isLoadingOlderRef.current = false;
-    oldestBeforeRef.current = null;
+    loadOlderBeforeRef.current = null;
   }, [chatroomId]);
 
   // ── Initial load (imperative, one-shot) ───────────────────────────────────
@@ -197,7 +206,6 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
       })
       .then((data) => {
         const messages = data.messages.map(toMessage);
-        oldestBeforeRef.current = messages[0]?._creationTime ?? null;
         dispatch({
           type: 'INITIALIZE',
           messages,
@@ -237,54 +245,55 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
       return;
     }
 
-    const before =
-      oldestBeforeRef.current ??
-      messagesRef.current[0]?._creationTime ??
-      Date.now();
+    const oldestInStore = messagesRef.current[0];
+    if (!oldestInStore) {
+      return;
+    }
 
     isLoadingOlderRef.current = true;
     dispatch({ type: 'LOAD_OLDER_START' });
 
     void (async () => {
       try {
-        const older = await convex.query(api.messageList.listMessagesBefore, {
-          chatroomId: typedChatroomId,
-          before,
-          limit: MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
-          sessionId,
-        });
+        let before = loadOlderBeforeRef.current ?? oldestInStore._creationTime;
+        let page = (
+          await convex.query(api.messageList.listMessagesBefore, {
+            chatroomId: typedChatroomId,
+            before,
+            limit: MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
+            sessionId,
+          })
+        ).map(toMessage);
 
-        const mapped = older.map(toMessage);
-        const pageHasMore = mapped.length >= MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE;
-
-        if (mapped.length === 0) {
-          dispatch({ type: 'PREPEND_OLDER', messages: [], hasMoreOlder: false });
-          return;
+        // Overlap with the tail window can return duplicates only — retry further back once.
+        let newOnes = filterNewMessages(messagesRef.current, page);
+        if (newOnes.length === 0 && page.length > 0) {
+          const minTime = Math.min(...page.map((m) => m._creationTime));
+          before = minTime - 1;
+          page = (
+            await convex.query(api.messageList.listMessagesBefore, {
+              chatroomId: typedChatroomId,
+              before,
+              limit: MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
+              sessionId,
+            })
+          ).map(toMessage);
+          newOnes = filterNewMessages(messagesRef.current, page);
         }
 
-        const existingIds = new Set(messagesRef.current.map((m) => m._id));
-        const newOnes = mapped.filter((m) => !existingIds.has(m._id));
-
-        if (newOnes.length === 0) {
-          // Duplicate page — advance cursor so the next request fetches further back.
-          const minTime = Math.min(...mapped.map((m) => m._creationTime));
-          const prev = oldestBeforeRef.current;
-          if (prev === null || minTime <= prev) {
-            oldestBeforeRef.current = minTime - 1;
-          } else {
-            oldestBeforeRef.current = minTime;
-          }
+        if (page.length === 0) {
+          loadOlderBeforeRef.current = null;
+        } else if (newOnes.length === 0) {
+          const minTime = Math.min(...page.map((m) => m._creationTime));
+          loadOlderBeforeRef.current = minTime - 1;
         } else {
-          const merged = [...newOnes, ...messagesRef.current].sort(
-            (a, b) => a._creationTime - b._creationTime
-          );
-          oldestBeforeRef.current = merged[0]?._creationTime ?? oldestBeforeRef.current;
+          loadOlderBeforeRef.current = null;
         }
 
         dispatch({
           type: 'PREPEND_OLDER',
-          messages: mapped,
-          hasMoreOlder: pageHasMore,
+          messages: newOnes,
+          hasMoreOlder: hasMoreOlderAfterPage(page.length),
         });
       } catch (err: unknown) {
         console.error('[useChatroomMessageStore] loadOlder failed:', err);
