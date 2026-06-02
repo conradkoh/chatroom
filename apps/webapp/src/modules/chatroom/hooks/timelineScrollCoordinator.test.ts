@@ -68,7 +68,7 @@ describe('TimelineScrollCoordinator', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
 
-    coordinator.jumpToEnd('smooth');
+    coordinator.jumpToEnd();
     expect(coordinator.isPinned).toBe(true);
     expect(scrollToEnd).toHaveBeenCalled();
     expect(el.scrollTop).toBe(maxScrollTop());
@@ -97,7 +97,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(false);
 
     scrollToEnd.mockClear();
-    coordinator.jumpToEnd('smooth');
+    coordinator.jumpToEnd();
 
     expect(coordinator.isPinned).toBe(true);
     expect(el.scrollTop).toBe(maxScrollTop());
@@ -114,7 +114,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(false);
 
     scrollToEnd.mockClear();
-    coordinator.jumpToEnd('smooth');
+    coordinator.jumpToEnd();
 
     expect(coordinator.isPinned).toBe(true);
     expect(el.scrollTop).toBe(maxScrollTop());
@@ -126,7 +126,7 @@ describe('TimelineScrollCoordinator', () => {
     el.dispatchEvent(new Event('scroll'));
     expect(coordinator.isPinned).toBe(false);
 
-    coordinator.jumpToEnd('smooth');
+    coordinator.jumpToEnd();
     expect(coordinator.isPinned).toBe(true);
 
     Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });

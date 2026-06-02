@@ -21,6 +21,12 @@ const AT_BOTTOM_THRESHOLD = TIMELINE_PIN_AT_BOTTOM_THRESHOLD;
 const USER_SCROLL_TIMEOUT_MS = 200;
 /** Cap pinned-tail guard rAF iterations so a stuck layout cannot spin forever. */
 const PINNED_TAIL_GUARD_MAX_ITERATIONS = 30;
+/** Max rAF frames for tail settle after follow/jump/measure-in. */
+const TAIL_SETTLE_MAX_FRAMES = 24;
+/** Max rAF frames for prepend height-delta preservation after load-older. */
+const PREPEND_SETTLE_MAX_FRAMES = 8;
+/** Max rAF frames for `runProgrammaticScroll` target-check loop before clearing the flag. */
+const PROGRAMMATIC_SCROLL_CLEAR_MAX_FRAMES = 30;
 
 export type VirtualizerScrollApi = {
   scrollToEnd: (options?: { behavior?: 'auto' | 'smooth' }) => void;
@@ -242,7 +248,7 @@ export class TimelineScrollCoordinator {
   // ─── User actions ────────────────────────────────────────────────────────
 
   /** Jump chip — pin immediately, snap to max with auto, then settle + guard as rows measure in. */
-  jumpToEnd(_behavior: 'auto' | 'smooth' = 'smooth'): void {
+  jumpToEnd(): void {
     this.setPinned(true);
     this.runProgrammaticScroll(
       () => {
@@ -499,7 +505,7 @@ export class TimelineScrollCoordinator {
   }): void {
     this.tailSettle = {
       frames: 0,
-      maxFrames: options.maxFrames ?? 24,
+      maxFrames: options.maxFrames ?? TAIL_SETTLE_MAX_FRAMES,
       tailIndex: options.tailIndex,
       onSettled: options.onSettled,
     };
@@ -731,7 +737,6 @@ export class TimelineScrollCoordinator {
     }
 
     let frames = 0;
-    const maxFrames = 8;
 
     const tick = (): void => {
       frames++;
@@ -752,7 +757,7 @@ export class TimelineScrollCoordinator {
 
       this.applyPrependAnchorByKey(anchor);
 
-      if (frames >= maxFrames) {
+      if (frames >= PREPEND_SETTLE_MAX_FRAMES) {
         this.prependSettleRafId = null;
         this.pendingPrependPreserve = false;
         return;
@@ -802,14 +807,13 @@ export class TimelineScrollCoordinator {
     // Parameterized clear: drop the flag as soon as the caller's target is hit
     // (or after a hard cap so we never deadlock pin updates).
     let frames = 0;
-    const maxFrames = 30;
     const tick = (): void => {
       frames++;
       if (targetCheck()) {
         this.endProgrammaticScroll();
         return;
       }
-      if (frames >= maxFrames) {
+      if (frames >= PROGRAMMATIC_SCROLL_CLEAR_MAX_FRAMES) {
         this.endProgrammaticScroll();
         return;
       }
