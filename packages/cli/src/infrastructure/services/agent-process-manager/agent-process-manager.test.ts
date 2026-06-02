@@ -1,6 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
-import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import {
   AgentProcessManager,
@@ -103,6 +102,15 @@ function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
   };
 }
 
+function getMutationCallsByArgs(
+  deps: AgentProcessManagerDeps,
+  match: (args: Record<string, unknown>) => boolean
+): Record<string, unknown>[] {
+  return (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls
+    .map((call: unknown[]) => call[1] as Record<string, unknown>)
+    .filter(match);
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('AgentProcessManager', () => {
@@ -180,6 +188,16 @@ describe('AgentProcessManager', () => {
           (call[1] as Record<string, unknown>)?.role === ROLE
       );
       expect(sessionResumedCalls.length).toBeGreaterThan(0);
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) =>
+            args.role === ROLE &&
+            args.chatroomId === CHATROOM_ID &&
+            args.harnessSessionId === 'sess-opencode-1' &&
+            args.reason === undefined
+        )
+      ).toHaveLength(1);
     });
 
     test('onAgentEnd emits sessionResumeFailed and kills when resumeTurn fails', async () => {
@@ -215,6 +233,9 @@ describe('AgentProcessManager', () => {
           (call[1] as Record<string, unknown>)?.reason === 'session not found'
       );
       expect(sessionResumeFailedCalls).toHaveLength(1);
+      expect(sessionResumeFailedCalls[0][1]).toMatchObject({
+        harnessSessionId: 'sess-opencode-1',
+      });
     });
 
     test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {
@@ -364,13 +385,16 @@ describe('AgentProcessManager', () => {
       expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('sess-1');
 
-      const sessionResumedArgs = (
-        deps.backend.mutation as ReturnType<typeof vi.fn>
-      ).mock.calls.map((call) => call[1] as { chatroomId?: string; role?: string });
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
       expect(
-        sessionResumedArgs.some(
-          (args) => args?.chatroomId === CHATROOM_ID && args?.role === ROLE
-        )
+        sessionResumedArgs.some((args) => args.harnessSessionId === 'sess-1')
       ).toBe(true);
     });
 
@@ -410,6 +434,40 @@ describe('AgentProcessManager', () => {
           (call[1] as Record<string, unknown>)?.reason === 'OpenCode session sess-1 not found'
       );
       expect(resumeFailedCalls).toHaveLength(1);
+      expect(resumeFailedCalls[0][1]).toMatchObject({
+        harnessSessionId: 'sess-1',
+      });
+    });
+
+    test('opencode-sdk spawn passes harnessSessionId to updateSpawnedAgent', async () => {
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-start',
+          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: false })
+      );
+
+      const updateSpawnedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.pid === PID && args.reason === 'user.start'
+      );
+      expect(updateSpawnedCalls).toHaveLength(1);
+      expect(updateSpawnedCalls[0]).toMatchObject({
+        pid: PID,
+        harnessSessionId: 'sess-opencode-start',
+      });
     });
 
     test('second start while running replaces PID', async () => {

@@ -317,6 +317,9 @@ export class AgentProcessManager {
               machineId: this.deps.machineId,
               chatroomId: opts.chatroomId,
               role: opts.role,
+              ...(slot?.harnessSessionId
+                ? { harnessSessionId: slot.harnessSessionId }
+                : {}),
             });
             console.log(
               `[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`
@@ -337,6 +340,9 @@ export class AgentProcessManager {
               chatroomId: opts.chatroomId,
               role: opts.role,
               reason,
+              ...(slot?.harnessSessionId
+                ? { harnessSessionId: slot.harnessSessionId }
+                : {}),
             });
             console.log(
               `[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${opts.role}`
@@ -779,7 +785,8 @@ export class AgentProcessManager {
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        'first-launch session resume not yet supported'
+        'first-launch session resume not yet supported',
+        stored.harnessSessionId
       );
       return null;
     }
@@ -804,22 +811,32 @@ export class AgentProcessManager {
           model: stored.model,
         }
       );
-      await this.emitSessionResumed(opts.chatroomId, opts.role);
+      await this.emitSessionResumed(opts.chatroomId, opts.role, stored.harnessSessionId);
       return spawnResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      await this.emitSessionResumeFailed(opts.chatroomId, opts.role, reason);
+      await this.emitSessionResumeFailed(
+        opts.chatroomId,
+        opts.role,
+        reason,
+        stored.harnessSessionId
+      );
       return null;
     }
   }
 
-  private async emitSessionResumed(chatroomId: string, role: string): Promise<void> {
+  private async emitSessionResumed(
+    chatroomId: string,
+    role: string,
+    harnessSessionId?: string
+  ): Promise<void> {
     try {
       await this.deps.backend.mutation(api.machines.emitSessionResumed, {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
         role,
+        ...(harnessSessionId ? { harnessSessionId } : {}),
       });
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${role}`);
     } catch (err) {
@@ -830,7 +847,8 @@ export class AgentProcessManager {
   private async emitSessionResumeFailed(
     chatroomId: string,
     role: string,
-    reason: string
+    reason: string,
+    harnessSessionId?: string
   ): Promise<void> {
     try {
       await this.deps.backend.mutation(api.machines.emitSessionResumeFailed, {
@@ -839,6 +857,7 @@ export class AgentProcessManager {
         chatroomId,
         role,
         reason,
+        ...(harnessSessionId ? { harnessSessionId } : {}),
       });
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
     } catch (err) {
@@ -1025,6 +1044,9 @@ export class AgentProcessManager {
           pid,
           model: opts.model,
           reason: opts.reason,
+          ...(spawnResult.harnessSessionId
+            ? { harnessSessionId: spawnResult.harnessSessionId }
+            : {}),
         })
         .catch((err: Error) => {
           console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
