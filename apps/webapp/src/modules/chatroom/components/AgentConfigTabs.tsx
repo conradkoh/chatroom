@@ -212,6 +212,7 @@ export function useAgentControls({
   onSavePreference,
   teamConfigMachineId,
   teamWantResumeOnFail,
+  teamAutoRestartOnNewContext,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
 }: {
@@ -233,6 +234,8 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** Persisted resume-on-failure preference from team agent config. */
   teamWantResumeOnFail?: boolean;
+  /** Persisted auto-restart-on-new-context preference from team agent config. */
+  teamAutoRestartOnNewContext?: boolean;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
@@ -251,6 +254,9 @@ export function useAgentControls({
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
   const [wantResumeOnFail, setWantResumeOnFail] = useState(teamWantResumeOnFail ?? true);
+  const [autoRestartOnNewContext, setAutoRestartOnNewContext] = useState(
+    teamAutoRestartOnNewContext ?? false
+  );
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -329,6 +335,7 @@ export function useAgentControls({
     setSelectedHarness(harness);
     setWorkingDir(wd);
     setWantResumeOnFail(teamWantResumeOnFail ?? true);
+    setAutoRestartOnNewContext(teamAutoRestartOnNewContext ?? false);
     setIsInitialized(true);
   }, [
     isInitialized,
@@ -338,6 +345,7 @@ export function useAgentControls({
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     teamWantResumeOnFail,
+    teamAutoRestartOnNewContext,
   ]);
 
   useEffect(() => {
@@ -345,6 +353,12 @@ export function useAgentControls({
       setWantResumeOnFail(teamWantResumeOnFail);
     }
   }, [teamWantResumeOnFail]);
+
+  useEffect(() => {
+    if (teamAutoRestartOnNewContext !== undefined) {
+      setAutoRestartOnNewContext(teamAutoRestartOnNewContext);
+    }
+  }, [teamAutoRestartOnNewContext]);
 
   // Available models from the selected machine filtered by selected harness
   const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
@@ -614,6 +628,7 @@ export function useAgentControls({
     selectedModel,
     workingDir,
     wantResumeOnFail,
+    autoRestartOnNewContext,
     isStarting,
     isStopping,
     error,
@@ -639,6 +654,7 @@ export function useAgentControls({
     handleModelChange,
     handleWorkingDirChange,
     setWantResumeOnFail,
+    setAutoRestartOnNewContext,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -671,7 +687,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   chatroomId,
   role,
   wantResumeOnFail: persistedWantResumeOnFail,
-  autoRestartOnNewContext,
+  autoRestartOnNewContext: persistedAutoRestartOnNewContext,
   linkedMachineIds: linkedMachineIdsProp,
 }: RemoteTabContentProps) {
   const {
@@ -699,7 +715,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleModelChange,
     handleWorkingDirChange,
     wantResumeOnFail,
+    autoRestartOnNewContext,
     setWantResumeOnFail,
+    setAutoRestartOnNewContext,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -1207,9 +1225,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             role={role}
             agentHarness={displayHarness}
             wantResumeOnFail={persistedWantResumeOnFail ?? wantResumeOnFail}
-            autoRestartOnNewContext={autoRestartOnNewContext}
+            autoRestartOnNewContext={persistedAutoRestartOnNewContext ?? autoRestartOnNewContext}
             disabled={isBusy}
             onWantResumeOnFailChange={setWantResumeOnFail}
+            onAutoRestartOnNewContextChange={setAutoRestartOnNewContext}
           />
 
           <AlertDialog

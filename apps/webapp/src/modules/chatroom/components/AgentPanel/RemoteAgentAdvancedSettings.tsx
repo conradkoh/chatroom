@@ -24,6 +24,8 @@ export interface RemoteAgentAdvancedSettingsProps {
   disabled?: boolean;
   /** Called when resume-on-failure changes so start commands use the latest value. */
   onWantResumeOnFailChange?: (enabled: boolean) => void;
+  /** Called when auto-restart-on-new-context changes so parent state stays in sync. */
+  onAutoRestartOnNewContextChange?: (enabled: boolean) => void;
 }
 
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
@@ -34,6 +36,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   autoRestartOnNewContext = false,
   disabled = false,
   onWantResumeOnFailChange,
+  onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
   const setWantResumeOnFail = useSessionMutation(api.machines.setWantResumeOnFail);
   const setAutoRestartOnNewContext = useSessionMutation(api.machines.setAutoRestartOnNewContext);
@@ -89,6 +92,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   const handleAutoRestartOnNewContextChange = useCallback(
     async (checked: boolean) => {
       setLocalAutoRestartOnNewContext(checked);
+      onAutoRestartOnNewContextChange?.(checked);
       setIsSavingAutoRestartOnNewContext(true);
       try {
         await setAutoRestartOnNewContext({
@@ -98,6 +102,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
         });
       } catch (err) {
         setLocalAutoRestartOnNewContext(autoRestartOnNewContext);
+        onAutoRestartOnNewContextChange?.(autoRestartOnNewContext);
         toast.error(
           err instanceof Error ? err.message : 'Failed to update auto-restart setting'
         );
@@ -105,7 +110,13 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
         setIsSavingAutoRestartOnNewContext(false);
       }
     },
-    [autoRestartOnNewContext, chatroomId, role, setAutoRestartOnNewContext]
+    [
+      autoRestartOnNewContext,
+      chatroomId,
+      onAutoRestartOnNewContextChange,
+      role,
+      setAutoRestartOnNewContext,
+    ]
   );
 
   const showResumeSessionOnFailureSetting =

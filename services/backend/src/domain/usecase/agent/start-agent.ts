@@ -120,6 +120,7 @@ export async function startAgent(
     const teamConfigNow = Date.now();
     resolvedWantResumeOnFail =
       wantResumeOnFail ?? existingTeamConfig?.wantResumeOnFail ?? true;
+    const preservedAutoRestartOnNewContext = existingTeamConfig?.autoRestartOnNewContext;
 
     const teamConfig = {
       teamRoleKey,
@@ -133,6 +134,9 @@ export async function startAgent(
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
       wantResumeOnFail: resolvedWantResumeOnFail,
+      ...(preservedAutoRestartOnNewContext !== undefined
+        ? { autoRestartOnNewContext: preservedAutoRestartOnNewContext }
+        : {}),
       // Reset circuit breaker — manual start is an explicit user intent to retry
       circuitState: 'closed' as const,
       circuitOpenedAt: undefined,

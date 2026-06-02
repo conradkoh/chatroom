@@ -100,6 +100,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     onSavePreference,
     teamConfigMachineId: agentRoleView?.machineId,
     teamWantResumeOnFail: agentRoleView?.wantResumeOnFail,
+    teamAutoRestartOnNewContext: agentRoleView?.autoRestartOnNewContext,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
   });
