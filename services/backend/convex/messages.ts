@@ -1268,6 +1268,7 @@ export const deletePendingMessage = mutation({
 
     // Delete the associated pending task first
     await ctx.db.delete('chatroom_tasks', task._id);
+    await adjustTaskCount(ctx, message.chatroomId, 'pending', -1);
 
     // Delete the message itself (hard delete)
     await ctx.db.delete('chatroom_messages', args.messageId);

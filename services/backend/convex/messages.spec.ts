@@ -502,3 +502,45 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(queuedAfter.length).toBe(1);
   });
 });
+
+describe('deletePendingMessage and materialized counts', () => {
+  test('deleting pending message decrements pending count so next send is not queued', async () => {
+    const { sessionId } = await createTestSession('del-pending-counts-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'pending message',
+      type: 'message',
+    });
+
+    await t.mutation(api.messages.deletePendingMessage, {
+      sessionId,
+      messageId,
+    });
+
+    const counts = await t.query(api.tasks.getTaskCounts, {
+      sessionId,
+      chatroomId,
+    });
+    expect(counts.pending).toBe(0);
+    expect(counts.acknowledged).toBe(0);
+    expect(counts.in_progress).toBe(0);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'second message after delete',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queued.length).toBe(0);
+  });
+});
