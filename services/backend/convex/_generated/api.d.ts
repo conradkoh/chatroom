@@ -39,6 +39,7 @@ import type * as commands_types from "../commands/types.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
+import type * as daemon_commands from "../daemon/commands.js";
 import type * as daemon_directHarness_capabilities from "../daemon/directHarness/capabilities.js";
 import type * as daemon_directHarness_commands from "../daemon/directHarness/commands.js";
 import type * as daemon_directHarness_messages from "../daemon/directHarness/messages.js";
@@ -133,6 +134,7 @@ declare const fullApi: ApiFromModules<{
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;
+  "daemon/commands": typeof daemon_commands;
   "daemon/directHarness/capabilities": typeof daemon_directHarness_capabilities;
   "daemon/directHarness/commands": typeof daemon_directHarness_commands;
   "daemon/directHarness/messages": typeof daemon_directHarness_messages;

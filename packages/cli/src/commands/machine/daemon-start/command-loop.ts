@@ -27,7 +27,7 @@ import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { processManager } from './handlers/process/manager.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
-import { startLogObserverPoll } from './handlers/process/log-observer-sync.js';
+import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
 import type { DaemonContext } from './types.js';
@@ -451,7 +451,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Observed Sync Subscription ─────────────────────────────────────────
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
-  let logObserverPollHandle: ReturnType<typeof startLogObserverPoll> | null = null;
+  let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null =
+    null;
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   // Gated by directHarnessWorkers flag. All return { stop: () => void }.
@@ -491,7 +492,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (workspaceListSubscriptionHandle) workspaceListSubscriptionHandle.stop();
     if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
-    if (logObserverPollHandle) logObserverPollHandle.stop();
+    if (logObserverSubscriptionHandle) logObserverSubscriptionHandle.stop();
     if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
@@ -538,7 +539,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
   }
 
-  logObserverPollHandle = startLogObserverPoll(ctx);
+  logObserverSubscriptionHandle = startLogObserverSubscription(ctx, wsClient);
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   if (featureFlags.directHarnessWorkers) {

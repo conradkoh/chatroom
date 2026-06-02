@@ -11,6 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/core/accessCheck';
+import { requireMachineOwner } from './auth/cli/machineAccess.js';
 import { getSession, requireSession } from './auth/core/session';
 
 import {
@@ -394,18 +395,7 @@ export const listRunsWithLogObservers = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await requireSession(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'owner',
-    });
-    if (!ownerCheck.ok)
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return await handleListRunsWithLogObservers(ctx, args);
   },
 });
