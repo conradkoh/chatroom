@@ -3,12 +3,7 @@
 import { Activity, ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import {
-  getEventTypeDefinition,
-  initializeEventTypes,
-  PlaceholderEventDetails,
-  PlaceholderEventRow,
-} from '../eventTypes';
+import { getEventTypeDefinition, initializeEventTypes } from '../eventTypes';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 import {
   EventStreamMachineProvider,
@@ -138,32 +133,18 @@ export const EventStreamModal = memo(function EventStreamModal({
     setShowMobileDetail(true);
   }, []);
 
-  // Render event row using the registry
+  // Render event row using the exhaustive registry (always defined)
   const renderEventRow = (event: EventStreamEvent) => {
     const isSelected = selectedEvent?._id === event._id;
-    const timestamp = event.timestamp ?? event._creationTime;
     const definition = getEventTypeDefinition(event.type);
-
-    if (definition) {
-      return (
-        <div key={event._id} onClick={() => handleSelectEvent(event)} className="cursor-pointer">
-          {definition.cellRenderer(event as never, isSelected)}
-        </div>
-      );
-    }
-
     return (
-      <PlaceholderEventRow
-        key={event._id}
-        type={event.type}
-        timestamp={timestamp}
-        isSelected={isSelected}
-        onClick={() => handleSelectEvent(event)}
-      />
+      <div key={event._id} onClick={() => handleSelectEvent(event)} className="cursor-pointer">
+        {definition.cellRenderer(event as never, isSelected)}
+      </div>
     );
   };
 
-  // Render event details using the registry
+  // Render event details using the exhaustive registry (always defined)
   const renderEventDetails = () => {
     if (!selectedEvent) {
       return (
@@ -173,20 +154,8 @@ export const EventStreamModal = memo(function EventStreamModal({
       );
     }
 
-    const timestamp = selectedEvent.timestamp ?? selectedEvent._creationTime;
     const definition = getEventTypeDefinition(selectedEvent.type);
-
-    if (definition) {
-      return definition.detailsRenderer(selectedEvent as never);
-    }
-
-    return (
-      <PlaceholderEventDetails
-        type={selectedEvent.type}
-        timestamp={timestamp}
-        eventId={selectedEvent._id}
-      />
-    );
+    return definition.detailsRenderer(selectedEvent as never);
   };
 
   return (

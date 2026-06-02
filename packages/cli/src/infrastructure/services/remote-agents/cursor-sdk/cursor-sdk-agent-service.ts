@@ -48,6 +48,9 @@ import { Effect } from 'effect';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
@@ -98,10 +101,18 @@ interface SdkSession {
   keeper: ChildProcess;
   aborted: boolean;
   agentClosed: boolean;
+  preserveForResume: boolean;
+  agentName: string;
+  model?: string;
+  workingDir: string;
   /** Resolves when resumeTurn delivers the next prompt. */
   resumeResolve?: (prompt: string) => void;
   /** Resolves when stop() aborts while waiting for resume. */
   abortResolve?: () => void;
+}
+
+function buildAgentName(context: SpawnContext): string {
+  return `${context.role}@${context.chatroomId.slice(-6)}`;
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -215,10 +226,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     resolve(prompt);
   }
 
-  override async stop(pid: number): Promise<void> {
+  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
+      if (options?.preserveForResume) {
+        session.preserveForResume = true;
+      }
       session.abortResolve?.();
       const run = session.run;
       if (run?.supports('cancel')) {
@@ -231,7 +245,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           );
         }
       }
-      if (!session.agentClosed) {
+      if (!session.preserveForResume && !session.agentClosed) {
         try {
           session.agent.close();
           session.agentClosed = true;
@@ -244,14 +258,69 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     await super.stop(pid);
   }
 
-  async spawn(options: SpawnOptions): Promise<SpawnResult> {
+  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
+    const session = this.sessions.get(pid);
+    if (!session) {
+      return undefined;
+    }
+    return {
+      agentName: session.agentName,
+      ...(session.model ? { model: session.model } : {}),
+    };
+  }
+
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    stored: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
     const apiKey = process.env.CURSOR_API_KEY?.trim();
     if (!apiKey) {
       throw new Error('CURSOR_API_KEY is not set');
     }
 
+    const keeper = this.spawnKeeper(options.workingDir);
+    const pid = keeper.pid!;
+    const context = options.context;
+    const agentName = stored.agentName;
+    const modelId = resolveModelId(options.model ?? stored.model);
+    const fullPrompt = options.systemPrompt
+      ? `${options.systemPrompt}\n\n${options.prompt}`
+      : options.prompt;
+
+    let agent: SDKAgent;
+    try {
+      const { Agent } = await loadSdk();
+      agent = await withTimeout(
+        Agent.resume(stored.harnessSessionId, {
+          apiKey,
+          model: { id: modelId },
+          local: { cwd: stored.workingDir, settingSources: [] },
+        }),
+        AGENT_CREATE_TIMEOUT_MS,
+        'Agent.resume'
+      );
+    } catch (err) {
+      keeper.kill();
+      this.deleteProcess(pid);
+      throw err;
+    }
+
+    return this.startRunningSession({
+      pid,
+      keeper,
+      agent,
+      context,
+      agentName,
+      model: options.model ?? stored.model,
+      workingDir: stored.workingDir,
+      initialPrompt: fullPrompt,
+      forceFirstTurn: true,
+    });
+  }
+
+  private spawnKeeper(workingDir: string): ChildProcess {
     const keeper = this.deps.spawn(process.execPath, ['-e', 'setInterval(()=>{},2147483647)'], {
-      cwd: options.workingDir,
+      cwd: workingDir,
       stdio: 'ignore',
       shell: false,
       detached: true,
@@ -262,47 +331,43 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       throw new Error('Failed to spawn cursor-sdk keeper process');
     }
 
-    const pid = keeper.pid;
-    const context = options.context;
+    return keeper;
+  }
+
+  private startRunningSession(args: {
+    pid: number;
+    keeper: ChildProcess;
+    agent: SDKAgent;
+    context: SpawnContext;
+    agentName: string;
+    model?: string;
+    workingDir: string;
+    initialPrompt: string;
+    forceFirstTurn: boolean;
+  }): SpawnResult {
+    const { pid, keeper, agent, context, agentName, model, workingDir, initialPrompt, forceFirstTurn } =
+      args;
+
     const entry = this.registerProcess(pid, context);
     const logPrefix = buildLogPrefix(context);
-
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
-
-    const exitCallbacks: Array<
-      (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
-    > = [];
-    const outputCallbacks: (() => void)[] = [];
-    const agentEndCallbacks: (() => void)[] = [];
-
-    let agent: SDKAgent;
-    try {
-      const { Agent } = await loadSdk();
-      agent = await withTimeout(
-        Agent.create({
-          apiKey,
-          name: `${context.role}@${context.chatroomId.slice(-6)}`,
-          model: { id: resolveModelId(options.model) },
-          local: { cwd: options.workingDir, settingSources: [] },
-        }),
-        AGENT_CREATE_TIMEOUT_MS,
-        'Agent.create'
-      );
-    } catch (err) {
-      keeper.kill();
-      this.deleteProcess(pid);
-      throw err;
-    }
 
     const session: SdkSession = {
       agent,
       keeper,
       aborted: false,
       agentClosed: false,
+      preserveForResume: false,
+      agentName,
+      model,
+      workingDir,
     };
     this.sessions.set(pid, session);
+
+    const exitCallbacks: Array<
+      (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
+    > = [];
+    const outputCallbacks: (() => void)[] = [];
+    const agentEndCallbacks: (() => void)[] = [];
 
     const finishExit = (code: number | null, signal: string | null) => {
       this.sessions.delete(pid);
@@ -312,21 +377,75 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       }
     };
 
+    this.runTurnLoop({
+      pid,
+      agent,
+      session,
+      context,
+      entry,
+      logPrefix,
+      initialPrompt,
+      forceFirstTurn,
+      finishExit,
+      outputCallbacks,
+      agentEndCallbacks,
+    });
+
+    return {
+      pid,
+      harnessSessionId: agent.agentId,
+      harnessReconnect: {
+        agentName,
+        ...(model ? { model } : {}),
+      },
+      onExit: (cb) => {
+        exitCallbacks.push(cb);
+      },
+      onOutput: (cb) => {
+        outputCallbacks.push(cb);
+      },
+      onAgentEnd: (cb) => {
+        agentEndCallbacks.push(cb);
+      },
+    };
+  }
+
+  private runTurnLoop(args: {
+    pid: number;
+    agent: SDKAgent;
+    session: SdkSession;
+    context: SpawnContext;
+    entry: { lastOutputAt: number };
+    logPrefix: string;
+    initialPrompt: string;
+    forceFirstTurn: boolean;
+    finishExit: (code: number | null, signal: string | null) => void;
+    outputCallbacks: (() => void)[];
+    agentEndCallbacks: (() => void)[];
+  }): void {
+    const {
+      agent,
+      session,
+      logPrefix,
+      initialPrompt,
+      forceFirstTurn,
+      finishExit,
+      entry,
+      outputCallbacks,
+      agentEndCallbacks,
+    } = args;
+
     void (async () => {
       let exitCode: number | null = 0;
       let exitSignal: string | null = null;
-      let nextPrompt = fullPrompt;
-      let isFirstTurn = true;
+      let nextPrompt = initialPrompt;
+      let isFirstTurn = forceFirstTurn;
 
       try {
         while (!session.aborted) {
           const run = await withTimeout(
             agent.send(nextPrompt, {
-              // Clear any wedged run left over from a crashed daemon process,
-              // so this message starts fresh instead of getting an agent_busy error.
               local: { force: isFirstTurn },
-              // Deduplication key: prevents double-execution if the network drops
-              // between send and ack. Unique per turn.
               idempotencyKey: randomUUID(),
             }),
             SEND_TIMEOUT_MS,
@@ -364,8 +483,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             break;
           }
 
-          // finish() emits agent_end (wired to agentEndCallbacks) only after a
-          // successful run.wait(), so resumeTurn is not invoked mid-stream.
           adapter.finish();
 
           const resumePrompt = await waitForResumeOrAbort(session);
@@ -384,7 +501,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         const reason = err instanceof Error ? err.message : String(err);
         process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
       } finally {
-        if (!session.agentClosed) {
+        if (!session.agentClosed && !session.preserveForResume) {
           try {
             agent.close();
             session.agentClosed = true;
@@ -394,7 +511,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         }
 
         try {
-          keeper.kill();
+          session.keeper.kill();
         } catch {
           // May already be dead
         }
@@ -402,18 +519,52 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         finishExit(exitCode, exitSignal);
       }
     })();
+  }
 
-    return {
+  async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const apiKey = process.env.CURSOR_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error('CURSOR_API_KEY is not set');
+    }
+
+    const keeper = this.spawnKeeper(options.workingDir);
+    const pid = keeper.pid!;
+    const context = options.context;
+    const agentName = buildAgentName(context);
+    const modelId = resolveModelId(options.model);
+    const fullPrompt = options.systemPrompt
+      ? `${options.systemPrompt}\n\n${options.prompt}`
+      : options.prompt;
+
+    let agent: SDKAgent;
+    try {
+      const { Agent } = await loadSdk();
+      agent = await withTimeout(
+        Agent.create({
+          apiKey,
+          name: agentName,
+          model: { id: modelId },
+          local: { cwd: options.workingDir, settingSources: [] },
+        }),
+        AGENT_CREATE_TIMEOUT_MS,
+        'Agent.create'
+      );
+    } catch (err) {
+      keeper.kill();
+      this.deleteProcess(pid);
+      throw err;
+    }
+
+    return this.startRunningSession({
       pid,
-      onExit: (cb) => {
-        exitCallbacks.push(cb);
-      },
-      onOutput: (cb) => {
-        outputCallbacks.push(cb);
-      },
-      onAgentEnd: (cb) => {
-        agentEndCallbacks.push(cb);
-      },
-    };
+      keeper,
+      agent,
+      context,
+      agentName,
+      model: options.model,
+      workingDir: options.workingDir,
+      initialPrompt: fullPrompt,
+      forceFirstTurn: true,
+    });
   }
 }

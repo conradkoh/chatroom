@@ -966,6 +966,9 @@ export default defineSchema({
 
     /** When true, restart this remote agent after the entry role sets new context. */
     autoRestartOnNewContext: v.optional(v.boolean()),
+
+    /** @deprecated Legacy field — no longer written. Kept for existing documents. */
+    wantResumeOnFail: v.optional(v.boolean()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
@@ -1033,6 +1036,7 @@ export default defineSchema({
         workingDir: v.string(),
         pid: v.number(),
         reason: v.optional(v.string()),
+        harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Agent process exited (crash or intentional)
@@ -1095,6 +1099,9 @@ export default defineSchema({
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),
+        wantResume: v.optional(v.boolean()),
+        /** Snapshot of team config at emit time (observability only). */
+        autoRestartOnNewContext: v.optional(v.boolean()),
       }),
       // An agent stop was requested (replaces command.stopAgent; includes deadline)
       v.object({
@@ -1204,6 +1211,25 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Agent session resumed successfully after agent_end
+      v.object({
+        type: v.literal('agent.sessionResumed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Agent session resume attempted but failed (graceful fallback follows)
+      v.object({
+        type: v.literal('agent.sessionResumeFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.string(),
+        harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Daemon hit crash loop limit and stopped restarting

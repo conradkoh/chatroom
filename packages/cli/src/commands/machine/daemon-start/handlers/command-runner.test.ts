@@ -24,7 +24,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { onCommandRun, onCommandStop, shutdownAllCommands } from './command-runner.js';
 import { processManager } from './process/manager.js';
-import { deriveTerminalStatus } from './process/state.js';
+import {
+  deriveTerminalStatus,
+  SIGTERM_GRACE_PERIOD_MS,
+  SOFT_TIMEOUT_MS,
+} from './process/state.js';
 import type { DaemonContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -144,6 +148,20 @@ function createFakeChild(pid = 9999) {
     _emitter: exitEmitter, // test access
   };
   return child;
+}
+
+/** Clears the 3s output flush interval so advancing 24h does not run thousands of callbacks. */
+function stopOutputFlushTimer(runId: string): void {
+  const tracked = processManager.get(runId);
+  if (tracked) {
+    clearInterval(tracked.flushTimer);
+  }
+}
+
+/** Flush microtasks after an async fake-timer callback (e.g. soft-timeout handler). */
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 // ---------------------------------------------------------------------------
@@ -563,15 +581,17 @@ describe('24-hour soft timeout', () => {
     const fakeChild = createFakeChild(5555);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
+    const runId = 'run-timeout-24h';
     await onCommandRun(ctx, {
-      runId: 'run-timeout-24h' as any,
+      runId: runId as any,
       commandName: 'long-runner',
       script: 'sleep 9999',
       workingDir: '/tmp',
     });
 
-    // Advance past the 24-hour soft timeout
-    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
+    stopOutputFlushTimer(runId);
+    await vi.advanceTimersByTimeAsync(SOFT_TIMEOUT_MS + 1_000);
+    await flushAsyncWork();
 
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
@@ -587,20 +607,22 @@ describe('24-hour soft timeout', () => {
     const fakeChild = createFakeChild(4444);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
+    const runId = 'run-forcekill-24h';
     await onCommandRun(ctx, {
-      runId: 'run-forcekill-24h' as any,
+      runId: runId as any,
       commandName: 'unkillable',
       script: 'sleep 9999',
       workingDir: '/tmp',
     });
 
-    // Trigger 24h soft timeout
-    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000);
+    stopOutputFlushTimer(runId);
+    await vi.advanceTimersByTimeAsync(SOFT_TIMEOUT_MS + 1_000);
+    await flushAsyncWork();
     expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGTERM');
 
-    // Advance past the 5-second SIGTERM grace period (process still in processManager
+    // Advance past the SIGTERM grace period (process still in processManager
     // because no 'exit' event was emitted by the fake child)
-    await vi.advanceTimersByTimeAsync(6_000);
+    await vi.advanceTimersByTimeAsync(SIGTERM_GRACE_PERIOD_MS + 1_000);
 
     expect(process.kill).toHaveBeenCalledWith(-4444, 'SIGKILL');
   });
@@ -610,8 +632,9 @@ describe('24-hour soft timeout', () => {
     const fakeChild = createFakeChild(3333);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
+    const runId = 'run-exits-early';
     await onCommandRun(ctx, {
-      runId: 'run-exits-early' as any,
+      runId: runId as any,
       commandName: 'short',
       script: 'echo done',
       workingDir: '/tmp',
@@ -619,14 +642,14 @@ describe('24-hour soft timeout', () => {
 
     // Simulate process exit (triggers the 'exit' handler which clears timers)
     (fakeChild as any)._emitter.emit('exit', 0, null);
-    // Wait for microtasks (exit handler is async)
-    await Promise.resolve();
+    await flushAsyncWork();
 
     // Clear any mutation calls from the exit handler
     vi.mocked(ctx.deps.backend.mutation).mockClear();
 
+    stopOutputFlushTimer(runId);
     // Advance past soft timeout threshold — timer should have been cleared on exit
-    await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(SOFT_TIMEOUT_MS + 60 * 60 * 1000);
 
     // No 'killed' call should have happened
     const killedCalls = vi

@@ -75,6 +75,7 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
             chatroomId={chatroomId}
+            role={role}
             linkedMachineIds={linkedMachineIds}
           />
         ) : (

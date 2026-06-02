@@ -5,6 +5,7 @@ import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
+  type LastHarnessSessionContext,
 } from './agent-process-manager.js';
 
 vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
@@ -79,6 +80,16 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   };
 }
 
+function getLastHarnessSessions(
+  manager: AgentProcessManager
+): Map<string, LastHarnessSessionContext> {
+  return (
+    manager as unknown as {
+      lastHarnessSessions: Map<string, LastHarnessSessionContext>;
+    }
+  ).lastHarnessSessions;
+}
+
 function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
   return {
     chatroomId: CHATROOM_ID,
@@ -89,6 +100,15 @@ function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
     reason: 'user.start',
     ...overrides,
   };
+}
+
+function getMutationCallsByArgs(
+  deps: AgentProcessManagerDeps,
+  match: (args: Record<string, unknown>) => boolean
+): Record<string, unknown>[] {
+  return (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls
+    .map((call: unknown[]) => call[1] as Record<string, unknown>)
+    .filter(match);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -159,6 +179,63 @@ describe('AgentProcessManager', () => {
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
       expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
       expect(deps.processes.kill).not.toHaveBeenCalled();
+      const sessionResumedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason === undefined &&
+          (call[1] as Record<string, unknown>)?.role === ROLE
+      );
+      expect(sessionResumedCalls.length).toBeGreaterThan(0);
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) =>
+            args.role === ROLE &&
+            args.chatroomId === CHATROOM_ID &&
+            args.harnessSessionId === 'sess-opencode-1' &&
+            args.reason === undefined
+        )
+      ).toHaveLength(1);
+    });
+
+    test('onAgentEnd emits sessionResumeFailed and kills when resumeTurn fails', async () => {
+      const resumeTurn = vi.fn().mockRejectedValue(new Error('session not found'));
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            cb();
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      const sessionResumeFailedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason === 'session not found'
+      );
+      expect(sessionResumeFailedCalls).toHaveLength(1);
+      expect(sessionResumeFailedCalls[0][1]).toMatchObject({
+        harnessSessionId: 'sess-opencode-1',
+      });
     });
 
     test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {
@@ -189,7 +266,7 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
-    test('onAgentEnd kills instead of resumeTurn when wantResume is false', async () => {
+    test('onAgentEnd always calls resumeTurn for resumable harness regardless of wantResume', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();
       const resumableService = {
@@ -217,8 +294,8 @@ describe('AgentProcessManager', () => {
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       agentEndCb();
 
-      expect(resumeTurn).not.toHaveBeenCalled();
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
@@ -264,6 +341,313 @@ describe('AgentProcessManager', () => {
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
+    test('wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'sess-1',
+        harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-1',
+          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: false })
+      );
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('sess-1');
+
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
+      expect(
+        sessionResumedArgs.some((args) => args.harnessSessionId === 'sess-1')
+      ).toBe(true);
+    });
+
+    test('cursor-sdk wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'cursor-agent-1',
+        harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk', wantResume: false })
+      );
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(cursorSdkService.spawn).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
+
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
+      expect(
+        sessionResumedArgs.some((args) => args.harnessSessionId === 'cursor-agent-1')
+      ).toBe(true);
+    });
+
+    test('pi wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'pi-sess-1',
+        harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const piService = {
+        ...createMockService(),
+        id: 'pi',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'pi-sess-1',
+          harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'pi',
+          model: 'anthropic/claude-3-5-sonnet',
+        }),
+      };
+      deps.agentServices = new Map([['pi', piService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'pi', wantResume: false }));
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'pi', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(piService.spawn).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('pi-sess-1');
+
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
+      expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'pi-sess-1')).toBe(true);
+    });
+
+    test('wantResume with no daemon memory spawns fresh without sessionResumeFailed', async () => {
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeFromDaemonMemory: vi.fn(),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      expect(opencodeSdkService.resumeFromDaemonMemory).not.toHaveBeenCalled();
+      const sessionResumeFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          typeof args.reason === 'string' &&
+          args.pid === undefined &&
+          args.stopReason === undefined
+      );
+      expect(sessionResumeFailedCalls).toHaveLength(0);
+    });
+
+    test('wantResume clears daemon memory and emits sessionResumeFailed when workingDir changed', async () => {
+      const resumeFromDaemonMemory = vi.fn();
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeFromDaemonMemory,
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      getLastHarnessSessions(manager).set(key, {
+        harnessSessionId: 'sess-1',
+        harness: 'opencode-sdk',
+        agentName: 'build',
+        workingDir: '/tmp/other',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true, workingDir: '/tmp/test' })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      expect(getLastHarnessSessions(manager).has(key)).toBe(false);
+      const resumeFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.reason === 'working directory changed'
+      );
+      expect(resumeFailedCalls).toHaveLength(1);
+      expect(resumeFailedCalls[0]).toMatchObject({
+        harnessSessionId: 'sess-1',
+      });
+    });
+
+    test('wantResume falls back to spawn when resumeFromDaemonMemory fails', async () => {
+      const resumeFromDaemonMemory = vi
+        .fn()
+        .mockRejectedValue(new Error('OpenCode session sess-1 not found'));
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      getLastHarnessSessions(manager).set(key, {
+        harnessSessionId: 'sess-1',
+        harness: 'opencode-sdk',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
+      const resumeFailedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason === 'OpenCode session sess-1 not found'
+      );
+      expect(resumeFailedCalls).toHaveLength(1);
+      expect(resumeFailedCalls[0][1]).toMatchObject({
+        harnessSessionId: 'sess-1',
+      });
+    });
+
+    test('opencode-sdk spawn passes harnessSessionId to updateSpawnedAgent', async () => {
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-start',
+          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk', wantResume: false })
+      );
+
+      const updateSpawnedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.pid === PID && args.reason === 'user.start'
+      );
+      expect(updateSpawnedCalls).toHaveLength(1);
+      expect(updateSpawnedCalls[0]).toMatchObject({
+        pid: PID,
+        harnessSessionId: 'sess-opencode-start',
+      });
+    });
+
     test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
 
@@ -282,7 +666,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: NEW_PID });
-      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
 
@@ -384,6 +768,59 @@ describe('AgentProcessManager', () => {
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
+    });
+
+    test('context auto-restart failure falls back to crash recovery (rate-limited)', async () => {
+      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
+      shouldAllowSpawn.mockReturnValue({ allowed: true });
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('spawn error'))
+        .mockResolvedValueOnce({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        });
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.auto_restart_on_new_context' })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
+        1,
+        CHATROOM_ID,
+        'platform.auto_restart_on_new_context',
+        expect.any(Object)
+      );
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
+        2,
+        CHATROOM_ID,
+        'platform.crash_recovery',
+        expect.any(Object)
+      );
+      expect(service.spawn).toHaveBeenCalledTimes(2);
+    });
+
+    test('context auto-restart: crash recovery failure returns rate_limited', async () => {
+      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
+      shouldAllowSpawn
+        .mockReturnValueOnce({ allowed: true })
+        .mockReturnValueOnce({ allowed: false });
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('spawn error'));
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.auto_restart_on_new_context' })
+      );
+
+      expect(result).toEqual({ success: false, error: 'rate_limited' });
+      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
+      expect(service.spawn).toHaveBeenCalledTimes(1);
     });
 
     test('crash loop: returns failure, emits restartLimitReached', async () => {
@@ -496,7 +933,7 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
-      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
       expect(service.untrack).toHaveBeenCalledWith(PID);
       expect(deps.processes.kill).not.toHaveBeenCalled();
 
@@ -509,6 +946,85 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
+    });
+
+    test('user.stop with harnessSessionId passes preserveForResume to harness stop', async () => {
+      const resumableService = {
+        ...createMockService(),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'build',
+          model: 'anthropic/claude-sonnet-4',
+        }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['opencode-sdk', resumableService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'opencode-sdk',
+      });
+
+      await localManager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(resumableService.stop).toHaveBeenCalledWith(PID, { preserveForResume: true });
+      expect(resumableService.getHarnessReconnectContext).toHaveBeenCalledWith(PID);
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      expect(getLastHarnessSessions(localManager).get(key)).toEqual({
+        harnessSessionId: 'sess-opencode-1',
+        harness: 'opencode-sdk',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        model: 'gpt-4',
+      });
+    });
+
+    test('platform stop clears daemon memory session context', async () => {
+      const resumableService = {
+        ...createMockService(),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          harnessReconnect: { agentName: 'build' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['opencode-sdk', resumableService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'opencode-sdk',
+      });
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      expect(getLastHarnessSessions(localManager).has(key)).toBe(true);
+
+      await localManager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'daemon.shutdown',
+      });
+
+      expect(getLastHarnessSessions(localManager).has(key)).toBe(false);
     });
 
     test('doStop falls back to direct kill when harness service is not registered', async () => {

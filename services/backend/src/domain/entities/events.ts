@@ -18,6 +18,7 @@ export type AgentStartedEvent = {
   workingDir: string;
   pid: number;
   reason?: string;
+  harnessSessionId?: string;
   timestamp: number;
 };
 
@@ -65,6 +66,9 @@ export type AgentRequestStartEvent = {
   reason: string;
   deadline: number;
   timestamp: number;
+  wantResume?: boolean;
+  /** Snapshot of team config at emit time (observability only). */
+  autoRestartOnNewContext?: boolean;
 };
 
 export type AgentRequestStopEvent = {
@@ -119,6 +123,25 @@ export type AgentStartFailedEvent = {
   role: string;
   machineId: string;
   error: string;
+  timestamp: number;
+};
+
+export type AgentSessionResumedEvent = {
+  type: 'agent.sessionResumed';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
+export type AgentSessionResumeFailedEvent = {
+  type: 'agent.sessionResumeFailed';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  reason: string;
+  harnessSessionId?: string;
   timestamp: number;
 };
 
@@ -188,4 +211,6 @@ export type ChatroomEvent =
   | DaemonPongEvent
   | SkillActivatedEvent
   | AgentStartFailedEvent
+  | AgentSessionResumedEvent
+  | AgentSessionResumeFailedEvent
   | AgentRestartLimitReachedEvent;

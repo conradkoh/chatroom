@@ -9,12 +9,14 @@ import {
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const sharedAgentCreateFn = vi.fn();
+const sharedAgentResumeFn = vi.fn();
 const sharedAgentSendFn = vi.fn();
 const sharedAgentCloseFn = vi.fn();
 
 vi.mock('@cursor/sdk', () => ({
   Agent: {
     create: (...args: unknown[]) => sharedAgentCreateFn(...args),
+    resume: (...args: unknown[]) => sharedAgentResumeFn(...args),
   },
   Cursor: {
     models: {
@@ -70,6 +72,7 @@ describe('CursorSdkAgentService', () => {
   beforeEach(() => {
     stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     sharedAgentCreateFn.mockReset();
+    sharedAgentResumeFn.mockReset();
     sharedAgentSendFn.mockReset();
     sharedAgentCloseFn.mockReset();
     process.env.CURSOR_API_KEY = 'cursor_test_key';
@@ -140,6 +143,27 @@ describe('CursorSdkAgentService', () => {
         })
       );
     });
+
+    it('returns harnessSessionId and harnessReconnect from Agent.create', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        model: 'composer-2.5',
+        context: SPAWN_CONTEXT,
+      });
+
+      expect(result.harnessSessionId).toBe('agent-1');
+      expect(result.harnessReconnect).toEqual({
+        agentName: 'builder@c1',
+        model: 'composer-2.5',
+      });
+    });
   });
 
   describe('stop', () => {
@@ -165,6 +189,31 @@ describe('CursorSdkAgentService', () => {
       await service.stop(result.pid);
 
       expect(sharedAgentCloseFn).toHaveBeenCalled();
+    });
+
+    it('preserveForResume skips agent.close()', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild(5556);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+
+      sharedAgentCloseFn.mockClear();
+      await service.stop(result.pid, { preserveForResume: true });
+
+      expect(sharedAgentCloseFn).not.toHaveBeenCalled();
     });
 
     it('skips run.wait when aborted during stream', async () => {
@@ -367,6 +416,99 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
       expect(sharedAgentCloseFn).toHaveBeenCalled();
+    });
+  });
+
+  describe('getHarnessReconnectContext', () => {
+    it('returns agentName and model while session is active', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        model: 'composer-2.5',
+        context: SPAWN_CONTEXT,
+      });
+
+      expect(service.getHarnessReconnectContext(result.pid)).toEqual({
+        agentName: 'builder@c1',
+        model: 'composer-2.5',
+      });
+    });
+  });
+
+  describe('resumeFromDaemonMemory', () => {
+    it('reconnects via Agent.resume and sends the spawn prompt', async () => {
+      const { agent } = stubSdkAgent();
+      sharedAgentResumeFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          model: 'composer-2.5',
+          context: SPAWN_CONTEXT,
+        },
+        {
+          harnessSessionId: 'agent-resume-1',
+          agentName: 'builder@c1',
+          workingDir: '/tmp/resume-wd',
+          model: 'composer-2.5',
+        }
+      );
+
+      expect(sharedAgentCreateFn).not.toHaveBeenCalled();
+      expect(sharedAgentResumeFn).toHaveBeenCalledWith('agent-resume-1', {
+        apiKey: 'cursor_test_key',
+        model: { id: 'composer-2.5' },
+        local: { cwd: '/tmp/resume-wd', settingSources: [] },
+      });
+      expect(result.pid).toBe(4321);
+      expect(result.harnessSessionId).toBe('agent-1');
+      expect(result.harnessReconnect).toEqual({
+        agentName: 'builder@c1',
+        model: 'composer-2.5',
+      });
+      expect(sharedAgentSendFn).toHaveBeenCalledWith(
+        'sys\n\nresume hello',
+        expect.objectContaining({ local: { force: true } })
+      );
+    });
+
+    it('throws when Agent.resume fails', async () => {
+      sharedAgentResumeFn.mockRejectedValue(new Error('agent not found'));
+
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      await expect(
+        service.resumeFromDaemonMemory(
+          {
+            workingDir: '/tmp/resume-wd',
+            prompt: createSpawnPrompt('resume hello'),
+            systemPrompt: 'sys',
+            context: SPAWN_CONTEXT,
+          },
+          {
+            harnessSessionId: 'missing-agent',
+            agentName: 'builder@c1',
+            workingDir: '/tmp/resume-wd',
+          }
+        )
+      ).rejects.toThrow('agent not found');
+
+      expect(sharedAgentSendFn).not.toHaveBeenCalled();
+      expect(child.kill).toHaveBeenCalled();
     });
   });
 });

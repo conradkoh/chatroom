@@ -12,11 +12,20 @@
  * isInstalled/getVersion helpers.
  */
 
+import type { ChildProcess } from 'node:child_process';
+
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import type { SpawnContext } from '../remote-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import type {
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnOptions,
+  SpawnResult,
+} from '../remote-agent-service.js';
 import { forwardFiltered } from './node-streams.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
@@ -41,6 +50,7 @@ const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
+const SESSION_GET_TIMEOUT_MS = 10_000;
 const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -97,40 +107,41 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       .filter((line) => line.length > 0);
   }
 
-  override async stop(pid: number): Promise<void> {
+  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
     const forwarder = this.forwarders.get(pid);
     if (forwarder) {
       forwarder.stop();
       this.forwarders.delete(pid);
     }
 
+    const preserveForResume = options?.preserveForResume === true;
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
-      try {
-        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
-        await withTimeout(
-          client.session.abort({ path: { id: meta.sessionId } }),
-          SESSION_ABORT_TIMEOUT_MS,
-          'session.abort'
-        );
-      } catch (err) {
-        console.warn(
-          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
-          err instanceof Error ? err.message : err
-        );
+      if (!preserveForResume) {
+        try {
+          const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+          await withTimeout(
+            client.session.abort({ path: { id: meta.sessionId } }),
+            SESSION_ABORT_TIMEOUT_MS,
+            'session.abort'
+          );
+        } catch (err) {
+          console.warn(
+            `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+            err instanceof Error ? err.message : err
+          );
+        }
       }
       // Eager cleanup: doStop may kill before the child exit handler runs; stale
-      // metadata would otherwise block resumeTurn and accumulate on disk.
+      // pid-keyed metadata would otherwise block resumeTurn.
       this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }
 
-  async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { prompt, systemPrompt, model, context } = options;
-
+  private spawnServeProcess(workingDir: string): ChildProcess {
     const childProcess = this.deps.spawn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
-      cwd: options.workingDir,
+      cwd: workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
@@ -145,7 +156,190 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       throw new Error('Failed to spawn opencode serve process');
     }
 
-    const pid = childProcess.pid;
+    return childProcess;
+  }
+
+  private registerRunningSession(args: {
+    childProcess: ChildProcess;
+    pid: number;
+    sessionId: string;
+    context: SpawnContext;
+    forwarder: SessionEventForwarderHandle | undefined;
+    baseUrl: string;
+    agentName: string;
+    model: string | undefined;
+    workingDir: string;
+  }): SpawnResult {
+    const {
+      childProcess,
+      pid,
+      sessionId,
+      context,
+      forwarder,
+      baseUrl,
+      agentName,
+      model,
+      workingDir,
+    } = args;
+
+    const meta: SessionMetadata = {
+      sessionId,
+      machineId: context.machineId,
+      chatroomId: context.chatroomId,
+      role: context.role,
+      agentName,
+      ...(model ? { model } : {}),
+      pid,
+      createdAt: new Date().toISOString(),
+      baseUrl,
+    };
+    this.sessionStore.upsert(meta);
+
+    const entry = this.registerProcess(pid, context);
+    if (forwarder) this.forwarders.set(pid, forwarder);
+
+    const outputCallbacks: (() => void)[] = [];
+
+    forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
+    forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
+
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', () => {
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+    }
+    if (childProcess.stderr) {
+      childProcess.stderr.on('data', () => {
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+    }
+
+    return {
+      pid,
+      harnessSessionId: sessionId,
+      harnessReconnect: {
+        agentName,
+        ...(model ? { model } : {}),
+      },
+      onExit: (cb) => {
+        childProcess.on('exit', (code, signal) => {
+          const fwd = this.forwarders.get(pid);
+          if (fwd) {
+            fwd.stop();
+            this.forwarders.delete(pid);
+          }
+          this.sessionStore.remove(sessionId);
+          this.deleteProcess(pid);
+          cb({ code, signal, context });
+        });
+      },
+      onOutput: (cb) => {
+        outputCallbacks.push(cb);
+      },
+      onAgentEnd: (cb) => {
+        forwarder?.onAgentEnd(cb);
+      },
+    };
+  }
+
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    session: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
+    const { prompt, systemPrompt, model, context } = options;
+    const sessionId = session.harnessSessionId;
+    const agentName = session.agentName;
+    const modelForSession = model ?? session.model;
+    const workingDir = session.workingDir;
+
+    const childProcess = this.spawnServeProcess(workingDir);
+    const pid = childProcess.pid!;
+
+    const baseUrl = await waitForListeningUrl(childProcess, {
+      timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
+    }).catch((err) => {
+      childProcess.kill();
+      throw err;
+    });
+
+    const client = createOpencodeClient({ baseUrl });
+
+    let forwarder: SessionEventForwarderHandle | undefined;
+    try {
+      const sessionInfo = await withTimeout(
+        client.session.get({ path: { id: sessionId } }),
+        SESSION_GET_TIMEOUT_MS,
+        'session.get'
+      );
+      if (!sessionInfo.data?.id) {
+        throw new Error(
+          `OpenCode session ${sessionId} not found (sessions may not survive serve restart)`
+        );
+      }
+
+      forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
+        sessionId,
+        role: context.role,
+      });
+
+      const agentsResponse = await withTimeout(
+        client.app.agents(),
+        AGENTS_LIST_TIMEOUT_MS,
+        'app.agents'
+      );
+      const availableAgents = agentsResponse.data ?? [];
+      const agentDef = availableAgents.find((a) => a.name === agentName);
+      const composedSystem = composeSystemPrompt(agentDef?.prompt, systemPrompt);
+
+      const modelParts = modelForSession ? parseModelId(modelForSession) : undefined;
+      await withTimeout(
+        client.session.promptAsync({
+          path: { id: sessionId },
+          body: {
+            agent: agentName,
+            ...(composedSystem ? { system: composedSystem } : {}),
+            parts: [{ type: 'text', text: prompt }],
+            ...(modelParts ? { model: modelParts } : {}),
+            tools: {
+              task: false,
+              question: false,
+              external_directory: false,
+            },
+          },
+        }),
+        PROMPT_ASYNC_TIMEOUT_MS,
+        'session.promptAsync'
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[${new Date().toISOString()}] role:${context.role} resume-error] ${reason}\n`
+      );
+      forwarder?.stop();
+      childProcess.kill();
+      throw err;
+    }
+
+    return this.registerRunningSession({
+      childProcess,
+      pid,
+      sessionId,
+      context,
+      forwarder,
+      baseUrl,
+      agentName,
+      model: modelForSession,
+      workingDir,
+    });
+  }
+
+  async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const { prompt, systemPrompt, model, context } = options;
+
+    const childProcess = this.spawnServeProcess(options.workingDir);
+    const pid = childProcess.pid!;
 
     const baseUrl = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
@@ -231,61 +425,27 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       throw err;
     }
 
-    const meta: SessionMetadata = {
+    return this.registerRunningSession({
+      childProcess,
+      pid,
       sessionId,
-      machineId: context.machineId,
-      chatroomId: context.chatroomId,
-      role: context.role,
-      agentName: agentName!,
-      ...(model ? { model } : {}),
-      pid,
-      createdAt: new Date().toISOString(),
+      context,
+      forwarder,
       baseUrl,
-    };
-    this.sessionStore.upsert(meta);
+      agentName: agentName!,
+      model,
+      workingDir: options.workingDir,
+    });
+  }
 
-    const entry = this.registerProcess(pid, context);
-    if (forwarder) this.forwarders.set(pid, forwarder);
-
-    const outputCallbacks: (() => void)[] = [];
-
-    forwardFiltered(childProcess.stdout, process.stdout, isInfoLine);
-    forwardFiltered(childProcess.stderr, process.stderr, isInfoLine);
-
-    if (childProcess.stdout) {
-      childProcess.stdout.on('data', () => {
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
+  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
+    const meta = this.sessionStore.findByPid(pid);
+    if (!meta) {
+      return undefined;
     }
-    if (childProcess.stderr) {
-      childProcess.stderr.on('data', () => {
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
-    }
-
     return {
-      pid,
-      harnessSessionId: sessionId,
-      onExit: (cb) => {
-        childProcess.on('exit', (code, signal) => {
-          const fwd = this.forwarders.get(pid);
-          if (fwd) {
-            fwd.stop();
-            this.forwarders.delete(pid);
-          }
-          this.sessionStore.remove(sessionId);
-          this.deleteProcess(pid);
-          cb({ code, signal, context });
-        });
-      },
-      onOutput: (cb) => {
-        outputCallbacks.push(cb);
-      },
-      onAgentEnd: (cb) => {
-        forwarder?.onAgentEnd(cb);
-      },
+      agentName: meta.agentName,
+      ...(meta.model ? { model: meta.model } : {}),
     };
   }
 
