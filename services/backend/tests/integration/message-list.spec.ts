@@ -1,8 +1,8 @@
 /**
  * Integration tests for messageList.ts timeline queries.
  *
- * Tests subscribeLatestMessages (reactive window) and listMessagesBefore
- * (imperative load-older) from convex/messageList.ts.
+ * Tests getLatestMessages, subscribeMessagesSince, subscribeLatestMessages,
+ * and listMessagesBefore from convex/messageList.ts.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -49,7 +49,109 @@ async function sendMessageOfType(
 }
 
 // ---------------------------------------------------------------------------
-// subscribeLatestMessages
+// getLatestMessages + subscribeMessagesSince (delta tail)
+// ---------------------------------------------------------------------------
+
+describe('getLatestMessages', () => {
+  test('empty chatroom → empty messages, tailAfterCreationTime 0', async () => {
+    const { sessionId } = await createTestSession('ml-get-latest-empty-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    expect(result.messages).toHaveLength(0);
+    expect(result.hasMore).toBe(false);
+    expect(result.tailAfterCreationTime).toBe(0);
+  });
+
+  test('returns latest window with tail cursor on oldest row', async () => {
+    const { sessionId } = await createTestSession('ml-get-latest-window-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 25);
+
+    const result = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    expect(result.messages).toHaveLength(20);
+    expect(result.hasMore).toBe(true);
+    expect(result.messages[0]!.content).toBe('message-6');
+    expect(result.messages[19]!.content).toBe('message-25');
+    expect(result.tailAfterCreationTime).toBe(result.messages[0]!._creationTime);
+  });
+});
+
+describe('subscribeMessagesSince', () => {
+  test('returns only messages at or after tail cursor', async () => {
+    const { sessionId } = await createTestSession('ml-since-tail-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 10);
+
+    const latest = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    const since = await t.query(api.messageList.subscribeMessagesSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterCreationTime: latest.tailAfterCreationTime,
+    });
+
+    expect(since).toHaveLength(10);
+    expect(since[0]!.content).toBe('message-1');
+    expect(since[9]!.content).toBe('message-10');
+  });
+
+  test('cursor after newest returns empty until new message', async () => {
+    const { sessionId } = await createTestSession('ml-since-future-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 3);
+
+    const result = await t.query(api.messageList.subscribeMessagesSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterCreationTime: Date.now() + 60_000,
+    });
+
+    expect(result).toHaveLength(0);
+  });
+
+  test('filters out join and progress message types', async () => {
+    const { sessionId } = await createTestSession('ml-since-filter-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await sendMessages(sessionId, chatroomId, 2);
+    await sendMessageOfType(sessionId, chatroomId, 'join');
+    await sendMessageOfType(sessionId, chatroomId, 'progress');
+
+    const since = await t.query(api.messageList.subscribeMessagesSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterCreationTime: 0,
+    });
+
+    expect(since).toHaveLength(2);
+    for (const msg of since) {
+      expect(msg.type).not.toBe('join');
+      expect(msg.type).not.toBe('progress');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// subscribeLatestMessages (legacy)
 // ---------------------------------------------------------------------------
 
 describe('subscribeLatestMessages', () => {
