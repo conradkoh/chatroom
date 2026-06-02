@@ -322,7 +322,7 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 
 **Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On first launch, `wantResume` on `agent.requestStart` controls whether the daemon tries to reconnect:
 
-- **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`, persists a disk snapshot). The next start with `wantResume` calls `resumeFromSnapshot` (new `opencode serve`, same `sessionId` via `session.promptAsync`). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to a fresh `spawn`.
+- **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`). `AgentProcessManager.lastHarnessSessions` stores reconnect metadata in daemon memory on spawn and on preserve-for-resume stop; non-preserve stop clears the entry. The next start with `wantResume` calls `OpenCodeSdkAgentService.resumeFromDaemonMemory` (new `opencode serve`, `session.get`, `session.promptAsync` on the same `sessionId`). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. Daemon restart loses memory → `no session in daemon memory` → fresh spawn.
 - **pi / cursor-sdk**: in-turn `resumeTurn` only; first-launch reconnect is not implemented yet.
 
 A **requestStart replace** always kills via `doStop` regardless of resume state.

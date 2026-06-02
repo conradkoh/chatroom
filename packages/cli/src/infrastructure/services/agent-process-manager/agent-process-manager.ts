@@ -20,21 +20,32 @@ import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
-import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+import type {
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  RemoteAgentService,
+  SpawnResult,
+} from '../remote-agents/remote-agent-service.js';
 import { OpenCodeSdkAgentService } from '../remote-agents/opencode-sdk/opencode-sdk-agent-service.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
-function isOpencodeSdkResumeService(service: RemoteAgentService): service is OpenCodeSdkAgentService {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+function isOpencodeSdkDaemonResumeService(
+  service: RemoteAgentService
+): service is OpenCodeSdkAgentService {
   return (
     service.id === 'opencode-sdk' &&
-    typeof (service as OpenCodeSdkAgentService).getResumeSnapshot === 'function' &&
-    typeof (service as OpenCodeSdkAgentService).resumeFromSnapshot === 'function'
+    typeof (service as OpenCodeSdkAgentService).resumeFromDaemonMemory === 'function'
   );
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+/** In-memory reconnect context per chatroom+role (lost on daemon restart). */
+export interface LastHarnessSessionContext extends DaemonHarnessSessionContext {
+  harness: AgentHarness;
+}
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
@@ -163,11 +174,8 @@ const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 export class AgentProcessManager {
   private readonly deps: AgentProcessManagerDeps;
   private readonly slots = new Map<string, AgentSlot>();
-  /** Latest harness session ID per chatroom+role — in-memory only (lost on daemon restart). */
-  private readonly lastHarnessSessions = new Map<
-    string,
-    { harnessSessionId: string; harness: AgentHarness }
-  >();
+  /** Latest harness session reconnect context per chatroom+role — in-memory only. */
+  private readonly lastHarnessSessions = new Map<string, LastHarnessSessionContext>();
 
   /** Queue of failed recordAgentExited calls awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
@@ -736,11 +744,8 @@ export class AgentProcessManager {
     }
   }
 
-  /**
-   * When wantResume is true on first launch, try to reconnect via persisted harness
-   * snapshot (opencode-sdk). Returns SpawnResult on success; null falls through to spawn.
-   */
   private async tryFirstLaunchResume(opts: {
+    key: string;
     chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
@@ -755,38 +760,49 @@ export class AgentProcessManager {
       return null;
     }
 
-    if (opts.agentHarness !== 'opencode-sdk' || !isOpencodeSdkResumeService(opts.service)) {
-      return null;
-    }
-
-    const snapshot = opts.service.getResumeSnapshot(
-      this.deps.machineId,
-      opts.chatroomId,
-      opts.role
-    );
-    if (!snapshot) {
+    const stored = this.lastHarnessSessions.get(opts.key);
+    if (
+      !stored ||
+      stored.harness !== opts.agentHarness ||
+      !stored.agentName ||
+      !stored.workingDir
+    ) {
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        'no resume snapshot on disk'
+        'no session in daemon memory'
+      );
+      return null;
+    }
+
+    if (opts.agentHarness !== 'opencode-sdk' || !isOpencodeSdkDaemonResumeService(opts.service)) {
+      await this.emitSessionResumeFailed(
+        opts.chatroomId,
+        opts.role,
+        'first-launch session resume not yet supported'
       );
       return null;
     }
 
     try {
-      const spawnResult = await opts.service.resumeFromSnapshot(
+      const spawnResult = await opts.service.resumeFromDaemonMemory(
         {
-          workingDir: opts.workingDir,
+          workingDir: stored.workingDir,
           prompt: createSpawnPrompt(opts.initPrompt),
           systemPrompt: opts.systemPrompt,
-          model: opts.model,
+          model: opts.model ?? stored.model,
           context: {
             machineId: this.deps.machineId,
             chatroomId: opts.chatroomId,
             role: opts.role,
           },
         },
-        snapshot
+        {
+          harnessSessionId: stored.harnessSessionId,
+          agentName: stored.agentName,
+          workingDir: stored.workingDir,
+          model: stored.model,
+        }
       );
       await this.emitSessionResumed(opts.chatroomId, opts.role);
       return spawnResult;
@@ -943,6 +959,7 @@ export class AgentProcessManager {
       if (wantResume) {
         spawnResult =
           (await this.tryFirstLaunchResume({
+            key,
             chatroomId: opts.chatroomId,
             role: opts.role,
             agentHarness: opts.agentHarness,
@@ -985,9 +1002,12 @@ export class AgentProcessManager {
       slot.harness = opts.agentHarness;
       slot.harnessSessionId = spawnResult.harnessSessionId;
       if (spawnResult.harnessSessionId) {
-        this.lastHarnessSessions.set(key, {
+        this.recordLastHarnessSession(key, {
           harnessSessionId: spawnResult.harnessSessionId,
           harness: opts.agentHarness,
+          agentName: spawnResult.harnessReconnect?.agentName ?? '',
+          workingDir: opts.workingDir,
+          model: opts.model ?? spawnResult.harnessReconnect?.model,
         });
       }
       slot.model = opts.model;
@@ -1071,6 +1091,21 @@ export class AgentProcessManager {
     }
   }
 
+  private recordLastHarnessSession(key: string, ctx: LastHarnessSessionContext): void {
+    this.lastHarnessSessions.set(key, ctx);
+  }
+
+  private clearLastHarnessSession(key: string): void {
+    this.lastHarnessSessions.delete(key);
+  }
+
+  private readHarnessReconnectMetadata(
+    service: RemoteAgentService,
+    pid: number
+  ): HarnessReconnectMetadata | undefined {
+    return service.getHarnessReconnectContext?.(pid);
+  }
+
   private async doStop(
     key: string,
     slot: AgentSlot,
@@ -1082,17 +1117,30 @@ export class AgentProcessManager {
 
     try {
       const harness = slot.harness;
-      if (slot.harnessSessionId && harness) {
-        this.lastHarnessSessions.set(key, {
-          harnessSessionId: slot.harnessSessionId,
-          harness,
-        });
-      }
       const service = harness ? this.deps.agentServices.get(harness) : undefined;
+      const preserveForResume =
+        opts.reason === 'user.stop' && Boolean(slot.harnessSessionId);
+
+      if (harness && slot.harnessSessionId) {
+        if (preserveForResume) {
+          const harnessMeta = service
+            ? this.readHarnessReconnectMetadata(service, pid)
+            : undefined;
+          this.recordLastHarnessSession(key, {
+            harnessSessionId: slot.harnessSessionId,
+            harness,
+            agentName: harnessMeta?.agentName ?? '',
+            workingDir: slot.workingDir ?? '',
+            model: slot.model ?? harnessMeta?.model,
+          });
+        } else {
+          this.clearLastHarnessSession(key);
+        }
+      } else if (!preserveForResume) {
+        this.clearLastHarnessSession(key);
+      }
 
       if (service) {
-        const preserveForResume =
-          opts.reason === 'user.stop' && Boolean(slot.harnessSessionId);
         await service.stop(pid, { preserveForResume });
         // Explicitly untrack: handleExit() returns early when state==='stopping',
         // so untrack must be called here to keep the service's process map clean.

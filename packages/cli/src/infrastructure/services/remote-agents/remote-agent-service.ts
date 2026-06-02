@@ -44,6 +44,20 @@ export interface SpawnOptions {
   context: SpawnContext;
 }
 
+/** Harness-specific metadata needed to reconnect after stop (daemon memory only). */
+export interface HarnessReconnectMetadata {
+  agentName: string;
+  model?: string;
+}
+
+/** Daemon-memory session context for first-launch resume (opencode-sdk). */
+export interface DaemonHarnessSessionContext {
+  harnessSessionId: string;
+  agentName: string;
+  workingDir: string;
+  model?: string;
+}
+
 export interface SpawnResult {
   pid: number;
   onExit: (
@@ -57,6 +71,8 @@ export interface SpawnResult {
   onAgentEnd?: (cb: () => void) => void;
   /** Session ID for harnesses that support session resume. Undefined if not applicable. */
   harnessSessionId?: string;
+  /** Extra fields for first-launch resume (e.g. opencode-sdk agent name). */
+  harnessReconnect?: HarnessReconnectMetadata;
 }
 
 export interface ProcessInfo {
@@ -105,6 +121,12 @@ export interface RemoteAgentService {
    * Called by AgentProcessManager instead of killing and re-spawning.
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
+
+  /**
+   * Read harness session metadata for reconnect before stop removes it.
+   * Only implement on harnesses that support first-launch resume (e.g. opencode-sdk).
+   */
+  getHarnessReconnectContext?(pid: number): HarnessReconnectMetadata | undefined;
 
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
   stop(pid: number, options?: AgentStopOptions): Promise<void>;

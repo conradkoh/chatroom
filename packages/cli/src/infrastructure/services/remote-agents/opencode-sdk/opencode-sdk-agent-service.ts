@@ -19,7 +19,13 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnContext } from '../remote-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
-import type { AgentStopOptions, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import type {
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnOptions,
+  SpawnResult,
+} from '../remote-agent-service.js';
 import { forwardFiltered } from './node-streams.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
@@ -30,11 +36,6 @@ import {
   type SessionEventForwarderHandle,
 } from './session-event-forwarder.js';
 import {
-  FileResumeSnapshotStore,
-  type ResumeSnapshot,
-  type ResumeSnapshotStore,
-} from './resume-snapshot-store.js';
-import {
   FileSessionMetadataStore,
   type SessionMetadata,
   type SessionMetadataStore,
@@ -42,7 +43,6 @@ import {
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
-  resumeSnapshotStore?: ResumeSnapshotStore;
 };
 
 const OPENCODE_COMMAND = 'opencode';
@@ -72,41 +72,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
   private readonly sessionStore: SessionMetadataStore;
-  private readonly resumeSnapshotStore: ResumeSnapshotStore;
   private readonly forwarders = new Map<number, SessionEventForwarderHandle>();
 
   constructor(deps?: Partial<OpenCodeSdkAgentServiceDeps>) {
     super(deps);
     this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
-    this.resumeSnapshotStore = deps?.resumeSnapshotStore ?? new FileResumeSnapshotStore();
-  }
-
-  private persistResumeSnapshot(
-    meta: Pick<
-      SessionMetadata,
-      'sessionId' | 'machineId' | 'chatroomId' | 'role' | 'agentName' | 'model'
-    >,
-    workingDir: string
-  ): void {
-    const snapshot: ResumeSnapshot = {
-      sessionId: meta.sessionId,
-      machineId: meta.machineId,
-      chatroomId: meta.chatroomId,
-      role: meta.role,
-      agentName: meta.agentName,
-      ...(meta.model ? { model: meta.model } : {}),
-      workingDir,
-      updatedAt: new Date().toISOString(),
-    };
-    this.resumeSnapshotStore.upsert(snapshot);
-  }
-
-  getResumeSnapshot(
-    machineId: string,
-    chatroomId: string,
-    role: string
-  ): ResumeSnapshot | undefined {
-    return this.resumeSnapshotStore.get(machineId, chatroomId, role);
   }
 
   async isInstalled(): Promise<boolean> {
@@ -147,15 +117,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const preserveForResume = options?.preserveForResume === true;
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
-      if (preserveForResume) {
-        const existing = this.resumeSnapshotStore.get(
-          meta.machineId,
-          meta.chatroomId,
-          meta.role
-        );
-        this.persistResumeSnapshot(meta, existing?.workingDir ?? '');
-      } else {
-        this.resumeSnapshotStore.remove(meta.machineId, meta.chatroomId, meta.role);
+      if (!preserveForResume) {
         try {
           const client = createOpencodeClient({ baseUrl: meta.baseUrl });
           await withTimeout(
@@ -171,7 +133,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         }
       }
       // Eager cleanup: doStop may kill before the child exit handler runs; stale
-      // pid-keyed metadata would otherwise block resumeTurn and accumulate on disk.
+      // pid-keyed metadata would otherwise block resumeTurn.
       this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
@@ -232,7 +194,6 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       baseUrl,
     };
     this.sessionStore.upsert(meta);
-    this.persistResumeSnapshot(meta, workingDir);
 
     const entry = this.registerProcess(pid, context);
     if (forwarder) this.forwarders.set(pid, forwarder);
@@ -258,6 +219,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     return {
       pid,
       harnessSessionId: sessionId,
+      harnessReconnect: {
+        agentName,
+        ...(model ? { model } : {}),
+      },
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           const fwd = this.forwarders.get(pid);
@@ -279,12 +244,15 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     };
   }
 
-  async resumeFromSnapshot(options: SpawnOptions, snapshot: ResumeSnapshot): Promise<SpawnResult> {
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    session: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
     const { prompt, systemPrompt, model, context } = options;
-    const sessionId = snapshot.sessionId;
-    const agentName = snapshot.agentName;
-    const modelForSession = model ?? snapshot.model;
-    const workingDir = snapshot.workingDir;
+    const sessionId = session.harnessSessionId;
+    const agentName = session.agentName;
+    const modelForSession = model ?? session.model;
+    const workingDir = session.workingDir;
 
     const childProcess = this.spawnServeProcess(workingDir);
     const pid = childProcess.pid!;
@@ -468,6 +436,17 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       model,
       workingDir: options.workingDir,
     });
+  }
+
+  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
+    const meta = this.sessionStore.findByPid(pid);
+    if (!meta) {
+      return undefined;
+    }
+    return {
+      agentName: meta.agentName,
+      ...(meta.model ? { model: meta.model } : {}),
+    };
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
