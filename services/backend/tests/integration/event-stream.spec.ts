@@ -603,6 +603,59 @@ test('updateSpawnedAgent writes agent.started event to event stream', async () =
   expect(after.length).toBeGreaterThan(before.length);
 });
 
+test('updateSpawnedAgent persists harnessSessionId on agent.started event', async () => {
+  const { sessionId } = await createTestSession('test-es-started-harness-session');
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const machineId = 'machine-es-started-harness-session';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  await t.run(async (ctx) => {
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+      .first();
+    const user = await ctx.db.query('users').first();
+    return startAgent(
+      ctx,
+      {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId: user!._id,
+        model: 'test-model',
+        agentHarness: 'opencode',
+        workingDir: '/test/ws',
+        reason: 'test',
+      },
+      machine!
+    );
+  });
+
+  await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 42002,
+    model: 'test-model',
+    harnessSessionId: 'harness-sess-abc123',
+  });
+
+  const after = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+
+  const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
+  const latestStarted = startedEvents[startedEvents.length - 1] as {
+    type: string;
+    harnessSessionId?: string;
+  };
+  expect(latestStarted.harnessSessionId).toBe('harness-sess-abc123');
+});
+
 // ─── Test 11: updateSpawnedAgent upserts restart metric ──────────────────────
 
 test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {

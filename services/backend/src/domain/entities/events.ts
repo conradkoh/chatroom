@@ -18,6 +18,7 @@ export type AgentStartedEvent = {
   workingDir: string;
   pid: number;
   reason?: string;
+  harnessSessionId?: string;
   timestamp: number;
 };
 
@@ -130,6 +131,7 @@ export type AgentSessionResumedEvent = {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   machineId: string;
+  harnessSessionId?: string;
   timestamp: number;
 };
 
@@ -139,6 +141,7 @@ export type AgentSessionResumeFailedEvent = {
   role: string;
   machineId: string;
   reason: string;
+  harnessSessionId?: string;
   timestamp: number;
 };
 

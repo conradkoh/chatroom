@@ -419,4 +419,61 @@ describe('Participant Status Tracking', () => {
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.sessionResumed');
   });
+
+  test('emitSessionResumed persists harnessSessionId on event stream row', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-resumed-harness');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-pst-session-resumed-harness';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.emitSessionResumed, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      harnessSessionId: 'harness-sess-resumed-xyz',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
+    expect(resumed).toHaveLength(1);
+    expect(resumed[0].harnessSessionId).toBe('harness-sess-resumed-xyz');
+  });
+
+  test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-pst-session-resume-failed-harness';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.emitSessionResumeFailed, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      reason: 'no session in daemon memory',
+      harnessSessionId: 'harness-sess-failed-xyz',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const failed = events.filter((e) => e.type === 'agent.sessionResumeFailed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0].harnessSessionId).toBe('harness-sess-failed-xyz');
+  });
 });

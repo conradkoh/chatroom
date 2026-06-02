@@ -1036,6 +1036,7 @@ export default defineSchema({
         workingDir: v.string(),
         pid: v.number(),
         reason: v.optional(v.string()),
+        harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Agent process exited (crash or intentional)
@@ -1218,6 +1219,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
         machineId: v.string(),
+        harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Agent session resume attempted but failed (graceful fallback follows)
@@ -1227,6 +1229,7 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         reason: v.string(),
+        harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Daemon hit crash loop limit and stopped restarting

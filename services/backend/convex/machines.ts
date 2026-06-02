@@ -1300,6 +1300,7 @@ export const updateSpawnedAgent = mutation({
     pid: v.optional(v.number()), // null to clear
     model: v.optional(v.string()), // Save model alongside PID for config persistence
     reason: v.optional(v.string()),
+    harnessSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1354,6 +1355,7 @@ export const updateSpawnedAgent = mutation({
         workingDir: configWorkingDir,
         pid: args.pid,
         reason: args.reason,
+        harnessSessionId: args.harnessSessionId,
         timestamp: now,
       });
 
@@ -2534,6 +2536,7 @@ export const emitSessionResumed = mutation({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    harnessSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -2552,6 +2555,7 @@ export const emitSessionResumed = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       machineId: args.machineId,
+      harnessSessionId: args.harnessSessionId,
       timestamp: Date.now(),
     });
 
@@ -2569,6 +2573,7 @@ export const emitSessionResumeFailed = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     reason: v.string(),
+    harnessSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -2588,6 +2593,7 @@ export const emitSessionResumeFailed = mutation({
       role: args.role,
       machineId: args.machineId,
       reason: args.reason,
+      harnessSessionId: args.harnessSessionId,
       timestamp: Date.now(),
     });
 
