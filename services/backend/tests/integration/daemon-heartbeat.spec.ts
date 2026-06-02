@@ -35,16 +35,41 @@ describe('Daemon Heartbeat', () => {
       return liveness!.lastSeenAt;
     });
 
-    // Small delay to ensure Date.now() advances
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Send another heartbeat
+    // Send another heartbeat within throttle window — lastSeenAt should not change
     await t.mutation(api.machines.daemonHeartbeat, {
       sessionId,
       machineId,
     });
 
-    // Read updated lastSeenAt from liveness table
+    const withinWindow = await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return liveness!.lastSeenAt;
+    });
+
+    expect(withinWindow).toBe(before);
+
+    // Advance past DAEMON_LIVENESS_WRITE_INTERVAL_MS and heartbeat again
+    const throttleMs = 25_000;
+    await t.run(async (ctx) => {
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (liveness) {
+        await ctx.db.patch(liveness._id, {
+          lastSeenAt: Date.now() - throttleMs - 1,
+        });
+      }
+    });
+
+    await t.mutation(api.machines.daemonHeartbeat, {
+      sessionId,
+      machineId,
+    });
+
     const after = await t.run(async (ctx) => {
       const liveness = await ctx.db
         .query('chatroom_machineLiveness')

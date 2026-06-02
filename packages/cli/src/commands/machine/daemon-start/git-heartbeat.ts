@@ -2,6 +2,7 @@ import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliab
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
@@ -131,18 +132,8 @@ function makeBranchDependentFields(
 }
 
 export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  let workspaces: { workingDir: string }[];
-  try {
-    workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${getErrorMessage(err)}`
-    );
-    return;
-  }
+  const workspaces = await getWorkspacesForMachine(ctx);
+  if (workspaces.length === 0) return;
 
   const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
 

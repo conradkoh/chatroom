@@ -12,23 +12,14 @@ import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { discoverCommands } from '../../../infrastructure/services/workspace/command-discovery.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 
 /**
  * Discover and sync commands for all tracked workspaces.
  */
 export async function pushCommands(ctx: DaemonContext): Promise<void> {
-  let workspaces: { workingDir: string }[];
-  try {
-    workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for command sync: ${getErrorMessage(err)}`
-    );
-    return;
-  }
+  const workspaces = await getWorkspacesForMachine(ctx);
+  if (workspaces.length === 0) return;
 
   const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
   if (uniqueWorkingDirs.size === 0) return;

@@ -57,4 +57,69 @@ describe('Participant Join', () => {
     expect(participant).not.toBeNull();
     expect(participant!.lastSeenAction).toBeUndefined();
   });
+
+  test('rapid joins within throttle window do not update lastSeenAt', async () => {
+    const { sessionId } = await createTestSession('test-join-throttle');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const afterFirst = await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return p!.lastSeenAt;
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const afterSecond = await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return p!.lastSeenAt;
+    });
+
+    expect(afterSecond).toBe(afterFirst);
+  });
+
+  test('join with action still updates lastSeenAction when lastSeenAt is throttled', async () => {
+    const { sessionId } = await createTestSession('test-join-throttle-action');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const participant = await t.query(api.participants.getByRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    expect(participant!.lastSeenAction).toBe('get-next-task:started');
+  });
 });

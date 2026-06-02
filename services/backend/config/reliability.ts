@@ -68,6 +68,20 @@ export const OBSERVED_SAFETY_POLL_MS = 30_000;
  *  Set to 30s. */
 export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
 
+// ─── Participant Lifecycle Heartbeat ─────────────────────────────────────────
+
+/** Minimum interval between participant `lastSeenAt` writes (ms).
+ *  CLI preAction fires on every command; throttling reduces listParticipantPresence churn.
+ *  Set to 30s to match agent presence UI refresh cadence. */
+export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
+
+// ─── Daemon Liveness Write Throttle ──────────────────────────────────────────
+
+/** Minimum interval between `chatroom_machineLiveness.lastSeenAt` patches (ms).
+ *  Daemon heartbeats every 30s but only writes liveness when this interval elapses,
+ *  reducing getDaemonStatus subscription invalidations. Must be < DAEMON_HEARTBEAT_TTL_MS. */
+export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 25_000;
+
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
 /** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */
