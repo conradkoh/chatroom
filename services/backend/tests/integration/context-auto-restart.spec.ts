@@ -73,6 +73,9 @@ test('createContext emits agent.requestStart for builder with autoRestartOnNewCo
   expect(restartEvents).toHaveLength(1);
   expect(restartEvents[0].role).toBe('builder');
   expect(restartEvents[0].machineId).toBe(machineId);
+  if (restartEvents[0].type === 'agent.requestStart') {
+    expect(restartEvents[0].autoRestartOnNewContext).toBe(true);
+  }
 });
 
 test('createContext does not restart builder when autoRestartOnNewContext is disabled', async () => {

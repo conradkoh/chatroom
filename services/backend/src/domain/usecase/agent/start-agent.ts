@@ -54,10 +54,11 @@ export interface StartAgentInput {
    */
   reason: AgentStartReason;
   /**
-   * When true (default), resume-capable harnesses continue the session after a
-   * turn failure (persisted on agent.requestStart as wantResumeOnFail).
+   * When true (default), resume-capable harnesses try to continue from the
+   * daemon's last session for this chatroom+role on first launch (observability
+   * snapshot on agent.requestStart only — not persisted on team config).
    */
-  wantResumeOnFail?: boolean;
+  wantResume?: boolean;
 }
 
 /** Successful result of a start-agent operation. */
@@ -92,7 +93,7 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResumeOnFail } =
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResume } =
     input;
 
   // ── Step 1: Verify harness is available on the machine ────────────────
@@ -104,7 +105,8 @@ export async function startAgent(
   // ── Step 2: Upsert team agent config ──────────────────────────────────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  let resolvedWantResumeOnFail = wantResumeOnFail ?? true;
+  const resolvedWantResume = wantResume ?? true;
+  let resolvedAutoRestartOnNewContext: boolean | undefined;
 
   if (chatroom) {
     if (!chatroom.teamId) {
@@ -118,9 +120,8 @@ export async function startAgent(
     const previousMachineId = existingTeamConfig?.machineId;
 
     const teamConfigNow = Date.now();
-    resolvedWantResumeOnFail =
-      wantResumeOnFail ?? existingTeamConfig?.wantResumeOnFail ?? true;
     const preservedAutoRestartOnNewContext = existingTeamConfig?.autoRestartOnNewContext;
+    resolvedAutoRestartOnNewContext = preservedAutoRestartOnNewContext;
 
     const teamConfig = {
       teamRoleKey,
@@ -133,7 +134,6 @@ export async function startAgent(
       workingDir,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
-      wantResumeOnFail: resolvedWantResumeOnFail,
       ...(preservedAutoRestartOnNewContext !== undefined
         ? { autoRestartOnNewContext: preservedAutoRestartOnNewContext }
         : {}),
@@ -180,7 +180,10 @@ export async function startAgent(
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
-    wantResumeOnFail: resolvedWantResumeOnFail,
+    wantResume: resolvedWantResume,
+    ...(resolvedAutoRestartOnNewContext !== undefined
+      ? { autoRestartOnNewContext: resolvedAutoRestartOnNewContext }
+      : {}),
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 

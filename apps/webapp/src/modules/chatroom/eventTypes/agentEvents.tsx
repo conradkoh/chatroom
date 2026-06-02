@@ -168,8 +168,13 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
-function formatWantResumeOnFailLabel(wantResumeOnFail: boolean | undefined): string {
-  return wantResumeOnFail === false ? 'resume on failure off' : 'resume on failure on';
+function formatWantResumeLabel(wantResume: boolean | undefined): string {
+  return wantResume === false ? 'resume off' : 'resume on';
+}
+
+function formatAutoRestartOnNewContextLabel(autoRestartOnNewContext: boolean | undefined): string {
+  if (autoRestartOnNewContext === undefined) return 'new context restart unset';
+  return autoRestartOnNewContext ? 'new context restart on' : 'new context restart off';
 }
 
 function renderAgentRequestStartCell(
@@ -182,7 +187,7 @@ function renderAgentRequestStartCell(
       badgeText="Req Start"
       badgeColor="warning"
       primaryInfo={event.role}
-      secondaryInfo={`${formatWantResumeOnFailLabel(event.wantResumeOnFail)} · ${event.reason}`}
+      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)} · ${event.reason}`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -202,9 +207,10 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Model" value={event.model} mono />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Resume session" value={formatWantResumeLabel(event.wantResume)} />
       <DetailRow
-        label="Resume on failure"
-        value={formatWantResumeOnFailLabel(event.wantResumeOnFail)}
+        label="Restart on new context"
+        value={formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)}
       />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />

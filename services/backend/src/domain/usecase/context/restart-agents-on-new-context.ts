@@ -38,7 +38,8 @@ export async function restartAgentsOnNewContext(
       reason: 'platform.auto_restart_on_new_context',
       deadline: now + AGENT_REQUEST_DEADLINE_MS,
       timestamp: now,
-      wantResumeOnFail: config.wantResumeOnFail ?? true,
+      wantResume: false,
+      autoRestartOnNewContext: config.autoRestartOnNewContext,
     });
     await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
     restartedRoles.push(config.role);

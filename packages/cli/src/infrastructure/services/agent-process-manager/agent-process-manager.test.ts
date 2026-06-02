@@ -233,7 +233,7 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
-    test('onAgentEnd kills instead of resumeTurn when wantResumeOnFail is false', async () => {
+    test('onAgentEnd always calls resumeTurn for resumable harness regardless of wantResume', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();
       const resumableService = {
@@ -254,15 +254,15 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({
           agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'],
-          wantResumeOnFail: false,
+          wantResume: false,
         })
       );
 
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       agentEndCb();
 
-      expect(resumeTurn).not.toHaveBeenCalled();
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(resumeTurn).toHaveBeenCalledOnce();
+      expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
@@ -428,6 +428,59 @@ describe('AgentProcessManager', () => {
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
+    });
+
+    test('context auto-restart failure falls back to crash recovery (rate-limited)', async () => {
+      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
+      shouldAllowSpawn.mockReturnValue({ allowed: true });
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('spawn error'))
+        .mockResolvedValueOnce({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        });
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.auto_restart_on_new_context' })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
+        1,
+        CHATROOM_ID,
+        'platform.auto_restart_on_new_context',
+        expect.any(Object)
+      );
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
+        2,
+        CHATROOM_ID,
+        'platform.crash_recovery',
+        expect.any(Object)
+      );
+      expect(service.spawn).toHaveBeenCalledTimes(2);
+    });
+
+    test('context auto-restart: crash recovery failure returns rate_limited', async () => {
+      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
+      shouldAllowSpawn
+        .mockReturnValueOnce({ allowed: true })
+        .mockReturnValueOnce({ allowed: false });
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('spawn error'));
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.auto_restart_on_new_context' })
+      );
+
+      expect(result).toEqual({ success: false, error: 'rate_limited' });
+      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
+      expect(service.spawn).toHaveBeenCalledTimes(1);
     });
 
     test('crash loop: returns failure, emits restartLimitReached', async () => {

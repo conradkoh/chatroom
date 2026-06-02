@@ -179,6 +179,19 @@ describe('startAgent use case — desiredState', () => {
 
     expect(config?.autoRestartOnNewContext).toBe(true);
     expect(config?.desiredState).toBe('running');
+
+    const requestStartEvents = await t.run(async (ctx) => {
+      const events = await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      return events.filter((e) => e.type === 'agent.requestStart');
+    });
+    const latest = requestStartEvents.at(-1);
+    expect(latest?.type).toBe('agent.requestStart');
+    if (latest?.type === 'agent.requestStart') {
+      expect(latest.autoRestartOnNewContext).toBe(true);
+    }
   });
 
   test('resets circuit breaker state when manually starting an agent', async () => {

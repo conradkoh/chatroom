@@ -66,8 +66,10 @@ export interface AgentRequestStartEvent extends EventStreamEventBase {
   reason: string;
   deadline: number;
   chatroomId: string;
-  /** When true (default), resume-capable harnesses continue from the last session after agent_end. */
-  wantResumeOnFail?: boolean;
+  /** When true (default), resume from the daemon's last session on first launch. */
+  wantResume?: boolean;
+  /** Snapshot of team config at emit time (observability only). */
+  autoRestartOnNewContext?: boolean;
 }
 
 export interface AgentRequestStopEvent extends EventStreamEventBase {

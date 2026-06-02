@@ -12,34 +12,34 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 export interface RemoteAgentAdvancedSettingsProps {
   role: string;
-  /** Harness used for resume-on-failure visibility (selected or running). */
   agentHarness: AgentHarness | null;
-  wantResumeOnFail: boolean;
+  /** When false, show resume-session toggle for resume-capable harnesses. */
+  isAgentRunning?: boolean;
+  resumeSession: boolean;
   autoRestartOnNewContext: boolean;
   disabled?: boolean;
-  isSavingWantResumeOnFail?: boolean;
   isSavingAutoRestartOnNewContext?: boolean;
-  onWantResumeOnFailChange: (enabled: boolean) => void;
+  onResumeSessionChange: (enabled: boolean) => void;
   onAutoRestartOnNewContextChange: (enabled: boolean) => void;
 }
 
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
   role,
   agentHarness,
-  wantResumeOnFail,
+  isAgentRunning = false,
+  resumeSession,
   autoRestartOnNewContext,
   disabled = false,
-  isSavingWantResumeOnFail = false,
   isSavingAutoRestartOnNewContext = false,
-  onWantResumeOnFailChange,
+  onResumeSessionChange,
   onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
-  const showResumeSessionOnFailureSetting =
-    agentHarness != null && harnessSupportsSessionResume(agentHarness);
+  const showResumeSessionSetting =
+    !isAgentRunning && agentHarness != null && harnessSupportsSessionResume(agentHarness);
   const showStartNewSessionOnNewContextSetting =
     roleSupportsAutoRestartOnNewContextSetting(role);
 
-  if (!showResumeSessionOnFailureSetting && !showStartNewSessionOnNewContextSetting) {
+  if (!showResumeSessionSetting && !showStartNewSessionOnNewContextSetting) {
     return null;
   }
 
@@ -52,38 +52,31 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
         Advanced
       </h3>
       <ul className="flex flex-col gap-3 list-none p-0 m-0 pl-2.5 border-l border-chatroom-border/70">
-        {showResumeSessionOnFailureSetting && (
+        {showResumeSessionSetting && (
           <li className="flex items-center justify-between gap-3">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="min-w-0 cursor-default">
                     <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
-                      Resume session on failure
+                      Resume session
                     </p>
                     <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
-                      After a failed turn, keep the harness session and retry instead of killing
-                      the agent
+                      Continue from the last session instead of starting fresh
                     </p>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[240px] text-xs">
-                  Applies when the agent exits a turn without a clean stop — not when you press
-                  Start (that always spawns fresh).
+                  Applies on Start when a prior session is available in the daemon on this machine.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {isSavingWantResumeOnFail && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-chatroom-text-muted" />
-              )}
-              <Switch
-                checked={wantResumeOnFail}
-                disabled={disabled || isSavingWantResumeOnFail}
-                onCheckedChange={onWantResumeOnFailChange}
-                aria-label="Resume session on failure"
-              />
-            </div>
+            <Switch
+              checked={resumeSession}
+              disabled={disabled}
+              onCheckedChange={onResumeSessionChange}
+              aria-label="Resume session"
+            />
           </li>
         )}
 

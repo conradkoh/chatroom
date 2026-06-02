@@ -65,7 +65,9 @@ export type AgentRequestStartEvent = {
   reason: string;
   deadline: number;
   timestamp: number;
-  wantResumeOnFail?: boolean;
+  wantResume?: boolean;
+  /** Snapshot of team config at emit time (observability only). */
+  autoRestartOnNewContext?: boolean;
 };
 
 export type AgentRequestStopEvent = {

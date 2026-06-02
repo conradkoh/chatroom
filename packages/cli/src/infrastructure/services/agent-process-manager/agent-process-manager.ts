@@ -35,8 +35,6 @@ export interface AgentSlot {
   harness?: AgentHarness;
   /** Harness-native session ID when supportsSessionResume is true. */
   harnessSessionId?: string;
-  /** When false, onAgentEnd kills instead of resumeTurn even for resumable harnesses. */
-  wantResumeOnFail: boolean;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -59,8 +57,8 @@ export interface EnsureRunningOpts {
   model?: string;
   workingDir: string;
   reason: string;
-  /** When false, onAgentEnd kills instead of resumeTurn. Defaults to true. */
-  wantResumeOnFail?: boolean;
+  /** When true (default), try to resume the daemon's last session on first launch. */
+  wantResume?: boolean;
 }
 
 export interface StopOpts {
@@ -156,6 +154,11 @@ const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 export class AgentProcessManager {
   private readonly deps: AgentProcessManagerDeps;
   private readonly slots = new Map<string, AgentSlot>();
+  /** Latest harness session ID per chatroom+role — in-memory only (lost on daemon restart). */
+  private readonly lastHarnessSessions = new Map<
+    string,
+    { harnessSessionId: string; harness: AgentHarness }
+  >();
 
   /** Queue of failed recordAgentExited calls awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
@@ -261,7 +264,6 @@ export class AgentProcessManager {
     role: string;
     pid: number;
     harness: AgentHarness;
-    wantResumeOnFail: boolean;
   }): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -275,10 +277,10 @@ export class AgentProcessManager {
     const capabilities = getHarnessCapabilities(opts.harness);
 
     console.log(
-      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResumeOnFail=${opts.wantResumeOnFail} supportsResume=${capabilities.supportsSessionResume}`
+      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${capabilities.supportsSessionResume}`
     );
 
-    if (capabilities.supportsSessionResume && opts.wantResumeOnFail) {
+    if (capabilities.supportsSessionResume) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
         if (slot) {
@@ -372,7 +374,6 @@ export class AgentProcessManager {
     const harness = slot.harness;
     const model = slot.model;
     const workingDir = slot.workingDir;
-    const wantResumeOnFail = slot.wantResumeOnFail;
 
     // Transition: running → idle
     slot.state = 'idle';
@@ -442,7 +443,6 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      wantResumeOnFail,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
@@ -539,7 +539,7 @@ export class AgentProcessManager {
   private getOrCreateSlot(key: string): AgentSlot {
     let slot = this.slots.get(key);
     if (!slot) {
-      slot = { state: 'idle', wantResumeOnFail: true };
+      slot = { state: 'idle' };
       this.slots.set(key, slot);
     }
     return slot;
@@ -652,7 +652,18 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     try {
       await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
-      return await this.doEnsureRunning(key, slot, opts);
+      const result = await this.doEnsureRunning(key, slot, opts);
+      if (!result.success && opts.reason === 'platform.auto_restart_on_new_context') {
+        console.log(
+          `[AgentProcessManager] Context auto-restart failed (${result.error ?? 'unknown'}), ` +
+            `attempting crash recovery (rate-limited)`
+        );
+        return await this.doEnsureRunning(key, slot, {
+          ...opts,
+          reason: 'platform.crash_recovery',
+        });
+      }
+      return result;
     } finally {
       if (slot.pendingOperation) {
         slot.pendingOperation = undefined;
@@ -716,6 +727,61 @@ export class AgentProcessManager {
     }
   }
 
+  /**
+   * When wantResume is true on first launch, check daemon memory for a prior
+   * harness session. Emits sessionResumeFailed when none is available (e.g.
+   * after daemon restart) or when reconnect is not yet implemented.
+   */
+  private async handleFirstLaunchResumeAttempt(opts: {
+    key: string;
+    chatroomId: string;
+    role: string;
+    agentHarness: AgentHarness;
+  }): Promise<void> {
+    const capabilities = getHarnessCapabilities(opts.agentHarness);
+    if (!capabilities.supportsSessionResume) {
+      return;
+    }
+
+    const stored = this.lastHarnessSessions.get(opts.key);
+    if (!stored || stored.harness !== opts.agentHarness) {
+      await this.emitSessionResumeFailed(
+        opts.chatroomId,
+        opts.role,
+        'no session in daemon memory'
+      );
+      return;
+    }
+
+    // Harness-specific first-launch reconnect is not implemented yet — fall through to fresh spawn.
+    await this.emitSessionResumeFailed(
+      opts.chatroomId,
+      opts.role,
+      'first-launch session resume not yet supported'
+    );
+  }
+
+  private async emitSessionResumeFailed(
+    chatroomId: string,
+    role: string,
+    reason: string
+  ): Promise<void> {
+    try {
+      await this.deps.backend.mutation(api.machines.emitSessionResumeFailed, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        reason,
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
+    } catch (err) {
+      console.log(
+        `   ⚠️  Failed to emit sessionResumeFailed event: ${(err as Error).message}`
+      );
+    }
+  }
+
   private async doEnsureRunning(
     key: string,
     slot: AgentSlot,
@@ -723,10 +789,10 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     // Transition: idle → spawning
     slot.state = 'spawning';
-    slot.wantResumeOnFail = opts.wantResumeOnFail ?? true;
+    const wantResume = opts.wantResume ?? true;
 
     console.log(
-      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResumeOnFail=${slot.wantResumeOnFail} reason=${opts.reason}`
+      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResume=${wantResume} reason=${opts.reason}`
     );
 
     try {
@@ -823,6 +889,15 @@ export class AgentProcessManager {
         return { success: false, error: `Unknown agent harness: ${opts.agentHarness}` };
       }
 
+      if (wantResume) {
+        await this.handleFirstLaunchResumeAttempt({
+          key,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          agentHarness: opts.agentHarness,
+        });
+      }
+
       let spawnResult: SpawnResult;
       try {
         spawnResult = await service.spawn({
@@ -852,6 +927,12 @@ export class AgentProcessManager {
       slot.pid = pid;
       slot.harness = opts.agentHarness;
       slot.harnessSessionId = spawnResult.harnessSessionId;
+      if (spawnResult.harnessSessionId) {
+        this.lastHarnessSessions.set(key, {
+          harnessSessionId: spawnResult.harnessSessionId,
+          harness: opts.agentHarness,
+        });
+      }
       slot.model = opts.model;
       slot.workingDir = opts.workingDir;
       slot.startedAt = this.deps.clock.now();
@@ -904,7 +985,6 @@ export class AgentProcessManager {
             role: opts.role,
             pid,
             harness: opts.agentHarness,
-            wantResumeOnFail: slot.wantResumeOnFail,
           });
         });
       }
@@ -945,6 +1025,12 @@ export class AgentProcessManager {
 
     try {
       const harness = slot.harness;
+      if (slot.harnessSessionId && harness) {
+        this.lastHarnessSessions.set(key, {
+          harnessSessionId: slot.harnessSessionId,
+          harness,
+        });
+      }
       const service = harness ? this.deps.agentServices.get(harness) : undefined;
 
       if (service) {

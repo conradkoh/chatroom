@@ -1186,8 +1186,8 @@ export const sendCommand = mutation({
         workingDir: v.optional(v.string()),
         /** When true, allows binding to a new machine or switching from a previously bound machine. */
         allowNewMachine: v.optional(v.boolean()),
-        /** When true (default), resume-capable harnesses continue from the last session. */
-        wantResumeOnFail: v.optional(v.boolean()),
+        /** When true (default), resume from the daemon's last session on first launch. */
+        wantResume: v.optional(v.boolean()),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -1259,7 +1259,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: 'user.start',
-          wantResumeOnFail: args.payload.wantResumeOnFail,
+          wantResume: args.payload.wantResume,
         },
         machine
       );
@@ -1880,67 +1880,6 @@ export const setAutoRestartOnNewContext = mutation({
         role: args.role,
         type: 'remote',
         autoRestartOnNewContext: args.enabled,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    return { success: true, enabled: args.enabled };
-  },
-});
-
-/** Toggle resume-session-on-failure for a team agent config. */
-export const setWantResumeOnFail = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    enabled: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
-    }
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
-    }
-    if (chatroom.ownerId !== auth.user._id) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'Not authorized to modify team agent configs for this chatroom',
-      });
-    }
-    if (!chatroom.teamId) {
-      throw new ConvexError({
-        code: 'CHATROOM_NO_TEAM_ID',
-        message: 'Chatroom has no teamId — cannot build agent config key',
-      });
-    }
-
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-
-    const now = Date.now();
-
-    if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
-        wantResumeOnFail: args.enabled,
-        updatedAt: now,
-      });
-    } else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        type: 'remote',
-        wantResumeOnFail: args.enabled,
         createdAt: now,
         updatedAt: now,
       });

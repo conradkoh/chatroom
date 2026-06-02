@@ -967,10 +967,7 @@ export default defineSchema({
     /** When true, restart this remote agent after the entry role sets new context. */
     autoRestartOnNewContext: v.optional(v.boolean()),
 
-    /**
-     * When true (default), resume-capable harnesses call resumeTurn after a failed
-     * turn end instead of killing the process.
-     */
+    /** @deprecated Legacy field — no longer written. Kept for existing documents. */
     wantResumeOnFail: v.optional(v.boolean()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
@@ -1101,7 +1098,9 @@ export default defineSchema({
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),
-        wantResumeOnFail: v.optional(v.boolean()),
+        wantResume: v.optional(v.boolean()),
+        /** Snapshot of team config at emit time (observability only). */
+        autoRestartOnNewContext: v.optional(v.boolean()),
       }),
       // An agent stop was requested (replaces command.stopAgent; includes deadline)
       v.object({
