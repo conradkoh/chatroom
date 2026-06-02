@@ -145,6 +145,11 @@ export class TimelineScrollCoordinator {
     return this.allowLoadOlder;
   }
 
+  /** Enables load-older once the timeline has rendered (imperative user actions). */
+  markTimelineReadyForLoadOlder(): void {
+    this.allowLoadOlder = true;
+  }
+
   /** True while a programmatic scroll (initial follow, tail snap) is in progress. */
   isProgrammaticScrollActive(): boolean {
     return this.programmaticScroll;

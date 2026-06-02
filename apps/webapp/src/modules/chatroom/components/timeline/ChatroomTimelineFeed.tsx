@@ -224,8 +224,13 @@ export function ChatroomTimelineFeed({
   }, [coordinator, events, isLoadingOlder, tailEventKey, topChromeHeight]);
 
   const tryLoadOlder = useCallback(
-    (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
-      if (!coordinator.current.getAllowLoadOlder() || !hasMoreOlder || isLoadingOlder) return;
+    (
+      intent: 'preserve_position' | 'fill_viewport' = 'preserve_position',
+      options?: { userInitiated?: boolean }
+    ) => {
+      const allowGate =
+        options?.userInitiated || coordinator.current.getAllowLoadOlder();
+      if (!allowGate || !hasMoreOlder || isLoadingOlder) return;
       const el = scrollParentRef.current;
       const firstVisible = virtualizer.getVirtualItems()[0];
       let anchor: PrependScrollAnchor | undefined;
@@ -362,7 +367,7 @@ export function ChatroomTimelineFeed({
           {canLoadMore && (
             <button
               type="button"
-              onClick={() => tryLoadOlder('preserve_position')}
+              onClick={() => tryLoadOlder('preserve_position', { userInitiated: true })}
               className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors"
             >
               <ChevronUp size={12} />

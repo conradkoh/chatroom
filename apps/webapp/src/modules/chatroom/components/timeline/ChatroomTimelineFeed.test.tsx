@@ -345,6 +345,19 @@ describe('ChatroomTimelineFeed load-older guards', () => {
     expect(loadOlderEvents).toHaveBeenCalledTimes(1);
     expect(coordinator.current.isAtBottom()).toBe(false);
   });
+
+  it('load older button calls loadOlderEvents even when allowLoadOlder gate is closed', async () => {
+    mockHasMoreOlder = true;
+    const user = userEvent.setup();
+    const { coordinator } = renderFeed();
+
+    vi.spyOn(coordinator.current, 'getAllowLoadOlder').mockReturnValue(false);
+
+    const button = await screen.findByRole('button', { name: /load older messages/i });
+    await user.click(button);
+
+    expect(loadOlderEvents).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('ChatroomTimelineFeed virtualizer ref stability', () => {

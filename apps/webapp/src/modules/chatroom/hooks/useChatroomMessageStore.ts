@@ -171,7 +171,11 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
   const isLoadingOlderRef = useRef(false);
   const oldestBeforeRef = useRef<number | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const hasMoreOlderRef = useRef(false);
+  const isInitializedRef = useRef(false);
   messagesRef.current = state.messages;
+  hasMoreOlderRef.current = state.hasMoreOlder;
+  isInitializedRef.current = state.isInitialized;
 
   useEffect(() => {
     dispatch({ type: 'RESET' });
@@ -226,9 +230,9 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
   const loadOlderMessages = useCallback(() => {
     if (
       isLoadingOlderRef.current ||
-      !state.hasMoreOlder ||
+      !hasMoreOlderRef.current ||
       !sessionId ||
-      !state.isInitialized
+      !isInitializedRef.current
     ) {
       return;
     }
@@ -262,9 +266,12 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
         const newOnes = mapped.filter((m) => !existingIds.has(m._id));
 
         if (newOnes.length === 0) {
-          // Duplicate page — advance cursor so the next scroll can fetch further back.
+          // Duplicate page — advance cursor so the next request fetches further back.
           const minTime = Math.min(...mapped.map((m) => m._creationTime));
-          if (oldestBeforeRef.current === null || minTime < oldestBeforeRef.current) {
+          const prev = oldestBeforeRef.current;
+          if (prev === null || minTime <= prev) {
+            oldestBeforeRef.current = minTime - 1;
+          } else {
             oldestBeforeRef.current = minTime;
           }
         } else {
@@ -286,7 +293,7 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
         isLoadingOlderRef.current = false;
       }
     })();
-  }, [convex, typedChatroomId, sessionId, state.hasMoreOlder, state.isInitialized]);
+  }, [convex, typedChatroomId, sessionId]);
 
   return {
     messages: state.messages,
