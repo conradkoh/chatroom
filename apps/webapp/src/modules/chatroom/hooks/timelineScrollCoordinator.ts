@@ -4,6 +4,8 @@
  * Owns pin/at-bottom state, DOM listeners, and TanStack Virtual scroll commands so
  * React only renders rows and subscribes to pin for UI (jump chip, followOnAppend).
  *
+ * Design doc (what works, pitfalls, abandoned approaches): ./timelineScrollCoordinator.md
+ *
  * TIMELINE_TAIL_SCROLL_FIX_ATTEMPTS
  * Recorded: 2026-06-02T06:45:00Z (planner investigation)
  *
