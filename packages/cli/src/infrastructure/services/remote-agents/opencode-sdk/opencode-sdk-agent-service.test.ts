@@ -8,7 +8,10 @@ import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
-import { InMemoryResumeSnapshotStore } from './resume-snapshot-store.js';
+import {
+  InMemoryResumeSnapshotStore,
+  type ResumeSnapshot,
+} from './resume-snapshot-store.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
@@ -30,6 +33,7 @@ function createMockDeps(
 
 const sharedAbortFn = vi.fn();
 const sharedCreateFn = vi.fn();
+const sharedGetFn = vi.fn();
 const sharedPromptAsyncFn = vi.fn();
 const sharedEventSubscribeFn = vi.fn();
 const sharedAppAgentsFn = vi.fn();
@@ -61,6 +65,7 @@ vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
     session: {
       create: sharedCreateFn,
+      get: sharedGetFn,
       promptAsync: sharedPromptAsyncFn,
       abort: sharedAbortFn,
     },
@@ -103,6 +108,7 @@ function stubSdkClient(
   }>
 ) {
   sharedCreateFn.mockReset();
+  sharedGetFn.mockReset();
   sharedPromptAsyncFn.mockReset();
   sharedAbortFn.mockReset();
   sharedEventSubscribeFn.mockReset();
@@ -128,12 +134,26 @@ function stubSdkClient(
   });
   sharedAppAgentsFn.mockImplementation(() => Promise.resolve({ data: DEFAULT_AGENTS }));
 
+  sharedGetFn.mockResolvedValue({ data: { id: 'sess-1' } });
+
   return {
     create: sharedCreateFn,
+    get: sharedGetFn,
     promptAsync: sharedPromptAsyncFn,
     appAgents: sharedAppAgentsFn,
   };
 }
+
+const SAMPLE_RESUME_SNAPSHOT: ResumeSnapshot = {
+  sessionId: 'sess-resume-1',
+  machineId: 'm1',
+  chatroomId: 'c1',
+  role: 'builder',
+  agentName: 'build',
+  model: 'anthropic/claude-sonnet-4',
+  workingDir: '/tmp/resume-wd',
+  updatedAt: '2026-04-25T00:00:00.000Z',
+};
 
 function stubSdkClientForStop(overrides?: { abortThrows?: Error }) {
   sharedAbortFn.mockImplementation(
@@ -967,6 +987,87 @@ describe('OpenCodeSdkAgentService', () => {
       } finally {
         stdoutWriteSpy.mockRestore();
       }
+    });
+  });
+
+  describe('resumeFromSnapshot', () => {
+    beforeEach(() => {
+      vi.mocked(createOpencodeClient).mockReset();
+    });
+
+    it('reconnects via session.get + promptAsync on the persisted sessionId', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      sharedGetFn.mockResolvedValue({ data: { id: SAMPLE_RESUME_SNAPSHOT.sessionId } });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const resumePromise = service.resumeFromSnapshot(
+        spawnOptions({ prompt: 'resume hello', systemPrompt: 'sys' }),
+        SAMPLE_RESUME_SNAPSHOT
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+
+      const result = await resumePromise;
+
+      expect(result.pid).toBe(4321);
+      expect(result.harnessSessionId).toBe('sess-resume-1');
+      expect(sdk.create).not.toHaveBeenCalled();
+      expect(sdk.get).toHaveBeenCalledWith({ path: { id: 'sess-resume-1' } });
+      expect(deps.spawn).toHaveBeenCalledWith(
+        'opencode',
+        ['serve', '--print-logs'],
+        expect.objectContaining({ cwd: '/tmp/resume-wd' })
+      );
+      const promptCall = sdk.promptAsync.mock.calls[0][0];
+      expect(promptCall.path.id).toBe('sess-resume-1');
+      expect(promptCall.body.agent).toBe('build');
+      expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'resume hello' }]);
+    });
+
+    it('throws when session.get fails (session missing after serve restart)', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      sharedGetFn.mockRejectedValue(new Error('404 Not Found'));
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const resumePromise = service.resumeFromSnapshot(
+        spawnOptions({ prompt: 'resume hello' }),
+        SAMPLE_RESUME_SNAPSHOT
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+
+      await expect(resumePromise).rejects.toThrow('404 Not Found');
+      expect(child.kill).toHaveBeenCalled();
+      expect(sharedCreateFn).not.toHaveBeenCalled();
+      expect(sharedPromptAsyncFn).not.toHaveBeenCalled();
+    });
+
+    it('throws when session.get returns no session id', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      sharedGetFn.mockResolvedValue({ data: {} });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const resumePromise = service.resumeFromSnapshot(
+        spawnOptions({ prompt: 'resume hello' }),
+        SAMPLE_RESUME_SNAPSHOT
+      );
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+
+      await expect(resumePromise).rejects.toThrow(/not found/);
+      expect(child.kill).toHaveBeenCalled();
     });
   });
 
