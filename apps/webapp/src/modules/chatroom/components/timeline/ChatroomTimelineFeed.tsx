@@ -186,17 +186,6 @@ export function ChatroomTimelineFeed({
   }, [coordinator, isLoadingOlder]);
 
   useLayoutEffect(() => {
-    const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
-    if (measuredChrome === topChromeHeight) return;
-
-    const chromeDelta = measuredChrome - topChromeHeight;
-    if (chromeDelta !== 0) {
-      coordinator.current.notifyTopChromeDelta(chromeDelta);
-    }
-    setTopChromeHeight(measuredChrome);
-  });
-
-  useLayoutEffect(() => {
     coordinator.current.setVirtualizer({
       scrollToEnd: (options) => virtualizerRef.current.scrollToEnd(options),
       scrollToIndex: (index, options) => virtualizerRef.current.scrollToIndex(index, options),
@@ -222,6 +211,20 @@ export function ChatroomTimelineFeed({
       isLoadingOlder,
     });
   }, [coordinator, events, isLoadingOlder, tailEventKey, topChromeHeight]);
+
+  useLayoutEffect(() => {
+    const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
+    if (measuredChrome === topChromeHeight) return;
+
+    const chromeDelta = measuredChrome - topChromeHeight;
+    const skipShrinkDuringPrepend =
+      chromeDelta < 0 && coordinator.current.isPrependScrollPreservationActive();
+
+    if (chromeDelta !== 0 && !skipShrinkDuringPrepend) {
+      coordinator.current.notifyTopChromeDelta(chromeDelta);
+    }
+    setTopChromeHeight(measuredChrome);
+  });
 
   const tryLoadOlder = useCallback(
     (

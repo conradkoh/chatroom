@@ -347,6 +347,40 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
+  it('syncs virtualizer offset immediately on prepend preserve', () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    Object.defineProperty(el, 'scrollTop', { value: 120, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 1000, writable: true, configurable: true });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: true,
+    });
+
+    Object.defineProperty(el, 'scrollHeight', { value: 3000, writable: true, configurable: true });
+    coordinator.setLoadOlderIntent('preserve_position');
+    scrollToOffset.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 30,
+      tailKey: 'evt-29',
+      isLoadingOlder: false,
+    });
+
+    expect(scrollToOffset).toHaveBeenCalled();
+  });
+
   it('preserves scrollTop when prepending while loading older (preserve_position)', async () => {
     const scrollToOffset = vi.fn();
     coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });

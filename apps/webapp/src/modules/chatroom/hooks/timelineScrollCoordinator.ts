@@ -720,8 +720,11 @@ export class TimelineScrollCoordinator {
   private applyPrependScrollTop(targetTop: number): void {
     if (!this.el) return;
 
-    this.el.scrollTop = targetTop;
-    this.syncVirtualizerScrollFromDom();
+    const top = Math.min(targetTop, this.getMaxScrollTop());
+    this.el.scrollTop = top;
+    // Prepend must sync the virtualizer immediately — a deferred microtask lets TanStack
+    // paint one frame at the wrong offset (visible jump) before we correct.
+    this.applyVirtualizerScrollImmediate({ syncOffset: top });
   }
 
   /** Fine-tune using the stable row key once measurements have caught up. */
@@ -739,8 +742,9 @@ export class TimelineScrollCoordinator {
     const targetTop = itemStart + anchor.offsetInItem;
     if (Math.abs(this.el.scrollTop - targetTop) < 0.5) return true;
 
-    this.el.scrollTop = targetTop;
-    this.syncVirtualizerScrollFromDom();
+    const top = Math.min(targetTop, this.getMaxScrollTop());
+    this.el.scrollTop = top;
+    this.applyVirtualizerScrollImmediate({ syncOffset: top });
     return true;
   }
 
@@ -879,20 +883,37 @@ export class TimelineScrollCoordinator {
       this.virtualizerApplyScheduled = false;
       const pending = this.pendingVirtualizerApply;
       this.pendingVirtualizerApply = {};
-      if (!this.el) return;
-
-      const tailIndex = pending.scrollToIndex;
-      if (tailIndex !== undefined && tailIndex >= 0) {
-        this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
-      }
-      if (pending.scrollToEndBehavior !== undefined) {
-        this.virtualizer?.scrollToEnd({ behavior: pending.scrollToEndBehavior });
-      }
-      if (pending.syncOffset !== undefined) {
-        this.virtualizer?.scrollToOffset?.(pending.syncOffset, { behavior: 'auto' });
-      }
-      this.el.dispatchEvent(new Event('scroll'));
+      this.runVirtualizerScrollApply(pending);
     });
+  }
+
+  /** Synchronous virtualizer reconcile (prepend preservation — must run before paint). */
+  private applyVirtualizerScrollImmediate(patch: {
+    scrollToIndex?: number;
+    scrollToEndBehavior?: 'auto' | 'smooth';
+    syncOffset?: number;
+  }): void {
+    this.runVirtualizerScrollApply(patch);
+  }
+
+  private runVirtualizerScrollApply(pending: {
+    scrollToIndex?: number;
+    scrollToEndBehavior?: 'auto' | 'smooth';
+    syncOffset?: number;
+  }): void {
+    if (!this.el) return;
+
+    const tailIndex = pending.scrollToIndex;
+    if (tailIndex !== undefined && tailIndex >= 0) {
+      this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
+    }
+    if (pending.scrollToEndBehavior !== undefined) {
+      this.virtualizer?.scrollToEnd({ behavior: pending.scrollToEndBehavior });
+    }
+    if (pending.syncOffset !== undefined) {
+      this.virtualizer?.scrollToOffset?.(pending.syncOffset, { behavior: 'auto' });
+    }
+    this.el.dispatchEvent(new Event('scroll'));
   }
 
   private computeIsAtBottom(): boolean {

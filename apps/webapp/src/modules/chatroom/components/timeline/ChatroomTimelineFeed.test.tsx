@@ -835,8 +835,51 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     expect(el.scrollTop).toBe(expectedScrollTopAfterPrepend);
     expect(followTail).not.toHaveBeenCalled();
     expect(mockScrollToEnd).not.toHaveBeenCalled();
+    expect(mockScrollToOffset).toHaveBeenCalled();
     expect(coordinator.current.isPrependScrollPreservationActive()).toBe(true);
     followTail.mockRestore();
+  });
+
+  it('does not apply spinner chrome shrink in the same layout pass as prepend', async () => {
+    const { rerender, coordinator } = renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const maxScrollTop = 2500 - 400;
+    scrollElProps(el, maxScrollTop * 0.08, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      scrollElProps(el, maxScrollTop * 0.08, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+    expect(loadOlderEvents).toHaveBeenCalledTimes(1);
+
+    const chrome = el.firstElementChild as HTMLElement;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 56 });
+    timelineIsLoadingOlder = true;
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+    const scrollWithSpinner = el.scrollTop;
+
+    const olderBatch = buildEvents(5).map((e, i) => ({
+      ...e,
+      id: `older-${i}`,
+      message: { ...e.message, _id: `older-${i}`, content: `Older ${i}` },
+    }));
+    timelineEvents = [...olderBatch, ...buildEvents(25)];
+    timelineIsLoadingOlder = false;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
+    scrollElProps(el, scrollWithSpinner, 3000);
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(el.scrollTop).toBe(scrollWithSpinner + 5 * 100);
+    expect(el.scrollTop).toBeGreaterThan(scrollWithSpinner);
   });
 
   it('allows virtualizer scroll adjustment only while prepend is settling', async () => {
@@ -876,6 +919,9 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     const chrome = el.firstElementChild as HTMLElement;
     Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
     scrollElProps(el, 300, 2500);
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
 
     await waitFor(() => {
       expect(coordinator.current.getAllowLoadOlder()).toBe(true);
