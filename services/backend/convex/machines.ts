@@ -15,7 +15,7 @@ import {
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
-import { OBSERVATION_TTL_MS } from '../config/reliability';
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS, OBSERVATION_TTL_MS } from '../config/reliability';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -1089,10 +1089,15 @@ export const daemonHeartbeat = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
-        lastSeenAt: now,
-        daemonConnected: true,
-      });
+      const livenessStale =
+        now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+      const needsDaemonConnected = existingLiveness.daemonConnected !== true;
+      if (livenessStale || needsDaemonConnected) {
+        await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
+          ...(livenessStale ? { lastSeenAt: now } : {}),
+          ...(needsDaemonConnected ? { daemonConnected: true } : {}),
+        });
+      }
     } else {
       await ctx.db.insert('chatroom_machineLiveness', {
         machineId: args.machineId,
