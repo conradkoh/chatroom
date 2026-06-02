@@ -122,17 +122,17 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
       className="mt-3 pt-3 border-t border-chatroom-border"
       aria-label="Advanced remote agent settings"
     >
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+      <h3 className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted mb-2">
         Advanced
       </h3>
-      <ul className="flex flex-col gap-3 list-none p-0 m-0">
+      <ul className="flex flex-col gap-3 list-none p-0 m-0 pl-2.5 border-l border-chatroom-border/70">
         {showResumeSessionOnFailureSetting && (
           <li className="flex items-center justify-between gap-3">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="min-w-0 cursor-default">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                    <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
                       Resume session on failure
                     </p>
                     <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
@@ -164,7 +164,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
         {showStartNewSessionOnNewContextSetting && (
           <li className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+              <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
                 Start new session on new context
               </p>
               <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
