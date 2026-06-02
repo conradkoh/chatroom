@@ -13,8 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 export interface RemoteAgentAdvancedSettingsProps {
   role: string;
   agentHarness: AgentHarness | null;
-  /** When false, show resume-session toggle for resume-capable harnesses. */
-  isAgentRunning?: boolean;
   resumeSession: boolean;
   autoRestartOnNewContext: boolean;
   disabled?: boolean;
@@ -26,7 +24,6 @@ export interface RemoteAgentAdvancedSettingsProps {
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
   role,
   agentHarness,
-  isAgentRunning = false,
   resumeSession,
   autoRestartOnNewContext,
   disabled = false,
@@ -35,7 +32,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
   const showResumeSessionSetting =
-    !isAgentRunning && agentHarness != null && harnessSupportsSessionResume(agentHarness);
+    agentHarness != null && harnessSupportsSessionResume(agentHarness);
   const showStartNewSessionOnNewContextSetting =
     roleSupportsAutoRestartOnNewContextSetting(role);
 
