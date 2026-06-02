@@ -21,6 +21,11 @@ import type { Message } from '../types/message';
 export const MESSAGE_STORE_LIMIT = 20;
 export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 20;
 
+/** Match legacy useMessages: a full initial window implies more history may exist. */
+export function inferHasMoreOlder(messageCount: number, hasMoreFromServer: boolean): boolean {
+  return hasMoreFromServer || messageCount >= MESSAGE_STORE_LIMIT;
+}
+
 // ─── Wire → domain mapping ───────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,7 +84,7 @@ type Action =
   | { type: 'MERGE_TAIL'; messages: Message[] }
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMoreOlder: boolean }
   | { type: 'LOAD_OLDER_START' }
-  | { type: 'LOAD_OLDER_END'; hasMoreOlder: boolean }
+  | { type: 'LOAD_OLDER_FAILED' }
   | { type: 'RESET' };
 
 function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] {
@@ -138,8 +143,8 @@ function reducer(state: State, action: Action): State {
     }
     case 'LOAD_OLDER_START':
       return state.isLoadingOlder ? state : { ...state, isLoadingOlder: true };
-    case 'LOAD_OLDER_END':
-      return { ...state, isLoadingOlder: false, hasMoreOlder: action.hasMoreOlder };
+    case 'LOAD_OLDER_FAILED':
+      return { ...state, isLoadingOlder: false };
     case 'RESET':
       return initialState;
     default:
@@ -164,11 +169,15 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
   const [state, dispatch] = useReducer(reducer, initialState);
   const [initialLoadRequested, setInitialLoadRequested] = useState(false);
   const isLoadingOlderRef = useRef(false);
+  const oldestBeforeRef = useRef<number | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+  messagesRef.current = state.messages;
 
   useEffect(() => {
     dispatch({ type: 'RESET' });
     setInitialLoadRequested(false);
     isLoadingOlderRef.current = false;
+    oldestBeforeRef.current = null;
   }, [chatroomId]);
 
   // ── Initial load (imperative, one-shot) ───────────────────────────────────
@@ -183,11 +192,13 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
         limit: MESSAGE_STORE_LIMIT,
       })
       .then((data) => {
+        const messages = data.messages.map(toMessage);
+        oldestBeforeRef.current = messages[0]?._creationTime ?? null;
         dispatch({
           type: 'INITIALIZE',
-          messages: data.messages.map(toMessage),
+          messages,
           tailAfterCreationTime: data.tailAfterCreationTime,
-          hasMoreOlder: data.hasMore,
+          hasMoreOlder: inferHasMoreOlder(messages.length, data.hasMore),
         });
       })
       .catch((err: unknown) => {
@@ -212,9 +223,6 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     dispatch({ type: 'MERGE_TAIL', messages: tailData.map(toMessage) });
   }, [tailData]);
 
-  const oldestMessageRef = useRef<Message | undefined>(undefined);
-  oldestMessageRef.current = state.messages[0];
-
   const loadOlderMessages = useCallback(() => {
     if (
       isLoadingOlderRef.current ||
@@ -225,8 +233,10 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
       return;
     }
 
-    const oldest = oldestMessageRef.current;
-    const before = oldest ? oldest._creationTime : Date.now();
+    const before =
+      oldestBeforeRef.current ??
+      messagesRef.current[0]?._creationTime ??
+      Date.now();
 
     isLoadingOlderRef.current = true;
     dispatch({ type: 'LOAD_OLDER_START' });
@@ -240,12 +250,38 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
           sessionId,
         });
 
-        const hasMoreOlder = older.length >= MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE;
+        const mapped = older.map(toMessage);
+        const pageHasMore = mapped.length >= MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE;
+
+        if (mapped.length === 0) {
+          dispatch({ type: 'PREPEND_OLDER', messages: [], hasMoreOlder: false });
+          return;
+        }
+
+        const existingIds = new Set(messagesRef.current.map((m) => m._id));
+        const newOnes = mapped.filter((m) => !existingIds.has(m._id));
+
+        if (newOnes.length === 0) {
+          // Duplicate page — advance cursor so the next scroll can fetch further back.
+          const minTime = Math.min(...mapped.map((m) => m._creationTime));
+          if (oldestBeforeRef.current === null || minTime < oldestBeforeRef.current) {
+            oldestBeforeRef.current = minTime;
+          }
+        } else {
+          const merged = [...newOnes, ...messagesRef.current].sort(
+            (a, b) => a._creationTime - b._creationTime
+          );
+          oldestBeforeRef.current = merged[0]?._creationTime ?? oldestBeforeRef.current;
+        }
+
         dispatch({
           type: 'PREPEND_OLDER',
-          messages: older.map(toMessage),
-          hasMoreOlder,
+          messages: mapped,
+          hasMoreOlder: pageHasMore,
         });
+      } catch (err: unknown) {
+        console.error('[useChatroomMessageStore] loadOlder failed:', err);
+        dispatch({ type: 'LOAD_OLDER_FAILED' });
       } finally {
         isLoadingOlderRef.current = false;
       }

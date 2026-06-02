@@ -55,10 +55,13 @@ function mockInitialLoad(
   messages: Array<Record<string, unknown>>,
   hasMore = false
 ) {
-  const tailAfterCreationTime = messages[0]?._creationTime ?? 0;
+  const sorted = [...messages].sort(
+    (a, b) => (a._creationTime as number) - (b._creationTime as number)
+  );
+  const tailAfterCreationTime = sorted[0]?._creationTime ?? 0;
   mockConvexQuery.mockImplementation((endpoint: string) => {
     if (endpoint === 'getLatestMessages') {
-      return Promise.resolve({ messages, hasMore, tailAfterCreationTime });
+      return Promise.resolve({ messages: sorted, hasMore, tailAfterCreationTime });
     }
     if (endpoint === 'listMessagesBefore') {
       return Promise.resolve([]);
@@ -97,6 +100,15 @@ describe('useMessages (delta store)', () => {
     mockInitialLoad(
       Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
       true
+    );
+    const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.hasMoreOlder).toBe(true));
+  });
+
+  it('hasMoreOlder=true when initial window is full even if hasMore is false', async () => {
+    mockInitialLoad(
+      Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
+      false
     );
     const { result } = renderHook(() => useMessages('room-1'));
     await waitFor(() => expect(result.current.hasMoreOlder).toBe(true));

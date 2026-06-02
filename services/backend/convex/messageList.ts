@@ -30,16 +30,43 @@ async function fetchLatestTimelineWindow(
   chatroomId: Doc<'chatroom_messages'>['chatroomId'],
   limit: number
 ): Promise<{ messages: Doc<'chatroom_messages'>[]; hasMore: boolean }> {
+  // Over-fetch raw rows so join/progress rows do not hide older timeline messages.
+  let batchSize = limit + 1;
+  const maxBatch = Math.min(limit * 4, MAX_LATEST_MESSAGES_LIMIT);
+
+  while (batchSize <= maxBatch) {
+    const rows = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .order('desc')
+      .take(batchSize);
+
+    const timelineDesc = rows.filter(isTimelineMessage);
+    if (timelineDesc.length > limit) {
+      return {
+        messages: timelineDesc.slice(0, limit).reverse(),
+        hasMore: true,
+      };
+    }
+    if (rows.length < batchSize) {
+      return {
+        messages: timelineDesc.reverse(),
+        hasMore: false,
+      };
+    }
+    batchSize += limit;
+  }
+
   const rows = await ctx.db
     .query('chatroom_messages')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .order('desc')
-    .take(limit + 1);
-
+    .take(maxBatch);
   const timelineDesc = rows.filter(isTimelineMessage);
-  const hasMore = timelineDesc.length > limit;
-  const messages = timelineDesc.slice(0, limit).reverse();
-  return { messages, hasMore };
+  return {
+    messages: timelineDesc.slice(0, limit).reverse(),
+    hasMore: timelineDesc.length > limit,
+  };
 }
 
 async function fetchMessagesSince(

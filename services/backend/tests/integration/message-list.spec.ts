@@ -127,6 +127,24 @@ describe('subscribeMessagesSince', () => {
     expect(result).toHaveLength(0);
   });
 
+  test('hasMore is true when join/progress rows sit in the newest raw window', async () => {
+    const { sessionId } = await createTestSession('ml-get-latest-filter-hasmore-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 22);
+    await sendMessageOfType(sessionId, chatroomId, 'progress');
+    await sendMessageOfType(sessionId, chatroomId, 'join');
+
+    const result = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    expect(result.messages).toHaveLength(20);
+    expect(result.hasMore).toBe(true);
+  });
+
   test('filters out join and progress message types', async () => {
     const { sessionId } = await createTestSession('ml-since-filter-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
