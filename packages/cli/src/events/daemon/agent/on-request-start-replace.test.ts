@@ -136,7 +136,7 @@ describe('onRequestStartAgent — replace on duplicate requestStart', () => {
 
     const service = deps.agentServices.get('opencode')!;
     expect(service.spawn).toHaveBeenCalledTimes(2);
-    expect(service.stop).toHaveBeenCalledWith(FIRST_PID);
+    expect(service.stop).toHaveBeenCalledWith(FIRST_PID, { preserveForResume: false });
 
     const slot = manager.getSlot(CHATROOM_ID, ROLE);
     expect(slot?.state).toBe('running');

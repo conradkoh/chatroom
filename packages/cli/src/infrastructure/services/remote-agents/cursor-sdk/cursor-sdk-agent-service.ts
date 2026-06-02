@@ -48,6 +48,7 @@ import { Effect } from 'effect';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
+  AgentStopOptions,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
@@ -215,7 +216,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     resolve(prompt);
   }
 
-  override async stop(pid: number): Promise<void> {
+  override async stop(pid: number, _options?: AgentStopOptions): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;

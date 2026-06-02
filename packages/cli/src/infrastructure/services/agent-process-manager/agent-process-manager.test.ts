@@ -326,7 +326,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: NEW_PID });
-      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
 
@@ -593,7 +593,7 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
-      expect(service.stop).toHaveBeenCalledWith(PID);
+      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
       expect(service.untrack).toHaveBeenCalledWith(PID);
       expect(deps.processes.kill).not.toHaveBeenCalled();
 
@@ -606,6 +606,37 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
+    });
+
+    test('user.stop with harnessSessionId passes preserveForResume to harness stop', async () => {
+      const resumableService = {
+        ...createMockService(),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['opencode-sdk', resumableService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'opencode-sdk',
+      });
+
+      await localManager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(resumableService.stop).toHaveBeenCalledWith(PID, { preserveForResume: true });
     });
 
     test('doStop falls back to direct kill when harness service is not registered', async () => {

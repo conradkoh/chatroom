@@ -65,6 +65,12 @@ export interface ProcessInfo {
   lastOutputAt: number;
 }
 
+/** Optional flags for harness-specific stop behavior (e.g. resume-friendly user stop). */
+export interface AgentStopOptions {
+  /** When true, preserve session state for a later first-launch resume instead of aborting. */
+  preserveForResume?: boolean;
+}
+
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface RemoteAgentService {
@@ -101,7 +107,7 @@ export interface RemoteAgentService {
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
-  stop(pid: number): Promise<void>;
+  stop(pid: number, options?: AgentStopOptions): Promise<void>;
 
   /** Is this PID still alive? */
   isAlive(pid: number): boolean;

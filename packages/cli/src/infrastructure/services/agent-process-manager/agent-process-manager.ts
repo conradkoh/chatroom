@@ -1034,7 +1034,9 @@ export class AgentProcessManager {
       const service = harness ? this.deps.agentServices.get(harness) : undefined;
 
       if (service) {
-        await service.stop(pid);
+        const preserveForResume =
+          opts.reason === 'user.stop' && Boolean(slot.harnessSessionId);
+        await service.stop(pid, { preserveForResume });
         // Explicitly untrack: handleExit() returns early when state==='stopping',
         // so untrack must be called here to keep the service's process map clean.
         service.untrack(pid);

@@ -8,6 +8,7 @@ import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
+import { InMemoryResumeSnapshotStore } from './resume-snapshot-store.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
@@ -313,8 +314,67 @@ describe('OpenCodeSdkAgentService', () => {
       expect(kill).toHaveBeenCalledTimes(1);
     });
 
+    it('preserveForResume: skips session.abort and keeps resume snapshot on disk', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      const resumeStore = new InMemoryResumeSnapshotStore();
+      resumeStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        updatedAt: new Date().toISOString(),
+      });
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+
+      const kill = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error('ESRCH');
+        });
+      const deps = createMockDeps({
+        kill,
+        sessionMetadataStore: sessionStore,
+        resumeSnapshotStore: resumeStore,
+      });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const { abort } = stubSdkClientForStop();
+
+      await service.stop(4321, { preserveForResume: true });
+
+      expect(abort).not.toHaveBeenCalled();
+      expect(sessionStore.get('sess-1')).toBeUndefined();
+      expect(resumeStore.get('m1', 'c1', 'builder')).toMatchObject({
+        sessionId: 'sess-1',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+      });
+    });
+
     it('calls session.abort with the correct sessionId before SIGTERM', async () => {
       const store = new InMemorySessionMetadataStore();
+      const resumeStore = new InMemoryResumeSnapshotStore();
+      resumeStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        updatedAt: new Date().toISOString(),
+      });
       store.upsert({
         sessionId: 'sess-1',
         machineId: 'm1',
@@ -332,7 +392,11 @@ describe('OpenCodeSdkAgentService', () => {
         .mockImplementationOnce(() => {
           throw new Error('ESRCH');
         });
-      const deps = createMockDeps({ kill, sessionMetadataStore: store });
+      const deps = createMockDeps({
+        kill,
+        sessionMetadataStore: store,
+        resumeSnapshotStore: resumeStore,
+      });
       const service = new OpenCodeSdkAgentService(deps);
 
       const { abort } = stubSdkClientForStop();
@@ -344,6 +408,7 @@ describe('OpenCodeSdkAgentService', () => {
       expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
       expect(abort.mock.invocationCallOrder[0]).toBeLessThan(kill.mock.invocationCallOrder[0]);
       expect(store.get('sess-1')).toBeUndefined();
+      expect(resumeStore.get('m1', 'c1', 'builder')).toBeUndefined();
     });
 
     it('proceeds with SIGTERM even if session.abort throws', async () => {
@@ -402,7 +467,11 @@ describe('OpenCodeSdkAgentService', () => {
 
     it('happy path: spawns serve, parses URL, creates session, sends promptAsync with built-in agent', async () => {
       const child = makeFakeChild(4321);
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const resumeStore = new InMemoryResumeSnapshotStore();
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        resumeSnapshotStore: resumeStore,
+      });
       const sdk = stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
 
@@ -436,6 +505,12 @@ describe('OpenCodeSdkAgentService', () => {
       expect(promptCall.body.model).toEqual({
         providerID: 'anthropic',
         modelID: 'claude-sonnet-4',
+      });
+      expect(resumeStore.get('m1', 'c1', 'builder')).toMatchObject({
+        sessionId: 'sess-1',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        model: 'anthropic/claude-sonnet-4',
       });
     });
 

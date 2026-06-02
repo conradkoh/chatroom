@@ -16,7 +16,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import type { AgentStopOptions, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { forwardFiltered } from './node-streams.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
@@ -27,6 +27,11 @@ import {
   type SessionEventForwarderHandle,
 } from './session-event-forwarder.js';
 import {
+  FileResumeSnapshotStore,
+  type ResumeSnapshot,
+  type ResumeSnapshotStore,
+} from './resume-snapshot-store.js';
+import {
   FileSessionMetadataStore,
   type SessionMetadata,
   type SessionMetadataStore,
@@ -34,6 +39,7 @@ import {
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
+  resumeSnapshotStore?: ResumeSnapshotStore;
 };
 
 const OPENCODE_COMMAND = 'opencode';
@@ -62,11 +68,33 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
   private readonly sessionStore: SessionMetadataStore;
+  private readonly resumeSnapshotStore: ResumeSnapshotStore;
   private readonly forwarders = new Map<number, SessionEventForwarderHandle>();
 
   constructor(deps?: Partial<OpenCodeSdkAgentServiceDeps>) {
     super(deps);
     this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
+    this.resumeSnapshotStore = deps?.resumeSnapshotStore ?? new FileResumeSnapshotStore();
+  }
+
+  private persistResumeSnapshot(
+    meta: Pick<
+      SessionMetadata,
+      'sessionId' | 'machineId' | 'chatroomId' | 'role' | 'agentName' | 'model'
+    >,
+    workingDir: string
+  ): void {
+    const snapshot: ResumeSnapshot = {
+      sessionId: meta.sessionId,
+      machineId: meta.machineId,
+      chatroomId: meta.chatroomId,
+      role: meta.role,
+      agentName: meta.agentName,
+      ...(meta.model ? { model: meta.model } : {}),
+      workingDir,
+      updatedAt: new Date().toISOString(),
+    };
+    this.resumeSnapshotStore.upsert(snapshot);
   }
 
   async isInstalled(): Promise<boolean> {
@@ -97,30 +125,41 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       .filter((line) => line.length > 0);
   }
 
-  override async stop(pid: number): Promise<void> {
+  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
     const forwarder = this.forwarders.get(pid);
     if (forwarder) {
       forwarder.stop();
       this.forwarders.delete(pid);
     }
 
+    const preserveForResume = options?.preserveForResume === true;
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
-      try {
-        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
-        await withTimeout(
-          client.session.abort({ path: { id: meta.sessionId } }),
-          SESSION_ABORT_TIMEOUT_MS,
-          'session.abort'
+      if (preserveForResume) {
+        const existing = this.resumeSnapshotStore.get(
+          meta.machineId,
+          meta.chatroomId,
+          meta.role
         );
-      } catch (err) {
-        console.warn(
-          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
-          err instanceof Error ? err.message : err
-        );
+        this.persistResumeSnapshot(meta, existing?.workingDir ?? '');
+      } else {
+        this.resumeSnapshotStore.remove(meta.machineId, meta.chatroomId, meta.role);
+        try {
+          const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+          await withTimeout(
+            client.session.abort({ path: { id: meta.sessionId } }),
+            SESSION_ABORT_TIMEOUT_MS,
+            'session.abort'
+          );
+        } catch (err) {
+          console.warn(
+            `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+            err instanceof Error ? err.message : err
+          );
+        }
       }
       // Eager cleanup: doStop may kill before the child exit handler runs; stale
-      // metadata would otherwise block resumeTurn and accumulate on disk.
+      // pid-keyed metadata would otherwise block resumeTurn and accumulate on disk.
       this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
@@ -243,6 +282,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       baseUrl,
     };
     this.sessionStore.upsert(meta);
+    this.persistResumeSnapshot(meta, options.workingDir);
 
     const entry = this.registerProcess(pid, context);
     if (forwarder) this.forwarders.set(pid, forwarder);
