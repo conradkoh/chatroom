@@ -488,6 +488,41 @@ describe('listRunsWithLogObservers', () => {
       })
     ).rejects.toThrow();
   });
+
+  test('excludes completed runs even when logObserverCount is set', async () => {
+    const { sessionId, machineId } = await setupMachine('lro-completed');
+    const completedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', completedRunId, {
+        logObserverCount: 1,
+        status: 'completed',
+      });
+    });
+
+    const runs = await t.query(api.commands.listRunsWithLogObservers, {
+      sessionId,
+      machineId,
+    });
+
+    expect(runs.map((r) => r._id)).not.toContain(completedRunId);
+  });
+
+  test('daemon endpoint returns same scoped runs as commands query', async () => {
+    const { sessionId, machineId } = await setupMachine('lro-daemon');
+    const observedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', observedRunId, { logObserverCount: 1 });
+    });
+
+    const [commandsRuns, daemonRuns] = await Promise.all([
+      t.query(api.commands.listRunsWithLogObservers, { sessionId, machineId }),
+      t.query(api.daemon.commands.listRunsWithLogObservers, { sessionId, machineId }),
+    ]);
+
+    expect(daemonRuns.map((r) => r._id).sort()).toEqual(commandsRuns.map((r) => r._id).sort());
+  });
 });
 
 // ─── getRunOutput tests ─────────────────────────────────────────────────────

@@ -68,33 +68,43 @@ export async function handleListRunsV2(
   return runs.map(({ tailOutput: _tail, ...meta }) => meta);
 }
 
+const ACTIVE_RUN_STATUSES = new Set(['running', 'pending']);
+
 export async function handleListRunsWithLogObservers(
   ctx: QueryCtx,
   args: {
     machineId: string;
   }
 ) {
-  const [running, pending] = await Promise.all([
+  const [observed, pendingFull] = await Promise.all([
     ctx.db
       .query('chatroom_commandRuns')
-      .withIndex('by_machineId_status', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'running')
+      .withIndex('by_machineId_logObserverCount', (q) =>
+        q.eq('machineId', args.machineId).gte('logObserverCount', 1)
       )
       .collect(),
     ctx.db
       .query('chatroom_commandRuns')
-      .withIndex('by_machineId_status', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'pending')
+      .withIndex('by_machineId_pendingFullOutputSync', (q) =>
+        q.eq('machineId', args.machineId).eq('pendingFullOutputSync', true)
       )
       .collect(),
   ]);
 
-  return [...running, ...pending]
-    .filter((r) => (r.logObserverCount ?? 0) > 0 || r.pendingFullOutputSync === true)
-    .map((r) => ({
-      _id: r._id,
-      pendingFullOutputSync: r.pendingFullOutputSync === true,
-    }));
+  const byId = new Map<
+    string,
+    { _id: (typeof observed)[number]['_id']; pendingFullOutputSync: boolean }
+  >();
+
+  for (const run of [...observed, ...pendingFull]) {
+    if (!ACTIVE_RUN_STATUSES.has(run.status)) continue;
+    byId.set(run._id, {
+      _id: run._id,
+      pendingFullOutputSync: run.pendingFullOutputSync === true,
+    });
+  }
+
+  return [...byId.values()];
 }
 
 export async function handleGetRunOutputV2(
