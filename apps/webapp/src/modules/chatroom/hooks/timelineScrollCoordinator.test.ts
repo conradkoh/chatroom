@@ -381,4 +381,73 @@ describe('TimelineScrollCoordinator', () => {
 
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
+
+  it('notifyTailRowResized re-snaps when pinned at bottom and tail row grows', async () => {
+    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 25,
+      tailKey: 'evt-24',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    Object.defineProperty(el, 'scrollHeight', { value: 1500, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
+
+    coordinator.notifyTailRowResized(24);
+
+    await new Promise<void>((resolve) => {
+      const wait = () => {
+        if (el.scrollTop === maxScrollTop()) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(wait);
+      };
+      requestAnimationFrame(wait);
+    });
+
+    expect(el.scrollTop).toBe(1100);
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('notifyTailRowResized is a no-op when unpinned', () => {
+    Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+    scrollToEnd.mockClear();
+
+    coordinator.notifyTailRowResized(24);
+
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('notifyTailRowResized is a no-op when pinned but not flush at the tail', () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 80,
+      writable: true,
+      configurable: true,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.notifyTailRowResized(24);
+
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('notifyTailRowResized is a no-op during prepend scroll preservation', () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    coordinator.setLoadOlderIntent('preserve_position');
+    scrollToEnd.mockClear();
+
+    coordinator.notifyTailRowResized(9);
+
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
 });

@@ -62,6 +62,7 @@ export function ChatroomTimelineFeed({
   const topChromeRef = useRef<HTMLDivElement>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const measurementCacheRef = useRef<Map<string, number>>(new Map());
+  const tailMeasureRef = useRef<{ id: string; size: number } | null>(null);
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
   const isPinned = useSyncExternalStore(
@@ -136,6 +137,25 @@ export function ChatroomTimelineFeed({
       const e = events[item.index];
       if (e && item.size > 0) cache.set(e.id, item.size);
     }
+
+    const lastEvent = events.length > 0 ? events[events.length - 1]! : null;
+    if (!lastEvent) {
+      tailMeasureRef.current = null;
+      return;
+    }
+
+    const measuredSize = cache.get(lastEvent.id);
+    if (measuredSize === undefined || measuredSize <= 0) return;
+
+    const prev = tailMeasureRef.current;
+    if (
+      prev?.id === lastEvent.id &&
+      measuredSize > prev.size &&
+      coordinator.current.shouldFollowTail()
+    ) {
+      coordinator.current.notifyTailRowResized(events.length - 1);
+    }
+    tailMeasureRef.current = { id: lastEvent.id, size: measuredSize };
   });
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;

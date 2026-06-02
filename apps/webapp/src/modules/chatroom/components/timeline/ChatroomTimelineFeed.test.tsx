@@ -38,21 +38,42 @@ const loadOlderEvents = vi.fn();
 let mockHasMoreOlder = false;
 /** Simulates virtualizer reporting a top index while the DOM is already at bottom. */
 let mockFirstVisibleIndex = 0;
+/** When set, include the tail row in getVirtualItems (for in-place tail growth tests). */
+let mockTailItemIndex: number | null = null;
+let mockTailItemSize = 100;
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
     virtualizerOptions.push(options);
     const instance = {
       getVirtualItems: () => {
-        if (mockFirstVisibleIndex < 0) return [];
-        return [
-          {
+        if (mockFirstVisibleIndex < 0 && mockTailItemIndex === null) return [];
+        const items: Array<{
+          index: number;
+          start: number;
+          size: number;
+          key: string;
+        }> = [];
+        if (mockFirstVisibleIndex >= 0) {
+          items.push({
             index: mockFirstVisibleIndex,
             start: mockFirstVisibleIndex * 100,
             size: 100,
             key: `row-${mockFirstVisibleIndex}`,
-          },
-        ];
+          });
+        }
+        if (
+          mockTailItemIndex !== null &&
+          !items.some((row) => row.index === mockTailItemIndex)
+        ) {
+          items.push({
+            index: mockTailItemIndex,
+            start: mockTailItemIndex * 100,
+            size: mockTailItemSize,
+            key: `row-${mockTailItemIndex}`,
+          });
+        }
+        return items;
       },
       getTotalSize: () => options.count * 100,
       measureElement: vi.fn(),
@@ -493,6 +514,68 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
 
     expect(followTail).toHaveBeenCalled();
     followTail.mockRestore();
+  });
+});
+
+describe('ChatroomTimelineFeed tail row in-place growth', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    mockScrollToEnd.mockClear();
+    loadOlderEvents.mockClear();
+    mockHasMoreOlder = false;
+    mockFirstVisibleIndex = -1;
+    mockTailItemIndex = null;
+    mockTailItemSize = 100;
+    timelineEvents = buildEvents(25);
+    timelineIsLoadingOlder = false;
+  });
+
+  it('notifies coordinator when tail row measured size grows while pinned', async () => {
+    mockTailItemIndex = 24;
+    mockTailItemSize = 100;
+
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+    setScrollPinned(true);
+
+    const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+    notifyTailRowResized.mockClear();
+
+    mockTailItemSize = 280;
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(notifyTailRowResized).toHaveBeenCalledWith(24);
+    notifyTailRowResized.mockRestore();
+  });
+
+  it('does not notify when tail row grows while unpinned', async () => {
+    mockTailItemIndex = 24;
+    mockTailItemSize = 100;
+
+    const { rerender, coordinator } = renderFeed(false);
+    await flushRaf();
+    setScrollPinned(false);
+
+    const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+    notifyTailRowResized.mockClear();
+
+    mockTailItemSize = 280;
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(notifyTailRowResized).not.toHaveBeenCalled();
+    notifyTailRowResized.mockRestore();
   });
 });
 

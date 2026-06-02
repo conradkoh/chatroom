@@ -3,6 +3,14 @@
  *
  * Owns pin/at-bottom state, DOM listeners, and TanStack Virtual scroll commands so
  * React only renders rows and subscribes to pin for UI (jump chip, followOnAppend).
+ *
+ * TIMELINE_TAIL_SCROLL_FIX_ATTEMPTS
+ * Recorded: 2026-06-02T06:45:00Z (planner investigation)
+ *
+ * P0 (this PR): When pinned, scheduleTailSettle when tail row measured height increases
+ *   (virtualizer measurement cache / measureElement — in-place message growth, footer #603)
+ * P1: Extend commitTimelineLayout with tail content revision signal (taskStatus, content length)
+ * P2: Enable shouldAdjustScrollPositionOnItemSizeChange for tail index while pinned (not only prepend)
  */
 
 import { TIMELINE_PIN_AT_BOTTOM_THRESHOLD } from '../components/timeline/timelineVirtualizerConfig';
@@ -207,6 +215,17 @@ export class TimelineScrollCoordinator {
   jumpToEnd(behavior: 'auto' | 'smooth' = 'smooth'): void {
     this.followTail(behavior);
     this.scheduleTailSettle();
+  }
+
+  /**
+   * Re-settle tail when the last row grows in-place (classification, content, footer measure-in).
+   * No-op when not pinned at bottom or during prepend/load-older preservation.
+   */
+  notifyTailRowResized(tailIndex?: number): void {
+    if (!this.shouldFollowTail()) {
+      return;
+    }
+    this.scheduleTailSettle({ tailIndex });
   }
 
   /**
