@@ -398,6 +398,66 @@ describe('AgentProcessManager', () => {
       ).toBe(true);
     });
 
+    test('cursor-sdk wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'cursor-agent-1',
+        harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk', wantResume: false })
+      );
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(cursorSdkService.spawn).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
+
+      const sessionResumedArgs = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.chatroomId === CHATROOM_ID &&
+          args.role === ROLE &&
+          args.reason === undefined &&
+          args.harnessSessionId !== undefined
+      );
+      expect(
+        sessionResumedArgs.some((args) => args.harnessSessionId === 'cursor-agent-1')
+      ).toBe(true);
+    });
+
     test('wantResume falls back to spawn when resumeFromDaemonMemory fails', async () => {
       const resumeFromDaemonMemory = vi
         .fn()

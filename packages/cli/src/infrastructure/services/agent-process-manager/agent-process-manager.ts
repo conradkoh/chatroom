@@ -24,22 +24,24 @@ import type {
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   RemoteAgentService,
+  SpawnOptions,
   SpawnResult,
 } from '../remote-agents/remote-agent-service.js';
-import { OpenCodeSdkAgentService } from '../remote-agents/opencode-sdk/opencode-sdk-agent-service.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-function isOpencodeSdkDaemonResumeService(
+function hasResumeFromDaemonMemory(
   service: RemoteAgentService
-): service is OpenCodeSdkAgentService {
-  return (
-    service.id === 'opencode-sdk' &&
-    typeof (service as OpenCodeSdkAgentService).resumeFromDaemonMemory === 'function'
-  );
+): service is RemoteAgentService & {
+  resumeFromDaemonMemory: (
+    options: SpawnOptions,
+    session: DaemonHarnessSessionContext
+  ) => Promise<SpawnResult>;
+} {
+  return typeof (service as { resumeFromDaemonMemory?: unknown }).resumeFromDaemonMemory === 'function';
 }
 
 /** In-memory reconnect context per chatroom+role (lost on daemon restart). */
@@ -781,7 +783,7 @@ export class AgentProcessManager {
       return null;
     }
 
-    if (opts.agentHarness !== 'opencode-sdk' || !isOpencodeSdkDaemonResumeService(opts.service)) {
+    if (!hasResumeFromDaemonMemory(opts.service)) {
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
