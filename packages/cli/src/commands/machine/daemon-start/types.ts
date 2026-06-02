@@ -80,6 +80,11 @@ export interface CommandResult {
   failed: boolean;
 }
 
+/** Minimal workspace row used by daemon sync paths. */
+export interface WorkspaceForSync {
+  workingDir: string;
+}
+
 // ─── Daemon Context ─────────────────────────────────────────────────────────
 
 /** Convex client type used throughout the daemon. */
@@ -101,6 +106,13 @@ export interface DaemonContext {
    * Toggle requires daemon restart.
    */
   observedSyncEnabled?: boolean;
+  /**
+   * Recently observed workspaces for this machine (fed by workspace-list subscription).
+   */
+  workspaceListStore?: {
+    workspaces: WorkspaceForSync[];
+    updatedAt: number;
+  };
   /**
    * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
    * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
